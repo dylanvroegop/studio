@@ -9,7 +9,6 @@ import type { Quote } from '@/lib/types';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -23,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { ArrowUpRight, CircleDollarSign, Copy, FileClock, FilePen, Send, Star, AlertCircle, Phone, HardHat } from 'lucide-react';
+import { ArrowUpRight, HardHat, FilePen, Send, Clock, Copy, PlusCircle, CircleDollarSign, AlertTriangle } from 'lucide-react';
 import { format, subDays, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -43,7 +42,7 @@ function formatCurrency(amount?: number) {
 
 function StatusBadge({ status }: { status: Status }) {
     const statusMap: Record<Status, { text: string; className: string }> = {
-      concept: { text: "Concept", className: "bg-gray-500/20 text-gray-300 border-gray-500/30" },
+      concept: { text: "Concept", className: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
       in_behandeling: { text: "In behandeling", className: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
       verzonden: { text: "Verzonden", className: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
       geaccepteerd: { text: "Geaccepteerd", className: "bg-green-500/20 text-green-400 border-green-500/30" },
@@ -60,18 +59,18 @@ function DashboardSkeleton() {
             <DashboardHeader user={null} />
             <main className="flex flex-1 flex-col justify-center items-center gap-4 p-4 md:gap-8 md:p-6">
                 <div className="text-center p-8 text-gray-500 flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Gebruikersdata laden...
+                    Even geduld a.u.b...
                 </div>
             </main>
         </div>
     )
 }
 
-function StatCard({ title, value, subtext, icon, className = '' }: { title: string; value: string | number; subtext: string; icon: React.ReactNode, className?: string; }) {
+function StatCard({ title, value, subtext, icon, className = '' }: { title: string; value: string | number; subtext: string; icon: React.ReactNode; className?: string; }) {
     return (
         <Card className="bg-card/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -89,14 +88,14 @@ function StatCard({ title, value, subtext, icon, className = '' }: { title: stri
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [filteredQuotes, setFilteredQuotes] = useState<Quote[]>([]);
+  const [quotes, setQuote] = useState<Quote[]>([]);
+  const [filteredQuotes, setFilteredQuote] = useState<Quote[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [sortOption, setSortOption] = useState<SortOption>('createdAt_desc');
   const router = useRouter();
 
-  // Handle user authentication state
+  // Handle user auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -129,7 +128,7 @@ export default function Dashboard() {
             }
         });
         
-        setQuotes(quotesData);
+        setQuote(quotesData);
         setLoading(false);
     }, (error) => {
         console.error("Error fetching quotes:", error);
@@ -172,7 +171,7 @@ export default function Dashboard() {
         }
     });
 
-    setFilteredQuotes(result);
+    setFilteredQuote(result);
   }, [search, statusFilter, sortOption, quotes]);
 
   const handleDuplicate = async (quote: Quote) => {
@@ -190,18 +189,18 @@ export default function Dashboard() {
     }
   }
 
-  // Calculate stats for the cards
+  // Calculate stats for the stat cards
   const thirtyDaysAgo = subDays(new Date(), 30);
-  const openstaandCount = quotes.filter(q => q.status === 'concept' || q.status === 'in_behandeling').length;
+  const openStandCount = quotes.filter(q => q.status === 'concept' || q.status === 'in_behandeling').length;
   const verzondenCount = quotes.filter(q => q.status === 'verzonden').length;
-  const geaccepteerd30DagenSum = quotes
+  const geaccepteerd30dSum = quotes
     .filter(q => q.status === 'geaccepteerd' && new Date(q.createdAt) >= thirtyDaysAgo)
     .reduce((sum, q) => sum + (q.amount || 0), 0);
 
   const fiveDaysAgo = subDays(new Date(), 5);
-  const followUps = quotes.filter(q => 
-    q.status === 'verzonden' && 
-    q.sentAt && 
+  const followUps = quotes.filter(q =>
+    q.status === 'verzonden' &&
+    q.sentAt &&
     isBefore(new Date(q.sentAt), fiveDaysAgo) &&
     q.status !== 'geaccepteerd' &&
     q.status !== 'afgewezen'
@@ -223,36 +222,46 @@ export default function Dashboard() {
             <p className="text-muted-foreground">Een overzicht van uw meest recente offertes.</p>
           </div>
         </div>
-        
-        {/* Stat cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard title="Openstaand" value={openstaandCount} subtext="Concept + in behandeling" icon={<FilePen className="h-4 w-4 text-muted-foreground" />}/>
-            <StatCard title="Verzonden" value={verzondenCount} subtext="Wacht op reactie" icon={<Send className="h-4 w-4 text-muted-foreground" />}/>
-            <StatCard title="Geaccepteerd (30d)" value={formatCurrency(geaccepteerd30DagenSum)} subtext="Totaalbedrag laatste 30 dagen" icon={<CircleDollarSign className="h-4 w-4 text-muted-foreground" />} className="text-green-400" />
-            <StatCard title="Te volgen vandaag" value={followUps.length} subtext="Offertes om achteraan te bellen" icon={<Phone className="h-4 w-4 text-muted-foreground" />} className={followUps.length > 0 ? 'text-orange-400' : ''}/>
-        </div>
-        
+
         {/* Management Cards */}
-        <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
+            <Card className="bg-accent/80 hover:bg-accent transition-colors text-accent-foreground">
+                <Link href="/offertes/nieuw" className="block p-6 h-full">
+                    <div className="flex items-start gap-4">
+                        <PlusCircle className="h-8 w-8 text-accent-foreground flex-shrink-0" />
+                        <div>
+                            <h3 className="font-semibold text-lg">Nieuwe offerte aanmaken</h3>
+                            <p className="text-sm text-accent-foreground/80">Maak een nieuwe offerte voor een klant.</p>
+                        </div>
+                    </div>
+                </Link>
+            </Card>
             <Card className="hover:bg-muted/50 transition-colors">
                 <Link href="/materialen" className="block p-6 h-full">
                     <div className="flex items-start gap-4">
                         <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
                         <div>
-                            <h3 className="font-semibold text-lg">Materialen & prijzen beheren</h3>
-                            <p className="text-sm text-muted-foreground">Upload je CSV en beheer je materiaalprijzen.</p>
+                            <h3 className="font-semibold text-lg">Materialen &amp; prijzen beheren</h3>
+                            <p className="text-sm text-muted-foreground">Importeer je CSV en beheer je materiaalprijzen.</p>
                         </div>
                     </div>
                 </Link>
             </Card>
         </div>
-
-
+        
+        {/* Stat cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard title="Openstaand" value={openStandCount} subtext="Concept + in behandeling" icon={<FilePen className="h-4 w-4 text-muted-foreground" />}/>
+            <StatCard title="Verzonden" value={verzondenCount} subtext="Wacht op reactie" icon={<Send className="h-4 w-4 text-muted-foreground" />}/>
+            <StatCard title="Geaccepteerd (30d)" value={formatCurrency(geaccepteerd30dSum)} subtext="Totaalbedrag laatste 30 dagen" icon={<CircleDollarSign className="h-4 w-4 text-muted-foreground" />} className="text-green-400" />
+            <StatCard title="Opvolgen vandaag" value={followUps.length} subtext="Offertes om achteraan te bellen" icon={<Clock className="h-4 w-4 text-muted-foreground" />} className={followUps.length > 0 ? 'text-orange-400' : ''}/>
+        </div>
+        
         {/* Follow-up Section */}
         {followUps.length > 0 && (
              <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><AlertCircle className="text-orange-400 w-5 h-5"/> Vandaag te doen</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><AlertTriangle className="text-orange-400 w-5 h-5"/> Vandaag te doen</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <ul className="space-y-3">
@@ -260,10 +269,10 @@ export default function Dashboard() {
                             <li key={quote.id}>
                                 <Link href={`/offertes/${quote.id}`} className="flex items-center justify-between p-3 -m-3 rounded-lg hover:bg-muted/50 transition-colors">
                                     <div>
-                                        <span className="font-medium">Bel {quote.clientName}</span> – offerte "{quote.title}"
+                                        <span className="font-medium">{quote.clientName}</span> – offerte "{quote.title}"
                                     </div>
                                     <span className="text-sm text-muted-foreground">
-                                        verzonden op {format(new Date(quote.sentAt as Date), 'd MMMM yyyy', { locale: nl })}
+                                        Verzonden op {format(new Date(quote.sentAt as Date), 'd MMM yyyy', { locale: nl })}
                                     </span>
                                 </Link>
                             </li>
@@ -273,7 +282,7 @@ export default function Dashboard() {
              </Card>
         )}
 
-        {/* Main Quotes Table */}
+        {/* Main Quote Table */}
         <Card>
           <CardHeader>
             <CardTitle>Recente Offertes</CardTitle>
@@ -287,10 +296,10 @@ export default function Dashboard() {
                 <div className="flex gap-2">
                      <Select value={statusFilter} onValueChange={(value: Status | 'all') => setStatusFilter(value)}>
                         <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Status" />
+                            <SelectValue placeholder="Alle statussen" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Alle Statussen</SelectItem>
+                            <SelectItem value="all">Alle statussen</SelectItem>
                             <SelectItem value="concept">Concept</SelectItem>
                             <SelectItem value="in_behandeling">In behandeling</SelectItem>
                             <SelectItem value="verzonden">Verzonden</SelectItem>
@@ -304,7 +313,7 @@ export default function Dashboard() {
                             <SelectValue placeholder="Sorteren op" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="createdAt_desc">Laatst bewerkt</SelectItem>
+                            <SelectItem value="createdAt_desc">Datum (nieuwste eerst)</SelectItem>
                             <SelectItem value="createdAt_asc">Datum (oudste eerst)</SelectItem>
                             <SelectItem value="amount_desc">Hoogste bedrag</SelectItem>
                             <SelectItem value="amount_asc">Laagste bedrag</SelectItem>
@@ -340,7 +349,7 @@ export default function Dashboard() {
                             <TableCell>
                                 <StatusBadge status={quote.status} />
                             </TableCell>
-                            <TableCell>{format(new Date(quote.createdAt), 'd MMMM yyyy', { locale: nl })}</TableCell>
+                            <TableCell>{format(new Date(quote.createdAt), 'd MMM yyyy', { locale: nl })}</TableCell>
                             <TableCell className="text-right">{formatCurrency(quote.amount)}</TableCell>
                             <TableCell className="text-center">
                                <div className="flex items-center justify-center gap-2">
