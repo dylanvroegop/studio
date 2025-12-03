@@ -29,6 +29,7 @@ import { ArrowLeft, Upload, File, Loader2, HardHat } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { Timestamp } from 'firebase/firestore';
 
 function formatCurrency(amount?: number) {
     if (amount === undefined || amount === null) return '—';
@@ -88,11 +89,15 @@ export default function MaterialenPage() {
         const q = query(materialsRef, where('userId', '==', user.uid));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const materialsData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                updatedAt: doc.data().updatedAt?.toDate() // Converteer Firestore Timestamp naar Date
-            } as Material));
+            const materialsData = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    // Ensure updatedAt is a JS Date object
+                    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
+                } as Material;
+            });
             setMaterials(materialsData);
             setLoading(false);
         }, (error) => {
@@ -109,8 +114,8 @@ export default function MaterialenPage() {
 
         if (search) {
             result = result.filter(m =>
-                m.omschrijving.toLowerCase().includes(search.toLowerCase()) ||
-                m.productcode?.toLowerCase().includes(search.toLowerCase())
+                (m.omschrijving && m.omschrijving.toLowerCase().includes(search.toLowerCase())) ||
+                (m.productcode && m.productcode.toLowerCase().includes(search.toLowerCase()))
             );
         }
 
@@ -118,7 +123,12 @@ export default function MaterialenPage() {
             result = result.filter(m => m.leverancier === supplierFilter);
         }
 
-        return result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        // Safely sort by date
+        return result.sort((a, b) => {
+             const dateA = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0;
+             const dateB = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0;
+             return dateB - dateA;
+        });
     }, [search, supplierFilter, materials]);
     
     // Paginatie
@@ -203,7 +213,12 @@ export default function MaterialenPage() {
                                                 <TableCell>{material.categorie || '—'}</TableCell>
                                                 <TableCell>{material.eenheid}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(material.prijs)}</TableCell>
-                                                <TableCell className="text-right">{format(new Date(material.updatedAt), 'd MMM yyyy', { locale: nl })}</TableCell>
+                                                <TableCell className="text-right">
+                                                    {material.updatedAt instanceof Date && !isNaN(material.updatedAt.getTime())
+                                                      ? format(material.updatedAt, 'd MMM yyyy', { locale: nl })
+                                                      : '—'
+                                                    }
+                                                </TableCell>
                                             </TableRow>
                                         )) : (
                                             <TableRow>
@@ -347,3 +362,5 @@ function CsvUploadSection({ user }: { user: User }) {
         </Card>
     );
 }
+
+    
