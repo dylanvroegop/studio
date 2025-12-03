@@ -224,7 +224,7 @@ export default function Dashboard() {
         </div>
 
         {/* Management Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
+        <div className="grid gap-4">
             <Card className="bg-primary/90 hover:bg-primary transition-colors text-primary-foreground">
                 <Link href="/offertes/nieuw" className="block p-6 h-full">
                     <div className="flex items-start gap-4">
@@ -389,5 +389,3 @@ export default function Dashboard() {
     </TooltipProvider>
   );
 }
-
-    
