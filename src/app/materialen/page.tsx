@@ -285,8 +285,6 @@ function CsvUploadSection({ user }: { user: User }) {
         
         setIsUploading(true);
         try {
-            // The supplier name is hardcoded to an empty string as per the user request
-            // to remove the supplier selection dropdown.
             await uploadPrijsbestandNaarN8n(file, user.uid, '');
             
             toast({
@@ -299,7 +297,6 @@ function CsvUploadSection({ user }: { user: User }) {
                 fileInputRef.current.value = '';
             }
         } catch (error) {
-            console.error('n8n Upload Error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
             toast({
                 variant: 'destructive',
@@ -320,26 +317,24 @@ function CsvUploadSection({ user }: { user: User }) {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                    <div className="flex items-center gap-2">
-                         <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            accept=".csv,.pdf"
-                            className="hidden"
-                            id="file-upload-input"
-                        />
-                        <Button 
-                            variant="outline" 
-                            className="w-full"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploading}
-                        >
-                            <Upload className="mr-2 h-4 w-4" />
-                            {file ? 'Ander bestand' : 'Bestand kiezen'}
-                        </Button>
-                    </div>
+                 <div className="flex items-center gap-2">
+                     <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept=".csv,.pdf"
+                        className="hidden"
+                        id="file-upload-input"
+                    />
+                    <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                    >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {file ? 'Ander bestand' : 'Bestand kiezen'}
+                    </Button>
                 </div>
 
                  {file && (
