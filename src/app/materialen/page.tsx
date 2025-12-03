@@ -152,7 +152,7 @@ export default function MaterialenPage() {
                     <p className="text-muted-foreground">Upload een prijslijst voor een specifieke leverancier.</p>
                 </div>
 
-                {user && <CsvUploadSection user={user} suppliers={uniqueSuppliers} />}
+                {user && <CsvUploadSection user={user} />}
 
                 <Card>
                     <CardHeader>
@@ -251,9 +251,8 @@ export default function MaterialenPage() {
     );
 }
 
-function CsvUploadSection({ user, suppliers }: { user: User, suppliers: string[] }) {
+function CsvUploadSection({ user }: { user: User }) {
     const [file, setFile] = useState<File | null>(null);
-    const [selectedSupplier, setSelectedSupplier] = useState<string>('');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
@@ -276,23 +275,23 @@ function CsvUploadSection({ user, suppliers }: { user: User, suppliers: string[]
     };
 
     const handleUpload = async () => {
-        if (!file || !user || !selectedSupplier) {
+        if (!file || !user) {
             toast({
                 variant: 'destructive',
                 title: 'Selectie onvolledig',
-                description: 'Kies een leverancier en een bestand om te uploaden.',
+                description: 'Kies een bestand om te uploaden.',
             });
             return;
         }
         
         setIsUploading(true);
         try {
-            await uploadPrijsbestandNaarN8n(file, user.uid, selectedSupplier);
+            await uploadPrijsbestandNaarN8n(file, user.uid);
             
             toast({
                 variant: 'default',
                 title: 'Upload gestart',
-                description: `Het bestand voor ${selectedSupplier} wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
+                description: `Het bestand wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
             });
             setFile(null); 
             if (fileInputRef.current) {
@@ -316,54 +315,41 @@ function CsvUploadSection({ user, suppliers }: { user: User, suppliers: string[]
             <CardHeader>
                 <CardTitle>Prijslijst uploaden</CardTitle>
                 <CardDescription>
-                    Kies een leverancier en upload de bijbehorende prijslijst. De verwerking wordt door n8n afgehandeld.
+                    Kies een prijslijst om te uploaden. De verwerking wordt door n8n afgehandeld.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                     <div>
-                        <Label htmlFor="leverancier-select">Leverancier</Label>
-                        <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                            <SelectTrigger id="leverancier-select">
-                                <SelectValue placeholder="Kies een leverancier" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {suppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                     </div>
-                     <div className="flex items-center gap-2">
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            accept=".csv,.xlsx,.xls,.pdf"
-                            className="hidden"
-                            id="file-upload-input"
-                        />
-                        <Button 
-                            variant="outline" 
-                            className="w-full sm:w-auto"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploading}
-                        >
-                            <Upload className="mr-2 h-4 w-4" />
-                            {file ? 'Ander bestand' : 'Bestand kiezen'}
-                        </Button>
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                     <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept=".csv,.xlsx,.xls,.pdf"
+                        className="hidden"
+                        id="file-upload-input"
+                    />
+                    <Button 
+                        variant="outline" 
+                        className="w-full sm:w-auto"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                    >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {file ? 'Ander bestand' : 'Bestand kiezen'}
+                    </Button>
 
-                        {file && (
-                           <Button 
-                             onClick={handleUpload} 
-                             disabled={isUploading || !file || !selectedSupplier} 
-                             className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
-                           >
-                            {isUploading ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : null}
-                            {isUploading ? 'Bezig...' : `Uploaden voor ${selectedSupplier}`}
-                           </Button>
-                        )}
-                     </div>
+                    {file && (
+                       <Button 
+                         onClick={handleUpload} 
+                         disabled={isUploading || !file} 
+                         className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 w-full sm:w-auto"
+                       >
+                        {isUploading ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        {isUploading ? 'Bezig...' : `Uploaden`}
+                       </Button>
+                    )}
                 </div>
                  {file && (
                     <div className="mt-4 flex items-center justify-start p-2 border rounded-md bg-muted/50 text-sm">
@@ -375,5 +361,3 @@ function CsvUploadSection({ user, suppliers }: { user: User, suppliers: string[]
         </Card>
     );
 }
-
-    

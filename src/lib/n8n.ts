@@ -1,9 +1,9 @@
+
 'use server';
 
 export async function uploadPrijsbestandNaarN8n(
   bestand: File,
   gebruikerId: string,
-  leverancierNaam: string
 ) {
   const url = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
   if (!url) {
@@ -13,7 +13,7 @@ export async function uploadPrijsbestandNaarN8n(
   const form = new FormData();
   form.append('bestand', bestand);
   form.append('gebruikerId', gebruikerId);
-  form.append('leverancier', leverancierNaam);
+  form.append('leverancier', 'default'); // Sending a default value
 
   const res = await fetch(url, {
     method: 'POST',
