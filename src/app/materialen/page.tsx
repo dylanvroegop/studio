@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection } from '@/firebase';
-import { uploadPrijsbestandNaarN8n } from '@/lib/n8n'; 
+import { uploadPrijsbestandNaarN8n } from '@/lib/n8n';
 import type { Material } from '@/lib/types';
 import {
   Card,
@@ -254,7 +254,6 @@ export default function MaterialenPage() {
 function CsvUploadSection({ user, uniqueSuppliers }: { user: User; uniqueSuppliers: string[] }) {
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [selectedSupplier, setSelectedSupplier] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
@@ -283,23 +282,17 @@ function CsvUploadSection({ user, uniqueSuppliers }: { user: User; uniqueSupplie
             });
             return;
         }
-        if (!selectedSupplier) {
-             toast({
-                variant: 'destructive',
-                title: 'Geen leverancier geselecteerd',
-                description: 'Kies de leverancier van de prijslijst.',
-            });
-            return;
-        }
         
         setIsUploading(true);
         try {
-            await uploadPrijsbestandNaarN8n(file, user.uid, selectedSupplier);
+            // The supplier name is hardcoded to an empty string as per the user request
+            // to remove the supplier selection dropdown.
+            await uploadPrijsbestandNaarN8n(file, user.uid, '');
             
             toast({
                 variant: 'default',
                 title: 'Upload gestart',
-                description: `Het bestand voor ${selectedSupplier} wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
+                description: `Het bestand wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
             });
             setFile(null); 
             if (fileInputRef.current) {
@@ -323,22 +316,11 @@ function CsvUploadSection({ user, uniqueSuppliers }: { user: User; uniqueSupplie
             <CardHeader>
                 <CardTitle>Prijslijst uploaden</CardTitle>
                 <CardDescription>
-                    Kies een leverancier en een prijslijst (.csv of .pdf) om te uploaden. De verwerking wordt door n8n afgehandeld.
+                    Kies een prijslijst (.csv of .pdf) om te uploaden. De verwerking wordt door n8n afgehandeld.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                     <div>
-                        <Label htmlFor="leverancier-select">Leverancier</Label>
-                        <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                            <SelectTrigger id="leverancier-select">
-                                <SelectValue placeholder="Kies een leverancier" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {uniqueSuppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                     </div>
                     <div className="flex items-center gap-2">
                          <input
                             type="file"
@@ -370,16 +352,18 @@ function CsvUploadSection({ user, uniqueSuppliers }: { user: User; uniqueSupplie
                 <div>
                     <Button 
                         onClick={handleUpload} 
-                        disabled={isUploading || !file || !selectedSupplier} 
+                        disabled={isUploading || !file} 
                         className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
                     >
                     {isUploading ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
-                    {isUploading ? 'Bezig...' : `Uploaden voor ${selectedSupplier || '...'}`}
+                    {isUploading ? 'Bezig...' : `Bestand uploaden`}
                     </Button>
                 </div>
             </CardContent>
         </Card>
     );
 }
+
+    
