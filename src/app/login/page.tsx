@@ -68,6 +68,10 @@ export default function LoginPage() {
         case 'auth/operation-not-allowed':
           errorMessage = 'Email/Password sign-in is not enabled in your Firebase Console.';
           break;
+        case 'auth/invalid-api-key':
+        case 'auth/network-request-failed':
+             errorMessage = 'Connection to Firebase failed. Check your API key and network connection.'
+             break;
         default:
           errorMessage = `Authentication failed: ${authError.message}`;
       }
@@ -90,7 +94,7 @@ export default function LoginPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Initializing...
+                  Authenticatie controleren...
               </div>
           </div>
       );
@@ -103,8 +107,8 @@ export default function LoginPage() {
             <div className="mx-auto mb-4">
                 <Hammer className="h-12 w-12 text-primary" />
             </div>
-          <CardTitle className="text-2xl">OfferteHulp Login</CardTitle>
-          <CardDescription>Enter your credentials to access your dashboard</CardDescription>
+          <CardTitle className="text-2xl">HoutOfferte</CardTitle>
+          <CardDescription>Log in om toegang te krijgen tot uw dashboard</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -133,11 +137,11 @@ export default function LoginPage() {
             </div>
           </div>
           <div className="mt-6 flex flex-col gap-3">
-            <Button onClick={() => handleAuthAction(true)} disabled={isLoading} className="w-full">
-              {isLoading ? 'Logging in...' : 'Log In'}
+            <Button onClick={() => handleAuthAction(true)} disabled={isLoading} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+              {isLoading ? 'Inloggen...' : 'Log In'}
             </Button>
             <Button onClick={() => handleAuthAction(false)} disabled={isLoading} variant="outline" className="w-full">
-              {isLoading ? 'Creating account...' : 'Create Account'}
+              {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
             </Button>
           </div>
         </CardContent>

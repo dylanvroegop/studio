@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase/firestore";
+
 export type User = {
   id: string;
   name: string;
@@ -20,13 +22,14 @@ export type Client = {
 export type Quote = {
   id: string;
   userId: string;
-  clientId: string;
-  titel: string;
-  status: "concept" | "in_behandeling" | "verzonden";
-  totaalExclBtw?: number;
-  totaalInclBtw?: number;
-  createdAt: string;
+  clientName: string;
+  title: string;
+  status: "concept" | "in_behandeling" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
+  amount?: number;
+  createdAt: Timestamp | Date;
+  sentAt?: Timestamp | Date;
 };
+
 
 export type JobCategory =
   | "Wanden"

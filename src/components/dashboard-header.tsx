@@ -15,11 +15,11 @@ export function DashboardHeader({ user }: { user: User | null }) {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      toast({ title: 'Success', description: 'You have been logged out.' });
+      toast({ title: 'Succes', description: 'U bent uitgelogd.' });
       router.push('/login');
     } catch (error) {
       console.error('Logout Error:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to log out.' });
+      toast({ variant: 'destructive', title: 'Fout', description: 'Uitloggen mislukt.' });
     }
   };
 
@@ -27,7 +27,7 @@ export function DashboardHeader({ user }: { user: User | null }) {
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 backdrop-blur-xl">
       <div className="flex items-center gap-2 flex-1">
         <Hammer className="w-7 h-7 text-primary" />
-        <span className="text-lg font-semibold">OfferteHulp</span>
+        <span className="text-lg font-semibold">HoutOfferte</span>
       </div>
       <div className="flex items-center gap-2">
          <Button
@@ -43,7 +43,7 @@ export function DashboardHeader({ user }: { user: User | null }) {
         {user && (
           <Button onClick={handleLogout} variant="outline" size="sm">
             <LogOut className="mr-2 h-4 w-4" />
-            Logout
+            Uitloggen
           </Button>
         )}
       </div>
