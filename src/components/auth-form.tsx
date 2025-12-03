@@ -31,7 +31,6 @@ export function AuthForm() {
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
-        // After sign up, show a success message and switch to the login view
         setError('Account aangemaakt! U kunt nu inloggen.');
         setIsSignUp(false);
       } else {
@@ -46,7 +45,6 @@ export function AuthForm() {
           body: JSON.stringify({ idToken }),
         });
 
-        // Use router.push() to navigate and then router.refresh() to force a re-fetch of server components
         router.push('/');
         router.refresh(); 
       }
