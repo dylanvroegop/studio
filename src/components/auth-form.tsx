@@ -20,6 +20,7 @@ export function AuthForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { app } = useFirebase();
   const auth = getAuth(app);
@@ -27,18 +28,17 @@ export function AuthForm() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsLoading(true);
 
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
-        // On successful sign up, switch to login view and inform user.
         setIsSignUp(false);
         setError('Account aangemaakt! U kunt nu inloggen.');
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
         
-        // Set cookie for middleware to read
         await fetch('/api/auth/login', {
           method: 'POST',
           headers: {
@@ -48,29 +48,14 @@ export function AuthForm() {
         });
 
         router.push('/');
+        router.refresh(); 
       }
     } catch (err: unknown) {
       const authError = err as AuthError;
-      switch (authError.code) {
-        case 'auth/user-not-found':
-          setError('Geen gebruiker gevonden met dit e-mailadres.');
-          break;
-        case 'auth/wrong-password':
-          setError('Ongeldig wachtwoord. Probeer het opnieuw.');
-          break;
-        case 'auth/email-already-in-use':
-          setError('Dit e-mailadres is al in gebruik.');
-          break;
-        case 'auth/invalid-email':
-            setError('Ongeldig e-mailadres formaat.');
-            break;
-        case 'auth/weak-password':
-            setError('Wachtwoord moet minimaal 6 karakters lang zijn.');
-            break;
-        default:
-          setError('Er is een onbekende fout opgetreden.');
-          break;
-      }
+      console.error('Authentication Error:', authError);
+      setError(`Fout: ${authError.code} - ${authError.message}`);
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -92,6 +77,7 @@ export function AuthForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          disabled={isLoading}
         />
       </div>
       <div className="space-y-2">
@@ -102,10 +88,11 @@ export function AuthForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          disabled={isLoading}
         />
       </div>
-      <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-        {isSignUp ? 'Account aanmaken' : 'Inloggen'}
+      <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoading}>
+        {isLoading ? 'Bezig...' : (isSignUp ? 'Account aanmaken' : 'Inloggen')}
       </Button>
       <div className="text-center">
         <button
@@ -115,6 +102,7 @@ export function AuthForm() {
             setError(null);
           }}
           className="text-sm text-muted-foreground hover:text-primary underline"
+          disabled={isLoading}
         >
           {isSignUp
             ? 'Heb je al een account? Log in'
