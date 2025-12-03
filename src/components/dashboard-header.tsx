@@ -2,26 +2,11 @@
 
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Hammer, PlusCircle, LogOut } from 'lucide-react';
-import { signOut } from 'firebase/auth';
+import { Hammer, PlusCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/firebase';
 
 export function DashboardHeader() {
   const router = useRouter();
-  const auth = useAuth();
-
-  const handleLogout = async () => {
-    if (!auth) return;
-    try {
-      await signOut(auth);
-      await fetch('/api/auth/logout', { method: 'POST' });
-      router.push('/login');
-      router.refresh();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 backdrop-blur-xl">
@@ -39,16 +24,6 @@ export function DashboardHeader() {
             Nieuwe offerte
             <PlusCircle className="h-4 w-4" />
           </Link>
-        </Button>
-        <Button
-          onClick={handleLogout}
-          variant="destructive"
-          size="sm"
-          className="gap-1"
-          disabled={!auth}
-        >
-          Uitloggen
-          <LogOut className="h-4 w-4" />
         </Button>
       </div>
     </header>
