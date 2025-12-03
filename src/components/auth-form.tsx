@@ -52,7 +52,6 @@ export function AuthForm() {
         body: JSON.stringify({ idToken }),
       });
 
-      // Force a router refresh to re-run middleware and redirect
       router.push('/');
       router.refresh();
 
