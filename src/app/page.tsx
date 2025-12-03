@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { ArrowUpRight, CircleDollarSign, Copy, FileClock, FilePen, Send, Star, AlertCircle, Phone } from 'lucide-react';
+import { ArrowUpRight, CircleDollarSign, Copy, FileClock, FilePen, Send, Star, AlertCircle, Phone, HardHat } from 'lucide-react';
 import { format, subDays, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -219,7 +219,7 @@ export default function Dashboard() {
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         <div className="flex items-center">
           <div>
-            <h1 className="font-semibold text-2xl md:text-3xl">Offertes</h1>
+            <h1 className="font-semibold text-2xl md:text-3xl">Offerte Cockpit</h1>
             <p className="text-muted-foreground">Een overzicht van uw meest recente offertes.</p>
           </div>
         </div>
@@ -231,6 +231,22 @@ export default function Dashboard() {
             <StatCard title="Geaccepteerd (30d)" value={formatCurrency(geaccepteerd30DagenSum)} subtext="Totaalbedrag laatste 30 dagen" icon={<CircleDollarSign className="h-4 w-4 text-muted-foreground" />} className="text-green-400" />
             <StatCard title="Te volgen vandaag" value={followUps.length} subtext="Offertes om achteraan te bellen" icon={<Phone className="h-4 w-4 text-muted-foreground" />} className={followUps.length > 0 ? 'text-orange-400' : ''}/>
         </div>
+        
+        {/* Management Cards */}
+        <div className="grid gap-4 md:grid-cols-2">
+            <Card className="hover:bg-muted/50 transition-colors">
+                <Link href="/materialen" className="block p-6 h-full">
+                    <div className="flex items-start gap-4">
+                        <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
+                        <div>
+                            <h3 className="font-semibold text-lg">Materialen & prijzen beheren</h3>
+                            <p className="text-sm text-muted-foreground">Upload je CSV en beheer je materiaalprijzen.</p>
+                        </div>
+                    </div>
+                </Link>
+            </Card>
+        </div>
+
 
         {/* Follow-up Section */}
         {followUps.length > 0 && (

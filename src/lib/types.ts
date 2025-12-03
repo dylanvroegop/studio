@@ -76,6 +76,18 @@ export type JobMaterial = {
   createdAt: string;
 };
 
+export type Material = {
+  id: string;
+  userId: string;
+  leverancier?: string;
+  productcode?: string;
+  omschrijving: string;
+  eenheid: MaterialUnit;
+  prijs: number;
+  updatedAt: Timestamp | Date;
+};
+
+
 export type Preset = {
   id: string;
   userId: string;
