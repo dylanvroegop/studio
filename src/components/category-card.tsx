@@ -26,10 +26,10 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
   );
 
   return (
-    <form action={createJobWithCategory}>
+    <form action={createJobWithCategory} className="h-full">
       <Card
         className={cn(
-          "group cursor-pointer border border-primary/20 bg-card text-left transition-all duration-200 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
+          "group h-full cursor-pointer border border-primary/20 bg-card text-left transition-all duration-200 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
           className
         )}
       >

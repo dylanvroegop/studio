@@ -34,10 +34,13 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-                    {categories.map(category => (
-                        <CategoryCard key={category.name} quoteId={quoteId} category={{ name: category.name, description: category.description, iconName: category.icon }} />
-                    ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {categories.map(category => {
+                        const cardCategory = {name: category.name, description: category.description, iconName: category.icon};
+                        return (
+                             <CategoryCard key={category.name} quoteId={quoteId} category={cardCategory} />
+                        )
+                    })}
                 </div>
             </div>
         </main>
