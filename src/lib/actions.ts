@@ -1,10 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { createClient, createQuote, createJob, updateJob, updateQuoteStatus, getFullQuoteDetails } from './data';
-import type { Client, JobCategory } from './types';
+import type { JobCategory } from './types';
 
 const NewClientSchema = z.object({
   naam: z.string().min(1, 'Naam is verplicht'),
@@ -20,15 +19,59 @@ const QuoteFormSchema = z.object({
   clientSource: z.enum(['new', 'existing']),
   existingClientId: z.string().optional(),
   newClient: NewClientSchema.optional(),
+}).refine(data => {
+    if (data.clientSource === 'existing') {
+        return !!data.existingClientId;
+    }
+    if (data.clientSource === 'new') {
+        return !!data.newClient?.naam && !!data.newClient?.adres && !!data.newClient?.postcode && !!data.newClient?.plaats;
+    }
+    return false;
+}, {
+    message: "Selecteer een bestaande klant of voer de gegevens voor een nieuwe klant in.",
+    path: ["clientSource"],
 });
 
-export async function createQuoteAction(formData: FormData) {
-  const validatedFields = QuoteFormSchema.safeParse(Object.fromEntries(formData.entries()));
+
+type CreateQuoteState = {
+  errors?: {
+    titel?: string[];
+    clientSource?: string[];
+    existingClientId?: string[];
+    newClient?: string[];
+  };
+  message?: string | null;
+  redirect?: string | null;
+};
+
+export async function createQuoteAction(formData: FormData): Promise<CreateQuoteState> {
+    const rawData = {
+        titel: formData.get('titel'),
+        clientSource: formData.get('clientSource'),
+        existingClientId: formData.get('existingClientId'),
+        newClient: {
+            naam: formData.get('newClient.naam'),
+            adres: formData.get('newClient.adres'),
+            postcode: formData.get('newClient.postcode'),
+            plaats: formData.get('newClient.plaats'),
+            email: formData.get('newClient.email'),
+            telefoon: formData.get('newClient.telefoon'),
+        }
+    };
+
+    if (rawData.clientSource === 'existing') {
+        delete rawData.newClient;
+    } else {
+        delete rawData.existingClientId;
+    }
+
+    const validatedFields = QuoteFormSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
     console.error(validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validatie mislukt.'
     };
   }
   
@@ -42,12 +85,13 @@ export async function createQuoteAction(formData: FormData) {
     } else if (clientSource === 'existing' && existingClientId) {
       clientId = existingClientId;
     } else {
-      throw new Error('Geen klantgegevens ontvangen');
+      return { message: 'Geen klantgegevens ontvangen' };
     }
   
     const newQuote = await createQuote({ clientId, titel });
     revalidatePath('/');
-    redirect(`/offertes/${newQuote.id}/klus/nieuw`);
+    
+    return { redirect: `/offertes/${newQuote.id}/klus/nieuw` };
 
   } catch (error) {
     console.error(error);
@@ -56,6 +100,7 @@ export async function createQuoteAction(formData: FormData) {
 }
 
 export async function createJobAction(quoteId: string, categorie: JobCategory, omschrijving: string) {
+    const { redirect } = await import('next/navigation');
     try {
         const newJob = await createJob({
             quoteId,
@@ -81,6 +126,7 @@ const JobDetailsSchema = z.object({
 
 
 export async function updateJobAction(quoteId: string, jobId: string, formData: FormData) {
+    const { redirect } = await import('next/navigation');
     const validatedFields = JobDetailsSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validatedFields.success) {
@@ -100,6 +146,7 @@ export async function updateJobAction(quoteId: string, jobId: string, formData: 
 }
 
 export async function submitQuoteAction(quoteId: string) {
+    const { redirect } = await import('next/navigation');
     try {
         const fullQuoteData = await getFullQuoteDetails(quoteId);
         if (!fullQuoteData) {
