@@ -1,5 +1,5 @@
-import { getQuoteById, getClientById, getJobsForQuote, getFullQuoteDetails } from "@/lib/data";
-import { notFound, redirect } from "next/navigation";
+import { getFullQuoteDetails } from "@/lib/data";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import Link from "next/link";

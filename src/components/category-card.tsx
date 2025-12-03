@@ -5,6 +5,7 @@ import { createJobAction } from '@/lib/actions';
 import type { JobCategory } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { JobIcon, type IconName } from '@/components/icons';
+import { useState } from 'react';
 
 
 interface CategoryCardProps {
@@ -18,6 +19,8 @@ interface CategoryCardProps {
 }
 
 export function CategoryCard({ quoteId, category, className }: CategoryCardProps) {
+  const [isSelected, setIsSelected] = useState(false);
+  
   const createJobWithCategory = createJobAction.bind(
     null,
     quoteId,
@@ -25,24 +28,36 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
     `Nieuwe klus: ${category.name}`
   );
 
+  const handleClick = () => {
+    setIsSelected(true);
+  }
+
   return (
-    <form action={createJobWithCategory} className="h-full">
+    <form action={createJobWithCategory} className="h-full" onClick={handleClick}>
       <Card
         className={cn(
-          "group h-[120px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border border-[rgba(255,0,0,0.2)] hover:border-[#C40000]/50 hover:shadow-lg hover:shadow-[#C40000]/10",
+          "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
+          isSelected ? "border-primary/80 bg-[#1c1c1c]" : "border-[rgba(255,0,0,0.2)]",
+          "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
           className
         )}
       >
         <button type="submit" className="w-full h-full text-left">
           <CardContent className="p-4 flex items-center gap-4 h-full">
-            <JobIcon name={category.iconName} className="w-8 h-8 text-[#C40000] flex-shrink-0" />
+            <JobIcon name={category.iconName} className="w-6 h-6 text-primary flex-shrink-0" />
             <div className="flex flex-col">
               <h3 className="font-semibold text-base text-white">{category.name}</h3>
-              <p className="text-sm text-[#A3A3A3] mt-1">{category.description}</p>
+              <p className="text-sm text-[#A3A3A3] mt-1 font-normal">{category.description}</p>
             </div>
           </CardContent>
         </button>
       </Card>
     </form>
   );
+}
+
+declare module 'react' {
+    interface CSSProperties {
+        [key: `--${string}`]: string | number;
+    }
 }
