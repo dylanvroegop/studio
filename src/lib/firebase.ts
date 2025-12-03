@@ -5,8 +5,7 @@ import { serverTimestamp, doc, setDoc, collection } from "firebase/firestore";
 
 /**
  * Parses a CSV string into an array of objects, using the first row as headers.
- * This parser correctly maps values based on header names. It is robust and
- * handles values with commas if they are quoted.
+ * This parser correctly maps values based on header names.
  * @param csvText The raw CSV text.
  * @returns An array of objects, where each object represents a row.
  */
@@ -21,7 +20,7 @@ function simpleCsvParse(csvText: string): Record<string, string>[] {
         const values = line.split(',');
         const rowObject: Record<string, string> = {};
         headers.forEach((header, index) => {
-            rowObject[header] = values[index]?.trim() || "";
+            rowObject[header] = values[index] || "";
         });
         return rowObject;
     });
