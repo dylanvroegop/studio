@@ -4,26 +4,26 @@
 export async function uploadPrijsbestandNaarN8n(
   bestand: File,
   gebruikerId: string,
-) {
+  leverancierNaam: string
+): Promise<void> {
   const url = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
   if (!url) {
-    throw new Error('Webhook URL ontbreekt in de omgevingsvariabelen.');
+    throw new Error("N8N webhook URL ontbreekt (NEXT_PUBLIC_N8N_WEBHOOK_URL).");
   }
 
-  const form = new FormData();
-  form.append('bestand', bestand);
-  form.append('gebruikerId', gebruikerId);
-  form.append('leverancier', 'default'); // Sending a default value
+  const formData = new FormData();
+  formData.append("bestand", bestand);
+  formData.append("gebruikerId", gebruikerId);
+  formData.append("leverancier", leverancierNaam);
 
   const res = await fetch(url, {
-    method: 'POST',
-    body: form,
+    method: "POST",
+    body: formData,
   });
 
   if (!res.ok) {
-    throw new Error(`Upload naar n8n mislukt: ${res.status} ${await res.text()}`);
+    // res.ok checks for 2xx status codes
+    throw new Error(`Upload naar n8n mislukt (status ${res.status}).`);
   }
-
-  // Return a success message or data if n8n returns something useful
-  return { success: true, message: 'Bestand succesvol naar n8n verstuurd.' };
+  // No need to parse JSON, any 2xx is considered a success.
 }
