@@ -7,7 +7,6 @@ import { getAuth, signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase';
 
-
 export function DashboardHeader() {
   const router = useRouter();
   const { app } = useFirebase();
@@ -16,6 +15,7 @@ export function DashboardHeader() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      document.cookie = 'firebaseAuthToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       router.push('/login');
     } catch (error) {
       console.error('Error signing out:', error);
