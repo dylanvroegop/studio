@@ -77,11 +77,11 @@ function CsvUploadSection({ user }: { user: User }) {
     };
 
     const handleUpload = async () => {
-        if (!file) {
+        if (!file || !user) {
             toast({
                 variant: 'destructive',
-                title: 'Geen bestand geselecteerd',
-                description: 'Kies een bestand om te uploaden.',
+                title: 'Gegevens onvolledig',
+                description: 'Kies een bestand om te uploaden en zorg dat u ingelogd bent.',
             });
             return;
         }
@@ -102,8 +102,7 @@ function CsvUploadSection({ user }: { user: User }) {
                 fileInputRef.current.value = '';
             }
 
-        } catch (error) {
-            console.error("Upload Fout:", error);
+        } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
             toast({
                 variant: 'destructive',
@@ -363,3 +362,4 @@ export default function MaterialenPage() {
         </div>
     );
 }
+    
