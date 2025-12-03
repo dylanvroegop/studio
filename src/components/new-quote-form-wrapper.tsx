@@ -157,8 +157,8 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                         <Input id="postcode" name="postcode" placeholder="1234 AB" required />
                     </div>
                      <div className="md:col-span-4">
-                        <Label htmlFor="plaats">Plaats *</Label>
-                        <Input id="plaats" name="plaats" placeholder="Amsterdam" required />
+                        <Label htmlFor="plaats">Plaats</Label>
+                        <Input id="plaats" name="plaats" placeholder="Amsterdam" />
                     </div>
                  </div>
                  <div className="flex items-center space-x-2 pt-2">

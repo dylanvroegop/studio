@@ -16,7 +16,7 @@ const NewClientSchema = z.object({
   straat: z.string().min(1, 'Straat is verplicht'),
   huisnummer: z.string().min(1, 'Huisnummer is verplicht'),
   postcode: z.string().min(1, 'Postcode is verplicht'),
-  plaats: z.string().min(1, 'Plaats is verplicht'),
+  plaats: z.string().optional(),
   afwijkendProjectadres: z.boolean().optional(),
   projectStraat: z.string().optional(),
   projectHuisnummer: z.string().optional(),
@@ -101,7 +101,7 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
             naam: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
             adres: `${newClient.straat} ${newClient.huisnummer}`,
             postcode: newClient.postcode,
-            plaats: newClient.plaats,
+            plaats: newClient.plaats || '',
             email: newClient.email,
             telefoon: newClient.telefoon,
             // Hier zou je de extra velden kunnen opslaan in een 'details' object
