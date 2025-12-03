@@ -290,6 +290,8 @@ function CsvUploadSection({ user }: { user: User }) {
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
+            // Trigger a page refresh or data re-fetch if necessary
+            // For now, we rely on the onSnapshot listener to update the data
         } catch (error) {
             console.error('CSV Upload Error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
