@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, ChangeEvent, useRef } from 'react';
@@ -53,6 +52,120 @@ function PageSkeleton() {
             </main>
         </div>
     )
+}
+
+function CsvUploadSection({ user }: { user: User }) {
+    const [file, setFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { toast } = useToast();
+
+    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
+                 toast({
+                    variant: 'destructive',
+                    title: 'Bestand te groot',
+                    description: 'Selecteer a.u.b. een bestand kleiner dan 10MB.',
+                });
+                setFile(null);
+            } else {
+                setFile(selectedFile);
+            }
+        }
+    };
+
+    const handleUpload = async () => {
+        if (!file) {
+            toast({
+                variant: 'destructive',
+                title: 'Geen bestand geselecteerd',
+                description: 'Kies een bestand om te uploaden.',
+            });
+            return;
+        }
+        
+        const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
+
+        setIsUploading(true);
+        try {
+            await uploadPrijsbestandNaarN8n(file, user.uid, supplierName);
+            
+            toast({
+                title: 'Upload succesvol',
+                description: `Het bestand '${file.name}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
+            });
+            
+            setFile(null); 
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+
+        } catch (error) {
+            console.error("Upload Fout:", error);
+            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
+            toast({
+                variant: 'destructive',
+                title: 'Upload Mislukt',
+                description: errorMessage,
+            });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Prijslijst uploaden</CardTitle>
+                <CardDescription>
+                    Kies een prijslijst (.csv of .pdf) om te uploaden. De bestandsnaam wordt gebruikt als naam voor de leverancier.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <div className="flex flex-col sm:flex-row items-center gap-4">
+                     <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept=".csv,.pdf"
+                        className="hidden"
+                        id="file-upload-input"
+                    />
+                    <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                    >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {file ? 'Ander bestand kiezen' : 'Bestand kiezen'}
+                    </Button>
+                </div>
+
+                 {file && (
+                    <div className="mt-4 flex items-center justify-start p-2 border rounded-md bg-muted/50 text-sm">
+                        <File className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
+                        <span className="font-medium truncate">{file.name}</span>
+                    </div>
+                )}
+
+                <div>
+                    <Button 
+                        onClick={handleUpload} 
+                        disabled={isUploading || !file} 
+                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                    >
+                        {isUploading ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        {isUploading ? 'Bezig met uploaden...' : `Bestand uploaden`}
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
 }
 
 export default function MaterialenPage() {
@@ -250,121 +363,3 @@ export default function MaterialenPage() {
         </div>
     );
 }
-
-function CsvUploadSection({ user }: { user: User }) {
-    const [file, setFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const { toast } = useToast();
-
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
-                 toast({
-                    variant: 'destructive',
-                    title: 'Bestand te groot',
-                    description: 'Selecteer a.u.b. een bestand kleiner dan 10MB.',
-                });
-                setFile(null);
-            } else {
-                setFile(selectedFile);
-            }
-        }
-    };
-
-    const handleUpload = async () => {
-        if (!file) {
-            toast({
-                variant: 'destructive',
-                title: 'Geen bestand geselecteerd',
-                description: 'Kies een bestand om te uploaden.',
-            });
-            return;
-        }
-        
-        const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
-
-        setIsUploading(true);
-        try {
-            await uploadPrijsbestandNaarN8n(file, user.uid, supplierName);
-            
-            toast({
-                title: 'Upload succesvol',
-                description: `Het bestand '${file.name}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
-            });
-            
-            setFile(null); 
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-
-        } catch (error) {
-            console.error("Upload Fout:", error);
-            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
-            toast({
-                variant: 'destructive',
-                title: 'Upload Mislukt',
-                description: errorMessage,
-            });
-        } finally {
-            setIsUploading(false);
-        }
-    };
-    
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Prijslijst uploaden</CardTitle>
-                <CardDescription>
-                    Kies een prijslijst (.csv of .pdf) om te uploaden. De bestandsnaam wordt gebruikt als naam voor de leverancier.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                     <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        accept=".csv,.pdf"
-                        className="hidden"
-                        id="file-upload-input"
-                    />
-                    <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                    >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {file ? 'Ander bestand kiezen' : 'Bestand kiezen'}
-                    </Button>
-                </div>
-
-                 {file && (
-                    <div className="mt-4 flex items-center justify-start p-2 border rounded-md bg-muted/50 text-sm">
-                        <File className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
-                        <span className="font-medium truncate">{file.name}</span>
-                    </div>
-                )}
-
-                <div>
-                    <Button 
-                        onClick={handleUpload} 
-                        disabled={isUploading || !file} 
-                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                    >
-                        {isUploading ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        {isUploading ? 'Bezig met uploaden...' : `Bestand uploaden`}
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-    
-
-    
