@@ -20,7 +20,7 @@ const NewClientSchema = z.object({
   afwijkendProjectadres: z.boolean().optional(),
   projectStraat: z.string().optional(),
   projectHuisnummer: z.string().optional(),
-  projectPostcode: zstring().optional(),
+  projectPostcode: z.string().optional(),
   projectPlaats: z.string().optional(),
 });
 
