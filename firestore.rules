@@ -14,14 +14,14 @@ service cloud.firestore {
     
     // Rules for the 'quotes' collection
     match /quotes/{quoteId} {
-      allow list: if isSignedIn() && request.query.where.userId == request.auth.uid;
+      allow list: if isSignedIn();
       allow get: if isSignedIn() && isOwner(resource.data.userId);
       allow create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
     }
     
     // Rules for the 'materials' collection
     match /materials/{materialId} {
-      allow list: if isSignedIn() && request.query.where.userId == request.auth.uid;
+      allow list: if isSignedIn();
       allow get: if isSignedIn() && isOwner(resource.data.userId);
       allow write: if isSignedIn() && isOwner(request.resource.data.userId);
     }
