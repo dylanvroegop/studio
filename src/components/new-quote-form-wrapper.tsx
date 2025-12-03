@@ -191,7 +191,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
             {/* Sectie 4 – Korte omschrijving */}
             <div className="space-y-4">
                  <h3 className="font-medium text-lg">Korte omschrijving van het werk</h3>
-                 <p className="text-sm text-muted-foreground">Geef in je eigen woorden aan wat er gedaan moet worden. Deze omschrijving verschijnt ook op de offerte.</p>
+                 <p className="text-sm text-muted-foreground">Geef in één zin aan wat er moet gebeuren. Wij maken er later een duidelijke werkbeschrijving van.</p>
                  <div>
                     <Label htmlFor="werkomschrijving">Werkomschrijving *</Label>
                     <Textarea 
@@ -210,7 +210,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                 <Button variant="outline" asChild>
                     <Link href="/">Annuleren</Link>
                 </Button>
-                <Button type="submit" disabled={isPending} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <Button type="submit" disabled={isPending} className="bg-accent text-accent-foreground hover:bg-accent/hover">
                      {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                      {isPending ? 'Bezig...' : 'Volgende'}
                 </Button>
