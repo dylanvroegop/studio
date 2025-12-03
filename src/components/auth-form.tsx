@@ -35,7 +35,6 @@ export function AuthForm() {
         await createUserWithEmailAndPassword(auth, email, password);
         setError('Account aangemaakt! U kunt nu inloggen.');
         setIsSignUp(false); // Switch back to login view
-        setIsLoading(false); // Reset loading state
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
@@ -58,9 +57,11 @@ export function AuthForm() {
       }
     } catch (err: unknown) {
       const authError = err as AuthError;
+      const errorMessage = `Fout: ${authError.code} - ${authError.message}`;
       console.error('Authentication Error:', authError.code, authError.message);
-      setError(`Fout: ${authError.code} - ${authError.message}`);
-      setIsLoading(false);
+      setError(errorMessage);
+    } finally {
+        setIsLoading(false);
     }
   };
 
