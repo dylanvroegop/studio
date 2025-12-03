@@ -8,15 +8,17 @@ let firebaseApp: FirebaseApp;
 let auth: Auth;
 let firestore: Firestore;
 
-// Initialize Firebase on the client side
-if (typeof window !== 'undefined' && !getApps().length) {
-  firebaseApp = initializeApp(firebaseConfig);
-  auth = getAuth(firebaseApp);
-  firestore = getFirestore(firebaseApp);
-} else if (getApps().length) {
-  firebaseApp = getApp();
-  auth = getAuth(firebaseApp);
-  firestore = getFirestore(firebaseApp);
+export function initializeFirebase() {
+  if (getApps().length === 0) {
+    firebaseApp = initializeApp(firebaseConfig);
+    auth = getAuth(firebaseApp);
+    firestore = getFirestore(firebaseApp);
+  } else {
+    firebaseApp = getApp();
+    auth = getAuth(firebaseApp);
+    firestore = getFirestore(firebaseApp);
+  }
+  return { firebaseApp, auth, firestore };
 }
 
 export { firebaseApp, auth, firestore };
