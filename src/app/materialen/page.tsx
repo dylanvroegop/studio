@@ -152,7 +152,7 @@ export default function MaterialenPage() {
                     <p className="text-muted-foreground">Upload een prijslijst voor een specifieke leverancier.</p>
                 </div>
 
-                {user && <CsvUploadSection user={user} uniqueSuppliers={uniqueSuppliers} />}
+                {user && <CsvUploadSection user={user} />}
 
                 <Card>
                     <CardHeader>
@@ -251,7 +251,7 @@ export default function MaterialenPage() {
     );
 }
 
-function CsvUploadSection({ user, uniqueSuppliers }: { user: User; uniqueSuppliers: string[] }) {
+function CsvUploadSection({ user }: { user: User }) {
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
