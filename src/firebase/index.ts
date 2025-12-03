@@ -6,8 +6,6 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
 let app: FirebaseApp;
-let auth: Auth;
-let firestore: Firestore;
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
@@ -15,8 +13,12 @@ if (getApps().length === 0) {
   app = getApp();
 }
 
-auth = getAuth(app);
-firestore = getFirestore(app);
+const auth: Auth = getAuth(app);
+const firestore: Firestore = getFirestore(app);
+
+// Helper hook to directly access the initialized auth object.
+export function useAuth() {
+  return auth;
+}
 
 export { app, auth, firestore };
-export * from './provider';

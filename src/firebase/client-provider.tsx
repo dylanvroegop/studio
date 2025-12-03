@@ -1,13 +1,8 @@
 'use client';
 
-import { app, auth, firestore } from '@/firebase/index';
-import { FirebaseProvider } from '@/firebase/provider';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
+// This provider is now just a pass-through to ensure its children are client components.
 export function FirebaseClientProvider({ children }: { children: ReactNode }) {
-  return (
-    <FirebaseProvider app={app} auth={auth} firestore={firestore}>
-      {children}
-    </FirebaseProvider>
-  );
+  return <>{children}</>;
 }
