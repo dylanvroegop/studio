@@ -6,13 +6,6 @@ import { createQuoteAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,24 +17,47 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import type { Client } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useEffect } from 'react';
 
-export function NewQuoteForm({ clients }: { clients: Client[] }) {
+
+export function NewQuoteForm() {
   const [clientType, setClientType] = useState('particulier');
   const [showProjectAddress, setShowProjectAddress] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [isPending, startTransition] = useTransition();
+  const [user, setUser] = useState<User | null>(null);
 
   const router = useRouter();
   const { toast } = useToast();
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleFormSubmit = async (formData: FormData) => {
     setErrors({});
+    
+    if (!user) {
+        toast({
+            variant: 'destructive',
+            title: 'Niet ingelogd',
+            description: 'U moet ingelogd zijn om een offerte aan te maken.',
+        });
+        router.push('/login');
+        return;
+    }
+
     startTransition(async () => {
-      // Dit is stap 1: klantgegevens en korte omschrijving verzamelen
+      // Dit is stap 1: klantgegevens en korte omschrijving verzamelen.
+      // De server action maakt het document aan in Firestore.
       const result = await createQuoteAction(formData);
 
       if (result?.errors) {
@@ -59,7 +75,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
           });
       } else if (result?.redirect) {
         toast({
-          title: 'Klant opgeslagen',
+          title: 'Offerte aangemaakt',
           description: 'U wordt doorgestuurd naar de volgende stap.',
         });
         router.push(result.redirect);
@@ -77,8 +93,6 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
       </CardHeader>
       <CardContent>
         <form action={handleFormSubmit} className="space-y-8">
-            {/* We gebruiken hier clientSource: 'new' omdat we altijd nieuwe klantdata submitten, ook al is het een bestaande klant.
-                De server action zou dit later kunnen herleiden tot een bestaande klant. Voor nu versimpelen we en maken we altijd een nieuwe. */}
             <input type="hidden" name="clientSource" value="new" />
             
             {/* Sectie 1 – Klanttype en naam */}
@@ -210,7 +224,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                 <Button variant="outline" asChild>
                     <Link href="/">Annuleren</Link>
                 </Button>
-                <Button type="submit" disabled={isPending} className="bg-accent text-accent-foreground hover:bg-accent/hover">
+                <Button type="submit" disabled={isPending || !user} className="bg-accent text-accent-foreground hover:bg-accent/hover">
                      {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                      {isPending ? 'Bezig...' : 'Volgende'}
                 </Button>

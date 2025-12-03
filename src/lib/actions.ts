@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { createClient, createQuote, createJob, updateJob, updateQuoteStatus, getFullQuoteDetails } from './data';
+import { getJobById, updateJob, getFullQuoteDetails } from './data';
 import type { JobCategory } from './types';
+import { db, serverTimestamp, addDoc, collection } from './firebase';
+import { auth } from './firebase';
 
 const NewClientSchema = z.object({
   clientType: z.enum(['particulier', 'zakelijk']),
@@ -27,20 +29,8 @@ const NewClientSchema = z.object({
 
 const QuoteFormSchema = z.object({
   werkomschrijving: z.string().min(10, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
-  clientSource: z.enum(['new', 'existing']),
-  existingClientId: z.string().optional(),
-  newClient: NewClientSchema.optional(),
-}).refine(data => {
-    if (data.clientSource === 'existing') {
-        return !!data.existingClientId;
-    }
-    if (data.clientSource === 'new') {
-        return !!data.newClient;
-    }
-    return false;
-}, {
-    message: "Selecteer een bestaande klant of voer de gegevens voor een nieuwe klant in.",
-    path: ["clientSource"],
+  clientSource: z.enum(['new']),
+  newClient: NewClientSchema,
 });
 
 
@@ -51,10 +41,16 @@ type CreateQuoteState = {
 };
 
 export async function createQuoteAction(formData: FormData): Promise<CreateQuoteState> {
+    const { redirect } = await import('next/navigation');
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+        redirect('/login');
+    }
+
     const rawData = {
         werkomschrijving: formData.get('werkomschrijving'),
-        clientSource: formData.get('clientSource') || 'new',
-        existingClientId: formData.get('existingClientId'),
+        clientSource: 'new', // Hardcoded as per form
         newClient: {
             clientType: formData.get('clientType') || 'particulier',
             bedrijfsnaam: formData.get('bedrijfsnaam'),
@@ -75,13 +71,6 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
         }
     };
     
-    // Alleen valideren wat nodig is
-    if (rawData.clientSource === 'existing') {
-        delete (rawData as any).newClient;
-    } else {
-        delete rawData.existingClientId;
-    }
-
     const validatedFields = QuoteFormSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
@@ -91,38 +80,44 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
     };
   }
   
-  const { werkomschrijving, clientSource, existingClientId, newClient } = validatedFields.data;
-  let clientId: string;
+  const { werkomschrijving, newClient } = validatedFields.data;
 
   try {
-    // Stap 1: Klant aanmaken of ophalen
-    if (clientSource === 'new' && newClient) {
-        const clientToCreate = {
-            naam: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
-            adres: `${newClient.straat} ${newClient.huisnummer}`,
-            postcode: newClient.postcode,
-            plaats: newClient.plaats || '',
-            email: newClient.email,
-            telefoon: newClient.telefoon,
-            // Hier zou je de extra velden kunnen opslaan in een 'details' object
-        };
-      const createdClient = await createClient(clientToCreate);
-      clientId = createdClient.id;
-    } else if (clientSource === 'existing' && existingClientId) {
-      clientId = existingClientId;
-    } else {
-      return { message: 'Geen klantgegevens ontvangen' };
-    }
-  
-    // Stap 2: Offerte aanmaken met de korte omschrijving als titel
-    const newQuote = await createQuote({ clientId, titel: werkomschrijving });
+    // Stap 1: Nieuw document aanmaken in de 'quotes' collectie met alle data
+    const quoteData = {
+        userId: currentUser.uid,
+        status: "Concept",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        clientType: newClient.clientType,
+        companyName: newClient.bedrijfsnaam,
+        contactPerson: newClient.contactpersoon,
+        firstName: newClient.voornaam,
+        lastName: newClient.achternaam,
+        email: newClient.email,
+        phone: newClient.telefoon,
+        billingStreet: newClient.straat,
+        billingHouseNumber: newClient.huisnummer,
+        billingPostcode: newClient.postcode,
+        billingCity: newClient.plaats,
+        hasDifferentProjectAddress: newClient.afwijkendProjectadres,
+        projectStreet: newClient.projectStraat,
+        projectHouseNumber: newClient.projectHuisnummer,
+        projectPostcode: newClient.projectPostcode,
+        projectCity: newClient.projectPlaats,
+        shortDescription: werkomschrijving,
+        clientName: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
+        title: werkomschrijving
+    };
+    
+    const docRef = await addDoc(collection(db, "quotes"), quoteData);
 
-    // Stap 3: Navigeer naar de job builder (stap 2)
+    // Stap 2: Navigeer naar de volgende stap met de nieuwe ID
     revalidatePath('/');
-    return { redirect: `/offertes/${newQuote.id}/klus/nieuw` };
+    return { redirect: `/offertes/${docRef.id}/klus/nieuw` };
 
   } catch (error) {
-    console.error(error);
+    console.error("Firestore Write Error in createQuoteAction: ", error);
     return { message: 'Database Fout: Offerte kon niet worden aangemaakt.' };
   }
 }
@@ -130,13 +125,10 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
 export async function createJobAction(quoteId: string, categorie: JobCategory, omschrijving: string) {
     const { redirect } = await import('next/navigation');
     try {
-        const newJob = await createJob({
-            quoteId,
-            categorie,
-            omschrijvingKlant: omschrijving,
-            aantal: 1,
-        });
-        redirect(`/offertes/${quoteId}/klus/${newJob.id}/bewerken`);
+        // This function will need to be updated to write to a subcollection in Firestore
+        console.log("Creating job for quote:", quoteId);
+        // For now, we redirect to the edit page, which is not yet Firestore-aware
+        redirect(`/offertes/${quoteId}/klus/temp-job-id/bewerken`);
     } catch (error) {
         console.error(error);
         return { message: 'Database Fout: Klus kon niet worden aangemaakt.' };
@@ -176,6 +168,7 @@ export async function updateJobAction(quoteId: string, jobId: string, formData: 
 export async function submitQuoteAction(quoteId: string) {
     const { redirect } = await import('next/navigation');
     try {
+        // This will need to be updated to use Firestore
         const fullQuoteData = await getFullQuoteDetails(quoteId);
         if (!fullQuoteData) {
             throw new Error("Offerte niet gevonden.");
@@ -193,7 +186,8 @@ export async function submitQuoteAction(quoteId: string) {
             throw new Error(`Webhook failed with status: ${response.status}`);
         }
         
-        await updateQuoteStatus(quoteId, 'in_behandeling');
+        // This will need to be updated to use Firestore
+        // await updateQuoteStatus(quoteId, 'in_behandeling');
 
     } catch (error) {
         console.error(error);

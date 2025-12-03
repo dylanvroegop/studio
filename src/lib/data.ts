@@ -1,20 +1,17 @@
+import { db } from './firebase';
+import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
 import type { Client, Quote, Job, JobMaterial, User } from './types';
 
-// Mock data, simulating a Firestore database
-
-const users: User[] = [
-  { id: 'user-1', name: 'Tim de Timmerman', email: 'tim@houtofferte.nl', createdAt: new Date().toISOString() },
-];
+// This file will be deprecated in favor of direct Firestore calls.
+// The functions are kept for now to avoid breaking other parts of the app, but will be removed.
 
 let clients: Client[] = [
-  { id: 'client-1', userId: 'user-1', naam: 'Familie de Vries', adres: 'Dorpsstraat 1', postcode: '1234 AB', plaats: 'Utrecht', email: 'devries@email.com', telefoon: '0612345678', createdAt: new Date('2023-10-15').toISOString() },
-  { id: 'client-2', userId: 'user-1', naam: 'Jansen & Co', adres: 'Industrieweg 10', postcode: '5678 CD', plaats: 'Eindhoven', email: 'info@jansen.co', telefoon: '0408765432', createdAt: new Date('2023-11-01').toISOString() },
+  // { id: 'client-1', userId: 'user-1', naam: 'Familie de Vries', adres: 'Dorpsstraat 1', postcode: '1234 AB', plaats: 'Utrecht', email: 'devries@email.com', telefoon: '0612345678', createdAt: new Date('2023-10-15').toISOString() },
+  // { id: 'client-2', userId: 'user-1', naam: 'Jansen & Co', adres: 'Industrieweg 10', postcode: '5678 CD', plaats: 'Eindhoven', email: 'info@jansen.co', telefoon: '0408765432', createdAt: new Date('2023-11-01').toISOString() },
 ];
 
 let quotes: Quote[] = [
-  { id: 'quote-1', userId: 'user-1', clientId: 'client-1', titel: 'Aanbouw achterzijde', status: 'verzonden', createdAt: new Date('2024-05-20').toISOString() },
-  { id: 'quote-2', userId: 'user-1', clientId: 'client-2', titel: 'Nieuwe kantoorwanden', status: 'in_behandeling', createdAt: new Date('2024-05-22').toISOString() },
-  { id: 'quote-3', userId: 'user-1', clientId: 'client-1', titel: 'Dakkapel plaatsen', status: 'concept', createdAt: new Date('2024-05-25').toISOString() },
+  // { id: 'quote-1', userId: 'user-1', clientId: 'client-1', titel: 'Aanbouw achterzijde', status: 'verzonden', createdAt: new Date('2024-05-20').toISOString() },
 ];
 
 let jobs: Job[] = [
@@ -27,67 +24,24 @@ let jobMaterials: JobMaterial[] = [
   { id: 'mat-2', jobId: 'job-1', materiaalCategorie: 'isolatie', naam: 'Glaswol 140mm', eenheid: 'm2', hoeveelheid: 25, createdAt: new Date().toISOString() },
 ];
 
-// Mock API functions
+// Mock API functions - TO BE REPLACED
 export const getClients = async (): Promise<Client[]> => {
   return Promise.resolve(clients);
 };
 
-export const getClientById = async (id: string): Promise<Client | undefined> => {
-  return Promise.resolve(clients.find(c => c.id === id));
-};
-
-export const createClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'userId'>): Promise<Client> => {
-  const newClient: Client = {
-    ...clientData,
-    id: `client-${Date.now()}`,
-    userId: 'user-1', // Assuming a single logged-in user
-    createdAt: new Date().toISOString(),
-  };
-  clients.push(newClient);
-  return Promise.resolve(newClient);
-}
-
-export const getQuotes = async (): Promise<Quote[]> => {
-  return Promise.resolve(quotes);
-};
-
 export const getQuoteById = async (id: string): Promise<Quote | undefined> => {
-    return Promise.resolve(quotes.find(q => q.id === id));
-}
+    const docRef = doc(db, "quotes", id);
+    const docSnap = await getDoc(docRef);
 
-export const createQuote = async (quoteData: Omit<Quote, 'id' | 'createdAt' | 'userId' | 'status' | 'titel'> & { titel: string }): Promise<Quote> => {
-    const newQuote: Quote = {
-        ...quoteData,
-        id: `quote-${Date.now()}`,
-        userId: 'user-1',
-        status: 'concept',
-        createdAt: new Date().toISOString(),
-    };
-    quotes.push(newQuote);
-    return Promise.resolve(newQuote);
-}
-
-export const updateQuoteStatus = async (id: string, status: Quote['status']): Promise<Quote | undefined> => {
-    const quoteIndex = quotes.findIndex(q => q.id === id);
-    if (quoteIndex !== -1) {
-        quotes[quoteIndex].status = status;
-        return Promise.resolve(quotes[quoteIndex]);
+    if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as Quote;
+    } else {
+        return undefined;
     }
-    return Promise.resolve(undefined);
 }
 
 export const getJobsForQuote = async (quoteId: string): Promise<Job[]> => {
     return Promise.resolve(jobs.filter(j => j.quoteId === quoteId));
-}
-
-export const createJob = async (jobData: Omit<Job, 'id' | 'createdAt'>): Promise<Job> => {
-    const newJob: Job = {
-        ...jobData,
-        id: `job-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-    };
-    jobs.push(newJob);
-    return Promise.resolve(newJob);
 }
 
 export const getJobById = async (id: string): Promise<Job | undefined> => {
@@ -111,7 +65,17 @@ export const getFullQuoteDetails = async (quoteId: string) => {
     const quote = await getQuoteById(quoteId);
     if (!quote) return null;
 
-    const client = await getClientById(quote.clientId);
+    // Client is now part of the quote document, so we don't need a separate fetch.
+    const client = {
+        id: 'temp-client-id', // This should be revisited. Maybe client is not a separate entity anymore.
+        naam: quote.clientName,
+        email: quote.email,
+        telefoon: quote.phone,
+        adres: `${quote.billingStreet} ${quote.billingHouseNumber}`,
+        postcode: quote.billingPostcode,
+        plaats: quote.billingCity || ''
+    };
+
     const quoteJobs = await getJobsForQuote(quoteId);
 
     const jobsWithMaterials = await Promise.all(

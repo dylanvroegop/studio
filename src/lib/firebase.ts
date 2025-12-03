@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, serverTimestamp, addDoc, collection } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration - THIS IS THE CORRECT, VALID CONFIG
@@ -41,4 +41,4 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
     return { updatedCount };
 }
 
-export { app, auth, db, storage };
+export { app, auth, db, storage, serverTimestamp, addDoc, collection };

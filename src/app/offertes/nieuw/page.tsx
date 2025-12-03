@@ -1,5 +1,6 @@
+'use client';
 import Link from 'next/link';
-import { ArrowLeft, User, Building, Mail, Phone, MapPin, Edit3 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -9,13 +10,43 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
-import { getClients } from '@/lib/data';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-export default async function NewQuotePage() {
+export default function NewQuotePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Hoewel we een nieuw formulier hebben, kunnen we bestaande klanten nog steeds
-  // als basis gebruiken, dus we halen ze op.
-  const clients = await getClients();
+  // Zorg ervoor dat alleen ingelogde gebruikers deze pagina kunnen zien
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setLoading(false);
+      } else {
+        router.push('/login');
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
+
+
+  if (loading) {
+     return (
+          <div className="min-h-screen flex items-center justify-center p-4">
+              <div className="p-8 text-center text-gray-500 flex items-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Laden...
+              </div>
+          </div>
+      );
+  }
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
@@ -30,7 +61,8 @@ export default async function NewQuotePage() {
           <h1 className="font-semibold text-2xl">Nieuwe Offerte: Stap 1</h1>
         </div>
 
-        <NewQuoteForm clients={clients} />
+        {/* We geven geen clients meer mee, het formulier is altijd voor een nieuwe klant/offerte */}
+        <NewQuoteForm />
       </div>
     </main>
   );

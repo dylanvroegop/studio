@@ -28,6 +28,24 @@ export type Quote = {
   amount?: number;
   createdAt: Timestamp | Date;
   sentAt?: Timestamp | Date;
+  // Fields from Step 1
+  clientType: "particulier" | "zakelijk";
+  companyName?: string;
+  contactPerson?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  billingStreet: string;
+  billingHouseNumber: string;
+  billingPostcode: string;
+  billingCity?: string;
+  hasDifferentProjectAddress?: boolean;
+  projectStreet?: string;
+  projectHouseNumber?: string;
+  projectPostcode?: string;
+  projectCity?: string;
+  shortDescription: string;
 };
 
 
