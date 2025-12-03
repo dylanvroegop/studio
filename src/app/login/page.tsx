@@ -74,7 +74,6 @@ export default function LoginPage() {
         title: 'Authenticatie Fout',
         description: errorMessage,
       });
-      console.error('Authentication Error:', authError);
     } finally {
       setIsLoading(false);
     }
