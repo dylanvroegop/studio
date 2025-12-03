@@ -3,16 +3,16 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import type { JobCategory } from '@/lib/types';
-import { WallIcon, CeilingIcon, FloorIcon, RoofIcon, FrameIcon } from '@/components/icons';
 import { CategoryCard } from '@/components/category-card';
+import type { IconName } from '@/components/icons';
 
-const categories: { name: JobCategory; description: string; icon: React.ElementType }[] = [
-    { name: "Wanden", description: "Binnen- en buitenwanden", icon: WallIcon },
-    { name: "Plafonds", description: "Verlaagde en afgewerkte plafonds", icon: CeilingIcon },
-    { name: "Vloeren", description: "Houten vloeren en ondervloeren", icon: FloorIcon },
-    { name: "Daken", description: "Dakconstructies en -bedekking", icon: RoofIcon },
-    { name: "Kozijnen / Deuren", description: "Stellen en afhangen", icon: FrameIcon },
-    { name: "Overig / Maatwerk", description: "Specifiek timmerwerk", icon: PlusCircle },
+const categories: { name: JobCategory; description: string; icon: IconName }[] = [
+    { name: "Wanden", description: "Binnen- en buitenwanden", icon: "wall" },
+    { name: "Plafonds", description: "Verlaagde en afgewerkte plafonds", icon: "ceiling" },
+    { name: "Vloeren", description: "Houten vloeren en ondervloeren", icon: "floor" },
+    { name: "Daken", description: "Dakconstructies en -bedekking", icon: "roof" },
+    { name: "Kozijnen / Deuren", description: "Stellen en afhangen", icon: "frame" },
+    { name: "Overig / Maatwerk", description: "Specifiek timmerwerk", icon: "plus" },
 ]
 
 export default function NewJobPage({ params }: { params: { id: string } }) {
@@ -36,7 +36,7 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
                     {categories.map(category => (
-                        <CategoryCard key={category.name} quoteId={quoteId} category={category} />
+                        <CategoryCard key={category.name} quoteId={quoteId} category={{ name: category.name, description: category.description, iconName: category.icon }} />
                     ))}
                 </div>
             </div>

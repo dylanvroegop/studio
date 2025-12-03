@@ -1,4 +1,7 @@
 import type { SVGProps } from "react";
+import { PlusCircle } from "lucide-react";
+
+export type IconName = "wall" | "ceiling" | "floor" | "roof" | "frame" | "plus";
 
 export function WallIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -112,4 +115,21 @@ export function FrameIcon(props: SVGProps<SVGSVGElement>) {
         <path d="M12 7v10"/>
     </svg>
   );
+}
+
+const icons: Record<IconName, React.ElementType> = {
+  wall: WallIcon,
+  ceiling: CeilingIcon,
+  floor: FloorIcon,
+  roof: RoofIcon,
+  frame: FrameIcon,
+  plus: PlusCircle,
+};
+
+export function JobIcon({ name, ...props }: { name: IconName } & SVGProps<SVGSVGElement>) {
+  const Icon = icons[name];
+  if (!Icon) {
+    return null;
+  }
+  return <Icon {...props} />;
 }
