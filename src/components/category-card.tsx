@@ -29,7 +29,7 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
     <form action={createJobWithCategory}>
       <Card
         className={cn(
-          "group h-[120px] cursor-pointer border border-primary/20 bg-card text-left transition-all duration-200 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
+          "group cursor-pointer border border-primary/20 bg-card text-left transition-all duration-200 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
           className
         )}
       >
