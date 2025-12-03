@@ -7,35 +7,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper function to check if the user owns the document
-    // This now checks the *resource being written* to ensure the userId is correct.
+    // Helper function to check if the user is the owner of the resource being accessed
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-
+    
     // Rules for the 'quotes' collection
     match /quotes/{quoteId} {
-      // Allow list and get for queries where the userId matches the authenticated user
-      allow list: if isSignedIn() && request.query.where.find(c => c[0] == 'userId' && c[1] == '==' && c[2] == request.auth.uid) != null;
-      
-      // Allow read if the user is the owner of the existing document
+      allow list: if isSignedIn() && request.query.where.userId == request.auth.uid;
       allow get: if isSignedIn() && isOwner(resource.data.userId);
-
-      // Allow create, update, delete for individual documents if the user is the owner
       allow create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
     }
     
     // Rules for the 'materials' collection
     match /materials/{materialId} {
-      // Allow list for queries where the 'userId' field in the query equals the authenticated user's uid
-      allow list: if isSignedIn() && request.query.where.find(
-          c => c[0] == 'userId' && c[1] == '==' && c[2] == request.auth.uid
-        ) != null;
-
-      // Allow get for individual document reads if the user is the owner of the existing document
+      allow list: if isSignedIn() && request.query.where.userId == request.auth.uid;
       allow get: if isSignedIn() && isOwner(resource.data.userId);
-
-      // Allow create, update, delete for individual documents if the user is writing their own data
       allow write: if isSignedIn() && isOwner(request.resource.data.userId);
     }
   }
