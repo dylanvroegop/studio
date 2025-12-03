@@ -24,7 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -152,7 +151,7 @@ export default function MaterialenPage() {
                     <p className="text-muted-foreground">Upload een prijslijst voor een specifieke leverancier.</p>
                 </div>
 
-                {user && <CsvUploadSection user={user} uniqueSuppliers={uniqueSuppliers}/>}
+                {user && <CsvUploadSection user={user} />}
 
                 <Card>
                     <CardHeader>
@@ -251,7 +250,7 @@ export default function MaterialenPage() {
     );
 }
 
-function CsvUploadSection({ user, uniqueSuppliers }: { user: User, uniqueSuppliers: string[] }) {
+function CsvUploadSection({ user }: { user: User }) {
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -283,15 +282,25 @@ function CsvUploadSection({ user, uniqueSuppliers }: { user: User, uniqueSupplie
             return;
         }
         
+        // De leveranciernaam wordt nu uit de bestandsnaam gehaald, zonder extensie.
+        const supplierName = file.name.split('.').slice(0, -1).join('.');
+        if (!supplierName) {
+             toast({
+                variant: 'destructive',
+                title: 'Ongeldige bestandsnaam',
+                description: 'De bestandsnaam kan niet worden gebruikt als leverancier.',
+            });
+            return;
+        }
+
         setIsUploading(true);
         try {
-            // The supplier name is now derived from the filename
-            await uploadPrijsbestandNaarN8n(file, user.uid, '');
+            await uploadPrijsbestandNaarN8n(file, user.uid, supplierName);
             
             toast({
                 variant: 'default',
                 title: 'Upload gestart',
-                description: `Het bestand wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
+                description: `Het bestand '${file.name}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
             });
             setFile(null); 
             if (fileInputRef.current) {
