@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -7,6 +8,7 @@ service cloud.firestore {
     }
 
     // Helper function to check if the user owns the document
+    // This now checks the *resource being written* to ensure the userId is correct.
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -16,23 +18,25 @@ service cloud.firestore {
       // Allow list and get for queries where the userId matches the authenticated user
       allow list, get: if isSignedIn() && request.query.get('userId') == request.auth.uid;
       
-      // Allow read, create, update, delete for individual documents if the user is the owner
-      allow read, create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
+      // Allow read if the user is the owner of the existing document
+      allow read: if isSignedIn() && isOwner(resource.data.userId);
+
+      // Allow create, update, delete for individual documents if the user is the owner
+      allow create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
     }
     
     // Rules for the 'materials' collection
     match /materials/{materialId} {
-      // Allow list for queries where the userId matches the authenticated user
+      // Allow list for queries where the 'userId' field in the query equals the authenticated user's uid
       allow list: if isSignedIn() && request.query.where.find(
-          // Ensure there's a where clause on 'userId' that equals the authenticated user's uid
           c => c[0] == 'userId' && c[1] == '==' && c[2] == request.auth.uid
         ) != null;
 
-      // Allow get for individual document reads if the user is the owner
+      // Allow get for individual document reads if the user is the owner of the existing document
       allow get: if isSignedIn() && isOwner(resource.data.userId);
 
-      // Allow create, update, delete for individual documents if the user is the owner
-      allow create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
+      // Allow create, update, delete for individual documents if the user is writing their own data
+      allow write: if isSignedIn() && isOwner(request.resource.data.userId);
     }
   }
 }

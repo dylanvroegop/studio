@@ -32,11 +32,6 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
-function formatCurrency(amount?: number) {
-    if (amount === undefined || amount === null || isNaN(amount)) return '—';
-    return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
-}
-
 function PageSkeleton() {
     return (
         <div className="flex flex-col min-h-screen">
@@ -99,7 +94,7 @@ export default function MaterialenPage() {
             return {
                 ...m,
                 updatedAt: updatedAtDate,
-            } as Material & { updatedAt: Date };
+            } as Material & { id: string, updatedAt: Date };
         });
     }, [materials]);
 
@@ -208,7 +203,7 @@ export default function MaterialenPage() {
                                                 <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
                                                 <TableCell>{material.categorie || '—'}</TableCell>
                                                 <TableCell>{material.eenheid}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(material.prijs)}</TableCell>
+                                                <TableCell className="text-right">{material.prijs}</TableCell>
                                                 <TableCell className="text-right">
                                                     {material.updatedAt instanceof Date && !isNaN(material.updatedAt.getTime()) && material.updatedAt.getTime() > 0
                                                       ? format(material.updatedAt, 'd MMM yyyy', { locale: nl })
