@@ -1,10 +1,10 @@
 import { createJobAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import type { JobCategory } from '@/lib/types';
 import { WallIcon, CeilingIcon, FloorIcon, RoofIcon, FrameIcon } from '@/components/icons';
+import { CategoryCard } from '@/components/category-card';
 
 const categories: { name: JobCategory; description: string; icon: React.ElementType }[] = [
     { name: "Wanden", description: "Binnen- en buitenwanden", icon: WallIcon },
@@ -34,23 +34,10 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categories.map(category => {
-                        const createJobWithCategory = createJobAction.bind(null, quoteId, category.name, `Nieuwe klus: ${category.name}`);
-                        return (
-                            <form action={createJobWithCategory} key={category.name}>
-                                <Card className="h-full hover:border-primary transition-colors duration-200 group">
-                                    <button type="submit" className="w-full h-full text-left">
-                                        <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                                            <category.icon className="w-12 h-12 mb-4 text-primary group-hover:scale-110 transition-transform" />
-                                            <h3 className="font-semibold text-lg">{category.name}</h3>
-                                            <p className="text-sm text-muted-foreground mt-1">{category.description}</p>
-                                        </CardContent>
-                                    </button>
-                                </Card>
-                            </form>
-                        )
-                    })}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                    {categories.map(category => (
+                        <CategoryCard key={category.name} quoteId={quoteId} category={category} />
+                    ))}
                 </div>
             </div>
         </main>

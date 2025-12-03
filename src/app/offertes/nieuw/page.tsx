@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { NewQuoteForm } from '@/components/new-quote-form';
+import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
 import { getClients } from '@/lib/data';
 
 export default async function NewQuotePage() {
