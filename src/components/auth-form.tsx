@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useFirebase } from '@/firebase';
+import { useFirebase } from '@/firebase/provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -32,6 +32,7 @@ export function AuthForm() {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
         // On successful sign up, redirect to login to sign in.
+        setIsSignUp(false);
         router.push('/login');
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);

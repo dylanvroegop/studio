@@ -1,6 +1,6 @@
 'use client';
 
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebase } from '@/firebase/index';
 import { FirebaseProvider } from '@/firebase/provider';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
