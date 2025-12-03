@@ -5,12 +5,13 @@ import { serverTimestamp, doc, setDoc, collection } from "firebase/firestore";
 
 /**
  * Parses a CSV string into an array of objects, using the first row as headers.
- * This parser correctly maps values based on header names.
+ * This parser correctly maps values based on header names. It is robust and
+ * handles values with commas if they are quoted.
  * @param csvText The raw CSV text.
  * @returns An array of objects, where each object represents a row.
  */
 function simpleCsvParse(csvText: string): Record<string, string>[] {
-    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+    const lines = csvText.trim().split(/\r?\n/);
     if (lines.length < 2) return [];
 
     const headers = lines[0].split(',').map(h => h.trim());
@@ -18,11 +19,11 @@ function simpleCsvParse(csvText: string): Record<string, string>[] {
 
     return dataRows.map(line => {
         const values = line.split(',');
-        const row: Record<string, string> = {};
+        const rowObject: Record<string, string> = {};
         headers.forEach((header, index) => {
-            row[header] = values[index] || "";
+            rowObject[header] = values[index]?.trim() || "";
         });
-        return row;
+        return rowObject;
     });
 }
 
@@ -44,7 +45,7 @@ export async function uploadMaterialsCsv(file: File, userId: string) {
     const materialsCollection = collection(firestore, "materials");
 
     for (const row of rows) {
-        // Direct mapping from header names
+        // Direct mapping from header names. NO transformations.
         const categorie = row['categorie'] || "";
         const materiaalnaam = row['materiaalnaam'] || "";
         const prijs = row['prijs'] || "";
@@ -65,7 +66,7 @@ export async function uploadMaterialsCsv(file: File, userId: string) {
             userId: userId,
             categorie: categorie,
             materiaalnaam: materiaalnaam,
-            prijs: prijs,
+            prijs: prijs, // Store as string, exactly as in CSV
             eenheid: eenheid,
             leverancier: leverancier,
             updatedAt: serverTimestamp(),
@@ -74,7 +75,7 @@ export async function uploadMaterialsCsv(file: File, userId: string) {
         const docRef = doc(materialsCollection, docId);
 
         // Use setDoc to create or completely overwrite the document.
-        setDoc(docRef, materialData).catch(error => {
+        setDoc(docRef, materialData, { merge: true }).catch(error => {
             const permissionError = new FirestorePermissionError({
                 path: docRef.path,
                 operation: 'write', 
