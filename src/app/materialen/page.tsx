@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection } from '@/firebase';
-import { uploadPrijsbestandNaarN8n } from '@/lib/n8n';
 import type { Material } from '@/lib/types';
 import {
   Card,
@@ -81,17 +80,31 @@ function CsvUploadSection({ user }: { user: User }) {
             toast({
                 variant: 'destructive',
                 title: 'Gegevens onvolledig',
-                description: 'Kies een bestand om te uploaden en zorg dat u ingelogd bent.',
+                description: 'Kies een bestand om te uploaden.',
             });
             return;
         }
         
-        const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
-
         setIsUploading(true);
         try {
-            await uploadPrijsbestandNaarN8n(file, user.uid, supplierName);
+            const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
+            const url = 'https://n8n.dylan8n.org/webhook-test/bee441de-eaaa-495e-a294-4be7d3c1a0b2';
+
+            const formData = new FormData();
+            formData.append("bestand", file);
+            formData.append("gebruikerId", user.uid);
+            formData.append("leverancier", supplierName);
             
+            const res = await fetch(url, {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Upload naar n8n mislukt: Status ${res.status}. Reactie: ${errorText || 'Geen response body'}`);
+            }
+
             toast({
                 title: 'Upload succesvol',
                 description: `Het bestand '${file.name}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
@@ -103,7 +116,7 @@ function CsvUploadSection({ user }: { user: User }) {
             }
 
         } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
+            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden bij het uploaden.';
             toast({
                 variant: 'destructive',
                 title: 'Upload Mislukt',
@@ -362,4 +375,3 @@ export default function MaterialenPage() {
         </div>
     );
 }
-    
