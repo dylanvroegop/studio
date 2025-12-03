@@ -11,11 +11,12 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { auth } from '@/firebase'; // Direct import of the initialized auth instance
+import { useAuth } from '@/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
 export function AuthForm() {
+  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -25,12 +26,18 @@ export function AuthForm() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth) {
+      setError("Authenticatie service is nog niet geladen. Probeer het opnieuw.");
+      return;
+    }
+
     setError(null);
     setIsLoading(true);
 
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
+        // On successful sign-up, prompt the user to log in.
         setError('Account aangemaakt! U kunt nu inloggen.');
         setIsSignUp(false);
       } else {

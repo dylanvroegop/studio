@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { Hammer, PlusCircle, LogOut } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/firebase';
+import { useAuth } from '@/firebase';
 
 export function DashboardHeader() {
   const router = useRouter();
+  const auth = useAuth();
 
   const handleLogout = async () => {
+    if (!auth) return;
     try {
       await signOut(auth);
       await fetch('/api/auth/logout', { method: 'POST' });
@@ -43,6 +45,7 @@ export function DashboardHeader() {
           variant="destructive"
           size="sm"
           className="gap-1"
+          disabled={!auth}
         >
           Uitloggen
           <LogOut className="h-4 w-4" />

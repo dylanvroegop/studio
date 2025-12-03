@@ -1,8 +1,22 @@
 'use client';
 
-import React, { type ReactNode } from 'react';
+import React, { useState, useEffect, type ReactNode } from 'react';
+import { initializeFirebase, type FirebaseServices } from './index';
 
-// This provider is now just a pass-through to ensure its children are client components.
+export const FirebaseContext = React.createContext<FirebaseServices | null>(null);
+
 export function FirebaseClientProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+  const [services, setServices] = useState<FirebaseServices | null>(null);
+
+  useEffect(() => {
+    // Initialize Firebase on the client and set it in state.
+    const firebaseServices = initializeFirebase();
+    setServices(firebaseServices);
+  }, []);
+
+  return (
+    <FirebaseContext.Provider value={services}>
+      {children}
+    </FirebaseContext.Provider>
+  );
 }
