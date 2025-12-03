@@ -35,6 +35,7 @@ export function AuthForm() {
         await createUserWithEmailAndPassword(auth, email, password);
         setError('Account aangemaakt! U kunt nu inloggen.');
         setIsSignUp(false); // Switch back to login view
+        setIsLoading(false); // Reset loading state
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
@@ -48,7 +49,8 @@ export function AuthForm() {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to set auth cookie');
+            const errorBody = await response.json();
+            throw new Error(errorBody.error || 'Failed to set auth cookie');
         }
 
         router.push('/');
@@ -56,10 +58,9 @@ export function AuthForm() {
       }
     } catch (err: unknown) {
       const authError = err as AuthError;
-      console.error('Authentication Error:', authError);
+      console.error('Authentication Error:', authError.code, authError.message);
       setError(`Fout: ${authError.code} - ${authError.message}`);
-    } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
