@@ -28,7 +28,22 @@ export type Quote = {
   createdAt: string;
 };
 
-export type JobCategory = "Wanden" | "Plafonds" | "Vloeren" | "Daken" | "Kozijnen / Deuren" | "Overig / Maatwerk";
+export type JobCategory =
+  | "Wanden"
+  | "Plafonds"
+  | "Vloeren"
+  | "Dakrenovatie"
+  | "Boeiboorden"
+  | "Kozijnen"
+  | "Deuren"
+  | "Gevelbekleding"
+  | "Glas zetten"
+  | "Afwerkingen"
+  | "Dakramen"
+  | "Schutting / Tuinafscheiding"
+  | "Overkapping / Pergola"
+  | "Overig / Maatwerk";
+
 
 export type Job = {
   id: string;

@@ -10,10 +10,19 @@ const categories: { name: JobCategory; description: string; icon: IconName }[] =
     { name: "Wanden", description: "Binnen- en buitenwanden", icon: "wall" },
     { name: "Plafonds", description: "Verlaagde en afgewerkte plafonds", icon: "ceiling" },
     { name: "Vloeren", description: "Houten vloeren en ondervloeren", icon: "floor" },
-    { name: "Daken", description: "Dakconstructies en -bedekking", icon: "roof" },
-    { name: "Kozijnen / Deuren", description: "Stellen en afhangen", icon: "frame" },
+    { name: "Dakrenovatie", description: "Complete dakvernieuwing", icon: "roof" },
+    { name: "Boeiboorden", description: "Vervangen en bekleden", icon: "fascia" },
+    { name: "Kozijnen", description: "Plaatsen en vervangen", icon: "frame" },
+    { name: "Deuren", description: "Afhangen van binnen- en buitendeuren", icon: "door" },
+    { name: "Gevelbekleding", description: "Hout, kunststof of composiet", icon: "siding" },
+    { name: "Glas zetten", description: "Enkel, dubbel of triple glas", icon: "glass" },
+    { name: "Afwerkingen", description: "Plinten, architraven en aftimmering", icon: "finishing" },
+    { name: "Dakramen", description: "Plaatsen van Velux of andere merken", icon: "window" },
+    { name: "Schutting / Tuinafscheiding", description: "Houten of composiet schuttingen", icon: "fence" },
+    { name: "Overkapping / Pergola", description: "Houtconstructies voor in de tuin", icon: "pergola" },
     { name: "Overig / Maatwerk", description: "Specifiek timmerwerk", icon: "plus" },
-]
+];
+
 
 export default function NewJobPage({ params }: { params: { id: string } }) {
     const quoteId = params.id;
