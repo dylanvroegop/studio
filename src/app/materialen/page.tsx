@@ -55,6 +55,7 @@ function PageSkeleton() {
 
 function CsvUploadSection({ user }: { user: User }) {
     const [file, setFile] = useState<File | null>(null);
+    const [leverancierNaam, setLeverancierNaam] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
@@ -76,24 +77,27 @@ function CsvUploadSection({ user }: { user: User }) {
     };
 
     const handleUpload = async () => {
-        if (!file || !user) {
-            toast({
-                variant: 'destructive',
-                title: 'Gegevens onvolledig',
-                description: 'Kies een bestand om te uploaden.',
-            });
+        if (!file) {
+            toast({ variant: 'destructive', title: 'Gegevens onvolledig', description: 'Kies een bestand om te uploaden.' });
+            return;
+        }
+        if (!leverancierNaam.trim()) {
+            toast({ variant: 'destructive', title: 'Gegevens onvolledig', description: 'Voer een naam voor de leverancier in.' });
+            return;
+        }
+        if (!user) {
+            toast({ variant: 'destructive', title: 'Niet ingelogd', description: 'U moet ingelogd zijn om te uploaden.' });
             return;
         }
         
         setIsUploading(true);
         try {
-            const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
             const url = 'https://n8n.dylan8n.org/webhook-test/bee441de-eaaa-495e-a294-4be7d3c1a0b2';
 
             const formData = new FormData();
             formData.append("bestand", file);
             formData.append("gebruikerId", user.uid);
-            formData.append("leverancier", supplierName);
+            formData.append("leverancier", leverancierNaam.trim());
             
             const res = await fetch(url, {
                 method: "POST",
@@ -101,26 +105,27 @@ function CsvUploadSection({ user }: { user: User }) {
             });
 
             if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Upload naar n8n mislukt: Status ${res.status}. Reactie: ${errorText || 'Geen response body'}`);
+                 const errorText = await res.text();
+                 throw new Error(`Upload naar n8n mislukt: Status ${res.status}. Reactie: ${errorText || 'Geen response body'}`);
             }
 
             toast({
                 title: 'Upload succesvol',
-                description: `Het bestand '${file.name}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
+                description: `Het bestand voor leverancier '${leverancierNaam.trim()}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
             });
             
             setFile(null); 
+            setLeverancierNaam('');
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
 
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden bij het uploaden.';
+        } catch (error: any) {
+            console.error("Upload error:", error);
             toast({
                 variant: 'destructive',
                 title: 'Upload Mislukt',
-                description: errorMessage,
+                description: error.message || 'Er is een onbekende fout opgetreden bij het uploaden.',
             });
         } finally {
             setIsUploading(false);
@@ -132,10 +137,21 @@ function CsvUploadSection({ user }: { user: User }) {
             <CardHeader>
                 <CardTitle>Prijslijst uploaden</CardTitle>
                 <CardDescription>
-                    Kies een prijslijst (.csv of .pdf) om te uploaden. De bestandsnaam wordt gebruikt als naam voor de leverancier.
+                    Kies een leverancier en een prijslijst (.csv of .pdf) om te uploaden.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                 <div className="space-y-2">
+                    <Label htmlFor="leverancier-naam">Leveranciernaam</Label>
+                    <Input 
+                        id="leverancier-naam"
+                        value={leverancierNaam}
+                        onChange={(e) => setLeverancierNaam(e.target.value)}
+                        placeholder="Bijvoorbeeld: Jongeneel, Bouwcenter, Pontmeyer"
+                        disabled={isUploading}
+                    />
+                 </div>
+
                  <div className="flex flex-col sm:flex-row items-center gap-4">
                      <input
                         type="file"
@@ -166,13 +182,13 @@ function CsvUploadSection({ user }: { user: User }) {
                 <div>
                     <Button 
                         onClick={handleUpload} 
-                        disabled={isUploading || !file} 
+                        disabled={isUploading || !file || !leverancierNaam.trim()} 
                         className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
                     >
                         {isUploading ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : null}
-                        {isUploading ? 'Bezig met uploaden...' : `Bestand uploaden`}
+                        {isUploading ? 'Bezig met uploaden...' : `Uploaden voor "${leverancierNaam.trim() || '...'}"`}
                     </Button>
                 </div>
             </CardContent>
@@ -375,3 +391,5 @@ export default function MaterialenPage() {
         </div>
     );
 }
+
+    
