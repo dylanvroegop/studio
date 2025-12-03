@@ -13,18 +13,26 @@ service cloud.firestore {
 
     // Rules for the 'quotes' collection
     match /quotes/{quoteId} {
-      allow read, write: if isSignedIn() && isOwner(request.resource.data.userId);
-      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
-      allow update: if isSignedIn() && isOwner(resource.data.userId);
-      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+      // Allow list and get for queries where the userId matches the authenticated user
+      allow list, get: if isSignedIn() && request.query.get('userId') == request.auth.uid;
+      
+      // Allow read, create, update, delete for individual documents if the user is the owner
+      allow read, create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
     }
     
     // Rules for the 'materials' collection
     match /materials/{materialId} {
-      allow read, write: if isSignedIn() && isOwner(request.resource.data.userId);
-      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
-      allow update: if isSignedIn() && isOwner(resource.data.userId);
-      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+      // Allow list for queries where the userId matches the authenticated user
+      allow list: if isSignedIn() && request.query.where.find(
+          // Ensure there's a where clause on 'userId' that equals the authenticated user's uid
+          c => c[0] == 'userId' && c[1] == '==' && c[2] == request.auth.uid
+        ) != null;
+
+      // Allow get for individual document reads if the user is the owner
+      allow get: if isSignedIn() && isOwner(resource.data.userId);
+
+      // Allow create, update, delete for individual documents if the user is the owner
+      allow create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
     }
   }
 }
