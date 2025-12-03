@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -16,11 +15,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { PlusCircle, ArrowUpRight, Hammer } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import type { Quote } from "@/lib/types";
 import { getQuotes, getClientById } from "@/lib/data";
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { DashboardHeader } from "@/components/dashboard-header";
 
 function StatusBadge({ status }: { status: Quote["status"] }) {
   const variant: "default" | "secondary" | "destructive" =
@@ -50,21 +50,10 @@ export default async function Dashboard() {
 
   return (
     <div className="flex flex-col min-h-screen">
-       <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 backdrop-blur-xl">
-        <div className="flex items-center gap-2">
-            <Hammer className="w-7 h-7 text-primary" />
-            <span className="text-lg font-semibold">OfferteHulp</span>
-        </div>
-      </header>
+      <DashboardHeader />
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         <div className="flex items-center">
           <h1 className="font-semibold text-2xl md:text-3xl">Offertes</h1>
-          <Button asChild size="sm" className="ml-auto gap-1 bg-accent text-accent-foreground hover:bg-accent/90">
-            <Link href="/offertes/nieuw">
-              Nieuwe offerte
-              <PlusCircle className="h-4 w-4" />
-            </Link>
-          </Button>
         </div>
 
         <Card>
@@ -99,12 +88,10 @@ export default async function Dashboard() {
                       </TableCell>
                       <TableCell>{format(new Date(quote.createdAt), 'd MMM yyyy', { locale: nl })}</TableCell>
                       <TableCell>
-                        <Button asChild variant="ghost" size="icon">
-                          <Link href={`/offertes/${quote.id}`}>
-                            <ArrowUpRight className="h-4 w-4" />
-                            <span className="sr-only">Bekijken</span>
-                          </Link>
-                        </Button>
+                        <Link href={`/offertes/${quote.id}`}>
+                          <span className="sr-only">Bekijken</span>
+                          <ArrowUpRight className="h-4 w-4" />
+                        </Link>
                       </TableCell>
                     </TableRow>
                   );
