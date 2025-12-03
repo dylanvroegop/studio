@@ -13,7 +13,6 @@ function simpleCsvParse(csvText: string): Record<string, string>[] {
     const lines = csvText.trim().split(/\r?\n/);
     if (lines.length < 2) return [];
 
-    // Use the first line as headers, trimming whitespace from each header.
     const headers = lines[0].split(',').map(h => h.trim());
     const dataRows = lines.slice(1);
 
@@ -21,8 +20,6 @@ function simpleCsvParse(csvText: string): Record<string, string>[] {
         const values = line.split(',');
         const rowObject: Record<string, string> = {};
         headers.forEach((header, index) => {
-            // Assign the value from the current column to the corresponding header key.
-            // Do not trim or modify the value itself.
             rowObject[header] = values[index];
         });
         return rowObject;
