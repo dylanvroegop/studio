@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection } from '@/firebase';
-import { uploadMaterialsCsv } from '@/lib/firebase';
+import { uploadPrijsbestandNaarN8n } from '@/lib/n8n'; 
 import type { Material } from '@/lib/types';
 import {
   Card,
@@ -148,10 +148,10 @@ export default function MaterialenPage() {
             <main className="flex-1 p-4 md:p-6 space-y-6">
                 <div>
                     <h1 className="font-semibold text-2xl md:text-3xl">Materialen & prijzen</h1>
-                    <p className="text-muted-foreground">Upload je CSV en beheer alle materialen die in je offertes gebruikt worden.</p>
+                    <p className="text-muted-foreground">Upload een prijslijst voor een specifieke leverancier.</p>
                 </div>
 
-                {user && <CsvUploadSection user={user} />}
+                {user && <CsvUploadSection user={user} suppliers={uniqueSuppliers} />}
 
                 <Card>
                     <CardHeader>
@@ -250,8 +250,9 @@ export default function MaterialenPage() {
     );
 }
 
-function CsvUploadSection({ user }: { user: User }) {
+function CsvUploadSection({ user, suppliers }: { user: User, suppliers: string[] }) {
     const [file, setFile] = useState<File | null>(null);
+    const [selectedSupplier, setSelectedSupplier] = useState<string>('');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
@@ -259,41 +260,45 @@ function CsvUploadSection({ user }: { user: User }) {
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const selectedFile = e.target.files[0];
-            if (selectedFile.type === 'text/csv' || selectedFile.name.endsWith('.csv')) {
-                setFile(selectedFile);
-            } else {
-                toast({
+            // Basic validation, can be extended
+            if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
+                 toast({
                     variant: 'destructive',
-                    title: 'Ongeldig bestand',
-                    description: 'Selecteer a.u.b. een CSV-bestand.',
+                    title: 'Bestand te groot',
+                    description: 'Selecteer a.u.b. een bestand kleiner dan 10MB.',
                 });
                 setFile(null);
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
+            } else {
+                setFile(selectedFile);
             }
         }
     };
 
     const handleUpload = async () => {
-        if (!file || !user) return;
+        if (!file || !user || !selectedSupplier) {
+            toast({
+                variant: 'destructive',
+                title: 'Selectie onvolledig',
+                description: 'Kies een leverancier en een bestand om te uploaden.',
+            });
+            return;
+        }
         
         setIsUploading(true);
         try {
-            const result = await uploadMaterialsCsv(file, user.uid);
+            await uploadPrijsbestandNaarN8n(file, user.uid, selectedSupplier);
+            
             toast({
                 variant: 'default',
-                title: 'Upload succesvol',
-                description: `${result.updatedCount} materialen zijn verwerkt.`,
+                title: 'Upload gestart',
+                description: `Het bestand voor ${selectedSupplier} wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
             });
             setFile(null); 
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
-            // Trigger a page refresh or data re-fetch if necessary
-            // For now, we rely on the onSnapshot listener to update the data
         } catch (error) {
-            console.error('CSV Upload Error:', error);
+            console.error('n8n Upload Error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
             toast({
                 variant: 'destructive',
@@ -308,49 +313,63 @@ function CsvUploadSection({ user }: { user: User }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Materiaalprijzen uploaden (CSV)</CardTitle>
+                <CardTitle>Prijslijst uploaden</CardTitle>
                 <CardDescription>
-                    Upload hier een CSV-bestand met materiaalprijzen. De CSV moet de kolommen 'categorie', 'materiaalnaam', 'prijs', 'eenheid', en 'leverancier' bevatten. Bestaande materialen worden bijgewerkt op basis van leverancier en materiaalnaam.
+                    Kies een leverancier en upload de bijbehorende prijslijst. De verwerking wordt door n8n afgehandeld.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                     <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        accept=".csv"
-                        className="hidden"
-                        id="csv-upload-input"
-                    />
-                    <Button 
-                        variant="outline" 
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                    >
-                        <Upload className="mr-2 h-4 w-4" />
-                        CSV-bestand kiezen
-                    </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                     <div>
+                        <Label htmlFor="leverancier-select">Leverancier</Label>
+                        <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+                            <SelectTrigger id="leverancier-select">
+                                <SelectValue placeholder="Kies een leverancier" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {suppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            accept=".csv,.xlsx,.xls"
+                            className="hidden"
+                            id="file-upload-input"
+                        />
+                        <Button 
+                            variant="outline" 
+                            className="w-full sm:w-auto"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploading}
+                        >
+                            <Upload className="mr-2 h-4 w-4" />
+                            {file ? 'Ander bestand' : 'Bestand kiezen'}
+                        </Button>
 
-                    {file && (
-                        <div className="flex-1 flex items-center justify-between p-2 border rounded-md bg-muted/50 w-full sm:w-auto">
-                           <div className="flex items-center gap-2">
-                             <File className="h-5 w-5 text-muted-foreground" />
-                             <span className="text-sm font-medium">{file.name}</span>
-                           </div>
+                        {file && (
                            <Button 
                              onClick={handleUpload} 
-                             disabled={isUploading || !file} 
-                             size="sm"
+                             disabled={isUploading || !file || !selectedSupplier} 
+                             className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
                            >
                             {isUploading ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : null}
-                            {isUploading ? 'Bezig...' : 'Uploaden'}
+                            {isUploading ? 'Bezig...' : `Uploaden voor ${selectedSupplier}`}
                            </Button>
-                        </div>
-                    )}
+                        )}
+                     </div>
                 </div>
+                 {file && (
+                    <div className="mt-4 flex items-center justify-start p-2 border rounded-md bg-muted/50 text-sm">
+                        <File className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
+                        <span className="font-medium truncate">{file.name}</span>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
