@@ -53,7 +53,7 @@ export default async function Dashboard() {
        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 backdrop-blur-xl">
         <div className="flex items-center gap-2">
             <Hammer className="w-7 h-7 text-primary" />
-            <span className="text-lg font-semibold">HoutOfferte</span>
+            <span className="text-lg font-semibold">OfferteHulp</span>
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
