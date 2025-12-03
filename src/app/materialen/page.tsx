@@ -282,7 +282,6 @@ function CsvUploadSection({ user }: { user: User }) {
             return;
         }
         
-        // De leveranciernaam wordt nu uit de bestandsnaam gehaald, zonder extensie.
         const supplierName = file.name.split('.').slice(0, -1).join('.');
         if (!supplierName) {
              toast({
