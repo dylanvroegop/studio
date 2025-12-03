@@ -257,8 +257,8 @@ function CsvUploadSection({ user }: { user: User }) {
     const { toast } = useToast();
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const selectedFile = e.target.files[0];
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
             if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
                  toast({
                     variant: 'destructive',
@@ -282,6 +282,7 @@ function CsvUploadSection({ user }: { user: User }) {
             return;
         }
         
+        // De bestandsnaam (zonder extensie) wordt gebruikt als leveranciersnaam.
         const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
 
         setIsUploading(true);
@@ -289,16 +290,19 @@ function CsvUploadSection({ user }: { user: User }) {
             await uploadPrijsbestandNaarN8n(file, user.uid, supplierName);
             
             toast({
-                variant: 'default',
-                title: 'Upload gestart',
+                title: 'Upload succesvol',
                 description: `Het bestand '${file.name}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
             });
+            
+            // Reset file input after successful upload
             setFile(null); 
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
+
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
+            console.error("Upload Error:", error);
+            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden bij het uploaden.';
             toast({
                 variant: 'destructive',
                 title: 'Upload Mislukt',
@@ -334,7 +338,7 @@ function CsvUploadSection({ user }: { user: User }) {
                         disabled={isUploading}
                     >
                         <Upload className="mr-2 h-4 w-4" />
-                        {file ? 'Ander bestand' : 'Bestand kiezen'}
+                        {file ? 'Ander bestand kiezen' : 'Bestand kiezen'}
                     </Button>
                 </div>
 
@@ -351,13 +355,15 @@ function CsvUploadSection({ user }: { user: User }) {
                         disabled={isUploading || !file} 
                         className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
                     >
-                    {isUploading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    {isUploading ? 'Bezig...' : `Bestand uploaden`}
+                        {isUploading ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        {isUploading ? 'Bezig met uploaden...' : `Bestand uploaden`}
                     </Button>
                 </div>
             </CardContent>
         </Card>
     );
 }
+
+    
