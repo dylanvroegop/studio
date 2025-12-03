@@ -39,24 +39,33 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
     }
 
     const text = await file.text();
-    const allRows = text.split(/\r?\n/).filter(Boolean); // Split into rows and remove empty ones
+    const allRowsText = text.split(/\r?\n/).filter(Boolean);
 
-    if (allRows.length < 2) {
+    if (allRowsText.length < 2) {
         throw new Error("CSV is leeg of bevat alleen een header.");
     }
 
-    const headerRow = allRows[0];
-    const dataRows = allRows.slice(1);
+    const headerRow = allRowsText[0];
+    const dataRowsText = allRowsText.slice(1);
     
-    // Use a more robust CSV parsing method to handle commas within quoted fields
     const headers = headerRow.split(',').map(h => h.trim().toLowerCase());
-
+    
     const requiredHeaders = ['categorie', 'materiaalnaam', 'prijs', 'eenheid', 'leverancier'];
     for(const requiredHeader of requiredHeaders) {
         if (!headers.includes(requiredHeader)) {
              throw new Error(`CSV-bestand mist de verplichte kolom: '${requiredHeader}'.`);
         }
     }
+    
+    const dataRows = dataRowsText.map(row => {
+        const values = row.split(',');
+        const rowData: Record<string, string> = {};
+        headers.forEach((header, index) => {
+            rowData[header] = values[index] || '';
+        });
+        return rowData;
+    });
+
 
     // --- Stap 1: Haal bestaande materialen op om te checken op duplicaten ---
     const materialsRef = collection(firestore, "materials");
@@ -75,47 +84,48 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
     // --- Stap 2: Bereid een batch write voor ---
     const batch = writeBatch(firestore);
     let processedCount = 0;
+    let logCount = 0;
 
     for (const row of dataRows) {
-        const values = row.split(',');
-        const rowData: Record<string, string> = {};
-        headers.forEach((header, index) => {
-            rowData[header] = values[index]?.trim() || '';
-        });
-
-        const materiaalnaam = rowData['materiaalnaam'] || '';
-        const leverancier = rowData['leverancier'] || '';
         
-        // Skip row if essential data is missing
+        const categorie = String(row['categorie'] || '').trim();
+        const materiaalnaam = String(row['materiaalnaam'] || '').trim();
+        const eenheid = String(row['eenheid'] || '').trim();
+        const leverancier = String(row['leverancier'] || '').trim();
+        const prijs = parseEuroToNumber(row['prijs']);
+        
+        // Debug log for the first 3 rows
+        if (logCount < 3) {
+            console.log('Parsed CSV row:', { categorie, materiaalnaam, eenheid, leverancier, prijs });
+            logCount++;
+        }
+
         if (!materiaalnaam || !leverancier) {
             continue;
         }
-
-        let categorie = rowData['categorie'] || '';
-        if (categorie.toLowerCase().startsWith('categorie:')) {
-            categorie = categorie.substring(10).trim();
+        
+        let finalCategorie = categorie;
+        if (finalCategorie.toLowerCase().startsWith('categorie:')) {
+            finalCategorie = finalCategorie.substring(10).trim();
         }
 
         const materialData = {
             userId: userId,
-            categorie: categorie,
+            categorie: finalCategorie,
             materiaalnaam: materiaalnaam,
-            prijs: parseEuroToNumber(rowData['prijs']),
-            eenheid: rowData['eenheid'] || '',
+            prijs: prijs,
+            eenheid: eenheid,
             leverancier: leverancier,
             updatedAt: serverTimestamp(),
         };
 
-        // --- Stap 3: Bepaal of het een nieuw of een te updaten document is ---
-        const uniqueKey = `${leverancier.trim().toLowerCase()}|${materiaalnaam.trim().toLowerCase()}`;
+        const uniqueKey = `${leverancier.toLowerCase()}|${materiaalnaam.toLowerCase()}`;
         const existingDocId = existingMaterials.get(uniqueKey);
 
         if (existingDocId) {
-            // Update bestaand document
             const docRef = doc(firestore, "materials", existingDocId);
             batch.update(docRef, materialData);
         } else {
-            // Maak nieuw document
             const docRef = doc(collection(firestore, "materials"));
             batch.set(docRef, materialData);
         }
@@ -126,7 +136,6 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
         throw new Error("Geen geldige rijen gevonden om te verwerken in de CSV.");
     }
 
-    // --- Stap 4: Voer de batch write uit ---
     await batch.commit();
 
     return { updatedCount: processedCount };
