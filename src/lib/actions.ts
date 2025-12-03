@@ -82,43 +82,40 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   
   const { werkomschrijving, newClient } = validatedFields.data;
 
+  // Stap 1: Nieuw document aanmaken in de 'offertes' collectie met alle data
+  const quoteData = {
+      userId: currentUser.uid,
+      status: "concept",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      clientType: newClient.clientType,
+      companyName: newClient.bedrijfsnaam,
+      contactPerson: newClient.contactpersoon,
+      firstName: newClient.voornaam,
+      lastName: newClient.achternaam,
+      email: newClient.email,
+      phone: newClient.telefoon,
+      billingStreet: newClient.straat,
+      billingHouseNumber: newClient.huisnummer,
+      billingPostcode: newClient.postcode,
+      billingCity: newClient.plaats,
+      hasDifferentProjectAddress: newClient.afwijkendProjectadres,
+      projectStreet: newClient.projectStraat,
+      projectHouseNumber: newClient.projectHuisnummer,
+      projectPostcode: newClient.projectPostcode,
+      projectCity: newClient.projectPlaats,
+      shortDescription: werkomschrijving,
+      clientName: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
+      title: werkomschrijving
+  };
+  
   try {
-    // Stap 1: Nieuw document aanmaken in de 'quotes' collectie met alle data
-    const quoteData = {
-        userId: currentUser.uid,
-        status: "Concept",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        clientType: newClient.clientType,
-        companyName: newClient.bedrijfsnaam,
-        contactPerson: newClient.contactpersoon,
-        firstName: newClient.voornaam,
-        lastName: newClient.achternaam,
-        email: newClient.email,
-        phone: newClient.telefoon,
-        billingStreet: newClient.straat,
-        billingHouseNumber: newClient.huisnummer,
-        billingPostcode: newClient.postcode,
-        billingCity: newClient.plaats,
-        hasDifferentProjectAddress: newClient.afwijkendProjectadres,
-        projectStreet: newClient.projectStraat,
-        projectHouseNumber: newClient.projectHuisnummer,
-        projectPostcode: newClient.projectPostcode,
-        projectCity: newClient.projectPlaats,
-        shortDescription: werkomschrijving,
-        clientName: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
-        title: werkomschrijving
-    };
-    
-    const docRef = await addDoc(collection(db, "quotes"), quoteData);
-
-    // Stap 2: Navigeer naar de volgende stap met de nieuwe ID
-    revalidatePath('/');
-    return { redirect: `/offertes/${docRef.id}/klus/nieuw` };
-
+      const docRef = await addDoc(collection(db, "offertes"), quoteData);
+      revalidatePath('/');
+      return { redirect: `/offertes/${docRef.id}/klus/nieuw` };
   } catch (error) {
-    console.error("Firestore Write Error in createQuoteAction: ", error);
-    return { message: 'Database Fout: Offerte kon niet worden aangemaakt.' };
+      console.error("Firebase Write Error in createQuoteAction: ", error);
+      return { message: 'Database Fout: Offerte kon niet worden aangemaakt.' };
   }
 }
 
