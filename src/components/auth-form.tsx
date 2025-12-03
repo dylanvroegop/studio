@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/firebase';
+import { useAuth } from '@/firebase/provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -34,7 +34,6 @@ export function AuthForm() {
         // After sign up, show a success message and switch to the login view
         setError('Account aangemaakt! U kunt nu inloggen.');
         setIsSignUp(false);
-        setIsLoading(false);
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
@@ -54,8 +53,9 @@ export function AuthForm() {
     } catch (err: unknown) {
       const authError = err as AuthError;
       const errorMessage = `Fout: ${authError.code} - ${authError.message}`;
-      console.error('Authentication Error:', authError.code, authError.message);
+      console.error('Authentication Error:', errorMessage);
       setError(errorMessage);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -65,7 +65,7 @@ export function AuthForm() {
       {error && (
         <Alert variant={error.includes('Account aangemaakt') ? 'default' : 'destructive'}>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>{error.includes('Account aangimread') ? 'Succes' : 'Fout'}</AlertTitle>
+          <AlertTitle>{error.includes('Account aangemaakt') ? 'Succes' : 'Fout'}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}

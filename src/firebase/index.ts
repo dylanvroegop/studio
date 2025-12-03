@@ -1,12 +1,22 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+'use client';
+
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 import { firebaseConfig } from './config';
 
-export * from './provider';
+let app: FirebaseApp;
+let auth: Auth;
+let firestore: Firestore;
 
-// Initializes and returns a Firebase app instance.
-// Caches the app instance to avoid re-initialization.
-export function initializeFirebase(): { app: FirebaseApp } {
-  const apps = getApps();
-  const app = apps.length > 0 ? getApp() : initializeApp(firebaseConfig);
-  return { app };
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
 }
+
+auth = getAuth(app);
+firestore = getFirestore(app);
+
+export { app, auth, firestore };
+export * from './provider';
