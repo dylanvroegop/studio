@@ -26,7 +26,6 @@ import { getQuotes, getClientById } from "@/lib/data";
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { DashboardHeader } from "@/components/dashboard-header";
-import { Skeleton } from '@/components/ui/skeleton';
 
 function StatusBadge({ status }: { status: Quote["status"] }) {
   const variant: "default" | "secondary" | "destructive" =
@@ -80,10 +79,10 @@ export default function Dashboard() {
       if (currentUser) {
         setUser(currentUser);
         fetchQuotes();
+        setLoading(false);
       } else {
         router.push('/login');
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, [router]);

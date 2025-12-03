@@ -3,16 +3,16 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 // Your web app's Firebase configuration
-// This is the reliable, hardcoded config to ensure connection.
 const firebaseConfig = {
-  apiKey: "AIzaSyCJJui8jHgydY6viq3r7IbTk7--51QryFo",
-  authDomain: "offertehulp-cff35.firebaseapp.com",
-  projectId: "offertehulp-cff35",
-  storageBucket: "offertehulp-cff35.appspot.com",
-  messagingSenderId: "103536627244",
-  appId: "1:103536627244:web:88165e2eee8c84ff520b89",
-  measurementId: "G-E2C2S96XN8"
+  apiKey: "AIzaSyCL2Mh-J4VSd_9lhiUVuizAx3GRjPTMINU",
+  authDomain: "studio-6011690104-60fbf.firebaseapp.com",
+  projectId: "studio-6011690104-60fbf",
+  storageBucket: "studio-6011690104-60fbf.firebasestorage.app",
+  messagingSenderId: "354400474758",
+  appId: "1:354400474758:web:ec97d6463a627fc7ad2307",
+  measurementId: "G-CJM6FVF63T"
 };
+
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
