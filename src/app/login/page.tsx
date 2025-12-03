@@ -46,32 +46,32 @@ export default function LoginPage() {
       let errorMessage = 'An unknown error occurred.';
       switch (authError.code) {
         case 'auth/invalid-email':
-          errorMessage = 'Invalid email address format.';
+          errorMessage = 'Ongeldig emailadres formaat.';
           break;
         case 'auth/weak-password':
-          errorMessage = 'Password should be at least 6 characters.';
+          errorMessage = 'Wachtwoord moet minimaal 6 tekens lang zijn.';
           break;
         case 'auth/email-already-in-use':
-          errorMessage = 'This email is already registered. Try logging in.';
+          errorMessage = 'Dit emailadres is al geregistreerd. Probeer in te loggen.';
           break;
         case 'auth/user-not-found':
         case 'auth/invalid-credential':
         case 'auth/wrong-password':
-          errorMessage = 'Invalid email or password.';
+          errorMessage = 'Ongeldig emailadres of wachtwoord. Controleer uw gegevens of maak een nieuw account aan.';
           break;
         case 'auth/operation-not-allowed':
-          errorMessage = 'Email/Password sign-in is not enabled in your Firebase Console.';
+          errorMessage = 'Email/Password sign-in is niet ingeschakeld in uw Firebase Console.';
           break;
         case 'auth/invalid-api-key':
         case 'auth/network-request-failed':
-             errorMessage = 'Connection to Firebase failed. Check your API key and network connection.'
+             errorMessage = 'Verbinding met Firebase mislukt. Controleer uw API-sleutel en netwerkverbinding.'
              break;
         default:
-          errorMessage = `Authentication failed: ${authError.message}`;
+          errorMessage = `Authenticatie mislukt: ${authError.message}`;
       }
       toast({
         variant: 'destructive',
-        title: 'Authentication Error',
+        title: 'Authenticatie Fout',
         description: errorMessage,
       });
       console.error('Authentication Error:', authError);
