@@ -16,10 +16,10 @@ service cloud.firestore {
     // Rules for the 'quotes' collection
     match /quotes/{quoteId} {
       // Allow list and get for queries where the userId matches the authenticated user
-      allow list, get: if isSignedIn() && request.query.get('userId') == request.auth.uid;
+      allow list: if isSignedIn() && request.query.where.find(c => c[0] == 'userId' && c[1] == '==' && c[2] == request.auth.uid) != null;
       
       // Allow read if the user is the owner of the existing document
-      allow read: if isSignedIn() && isOwner(resource.data.userId);
+      allow get: if isSignedIn() && isOwner(resource.data.userId);
 
       // Allow create, update, delete for individual documents if the user is the owner
       allow create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
