@@ -2,39 +2,22 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 export default function NewQuotePage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isUserLoading } = useAuth();
 
-  // Zorg ervoor dat alleen ingelogde gebruikers deze pagina kunnen zien
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        setLoading(false);
-      } else {
-        router.push('/login');
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
 
-
-  if (loading) {
+  if (isUserLoading || !user) {
      return (
           <div className="min-h-screen flex items-center justify-center p-4">
               <div className="p-8 text-center text-gray-500 flex items-center">
@@ -60,8 +43,6 @@ export default function NewQuotePage() {
           </Button>
           <h1 className="font-semibold text-2xl">Nieuwe Offerte: Stap 1</h1>
         </div>
-
-        {/* We geven geen clients meer mee, het formulier is altijd voor een nieuwe klant/offerte */}
         <NewQuoteForm />
       </div>
     </main>

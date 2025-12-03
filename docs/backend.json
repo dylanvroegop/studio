@@ -32,293 +32,131 @@
         "createdAt"
       ]
     },
-    "Client": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Client",
-      "type": "object",
-      "description": "Represents a client associated with a user in the HoutOfferte application.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Client entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Client)"
-        },
-        "naam": {
-          "type": "string",
-          "description": "The client's name."
-        },
-        "adres": {
-          "type": "string",
-          "description": "The client's street address."
-        },
-        "postcode": {
-          "type": "string",
-          "description": "The client's postal code."
-        },
-        "plaats": {
-          "type": "string",
-          "description": "The client's city."
-        },
-        "email": {
-          "type": "string",
-          "description": "The client's email address.",
-          "format": "email"
-        },
-        "telefoon": {
-          "type": "string",
-          "description": "The client's phone number."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the client was created.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userId",
-        "naam",
-        "adres",
-        "postcode",
-        "plaats",
-        "email",
-        "telefoon",
-        "createdAt"
-      ]
-    },
     "Quote": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Quote",
       "type": "object",
       "description": "Represents a quote created in the HoutOfferte application.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Quote entity."
-        },
         "userId": {
           "type": "string",
           "description": "Reference to User. (Relationship: User 1:N Quote)"
         },
-        "clientId": {
-          "type": "string",
-          "description": "Reference to Client. (Relationship: Client 1:N Quote)"
-        },
-        "titel": {
-          "type": "string",
-          "description": "The title of the quote."
-        },
         "status": {
           "type": "string",
-          "description": "The status of the quote (concept, in_behandeling, verzonden)."
-        },
-        "totaalExclBtw": {
-          "type": "number",
-          "description": "The total price of the quote excluding BTW (VAT)."
-        },
-        "totaalInclBtw": {
-          "type": "number",
-          "description": "The total price of the quote including BTW (VAT)."
+          "description": "The status of the quote (e.g., 'Concept', 'In behandeling')"
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp indicating when the quote was created.",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Timestamp indicating when the quote was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when the quote was last updated."
+        },
+        "clientType": {
+          "type": "string",
+          "enum": [
+            "Particulier",
+            "Zakelijk"
+          ],
+          "description": "The type of client."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "The client's company name (if applicable)."
+        },
+        "contactPerson": {
+          "type": "string",
+          "description": "The contact person at the company (if applicable)."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The client's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The client's last name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The client's email address."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The client's phone number."
+        },
+        "billingStreet": {
+          "type": "string",
+          "description": "The client's billing street."
+        },
+        "billingHouseNumber": {
+          "type": "string",
+          "description": "The client's billing house number."
+        },
+        "billingPostcode": {
+          "type": "string",
+          "description": "The client's billing postal code."
+        },
+        "billingCity": {
+          "type": "string",
+          "description": "The client's billing city."
+        },
+        "hasDifferentProjectAddress": {
+          "type": "boolean",
+          "description": "Whether the project address is different from the billing address."
+        },
+        "projectStreet": {
+          "type": "string",
+          "description": "The project's street (if different)."
+        },
+        "projectHouseNumber": {
+          "type": "string",
+          "description": "The project's house number (if different)."
+        },
+        "projectPostcode": {
+          "type": "string",
+          "description": "The project's postal code (if different)."
+        },
+        "projectCity": {
+          "type": "string",
+          "description": "The project's city (if different)."
+        },
+        "shortDescription": {
+          "type": "string",
+          "description": "A short description of the work to be done."
         }
       },
       "required": [
-        "id",
         "userId",
-        "clientId",
-        "titel",
         "status",
-        "totaalExclBtw",
-        "totaalInclBtw",
-        "createdAt"
-      ]
-    },
-    "Job": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Job",
-      "type": "object",
-      "description": "Represents a job (klus) within a quote in the HoutOfferte application.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Job entity."
-        },
-        "quoteId": {
-          "type": "string",
-          "description": "Reference to Quote. (Relationship: Quote 1:N Job)"
-        },
-        "categorie": {
-          "type": "string",
-          "description": "The category of the job (e.g., Wanden, Plafonds, Daken)."
-        },
-        "subcategorie": {
-          "type": "string",
-          "description": "The subcategory of the job (e.g., HSB Wand, Metalstud Wand, EPDM Dak)."
-        },
-        "omschrijvingKlant": {
-          "type": "string",
-          "description": "A short description of the job in plain language for the client."
-        },
-        "lengteMm": {
-          "type": "number",
-          "description": "The length of the job in millimeters."
-        },
-        "hoogteMm": {
-          "type": "number",
-          "description": "The height of the job in millimeters."
-        },
-        "diepteMm": {
-          "type": "number",
-          "description": "The depth of the job in millimeters."
-        },
-        "aantal": {
-          "type": "number",
-          "description": "The quantity of the job."
-        },
-        "notities": {
-          "type": "string",
-          "description": "Additional notes about the job."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the job was created.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "quoteId",
-        "categorie",
-        "subcategorie",
-        "omschrijvingKlant",
-        "lengteMm",
-        "hoogteMm",
-        "diepteMm",
-        "aantal",
-        "notities",
-        "createdAt"
-      ]
-    },
-    "JobMaterial": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "JobMaterial",
-      "type": "object",
-      "description": "Represents a material used in a job in the HoutOfferte application.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the JobMaterial entity."
-        },
-        "jobId": {
-          "type": "string",
-          "description": "Reference to Job. (Relationship: Job 1:N JobMaterial)"
-        },
-        "materiaalCategorie": {
-          "type": "string",
-          "description": "The category of the material (e.g., hout, isolatie, plaat)."
-        },
-        "naam": {
-          "type": "string",
-          "description": "The name of the material as the user knows it."
-        },
-        "eenheid": {
-          "type": "string",
-          "description": "The unit of measurement for the material (e.g., m1, m2, st, pak)."
-        },
-        "hoeveelheid": {
-          "type": "number",
-          "description": "The quantity of the material needed for the job."
-        },
-        "opmerking": {
-          "type": "string",
-          "description": "A comment or note about the material."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the job material was created.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "jobId",
-        "materiaalCategorie",
-        "naam",
-        "eenheid",
-        "hoeveelheid",
-        "opmerking",
-        "createdAt"
-      ]
-    },
-    "Preset": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Preset",
-      "type": "object",
-      "description": "Represents a preset material template for a specific category and subcategory in the HoutOfferte application.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Preset entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Preset)"
-        },
-        "categorie": {
-          "type": "string",
-          "description": "The category of the preset (e.g., Wanden, Plafonds, Daken)."
-        },
-        "subcategorie": {
-          "type": "string",
-          "description": "The subcategory of the preset (e.g., HSB Wand, Metalstud Wand, EPDM Dak)."
-        },
-        "naam": {
-          "type": "string",
-          "description": "The name of the preset (e.g., Standaard HSB Wand 140mm)."
-        },
-        "materialsTemplate": {
-          "type": "array",
-          "description": "A template containing a list of materials.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the preset was created.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userId",
-        "categorie",
-        "subcategorie",
-        "naam",
-        "materialsTemplate",
-        "createdAt"
+        "createdAt",
+        "updatedAt",
+        "clientType",
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "billingStreet",
+        "billingHouseNumber",
+        "billingPostcode",
+        "billingCity",
+        "hasDifferentProjectAddress",
+        "shortDescription"
       ]
     },
     "Material": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Material",
       "type": "object",
-      "description": "Represents a material with properties.",
+      "description": "Represents a material with its properties, specific to a user.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Material entity."
-        },
         "userId": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Material)"
+          "description": "The ID of the user who owns this material."
         },
         "categorie": {
           "type": "string",
@@ -342,12 +180,11 @@
         },
         "updatedAt": {
           "type": "string",
-          "description": "Timestamp indicating when the material was last updated.",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Timestamp indicating when the material was last updated."
         }
       },
       "required": [
-        "id",
         "userId",
         "categorie",
         "materiaalnaam",
@@ -360,161 +197,21 @@
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "password"
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profiles. Includes the userId parameter for path-based ownership.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
-        }
+    "quotes": {
+      "schema": {
+        "$ref": "#/entities/Quote"
       },
-      {
-        "path": "/users/{userId}/clients/{clientId}",
-        "definition": {
-          "entityName": "Client",
-          "schema": {
-            "$ref": "#/backend/entities/Client"
-          },
-          "description": "Stores client information. Includes the userId parameter for path-based ownership.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "clientId",
-              "description": "The unique identifier of the client."
-            }
-          ]
-        }
+      "description": "Stores all quote documents for all users."
+    },
+    "materials": {
+      "schema": {
+        "$ref": "#/entities/Material"
       },
-      {
-        "path": "/users/{userId}/quotes/{quoteId}",
-        "definition": {
-          "entityName": "Quote",
-          "schema": {
-            "$ref": "#/backend/entities/Quote"
-          },
-          "description": "Stores quote information. Includes the userId parameter for path-based ownership.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "quoteId",
-              "description": "The unique identifier of the quote."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/quotes/{quoteId}/jobs/{jobId}",
-        "definition": {
-          "entityName": "Job",
-          "schema": {
-            "$ref": "#/backend/entities/Job"
-          },
-          "description": "Stores job (klus) information. Includes the userId parameter for path-based ownership.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "quoteId",
-              "description": "The unique identifier of the quote."
-            },
-            {
-              "name": "jobId",
-              "description": "The unique identifier of the job."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/quotes/{quoteId}/jobs/{jobId}/jobMaterials/{jobMaterialId}",
-        "definition": {
-          "entityName": "JobMaterial",
-          "schema": {
-            "$ref": "#/backend/entities/JobMaterial"
-          },
-          "description": "Stores job material information. Includes the userId parameter for path-based ownership.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "quoteId",
-              "description": "The unique identifier of the quote."
-            },
-            {
-              "name": "jobId",
-              "description": "The unique identifier of the job."
-            },
-            {
-              "name": "jobMaterialId",
-              "description": "The unique identifier of the job material."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/presets/{presetId}",
-        "definition": {
-          "entityName": "Preset",
-          "schema": {
-            "$ref": "#/backend/entities/Preset"
-          },
-          "description": "Stores preset material templates. Includes the userId parameter for path-based ownership.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "presetId",
-              "description": "The unique identifier of the preset."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/materials/{materialId}",
-        "definition": {
-          "entityName": "Material",
-          "schema": {
-            "$ref": "#/backend/entities/Material"
-          },
-          "description": "Stores material information. Includes the userId parameter for path-based ownership.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "materialId",
-              "description": "The unique identifier of the material."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore data structure is designed to ensure security, scalability, and ease of debugging, adhering to the core design principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and QAPs (Rules are not Filters). Authorization Independence is achieved through denormalization. For instance, each document in a subcollection (e.g., `quotes` under a `user`) will contain a `userId` field, eliminating the need for security rules to perform `get()` operations on parent documents. Structural Segregation is used to ensure all documents within a collection share the same security requirements (e.g., only the user can read/write their own data). Access Modeling employs path-based ownership for private user data (e.g., `/users/{userId}/quotes/{quoteId}`), simplifying security rules. The design facilitates secure `list` operations (QAPs) by segregating data based on ownership. All data is owned by the logged-in user."
+      "description": "Stores all material documents for all users."
+    }
   }
 }

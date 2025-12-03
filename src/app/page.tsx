@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import type { User } from 'firebase/auth';
+import { collection, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { useAuth, useFirestore, useUser, addDocumentNonBlocking } from '@/firebase';
 import type { Quote } from '@/lib/types';
 import {
   Card,
@@ -61,7 +61,7 @@ function DashboardSkeleton() {
                 <div className="text-center p-8 text-gray-500 flex items-center">
                     <svg className="animate-spin mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     Even geduld a.u.b...
                 </div>
@@ -86,10 +86,11 @@ function StatCard({ title, value, subtext, icon, className = '' }: { title: stri
 }
 
 export default function Dashboard() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
   const [loading, setLoading] = useState(true);
-  const [quotes, setQuote] = useState<Quote[]>([]);
-  const [filteredQuotes, setFilteredQuote] = useState<Quote[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [filteredQuotes, setFilteredQuotes] = useState<Quote[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [sortOption, setSortOption] = useState<SortOption>('createdAt_desc');
@@ -97,22 +98,17 @@ export default function Dashboard() {
 
   // Handle user auth state
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-      } else {
-        router.push('/login');
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
 
   // Fetch quotes from Firestore for the logged-in user
   useEffect(() => {
-    if (!user) return;
+    if (!user || !firestore) return;
     
     setLoading(true);
-    const quotesRef = collection(db, 'offertes');
+    const quotesRef = collection(firestore, 'quotes');
     const q = query(quotesRef, where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -128,7 +124,7 @@ export default function Dashboard() {
             }
         });
         
-        setQuote(quotesData);
+        setQuotes(quotesData);
         setLoading(false);
     }, (error) => {
         console.error("Error fetching quotes:", error);
@@ -137,7 +133,7 @@ export default function Dashboard() {
     
     return () => unsubscribe();
 
-  }, [user]);
+  }, [user, firestore]);
 
   // Client-side filtering and sorting
   useEffect(() => {
@@ -147,7 +143,7 @@ export default function Dashboard() {
     if (search) {
       result = result.filter(quote =>
         quote.title.toLowerCase().includes(search.toLowerCase()) ||
-        quote.clientName.toLowerCase().includes(search.toLowerCase())
+        (quote.clientName && quote.clientName.toLowerCase().includes(search.toLowerCase()))
       );
     }
     
@@ -162,7 +158,7 @@ export default function Dashboard() {
             case 'createdAt_asc':
                 return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
             case 'amount_desc':
-                return (b.amount || 0) - (b.amount || 0);
+                return (b.amount || 0) - (a.amount || 0);
             case 'amount_asc':
                 return (a.amount || 0) - (b.amount || 0);
             case 'createdAt_desc':
@@ -171,19 +167,24 @@ export default function Dashboard() {
         }
     });
 
-    setFilteredQuote(result);
+    setFilteredQuotes(result);
   }, [search, statusFilter, sortOption, quotes]);
 
   const handleDuplicate = async (quote: Quote) => {
+    if (!user || !firestore) return;
     const { id, createdAt, sentAt, status, ...quoteData } = quote;
     try {
-        const newDocRef = await addDoc(collection(db, 'offertes'), {
+        const newDocRef = await addDocumentNonBlocking(collection(firestore, 'quotes'), {
             ...quoteData,
+            userId: user.uid,
             status: 'concept',
             createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
             title: `${quote.title} (Kopie)`
         });
-        router.push(`/offertes/${newDocRef.id}`);
+        if (newDocRef) {
+          router.push(`/offertes/${newDocRef.id}`);
+        }
     } catch (error) {
         console.error("Error duplicating quote:", error);
     }
@@ -201,13 +202,13 @@ export default function Dashboard() {
   const followUps = quotes.filter(q =>
     q.status === 'verzonden' &&
     q.sentAt &&
-    isBefore(new Date(q.sentAt), fiveDaysAgo) &&
+    isBefore(new Date(q.sentAt as Date), fiveDaysAgo) &&
     q.status !== 'geaccepteerd' &&
     q.status !== 'afgewezen'
   );
 
 
-  if (!user) {
+  if (isUserLoading || !user) {
     return <DashboardSkeleton />;
   }
 
@@ -224,8 +225,8 @@ export default function Dashboard() {
         </div>
 
         {/* Management Cards */}
-        <div className="grid gap-4">
-            <Card className="bg-primary/90 hover:bg-primary transition-colors text-primary-foreground">
+        <div className="grid gap-4 md:grid-cols-1">
+            <Card className="bg-primary/90 hover:bg-primary transition-colors text-primary-foreground w-full">
                 <Link href="/offertes/nieuw" className="block p-6 h-full">
                     <div className="flex items-start gap-4">
                         <PlusCircle className="h-8 w-8 text-primary-foreground flex-shrink-0" />
@@ -236,7 +237,7 @@ export default function Dashboard() {
                     </div>
                 </Link>
             </Card>
-            <Card className="hover:bg-muted/50 transition-colors">
+            <Card className="hover:bg-muted/50 transition-colors w-full">
                 <Link href="/materialen" className="block p-6 h-full">
                     <div className="flex items-start gap-4">
                         <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
@@ -272,7 +273,7 @@ export default function Dashboard() {
                                         <span className="font-medium">{quote.clientName}</span> – offerte "{quote.title}"
                                     </div>
                                     <span className="text-sm text-muted-foreground">
-                                        Verzonden op {format(new Date(quote.sentAt as Date), 'd MMM yyyy', { locale: nl })}
+                                        {quote.sentAt ? format(new Date(quote.sentAt as Date), 'd MMM yyyy', { locale: nl }) : ''}
                                     </span>
                                 </Link>
                             </li>
@@ -389,3 +390,5 @@ export default function Dashboard() {
     </TooltipProvider>
   );
 }
+
+    

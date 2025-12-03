@@ -8,7 +8,7 @@ export type User = {
 };
 
 export type Client = {
-  id: string;
+  id:string;
   userId: string;
   naam: string;
   adres: string;
@@ -22,14 +22,10 @@ export type Client = {
 export type Quote = {
   id: string;
   userId: string;
-  clientName: string;
-  title: string;
   status: "concept" | "in_behandeling" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
-  amount?: number;
-  createdAt: Timestamp | Date;
-  sentAt?: Timestamp | Date;
-  // Fields from Step 1
-  clientType: "particulier" | "zakelijk";
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  clientType: "Particulier" | "Zakelijk";
   companyName?: string;
   contactPerson?: string;
   firstName: string;
@@ -39,13 +35,17 @@ export type Quote = {
   billingStreet: string;
   billingHouseNumber: string;
   billingPostcode: string;
-  billingCity?: string;
-  hasDifferentProjectAddress?: boolean;
+  billingCity: string;
+  hasDifferentProjectAddress: boolean;
   projectStreet?: string;
   projectHouseNumber?: string;
   projectPostcode?: string;
   projectCity?: string;
   shortDescription: string;
+  clientName: string;
+  title: string;
+  amount?: number;
+  sentAt?: Timestamp | Date;
 };
 
 
@@ -95,15 +95,14 @@ export type JobMaterial = {
 };
 
 export type Material = {
-  id: string;
-  userId: string;
-  leverancier?: string;
-  productcode?: string; // Blijft voor mogelijke toekomstige uitbreiding
-  omschrijving: string;
-  categorie?: string;
-  eenheid: MaterialUnit;
-  prijs: number;
-  updatedAt: Timestamp | Date;
+    id: string;
+    userId: string;
+    categorie: string;
+    materiaalnaam: string;
+    prijs: number;
+    eenheid: string;
+    leverancier: string;
+    updatedAt: Timestamp;
 };
 
 

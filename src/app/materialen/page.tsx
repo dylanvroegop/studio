@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo, ChangeEvent, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { auth, db, uploadMaterialsCsv } from '@/lib/firebase';
+import { User } from 'firebase/auth';
+import { collection, query, where, Timestamp } from 'firebase/firestore';
+import { useAuth, useCollection, useFirestore } from '@/firebase';
+import { uploadMaterialsCsv } from '@/lib/firebase';
 import type { Material } from '@/lib/types';
 import {
   Card,
@@ -29,7 +30,6 @@ import { ArrowLeft, Upload, File, Loader2, HardHat } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { Timestamp } from 'firebase/firestore';
 
 function formatCurrency(amount?: number) {
     if (amount === undefined || amount === null) return '—';
@@ -59,63 +59,45 @@ function PageSkeleton() {
 }
 
 export default function MaterialenPage() {
-    const [user, setUser] = useState<User | null>(null);
-    const [materials, setMaterials] = useState<Material[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { user, isUserLoading } = useAuth();
+    const firestore = useFirestore();
+    const router = useRouter();
+
+    const materialsQuery = useMemo(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'materials'), where('userId', '==', user.uid));
+    }, [user, firestore]);
+    
+    const { data: materials, isLoading: materialsLoading } = useCollection<Material>(materialsQuery);
+
     const [search, setSearch] = useState('');
     const [supplierFilter, setSupplierFilter] = useState<string>('all');
     const [currentPage, setCurrentPage] = useState(1);
     const materialsPerPage = 25;
 
-    const router = useRouter();
-
-    // Authenticatie check
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            if (currentUser) {
-                setUser(currentUser);
-            } else {
-                router.push('/login');
-            }
+        if (!isUserLoading && !user) {
+            router.push('/login');
+        }
+    }, [user, isUserLoading, router]);
+
+    const processedMaterials = useMemo(() => {
+        return (materials || []).map(m => {
+            const data = m as any; // Firestore data can be complex
+            return {
+                ...m,
+                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : (data.updatedAt instanceof Date ? data.updatedAt : new Date()),
+            } as Material;
         });
-        return () => unsubscribe();
-    }, [router]);
-
-    // Materialen ophalen uit Firestore
-    useEffect(() => {
-        if (!user) return;
-        setLoading(true);
-        const materialsRef = collection(db, 'materials');
-        const q = query(materialsRef, where('userId', '==', user.uid));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const materialsData = snapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data,
-                    // Ensure updatedAt is a JS Date object
-                    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
-                } as Material;
-            });
-            setMaterials(materialsData);
-            setLoading(false);
-        }, (error) => {
-            console.error("Fout bij ophalen materialen:", error);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [user]);
+    }, [materials]);
 
     // Client-side filteren en sorteren
     const filteredMaterials = useMemo(() => {
-        let result = materials;
+        let result = processedMaterials;
 
         if (search) {
             result = result.filter(m =>
-                (m.omschrijving && m.omschrijving.toLowerCase().includes(search.toLowerCase())) ||
-                (m.productcode && m.productcode.toLowerCase().includes(search.toLowerCase()))
+                (m.materiaalnaam && m.materiaalnaam.toLowerCase().includes(search.toLowerCase()))
             );
         }
 
@@ -123,24 +105,22 @@ export default function MaterialenPage() {
             result = result.filter(m => m.leverancier === supplierFilter);
         }
 
-        // Safely sort by date
         return result.sort((a, b) => {
              const dateA = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0;
              const dateB = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0;
              return dateB - dateA;
         });
-    }, [search, supplierFilter, materials]);
+    }, [search, supplierFilter, processedMaterials]);
     
-    // Paginatie
     const paginatedMaterials = useMemo(() => {
         const startIndex = (currentPage - 1) * materialsPerPage;
         return filteredMaterials.slice(startIndex, startIndex + materialsPerPage);
     }, [filteredMaterials, currentPage]);
 
     const pageCount = Math.ceil(filteredMaterials.length / materialsPerPage);
-    const uniqueSuppliers = useMemo(() => [...new Set(materials.map(m => m.leverancier).filter(Boolean))], [materials]) as string[];
+    const uniqueSuppliers = useMemo(() => [...new Set(processedMaterials.map(m => m.leverancier).filter(Boolean))], [processedMaterials]) as string[];
 
-    if (!user) {
+    if (isUserLoading || !user) {
         return <PageSkeleton />;
     }
 
@@ -188,7 +168,7 @@ export default function MaterialenPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        {loading ? (
+                        {materialsLoading ? (
                             <div className="space-y-2">
                                 {[...Array(10)].map((_, i) => <div key={i} className="h-10 bg-muted/50 rounded animate-pulse" />)}
                             </div>
@@ -198,7 +178,7 @@ export default function MaterialenPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Leverancier</TableHead>
-                                            <TableHead>Omschrijving</TableHead>
+                                            <TableHead>Materiaalnaam</TableHead>
                                             <TableHead>Categorie</TableHead>
                                             <TableHead>Eenheid</TableHead>
                                             <TableHead className="text-right">Prijs</TableHead>
@@ -209,7 +189,7 @@ export default function MaterialenPage() {
                                         {paginatedMaterials.length > 0 ? paginatedMaterials.map(material => (
                                             <TableRow key={material.id}>
                                                 <TableCell>{material.leverancier || '—'}</TableCell>
-                                                <TableCell className="font-medium">{material.omschrijving}</TableCell>
+                                                <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
                                                 <TableCell>{material.categorie || '—'}</TableCell>
                                                 <TableCell>{material.eenheid}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(material.prijs)}</TableCell>
@@ -289,14 +269,13 @@ function CsvUploadSection({ user }: { user: User }) {
         
         setIsUploading(true);
         try {
-            // Roep de bijgewerkte helper functie aan die parset en schrijft naar Firestore
             const result = await uploadMaterialsCsv(file, user.uid);
             toast({
                 variant: 'default',
                 title: 'Upload succesvol',
                 description: `${result.updatedCount} materialen zijn bijgewerkt.`,
             });
-            setFile(null); // Reset na succesvolle upload
+            setFile(null); 
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
@@ -362,5 +341,3 @@ function CsvUploadSection({ user }: { user: User }) {
         </Card>
     );
 }
-
-    

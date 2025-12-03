@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Hammer, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { signOut, User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 export function DashboardHeader({ user }: { user: User | null }) {
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
 
   const handleLogout = async () => {
     try {

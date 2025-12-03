@@ -20,27 +20,17 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { useEffect } from 'react';
-
+import { useAuth } from '@/firebase';
 
 export function NewQuoteForm() {
   const [clientType, setClientType] = useState('particulier');
   const [showProjectAddress, setShowProjectAddress] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [isPending, startTransition] = useTransition();
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
 
   const router = useRouter();
   const { toast } = useToast();
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
 
   const handleFormSubmit = async (formData: FormData) => {
     setErrors({});

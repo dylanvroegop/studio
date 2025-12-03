@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getJobById, updateJob, getFullQuoteDetails } from './data';
 import type { JobCategory } from './types';
-import { db, serverTimestamp, addDoc, collection } from './firebase';
-import { auth } from './firebase';
+import { addDocumentNonBlocking, serverTimestamp, collection } from '@/firebase';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { initializeFirebase } from '@/firebase';
 
 const NewClientSchema = z.object({
   clientType: z.enum(['particulier', 'zakelijk']),
@@ -42,10 +44,12 @@ type CreateQuoteState = {
 
 export async function createQuoteAction(formData: FormData): Promise<CreateQuoteState> {
     const { redirect } = await import('next/navigation');
+    const { auth, firestore } = initializeFirebase();
     const currentUser = auth.currentUser;
 
     if (!currentUser) {
-        redirect('/login');
+        // This should be caught on the client, but as a fallback.
+        return { message: 'Gebruiker niet ingelogd.'};
     }
 
     const rawData = {
@@ -82,13 +86,14 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   
   const { werkomschrijving, newClient } = validatedFields.data;
 
-  // Stap 1: Nieuw document aanmaken in de 'offertes' collectie met alle data
+  // Stap 1: klantgegevens en korte omschrijving verzamelen.
+  // De server action maakt het document aan in Firestore.
   const quoteData = {
       userId: currentUser.uid,
       status: "concept",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      clientType: newClient.clientType,
+      clientType: newClient.clientType === 'particulier' ? 'Particulier' : 'Zakelijk',
       companyName: newClient.bedrijfsnaam,
       contactPerson: newClient.contactpersoon,
       firstName: newClient.voornaam,
@@ -106,16 +111,21 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
       projectCity: newClient.projectPlaats,
       shortDescription: werkomschrijving,
       clientName: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
-      title: werkomschrijving
+      title: werkomschrijving,
   };
   
   try {
-      const docRef = await addDoc(collection(db, "offertes"), quoteData);
+      const docRef = await addDocumentNonBlocking(collection(firestore, "quotes"), quoteData);
+      if (!docRef) throw new Error("Failed to get document reference.");
       revalidatePath('/');
       return { redirect: `/offertes/${docRef.id}/klus/nieuw` };
   } catch (error) {
       console.error("Firebase Write Error in createQuoteAction: ", error);
-      return { message: 'Database Fout: Offerte kon niet worden aangemaakt.' };
+      let message = 'Database Fout: Offerte kon niet worden aangemaakt.';
+      if (error instanceof Error && error.message.includes('permission-error')) {
+          message = error.message; // Propagate the detailed error message
+      }
+      return { message };
   }
 }
 
@@ -194,3 +204,5 @@ export async function submitQuoteAction(quoteId: string) {
     revalidatePath('/');
     redirect('/');
 }
+
+    

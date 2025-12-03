@@ -5,11 +5,9 @@ import { useRouter } from 'next/navigation';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  onAuthStateChanged,
   AuthError,
-  User,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,20 +19,16 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        router.push('/');
-      } else {
-        setAuthLoading(false);
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    if (!isUserLoading && user) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, router]);
 
   const handleAuthAction = async (isLogin: boolean) => {
     setIsLoading(true);
@@ -46,7 +40,7 @@ export default function LoginPage() {
         await createUserWithEmailAndPassword(auth, email, password);
         toast({ title: 'Success', description: 'Account created successfully.' });
       }
-      // The onAuthStateChanged listener will handle the redirect.
+      // The useUser effect will handle the redirect.
     } catch (error) {
       const authError = error as AuthError;
       let errorMessage = 'An unknown error occurred.';
@@ -86,7 +80,7 @@ export default function LoginPage() {
     }
   };
   
-  if (authLoading) {
+  if (isUserLoading || user) {
       return (
           <div className="min-h-screen flex items-center justify-center p-4">
               <div className="p-8 text-center text-gray-500 flex items-center">

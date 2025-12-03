@@ -1,211 +1,30 @@
-/**
- * This ruleset enforces a strict user-ownership security model for the HoutOfferte application.
- *
- * Core Philosophy:
- * Access is denied by default. All data is considered private to the user who created it.
- * A user can only read, write, and delete their own data. There is no concept of
- * public data or shared access between users in this model.
- *
- * Data Structure:
- * All application data is nested under the `/users/{userId}` path. This structural segregation
- * ensures that all security rules can be anchored to the user's unique ID, making queries
- * and access control simple, secure, and performant. For example, a user's quotes are
- * stored at `/users/{userId}/quotes/{quoteId}`.
- *
- * Key Security Decisions:
- * - User Enumeration Disabled: Listing the top-level `/users` collection is explicitly forbidden
- *   to protect user privacy and prevent data scraping.
- * - Path-Based Security: Authorization is primarily determined by matching the `{userId}` in the
- *   document path with the authenticated user's UID (`request.auth.uid`). This is the most
- *   efficient way to secure user-owned data and its subcollections.
- * - Data Integrity for Ownership: On creation of a new document (like a quote or material),
- *   the rules verify that the document's internal `userId` field matches the authenticated
- *   user's ID. This prevents data from being mis-assigned. This ownership link is then
- *   enforced as immutable on updates.
- * - Prototyping Flexibility: These rules focus strictly on authorization (who can access what)
- *   and do not validate the specific shape or data types of documents. This allows for rapid
- *   application development and schema changes without needing to update security rules.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions for reusable logic
-    // ------------------------------------
-
-    /**
-     * Checks if the user is signed in.
-     */
+    // Helper function to check if the user is authenticated
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the currently authenticated user's UID matches the given userId.
-     * This is the core function for enforcing data ownership.
-     */
+    // Helper function to check if the user owns the document
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * A robust check for update/delete operations, ensuring the user is the owner
-     * AND the document actually exists before the operation proceeds.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+    // Rules for the 'quotes' collection
+    match /quotes/{quoteId} {
+      allow read, write: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow update: if isSignedIn() && isOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isOwner(resource.data.userId);
     }
     
-    /**
-     * Validates that on user document creation, the document's internal `id`
-     * field matches its path ID for data consistency.
-     */
-    function hasValidUserCreateData(userId) {
-      return request.resource.data.id == userId;
-    }
-
-    /**
-     * Ensures the internal ownership ID on a user document is immutable.
-     */
-    function isUserDataImmutable() {
-      return request.resource.data.id == resource.data.id;
-    }
-    
-    /**
-     * Validates that on creation, a document's internal `userId` field
-     * matches the owner's UID from the path.
-     */
-    function hasValidOwnershipDataForCreate(userId) {
-        return request.resource.data.userId == userId;
-    }
-    
-    /**
-     * Ensures the internal `userId` ownership link is immutable on updates.
-     */
-    function isOwnershipDataImmutable() {
-        return request.resource.data.userId == resource.data.userId;
-    }
-
-    // Collection Rules
-    // ------------------------------------
-    
-    /**
-     * @description Manages user profile documents.
-     * @path /users/{userId}
-     * @allow (get) An authenticated user can read their own profile.
-     * @allow (create) An authenticated user can create their own profile document.
-     * @deny (list) Listing all users is forbidden to protect privacy.
-     * @deny (update) An authenticated user cannot update another user's profile.
-     * @principle Restricts access to a user's own data tree and allows self-creation of a profile.
-     */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false; // Prevent user enumeration
-      allow create: if isOwner(userId) && hasValidUserCreateData(userId);
-      allow update: if isExistingOwner(userId) && isUserDataImmutable();
-      allow delete: if isExistingOwner(userId);
-
-      /**
-       * @description Manages clients, which are owned by a specific user.
-       * @path /users/{userId}/clients/{clientId}
-       * @allow (list) A user can list all of their own clients.
-       * @allow (create) A user can create a new client document under their own ID.
-       * @deny (get) A user cannot read another user's client data.
-       * @deny (delete) A user cannot delete another user's client data.
-       * @principle Enforces strict data ownership within a user's data tree.
-       */
-      match /clients/{clientId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && hasValidOwnershipDataForCreate(userId);
-        allow update: if isExistingOwner(userId) && isOwnershipDataImmutable();
-        allow delete: if isExistingOwner(userId);
-      }
-
-      /**
-       * @description Manages quotes, which are owned by a specific user.
-       * @path /users/{userId}/quotes/{quoteId}
-       * @allow (list) A user can list all of their own quotes.
-       * @allow (create) A user can create a new quote under their own ID.
-       * @deny (get) A user cannot read another user's quote data.
-       * @deny (update) A user cannot modify another user's quote data.
-       * @principle Enforces strict data ownership within a user's data tree.
-       */
-      match /quotes/{quoteId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && hasValidOwnershipDataForCreate(userId);
-        allow update: if isExistingOwner(userId) && isOwnershipDataImmutable();
-        allow delete: if isExistingOwner(userId);
-
-        /**
-         * @description Manages jobs (klussen), which belong to a specific quote.
-         * @path /users/{userId}/quotes/{quoteId}/jobs/{jobId}
-         * @allow (list) A user can list all jobs within one of their own quotes.
-         * @allow (create) A user can create a job for one of their own quotes.
-         * @deny (get) A user cannot read a job belonging to another user's quote.
-         * @deny (delete) A user cannot delete a job from another user's quote.
-         * @principle Security is inherited from the path, ensuring only the owner of the user tree can access nested data.
-         */
-        match /jobs/{jobId} {
-          allow get: if isOwner(userId);
-          allow list: if isOwner(userId);
-          allow create: if isOwner(userId);
-          allow update: if isExistingOwner(userId);
-          allow delete: if isExistingOwner(userId);
-
-          /**
-           * @description Manages materials for a specific job.
-           * @path /users/{userId}/quotes/{quoteId}/jobs/{jobId}/jobMaterials/{jobMaterialId}
-           * @allow (list) A user can list all materials within one of their own jobs.
-           * @allow (create) A user can add a material to one of their own jobs.
-           * @deny (get) A user cannot read a job material belonging to another user.
-           * @deny (delete) A user cannot delete a job material belonging to another user.
-           * @principle Security is inherited from the path, ensuring only the owner of the user tree can access deeply nested data.
-           */
-          match /jobMaterials/{jobMaterialId} {
-            allow get: if isOwner(userId);
-            allow list: if isOwner(userId);
-            allow create: if isOwner(userId);
-            allow update: if isExistingOwner(userId);
-            allow delete: if isExistingOwner(userId);
-          }
-        }
-      }
-
-      /**
-       * @description Manages user-defined presets for jobs.
-       * @path /users/{userId}/presets/{presetId}
-       * @allow (list) A user can list all of their own presets.
-       * @allow (create) A user can create a new preset under their own ID.
-       * @deny (get) A user cannot read another user's preset data.
-       * @deny (update) A user cannot modify another user's preset data.
-       * @principle Enforces strict data ownership within a user's data tree.
-       */
-      match /presets/{presetId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && hasValidOwnershipDataForCreate(userId);
-        allow update: if isExistingOwner(userId) && isOwnershipDataImmutable();
-        allow delete: if isExistingOwner(userId);
-      }
-
-      /**
-       * @description Manages a user's private library of materials.
-       * @path /users/{userId}/materials/{materialId}
-       * @allow (list) A user can list all materials in their library.
-       * @allow (create) A user can add a new material to their library.
-       * @deny (get) A user cannot read another user's material library.
-       * @deny (delete) A user cannot delete a material from another user's library.
-       * @principle Enforces strict data ownership within a user's data tree.
-       */
-      match /materials/{materialId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && hasValidOwnershipDataForCreate(userId);
-        allow update: if isExistingOwner(userId) && isOwnershipDataImmutable();
-        allow delete: if isExistingOwner(userId);
-      }
+    // Rules for the 'materials' collection
+    match /materials/{materialId} {
+      allow read, write: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow update: if isSignedIn() && isOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isOwner(resource.data.userId);
     }
   }
 }
