@@ -39,7 +39,13 @@ export function AuthForm() {
         const idToken = await userCredential.user.getIdToken();
         
         // Set cookie for middleware to read
-        document.cookie = `firebaseAuthToken=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}`;
+        await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ idToken }),
+        });
 
         router.push('/');
       }
