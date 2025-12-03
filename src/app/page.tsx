@@ -162,7 +162,7 @@ export default function Dashboard() {
             case 'createdAt_asc':
                 return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
             case 'amount_desc':
-                return (b.amount || 0) - (a.amount || 0);
+                return (b.amount || 0) - (b.amount || 0);
             case 'amount_asc':
                 return (a.amount || 0) - (b.amount || 0);
             case 'createdAt_desc':
@@ -224,14 +224,14 @@ export default function Dashboard() {
         </div>
 
         {/* Management Cards */}
-        <div className="grid gap-4 md:grid-cols-2">
-            <Card className="bg-accent/80 hover:bg-accent transition-colors text-accent-foreground">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
+            <Card className="bg-primary/90 hover:bg-primary transition-colors text-primary-foreground">
                 <Link href="/offertes/nieuw" className="block p-6 h-full">
                     <div className="flex items-start gap-4">
-                        <PlusCircle className="h-8 w-8 text-accent-foreground flex-shrink-0" />
+                        <PlusCircle className="h-8 w-8 text-primary-foreground flex-shrink-0" />
                         <div>
                             <h3 className="font-semibold text-lg">Nieuwe offerte aanmaken</h3>
-                            <p className="text-sm text-accent-foreground/80">Maak een nieuwe offerte voor een klant.</p>
+                            <p className="text-sm text-primary-foreground/80">Maak een nieuwe offerte voor een klant.</p>
                         </div>
                     </div>
                 </Link>
@@ -389,3 +389,5 @@ export default function Dashboard() {
     </TooltipProvider>
   );
 }
+
+    
