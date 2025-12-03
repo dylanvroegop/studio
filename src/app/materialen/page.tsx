@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, ChangeEvent, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { User } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection } from '@/firebase';
 import { uploadMaterialsCsv } from '@/lib/firebase';
