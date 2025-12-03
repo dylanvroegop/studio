@@ -31,10 +31,12 @@ export function AuthForm() {
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
+        // On successful sign up, redirect to login to sign in.
+        router.push('/login');
       } else {
         await signInWithEmailAndPassword(auth, email, password);
+        router.push('/');
       }
-      router.push('/');
     } catch (err: unknown) {
       const authError = err as AuthError;
       switch (authError.code) {
