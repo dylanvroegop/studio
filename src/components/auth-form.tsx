@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -31,6 +32,7 @@ export function AuthForm() {
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
+        // Do not log in automatically, show success and switch to login view
         setError('Account aangemaakt! U kunt nu inloggen.');
         setIsSignUp(false);
       } else {
