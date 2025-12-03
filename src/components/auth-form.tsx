@@ -34,7 +34,12 @@ export function AuthForm() {
         // On successful sign up, redirect to login to sign in.
         router.push('/login');
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const idToken = await userCredential.user.getIdToken();
+        
+        // Set cookie for middleware to read
+        document.cookie = `firebaseAuthToken=${idToken}; path=/; max-age=${60 * 60 * 24 * 7}`;
+
         router.push('/');
       }
     } catch (err: unknown) {
