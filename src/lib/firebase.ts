@@ -2,7 +2,7 @@
 // CSV → Firestore with 1:1 mapping
 // No magic. No transformations. No formatting.
 
-import { initializeFirebase } from "@/firebase";
+import { initializeFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { serverTimestamp, doc, setDoc } from "firebase/firestore";
 
 export async function uploadMaterialsCsv(file: File, userId: string) {
@@ -20,14 +20,6 @@ export async function uploadMaterialsCsv(file: File, userId: string) {
 
     // First row is header
     const headers = rows[0].split(",");
-
-    // Expected order EXACT: categorie,materiaalnaam,prijs,eenheid,leverancier
-    const required = ["categorie","materiaalnaam","prijs","eenheid","leverancier"];
-    for (const r of required) {
-        if (!headers.includes(r)) {
-            throw new Error(`Kolom '${r}' ontbreekt in CSV.`);
-        }
-    }
 
     let count = 0;
 
@@ -56,9 +48,8 @@ export async function uploadMaterialsCsv(file: File, userId: string) {
         const forbidden = /[\/\?\#\[\]]/g;
         const docId =
             `${leverancier}__${materiaalnaam}`.replace(forbidden, "-");
-
-        // Save to Firestore EXACT as CSV
-        await setDoc(doc(firestore, "materials", docId), {
+            
+        const materialData = {
             userId: userId,
             categorie: categorie,
             materiaalnaam: materiaalnaam,
@@ -66,6 +57,20 @@ export async function uploadMaterialsCsv(file: File, userId: string) {
             eenheid: eenheid,
             leverancier: leverancier,
             updatedAt: serverTimestamp(),
+        };
+
+        const docRef = doc(firestore, "materials", docId);
+
+        // Save to Firestore EXACT as CSV
+        setDoc(docRef, materialData).catch(error => {
+            errorEmitter.emit(
+                'permission-error',
+                new FirestorePermissionError({
+                    path: docRef.path,
+                    operation: 'write',
+                    requestResourceData: materialData,
+                })
+            );
         });
 
         count++;
