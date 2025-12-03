@@ -98,8 +98,9 @@ export type Material = {
   id: string;
   userId: string;
   leverancier?: string;
-  productcode?: string;
+  productcode?: string; // Blijft voor mogelijke toekomstige uitbreiding
   omschrijving: string;
+  categorie?: string;
   eenheid: MaterialUnit;
   prijs: number;
   updatedAt: Timestamp | Date;

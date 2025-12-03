@@ -25,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, Upload, File, AlertTriangle, CheckCircle, Loader2, HardHat } from 'lucide-react';
+import { ArrowLeft, Upload, File, Loader2, HardHat } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -91,7 +91,7 @@ export default function MaterialenPage() {
             const materialsData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
-                updatedAt: doc.data().updatedAt?.toDate() // Converteer Firestore Timestamp
+                updatedAt: doc.data().updatedAt?.toDate() // Converteer Firestore Timestamp naar Date
             } as Material));
             setMaterials(materialsData);
             setLoading(false);
@@ -161,7 +161,7 @@ export default function MaterialenPage() {
                         <CardTitle>Alle materialen</CardTitle>
                         <div className="mt-4 flex flex-col md:flex-row gap-2">
                              <Input 
-                                placeholder="Zoek op omschrijving of productcode..." 
+                                placeholder="Zoek op omschrijving..." 
                                 className="max-w-xs"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
@@ -188,8 +188,8 @@ export default function MaterialenPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Leverancier</TableHead>
-                                            <TableHead>Productcode</TableHead>
                                             <TableHead>Omschrijving</TableHead>
+                                            <TableHead>Categorie</TableHead>
                                             <TableHead>Eenheid</TableHead>
                                             <TableHead className="text-right">Prijs</TableHead>
                                             <TableHead className="text-right">Laatst bijgewerkt</TableHead>
@@ -199,8 +199,8 @@ export default function MaterialenPage() {
                                         {paginatedMaterials.length > 0 ? paginatedMaterials.map(material => (
                                             <TableRow key={material.id}>
                                                 <TableCell>{material.leverancier || '—'}</TableCell>
-                                                <TableCell>{material.productcode || '—'}</TableCell>
                                                 <TableCell className="font-medium">{material.omschrijving}</TableCell>
+                                                <TableCell>{material.categorie || '—'}</TableCell>
                                                 <TableCell>{material.eenheid}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(material.prijs)}</TableCell>
                                                 <TableCell className="text-right">{format(new Date(material.updatedAt), 'd MMM yyyy', { locale: nl })}</TableCell>
@@ -252,7 +252,20 @@ function CsvUploadSection({ user }: { user: User }) {
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            setFile(e.target.files[0]);
+            const selectedFile = e.target.files[0];
+            if (selectedFile.type.includes('csv')) {
+                setFile(selectedFile);
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Ongeldig bestand',
+                    description: 'Selecteer a.u.b. een CSV-bestand.',
+                });
+                setFile(null);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+            }
         }
     };
 
@@ -261,14 +274,17 @@ function CsvUploadSection({ user }: { user: User }) {
         
         setIsUploading(true);
         try {
-            // Roep de upload helper functie aan
+            // Roep de bijgewerkte helper functie aan die parset en schrijft naar Firestore
             const result = await uploadMaterialsCsv(file, user.uid);
             toast({
                 variant: 'default',
                 title: 'Upload succesvol',
-                description: `${result.updatedCount} materialen zijn bijgewerkt. Het kan even duren voordat ze zichtbaar zijn.`,
+                description: `${result.updatedCount} materialen zijn bijgewerkt.`,
             });
             setFile(null); // Reset na succesvolle upload
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         } catch (error) {
             console.error('CSV Upload Error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
@@ -287,7 +303,7 @@ function CsvUploadSection({ user }: { user: User }) {
             <CardHeader>
                 <CardTitle>Materiaalprijzen uploaden (CSV)</CardTitle>
                 <CardDescription>
-                    Upload hier een CSV-bestand met materiaalprijzen. Bestaande materialen met dezelfde productcode worden automatisch bijgewerkt.
+                    Upload hier een CSV-bestand met materiaalprijzen. Bestaande materialen worden bijgewerkt op basis van leverancier en materiaalnaam. De CSV moet de kolommen 'categorie', 'materiaalnaam', 'prijs', 'eenheid', en 'leverancier' bevatten.
                 </CardDescription>
             </CardHeader>
             <CardContent>
