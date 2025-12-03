@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import {
-  getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   AuthError,
@@ -11,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useFirebaseApp } from '@/firebase';
+import { useAuth } from '@/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -22,8 +21,7 @@ export function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const app = useFirebaseApp();
-  const auth = getAuth(app);
+  const auth = useAuth();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,13 +31,15 @@ export function AuthForm() {
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
+        // After sign up, show a success message and switch to the login view
         setError('Account aangemaakt! U kunt nu inloggen.');
-        setIsSignUp(false); // Switch back to login view
+        setIsSignUp(false);
+        setIsLoading(false);
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
         
-        const response = await fetch('/api/auth/login', {
+        await fetch('/api/auth/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -47,11 +47,7 @@ export function AuthForm() {
           body: JSON.stringify({ idToken }),
         });
 
-        if (!response.ok) {
-            const errorBody = await response.json();
-            throw new Error(errorBody.error || 'Failed to set auth cookie');
-        }
-
+        // Use router.push() to navigate and then router.refresh() to force a re-fetch of server components
         router.push('/');
         router.refresh(); 
       }
@@ -60,8 +56,7 @@ export function AuthForm() {
       const errorMessage = `Fout: ${authError.code} - ${authError.message}`;
       console.error('Authentication Error:', authError.code, authError.message);
       setError(errorMessage);
-    } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -70,7 +65,7 @@ export function AuthForm() {
       {error && (
         <Alert variant={error.includes('Account aangemaakt') ? 'default' : 'destructive'}>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>{error.includes('Account aangemaakt') ? 'Succes' : 'Fout'}</AlertTitle>
+          <AlertTitle>{error.includes('Account aangimread') ? 'Succes' : 'Fout'}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}

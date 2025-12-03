@@ -3,14 +3,13 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Hammer, PlusCircle, LogOut } from 'lucide-react';
-import { getAuth, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useFirebaseApp } from '@/firebase';
+import { useAuth } from '@/firebase';
 
 export function DashboardHeader() {
   const router = useRouter();
-  const app = useFirebaseApp();
-  const auth = getAuth(app);
+  const auth = useAuth();
 
   const handleLogout = async () => {
     try {
