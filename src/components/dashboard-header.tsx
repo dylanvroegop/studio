@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { Hammer, PlusCircle, LogOut } from 'lucide-react';
 import { getAuth, signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useFirebase } from '@/firebase';
+import { useFirebaseApp } from '@/firebase';
 
 export function DashboardHeader() {
   const router = useRouter();
-  const { app } = useFirebase();
+  const app = useFirebaseApp();
   const auth = getAuth(app);
 
   const handleLogout = async () => {
@@ -17,6 +17,7 @@ export function DashboardHeader() {
       await signOut(auth);
       await fetch('/api/auth/logout', { method: 'POST' });
       router.push('/login');
+      router.refresh();
     } catch (error) {
       console.error('Error signing out:', error);
     }

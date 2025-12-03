@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useFirebase } from '@/firebase';
+import { useFirebaseApp } from '@/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -22,7 +22,7 @@ export function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { app } = useFirebase();
+  const app = useFirebaseApp();
   const auth = getAuth(app);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -33,16 +33,13 @@ export function AuthForm() {
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
-        // After successful sign-up, inform the user to log in.
-        // We can also redirect them automatically or log them in, but for now, we'll keep it simple.
         setError('Account aangemaakt! U kunt nu inloggen.');
         setIsSignUp(false); // Switch back to login view
-        setIsLoading(false);
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
         
-        await fetch('/api/auth/login', {
+        const response = await fetch('/api/auth/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -50,7 +47,10 @@ export function AuthForm() {
           body: JSON.stringify({ idToken }),
         });
 
-        setIsLoading(false);
+        if (!response.ok) {
+            throw new Error('Failed to set auth cookie');
+        }
+
         router.push('/');
         router.refresh(); 
       }
@@ -58,7 +58,8 @@ export function AuthForm() {
       const authError = err as AuthError;
       console.error('Authentication Error:', authError);
       setError(`Fout: ${authError.code} - ${authError.message}`);
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
     }
   };
 
