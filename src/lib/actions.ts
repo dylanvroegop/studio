@@ -6,16 +6,27 @@ import { createClient, createQuote, createJob, updateJob, updateQuoteStatus, get
 import type { JobCategory } from './types';
 
 const NewClientSchema = z.object({
-  naam: z.string().min(1, 'Naam is verplicht'),
-  adres: z.string().min(1, 'Adres is verplicht'),
+  clientType: z.enum(['particulier', 'zakelijk']),
+  bedrijfsnaam: z.string().optional(),
+  contactpersoon: z.string().optional(),
+  voornaam: z.string().min(1, 'Voornaam is verplicht'),
+  achternaam: z.string().min(1, 'Achternaam is verplicht'),
+  email: z.string().email('Ongeldig emailadres'),
+  telefoon: z.string().min(1, 'Telefoonnummer is verplicht'),
+  straat: z.string().min(1, 'Straat is verplicht'),
+  huisnummer: z.string().min(1, 'Huisnummer is verplicht'),
   postcode: z.string().min(1, 'Postcode is verplicht'),
   plaats: z.string().min(1, 'Plaats is verplicht'),
-  email: z.string().email('Ongeldig emailadres').optional().or(z.literal('')),
-  telefoon: z.string().optional(),
+  afwijkendProjectadres: z.boolean().optional(),
+  projectStraat: z.string().optional(),
+  projectHuisnummer: z.string().optional(),
+  projectPostcode: zstring().optional(),
+  projectPlaats: z.string().optional(),
 });
 
+
 const QuoteFormSchema = z.object({
-  titel: z.string().min(3, 'Titel is verplicht (min. 3 karakters)'),
+  werkomschrijving: z.string().min(10, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
   clientSource: z.enum(['new', 'existing']),
   existingClientId: z.string().optional(),
   newClient: NewClientSchema.optional(),
@@ -24,7 +35,7 @@ const QuoteFormSchema = z.object({
         return !!data.existingClientId;
     }
     if (data.clientSource === 'new') {
-        return !!data.newClient?.naam && !!data.newClient?.adres && !!data.newClient?.postcode && !!data.newClient?.plaats;
+        return !!data.newClient;
     }
     return false;
 }, {
@@ -34,33 +45,39 @@ const QuoteFormSchema = z.object({
 
 
 type CreateQuoteState = {
-  errors?: {
-    titel?: string[];
-    clientSource?: string[];
-    existingClientId?: string[];
-    newClient?: string[];
-  };
+  errors?: z.ZodError<typeof QuoteFormSchema>['formErrors']['fieldErrors'];
   message?: string | null;
   redirect?: string | null;
 };
 
 export async function createQuoteAction(formData: FormData): Promise<CreateQuoteState> {
     const rawData = {
-        titel: formData.get('titel'),
-        clientSource: formData.get('clientSource'),
+        werkomschrijving: formData.get('werkomschrijving'),
+        clientSource: formData.get('clientSource') || 'new',
         existingClientId: formData.get('existingClientId'),
         newClient: {
-            naam: formData.get('newClient.naam'),
-            adres: formData.get('newClient.adres'),
-            postcode: formData.get('newClient.postcode'),
-            plaats: formData.get('newClient.plaats'),
-            email: formData.get('newClient.email'),
-            telefoon: formData.get('newClient.telefoon'),
+            clientType: formData.get('clientType') || 'particulier',
+            bedrijfsnaam: formData.get('bedrijfsnaam'),
+            contactpersoon: formData.get('contactpersoon'),
+            voornaam: formData.get('voornaam'),
+            achternaam: formData.get('achternaam'),
+            email: formData.get('email'),
+            telefoon: formData.get('telefoon'),
+            straat: formData.get('straat'),
+            huisnummer: formData.get('huisnummer'),
+            postcode: formData.get('postcode'),
+            plaats: formData.get('plaats'),
+            afwijkendProjectadres: formData.get('afwijkendProjectadres') === 'on',
+            projectStraat: formData.get('projectStraat'),
+            projectHuisnummer: formData.get('projectHuisnummer'),
+            projectPostcode: formData.get('projectPostcode'),
+            projectPlaats: formData.get('projectPlaats'),
         }
     };
-
+    
+    // Alleen valideren wat nodig is
     if (rawData.clientSource === 'existing') {
-        delete rawData.newClient;
+        delete (rawData as any).newClient;
     } else {
         delete rawData.existingClientId;
     }
@@ -68,19 +85,28 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
     const validatedFields = QuoteFormSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
-    console.error(validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Validatie mislukt.'
+      message: 'Validatie mislukt. Controleer de gemarkeerde velden.'
     };
   }
   
-  const { titel, clientSource, existingClientId, newClient } = validatedFields.data;
+  const { werkomschrijving, clientSource, existingClientId, newClient } = validatedFields.data;
   let clientId: string;
 
   try {
+    // Stap 1: Klant aanmaken of ophalen
     if (clientSource === 'new' && newClient) {
-      const createdClient = await createClient(newClient);
+        const clientToCreate = {
+            naam: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
+            adres: `${newClient.straat} ${newClient.huisnummer}`,
+            postcode: newClient.postcode,
+            plaats: newClient.plaats,
+            email: newClient.email,
+            telefoon: newClient.telefoon,
+            // Hier zou je de extra velden kunnen opslaan in een 'details' object
+        };
+      const createdClient = await createClient(clientToCreate);
       clientId = createdClient.id;
     } else if (clientSource === 'existing' && existingClientId) {
       clientId = existingClientId;
@@ -88,9 +114,11 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
       return { message: 'Geen klantgegevens ontvangen' };
     }
   
-    const newQuote = await createQuote({ clientId, titel });
+    // Stap 2: Offerte aanmaken met de korte omschrijving als titel
+    const newQuote = await createQuote({ clientId, titel: werkomschrijving });
+
+    // Stap 3: Navigeer naar de job builder (stap 2)
     revalidatePath('/');
-    
     return { redirect: `/offertes/${newQuote.id}/klus/nieuw` };
 
   } catch (error) {

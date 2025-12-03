@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createQuoteAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
@@ -13,153 +13,210 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import type { Client } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export function NewQuoteForm({ clients }: { clients: Client[] }) {
-  const [clientSource, setClientSource] = useState('existing');
+  const [clientType, setClientType] = useState('particulier');
+  const [showProjectAddress, setShowProjectAddress] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
+  const [isPending, startTransition] = useTransition();
+
   const router = useRouter();
   const { toast } = useToast();
 
   const handleFormSubmit = async (formData: FormData) => {
-    const result = await createQuoteAction(formData);
+    setErrors({});
+    startTransition(async () => {
+      // Dit is stap 1: klantgegevens en korte omschrijving verzamelen
+      const result = await createQuoteAction(formData);
 
-    if (result.errors) {
-      console.error(result.errors);
-      toast({
-        variant: 'destructive',
-        title: 'Fout bij validatie',
-        description:
-          Object.values(result.errors).flat().join('\n') ||
-          'Controleer de ingevulde velden.',
-      });
-    } else if (result.message) {
+      if (result?.errors) {
+        setErrors(result.errors);
         toast({
-            variant: 'destructive',
-            title: 'Fout',
-            description: result.message,
+          variant: 'destructive',
+          title: 'Validatiefout',
+          description: result.message || 'Controleer de gemarkeerde velden en probeer het opnieuw.',
         });
-    } else if (result.redirect) {
-      router.push(result.redirect);
-    }
+      } else if (result?.message) {
+          toast({
+              variant: 'destructive',
+              title: 'Fout',
+              description: result.message,
+          });
+      } else if (result?.redirect) {
+        toast({
+          title: 'Klant opgeslagen',
+          description: 'U wordt doorgestuurd naar de volgende stap.',
+        });
+        router.push(result.redirect);
+      }
+    });
   };
 
   return (
-    <form action={handleFormSubmit} className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="titel">Offertetitel</Label>
-        <Input
-          id="titel"
-          name="titel"
-          placeholder="bv. Dakkapel plaatsen"
-          required
-        />
-      </div>
+     <Card>
+      <CardHeader>
+        <CardTitle>Klantinformatie</CardTitle>
+        <CardDescription>
+          Vul hieronder de gegevens van de klant in. Deze informatie wordt gebruikt op de offerte en voor de communicatie rond het project.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={handleFormSubmit} className="space-y-8">
+            {/* We gebruiken hier clientSource: 'new' omdat we altijd nieuwe klantdata submitten, ook al is het een bestaande klant.
+                De server action zou dit later kunnen herleiden tot een bestaande klant. Voor nu versimpelen we en maken we altijd een nieuwe. */}
+            <input type="hidden" name="clientSource" value="new" />
+            
+            {/* Sectie 1 – Klanttype en naam */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-lg">Klanttype en naam</h3>
+              <RadioGroup name="clientType" defaultValue="particulier" onValueChange={setClientType} className="flex gap-6">
+                <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="particulier" id="particulier" />
+                    <Label htmlFor="particulier">Particulier</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="zakelijk" id="zakelijk" />
+                    <Label htmlFor="zakelijk">Zakelijk</Label>
+                </div>
+              </RadioGroup>
 
-      <Tabs
-        defaultValue="existing"
-        className="w-full"
-        onValueChange={setClientSource}
-      >
-        <input type="hidden" name="clientSource" value={clientSource} />
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="existing">Bestaande klant</TabsTrigger>
-          <TabsTrigger value="new">Nieuwe klant</TabsTrigger>
-        </TabsList>
-        <TabsContent value="existing" className="pt-4">
-          <div className="space-y-2">
-            <Label htmlFor="existingClientId">Kies een klant</Label>
-            <Select
-              name="existingClientId"
-              disabled={clientSource !== 'existing'}
-              required={clientSource === 'existing'}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecteer een bestaande klant" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.naam} - {client.plaats}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </TabsContent>
-        <TabsContent value="new" className="pt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="naam">Naam</Label>
-              <Input
-                id="naam"
-                name="newClient.naam"
-                placeholder="bv. Jan de Boer"
-                disabled={clientSource !== 'new'}
-                required={clientSource === 'new'}
-              />
+              {clientType === 'zakelijk' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div>
+                        <Label htmlFor="bedrijfsnaam">Bedrijfsnaam</Label>
+                        <Input id="bedrijfsnaam" name="bedrijfsnaam" placeholder="bv. Hout & Co" />
+                    </div>
+                     <div>
+                        <Label htmlFor="contactpersoon">Contactpersoon</Label>
+                        <Input id="contactpersoon" name="contactpersoon" placeholder="bv. Dhr. Jansen" />
+                    </div>
+                </div>
+              )}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div>
+                        <Label htmlFor="voornaam">Voornaam *</Label>
+                        <Input id="voornaam" name="voornaam" placeholder="Jan" required />
+                        {errors?.['newClient.voornaam'] && <p className="text-sm text-destructive mt-1">{errors['newClient.voornaam'][0]}</p>}
+                    </div>
+                    <div>
+                        <Label htmlFor="achternaam">Achternaam *</Label>
+                        <Input id="achternaam" name="achternaam" placeholder="de Boer" required />
+                        {errors?.['newClient.achternaam'] && <p className="text-sm text-destructive mt-1">{errors['newClient.achternaam'][0]}</p>}
+                    </div>
+                </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="telefoon">Telefoon</Label>
-              <Input
-                id="telefoon"
-                name="newClient.telefoon"
-                placeholder="bv. 0612345678"
-                disabled={clientSource !== 'new'}
-              />
+            <Separator />
+
+            {/* Sectie 2 – Contactgegevens */}
+            <div className="space-y-4">
+                 <h3 className="font-medium text-lg">Contactgegevens</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="email">E-mailadres *</Label>
+                        <Input id="email" name="email" type="email" placeholder="jan@voorbeeld.nl" required />
+                        {errors?.['newClient.email'] && <p className="text-sm text-destructive mt-1">{errors['newClient.email'][0]}</p>}
+                    </div>
+                    <div>
+                        <Label htmlFor="telefoon">Telefoonnummer (mobiel) *</Label>
+                        <Input id="telefoon" name="telefoon" type="tel" placeholder="0612345678" required />
+                        {errors?.['newClient.telefoon'] && <p className="text-sm text-destructive mt-1">{errors['newClient.telefoon'][0]}</p>}
+                    </div>
+                </div>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                name="newClient.email"
-                placeholder="bv. jan@voorbeeld.nl"
-                disabled={clientSource !== 'new'}
-              />
+            <Separator />
+
+            {/* Sectie 3 – Adresgegevens */}
+            <div className="space-y-4">
+                 <h3 className="font-medium text-lg">Factuuradres / hoofdadres</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                    <div className="md:col-span-4">
+                        <Label htmlFor="straat">Straat *</Label>
+                        <Input id="straat" name="straat" placeholder="Voorbeeldstraat" required />
+                    </div>
+                     <div className="md:col-span-2">
+                        <Label htmlFor="huisnummer">Huisnummer + toev. *</Label>
+                        <Input id="huisnummer" name="huisnummer" placeholder="123 A" required />
+                    </div>
+                    <div className="md:col-span-2">
+                        <Label htmlFor="postcode">Postcode *</Label>
+                        <Input id="postcode" name="postcode" placeholder="1234 AB" required />
+                    </div>
+                     <div className="md:col-span-4">
+                        <Label htmlFor="plaats">Plaats *</Label>
+                        <Input id="plaats" name="plaats" placeholder="Amsterdam" required />
+                    </div>
+                 </div>
+                 <div className="flex items-center space-x-2 pt-2">
+                    <Switch id="afwijkend-projectadres" name="afwijkendProjectadres" onCheckedChange={setShowProjectAddress} />
+                    <Label htmlFor="afwijkend-projectadres">Afwijkend projectadres</Label>
+                </div>
+                {showProjectAddress && (
+                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4 pt-4 border-t border-dashed mt-4">
+                         <div className="md:col-span-4">
+                            <Label htmlFor="projectStraat">Projectstraat</Label>
+                            <Input id="projectStraat" name="projectStraat" placeholder="Klusstraat" />
+                        </div>
+                         <div className="md:col-span-2">
+                            <Label htmlFor="projectHuisnummer">Project huisnummer</Label>
+                            <Input id="projectHuisnummer" name="projectHuisnummer" placeholder="456" />
+                        </div>
+                        <div className="md:col-span-2">
+                            <Label htmlFor="projectPostcode">Project postcode</Label>
+                            <Input id="projectPostcode" name="projectPostcode" placeholder="5678 CD" />
+                        </div>
+                         <div className="md:col-span-4">
+                            <Label htmlFor="projectPlaats">Project plaats</Label>
+                            <Input id="projectPlaats" name="projectPlaats" placeholder="Utrecht" />
+                        </div>
+                     </div>
+                )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="adres">Adres</Label>
-              <Input
-                id="adres"
-                name="newClient.adres"
-                placeholder="bv. Voorbeeldstraat 1"
-                disabled={clientSource !== 'new'}
-                required={clientSource === 'new'}
-              />
+            <Separator />
+
+            {/* Sectie 4 – Korte omschrijving */}
+            <div className="space-y-4">
+                 <h3 className="font-medium text-lg">Korte omschrijving van het werk</h3>
+                 <p className="text-sm text-muted-foreground">Geef in je eigen woorden aan wat er gedaan moet worden. Deze omschrijving verschijnt ook op de offerte.</p>
+                 <div>
+                    <Label htmlFor="werkomschrijving">Werkomschrijving *</Label>
+                    <Textarea 
+                        id="werkomschrijving" 
+                        name="werkomschrijving"
+                        required 
+                        maxLength={800}
+                        placeholder="Bijvoorbeeld: Plaatsen van HSB wand in de keuken, inclusief isolatie en afwerking met gipsplaten."
+                        className="min-h-[100px]"
+                    />
+                    {errors?.werkomschrijving && <p className="text-sm text-destructive mt-1">{errors.werkomschrijving[0]}</p>}
+                 </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="postcode">Postcode</Label>
-              <Input
-                id="postcode"
-                name="newClient.postcode"
-                placeholder="bv. 1234 AB"
-                disabled={clientSource !== 'new'}
-                required={clientSource === 'new'}
-              />
+
+            <div className="flex justify-end gap-4 pt-4">
+                <Button variant="outline" asChild>
+                    <Link href="/">Annuleren</Link>
+                </Button>
+                <Button type="submit" disabled={isPending} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                     {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                     {isPending ? 'Bezig...' : 'Volgende'}
+                </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="plaats">Plaats</Label>
-              <Input
-                id="plaats"
-                name="newClient.plaats"
-                placeholder="bv. Amsterdam"
-                disabled={clientSource !== 'new'}
-                required={clientSource === 'new'}
-              />
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-      <div className="flex justify-end">
-        <Button
-          type="submit"
-          className="bg-accent text-accent-foreground hover:bg-accent/90"
-        >
-          Offerte aanmaken en verder
-        </Button>
-      </div>
-    </form>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
