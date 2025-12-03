@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useFirebase } from '@/firebase/provider';
+import { useFirebase } from '@/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -31,9 +31,9 @@ export function AuthForm() {
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
-        // On successful sign up, redirect to login to sign in.
+        // On successful sign up, switch to login view and inform user.
         setIsSignUp(false);
-        router.push('/login');
+        setError('Account aangemaakt! U kunt nu inloggen.');
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
@@ -71,9 +71,9 @@ export function AuthForm() {
   return (
     <form onSubmit={handleAuth} className="space-y-6">
       {error && (
-        <Alert variant="destructive">
+        <Alert variant={error.includes('Account aangemaakt') ? 'default' : 'destructive'}>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Fout</AlertTitle>
+          <AlertTitle>{error.includes('Account aangemaakt') ? 'Succes' : 'Fout'}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}

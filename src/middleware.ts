@@ -4,10 +4,12 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('firebaseAuthToken');
   const { pathname } = request.nextUrl;
 
+  // If the user is not authenticated and is not on the login page, redirect them to the login page.
   if (!token && pathname !== '/login') {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // If the user is authenticated and tries to access the login page, redirect them to the homepage.
   if (token && pathname === '/login') {
     return NextResponse.redirect(new URL('/', request.url));
   }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Hammer, PlusCircle, LogOut } from 'lucide-react';
 import { getAuth, signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useFirebase } from '@/firebase/provider';
+import { useFirebase } from '@/firebase';
 
 export function DashboardHeader() {
   const router = useRouter();
