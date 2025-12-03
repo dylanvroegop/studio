@@ -5,7 +5,7 @@ import { serverTimestamp, doc, setDoc, collection } from "firebase/firestore";
 
 /**
  * Parses a CSV string into an array of objects, using the first row as headers.
- * This is a simple parser and assumes no commas within quoted fields.
+ * This parser correctly maps headers to values.
  * @param csvText The raw CSV text.
  * @returns An array of objects, where each object represents a row.
  */
