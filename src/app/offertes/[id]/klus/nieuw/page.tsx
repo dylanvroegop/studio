@@ -34,7 +34,7 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
                     {categories.map(category => {
                         const cardCategory = {name: category.name, description: category.description, iconName: category.icon};
                         return (
