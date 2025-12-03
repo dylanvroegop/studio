@@ -283,7 +283,6 @@ function CsvUploadSection({ user }: { user: User }) {
             return;
         }
         
-        // De bestandsnaam (zonder extensie) wordt gebruikt als leveranciersnaam.
         const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
 
         setIsUploading(true);
@@ -295,15 +294,14 @@ function CsvUploadSection({ user }: { user: User }) {
                 description: `Het bestand '${file.name}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
             });
             
-            // Reset file input after successful upload
             setFile(null); 
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
 
         } catch (error) {
-            console.error("Upload Error:", error);
-            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden bij het uploaden.';
+            console.error("Upload Fout:", error);
+            const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
             toast({
                 variant: 'destructive',
                 title: 'Upload Mislukt',
