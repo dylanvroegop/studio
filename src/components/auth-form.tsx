@@ -44,13 +44,17 @@ export function AuthForm() {
       
       const idToken = await userCredential.user.getIdToken();
 
-      await fetch('/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ idToken }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to set authentication cookie.');
+      }
 
       router.push('/');
       router.refresh();
@@ -76,12 +80,14 @@ export function AuthForm() {
         case 'auth/operation-not-allowed':
           errorMessage = 'E-mail/wachtwoord authenticatie is niet ingeschakeld.';
           break;
+        case 'auth/network-request-failed':
+            errorMessage = 'Netwerkfout. Controleer uw internetverbinding.';
+            break;
         default:
           errorMessage = `Authenticatie mislukt: ${authError.message}`;
       }
       setError(errorMessage);
-    } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
