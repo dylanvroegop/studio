@@ -107,7 +107,7 @@ export default function LoginPage() {
             <div className="mx-auto mb-4">
                 <Hammer className="h-12 w-12 text-primary" />
             </div>
-          <CardTitle className="text-2xl">HoutOfferte</CardTitle>
+          <CardTitle className="text-2xl">OfferteHulp</CardTitle>
           <CardDescription>Log in om toegang te krijgen tot uw dashboard</CardDescription>
         </CardHeader>
         <CardContent>

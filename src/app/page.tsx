@@ -233,7 +233,7 @@ export default function Dashboard() {
         </div>
         
         {/* Management Cards */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4">
             <Card className="hover:bg-muted/50 transition-colors">
                 <Link href="/materialen" className="block p-6 h-full">
                     <div className="flex items-start gap-4">
