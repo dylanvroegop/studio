@@ -152,7 +152,7 @@ export default function MaterialenPage() {
                     <p className="text-muted-foreground">Upload een prijslijst voor een specifieke leverancier.</p>
                 </div>
 
-                {user && <CsvUploadSection user={user} />}
+                {user && <CsvUploadSection user={user} uniqueSuppliers={uniqueSuppliers}/>}
 
                 <Card>
                     <CardHeader>
@@ -251,7 +251,7 @@ export default function MaterialenPage() {
     );
 }
 
-function CsvUploadSection({ user }: { user: User }) {
+function CsvUploadSection({ user, uniqueSuppliers }: { user: User, uniqueSuppliers: string[] }) {
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -285,6 +285,7 @@ function CsvUploadSection({ user }: { user: User }) {
         
         setIsUploading(true);
         try {
+            // The supplier name is now derived from the filename
             await uploadPrijsbestandNaarN8n(file, user.uid, '');
             
             toast({
@@ -313,11 +314,11 @@ function CsvUploadSection({ user }: { user: User }) {
             <CardHeader>
                 <CardTitle>Prijslijst uploaden</CardTitle>
                 <CardDescription>
-                    Kies een prijslijst (.csv of .pdf) om te uploaden. De verwerking wordt door n8n afgehandeld.
+                    Kies een prijslijst (.csv of .pdf) om te uploaden. De bestandsnaam wordt gebruikt als naam voor de leverancier.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                 <div className="flex items-center gap-2">
+                 <div className="flex flex-col sm:flex-row items-center gap-4">
                      <input
                         type="file"
                         ref={fileInputRef}
@@ -360,3 +361,5 @@ function CsvUploadSection({ user }: { user: User }) {
         </Card>
     );
 }
+
+    
