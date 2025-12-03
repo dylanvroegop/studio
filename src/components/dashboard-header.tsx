@@ -2,11 +2,26 @@
 
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Hammer, PlusCircle } from 'lucide-react';
+import { Hammer, PlusCircle, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { signOut, User } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
 
-export function DashboardHeader() {
+export function DashboardHeader({ user }: { user: User | null }) {
   const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({ title: 'Success', description: 'You have been logged out.' });
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout Error:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to log out.' });
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 backdrop-blur-xl">
@@ -25,6 +40,12 @@ export function DashboardHeader() {
             <PlusCircle className="h-4 w-4" />
           </Link>
         </Button>
+        {user && (
+          <Button onClick={handleLogout} variant="outline" size="sm">
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
+          </Button>
+        )}
       </div>
     </header>
   );

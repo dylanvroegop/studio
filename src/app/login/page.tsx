@@ -1,0 +1,157 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  AuthError,
+  User,
+} from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Hammer } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+      if (currentUser) {
+        router.push('/');
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleAuthAction = async (isLogin: boolean) => {
+    setIsLoading(true);
+    try {
+      if (isLogin) {
+        await signInWithEmailAndPassword(auth, email, password);
+        toast({ title: 'Success', description: 'Logged in successfully.' });
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+        toast({ title: 'Success', description: 'Account created successfully.' });
+      }
+      // The onAuthStateChanged listener will handle the redirect.
+    } catch (error) {
+      const authError = error as AuthError;
+      let errorMessage = 'An unknown error occurred.';
+      switch (authError.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address format.';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password should be at least 6 characters.';
+          break;
+        case 'auth/email-already-in-use':
+          errorMessage = 'This email is already registered. Try logging in.';
+          break;
+        case 'auth/user-not-found':
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password':
+          errorMessage = 'Invalid email or password.';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Email/Password sign-in is not enabled in your Firebase Console.';
+          break;
+        default:
+          errorMessage = `Authentication failed: ${authError.message}`;
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Error',
+        description: errorMessage,
+      });
+      console.error('Authentication Error:', authError);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  if (authLoading) {
+      return (
+          <div className="min-h-screen flex items-center justify-center p-4">
+              <div className="p-8 text-center text-gray-500 flex items-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Initializing Firebase...
+              </div>
+          </div>
+      );
+  }
+
+  if (user) {
+    // User is logged in, router will redirect. Show loading state.
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Redirecting to dashboard...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+            <div className="mx-auto mb-4">
+                <Hammer className="h-12 w-12 text-primary" />
+            </div>
+          <CardTitle className="text-2xl">OfferteHulp Login</CardTitle>
+          <CardDescription>Enter your credentials to access your dashboard</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col gap-3">
+            <Button onClick={() => handleAuthAction(true)} disabled={isLoading} className="w-full">
+              {isLoading ? 'Logging in...' : 'Log In'}
+            </Button>
+            <Button onClick={() => handleAuthAction(false)} disabled={isLoading} variant="outline" className="w-full">
+              {isLoading ? 'Creating account...' : 'Create Account'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
