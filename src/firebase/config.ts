@@ -7,11 +7,10 @@ import type { FirebaseOptions } from 'firebase/app';
 // This is a placeholder for the Firebase config object.
 // It will be replaced with the actual config when the app is deployed.
 export const firebaseConfig: FirebaseOptions = {
-  apiKey: "AIzaSyDFfpoN24Iel7L4AqyA7yZ30d2e85k-i9w",
-  authDomain: "offertehulp-cff35.firebaseapp.com",
-  projectId: "offertehulp-cff35",
-  storageBucket: "offertehulp-cff35.appspot.com",
-  messagingSenderId: "103536627244",
-  appId: "1:103536627244:web:88165e2eee8c84ff520b89",
-  measurementId: "G-E2C2S96XN8"
+  projectId: "studio-6011690104-60fbf",
+  appId: "1:354400474758:web:ec97d6463a627fc7ad2307",
+  apiKey: "AIzaSyCL2Mh-J4VSd_9lhiUVuizAx3GRjPTMINU",
+  authDomain: "studio-6011690104-60fbf.firebaseapp.com",
+  measurementId: "",
+  messagingSenderId: "354400474758"
 };
