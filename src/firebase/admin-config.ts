@@ -1,5 +1,6 @@
 // This file is intended for server-side use only.
 // It contains sensitive information and should not be exposed to the client.
+import 'dotenv/config';
 
 if (!process.env.FIREBASE_PROJECT_ID) {
     throw new Error('FIREBASE_PROJECT_ID is not set');
