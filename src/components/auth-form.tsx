@@ -33,8 +33,11 @@ export function AuthForm() {
     try {
       if (isSignUp) {
         await createUserWithEmailAndPassword(auth, email, password);
-        setIsSignUp(false);
+        // After successful sign-up, inform the user to log in.
+        // We can also redirect them automatically or log them in, but for now, we'll keep it simple.
         setError('Account aangemaakt! U kunt nu inloggen.');
+        setIsSignUp(false); // Switch back to login view
+        setIsLoading(false);
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await userCredential.user.getIdToken();
@@ -47,6 +50,7 @@ export function AuthForm() {
           body: JSON.stringify({ idToken }),
         });
 
+        setIsLoading(false);
         router.push('/');
         router.refresh(); 
       }
@@ -54,8 +58,7 @@ export function AuthForm() {
       const authError = err as AuthError;
       console.error('Authentication Error:', authError);
       setError(`Fout: ${authError.code} - ${authError.message}`);
-    } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
