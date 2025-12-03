@@ -337,7 +337,7 @@ function CsvUploadSection({ user, suppliers }: { user: User, suppliers: string[]
                             type="file"
                             ref={fileInputRef}
                             onChange={handleFileChange}
-                            accept=".csv,.xlsx,.xls"
+                            accept=".csv,.xlsx,.xls,.pdf"
                             className="hidden"
                             id="file-upload-input"
                         />
@@ -375,3 +375,5 @@ function CsvUploadSection({ user, suppliers }: { user: User, suppliers: string[]
         </Card>
     );
 }
+
+    
