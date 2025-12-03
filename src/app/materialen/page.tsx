@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, ChangeEvent, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from 'firebase/auth';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useCollection } from '@/firebase';
 import { uploadMaterialsCsv } from '@/lib/firebase';
 import type { Material } from '@/lib/types';
 import {
@@ -86,7 +86,7 @@ export default function MaterialenPage() {
             const data = m as any; // Firestore data can be complex
             return {
                 ...m,
-                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : (data.updatedAt instanceof Date ? data.updatedAt : new Date()),
+                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : (data.updatedAt instanceof Date ? data.updatedAt : new Date(0)),
             } as Material;
         });
     }, [materials]);
