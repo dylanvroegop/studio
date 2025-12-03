@@ -6,9 +6,10 @@ export async function uploadPrijsbestandNaarN8n(
   gebruikerId: string,
   leverancierNaam: string
 ): Promise<void> {
-  const url = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
+  const url = "https://n8n.dylan8n.org/webhook-test/bee441de-eaaa-495e-a294-4be7d3c1a0b2";
+
   if (!url) {
-    throw new Error("N8N webhook URL ontbreekt (NEXT_PUBLIC_N8N_WEBHOOK_URL).");
+    throw new Error("N8N webhook URL ontbreekt.");
   }
 
   const formData = new FormData();
@@ -16,14 +17,20 @@ export async function uploadPrijsbestandNaarN8n(
   formData.append("gebruikerId", gebruikerId);
   formData.append("leverancier", leverancierNaam);
 
-  const res = await fetch(url, {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!res.ok) {
-    // res.ok checks for 2xx status codes
-    throw new Error(`Upload naar n8n mislukt (status ${res.status}).`);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      body: formData,
+    });
+  
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Upload mislukt: Status ${res.status}. Reactie: ${errorText || 'Geen response body'}`);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+        throw new Error(`Netwerkfout bij uploaden: ${error.message}`);
+    }
+    throw new Error('Een onbekende netwerkfout is opgetreden.');
   }
-  // No need to parse JSON, any 2xx is considered a success.
 }

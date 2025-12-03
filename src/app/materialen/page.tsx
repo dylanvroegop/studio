@@ -282,15 +282,7 @@ function CsvUploadSection({ user }: { user: User }) {
             return;
         }
         
-        const supplierName = file.name.split('.').slice(0, -1).join('.');
-        if (!supplierName) {
-             toast({
-                variant: 'destructive',
-                title: 'Ongeldige bestandsnaam',
-                description: 'De bestandsnaam kan niet worden gebruikt als leverancier.',
-            });
-            return;
-        }
+        const supplierName = file.name.split('.').slice(0, -1).join('.') || 'onbekend';
 
         setIsUploading(true);
         try {
@@ -309,7 +301,7 @@ function CsvUploadSection({ user }: { user: User }) {
             const errorMessage = error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
             toast({
                 variant: 'destructive',
-                title: 'Upload mislukt',
+                title: 'Upload Mislukt',
                 description: errorMessage,
             });
         } finally {
@@ -369,7 +361,3 @@ function CsvUploadSection({ user }: { user: User }) {
         </Card>
     );
 }
-
-    
-
-    
