@@ -47,7 +47,7 @@ export async function createQuoteAction(formData: FormData) {
   
     const newQuote = await createQuote({ clientId, titel });
     revalidatePath('/');
-    redirect(`/offertes/${newQuote.id}`);
+    redirect(`/offertes/${newQuote.id}/klus/nieuw`);
 
   } catch (error) {
     console.error(error);
