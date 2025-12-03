@@ -1,27 +1,36 @@
+
 import { initializeFirebase } from "@/firebase";
 import { serverTimestamp, collection, writeBatch, query, where, getDocs, doc } from "firebase/firestore";
 import type { Material } from './types';
 
-// CSV Header mapping to Firestore fields
-const CSV_HEADER_MAPPING: Record<string, keyof Omit<Material, 'id' | 'userId' | 'updatedAt'>> = {
-  'categorie': 'categorie',
-  'materiaalnaam': 'materiaalnaam',
-  'prijs': 'prijs' as any, // Cast because type is number
-  'eenheid': 'eenheid',
-  'leverancier': 'leverancier'
-};
-
+/**
+ * Parses a string in European currency format (e.g., "1.234,56") to a number.
+ * @param value The string value to parse.
+ * @returns The parsed number, or 0 if parsing fails.
+ */
+function parseEuroToNumber(value: string | undefined | null): number {
+    if (!value) {
+        return 0;
+    }
+    const stringValue = String(value).trim();
+    // 1. Remove thousand separators ('.')
+    // 2. Replace the decimal comma ',' with a decimal point '.'
+    const normalizedValue = stringValue.replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(normalizedValue);
+    return isNaN(parsed) ? 0 : parsed;
+}
 
 /**
  * Parses a CSV file and uploads the material data to Firestore.
- * Updates existing materials based on a unique key (leverancier + materiaalnaam).
+ * It uses the CSV headers for mapping and updates existing materials
+ * based on a unique key (leverancier + materiaalnaam).
  * @param file The CSV file to upload.
  * @param userId The ID of the current user.
- * @returns An object with the count of updated/created materials.
+ * @returns An object with the count of processed materials.
  */
 export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ updatedCount: number }> {
     const { firestore } = initializeFirebase();
-    
+
     if (!userId) {
         throw new Error("Gebruiker is niet ingelogd.");
     }
@@ -30,23 +39,37 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
     }
 
     const text = await file.text();
-    const rows = text.split(/\r?\n/).filter(Boolean); // Split into rows and remove empty ones
-    
-    if (rows.length < 2) {
+    const allRows = text.split(/\r?\n/).filter(Boolean); // Split into rows and remove empty ones
+
+    if (allRows.length < 2) {
         throw new Error("CSV is leeg of bevat alleen een header.");
     }
 
-    const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-    const dataRows = rows.slice(1);
+    const headerRow = allRows[0];
+    const dataRows = allRows.slice(1);
+    
+    // Use a more robust CSV parsing method to handle commas within quoted fields
+    const headers = headerRow.split(',').map(h => h.trim().toLowerCase());
+
+    const requiredHeaders = ['categorie', 'materiaalnaam', 'prijs', 'eenheid', 'leverancier'];
+    for(const requiredHeader of requiredHeaders) {
+        if (!headers.includes(requiredHeader)) {
+             throw new Error(`CSV-bestand mist de verplichte kolom: '${requiredHeader}'.`);
+        }
+    }
 
     // --- Stap 1: Haal bestaande materialen op om te checken op duplicaten ---
-    const existingMaterialsQuery = query(collection(firestore, "materials"), where("userId", "==", userId));
+    const materialsRef = collection(firestore, "materials");
+    const existingMaterialsQuery = query(materialsRef, where("userId", "==", userId));
     const querySnapshot = await getDocs(existingMaterialsQuery);
-    const existingMaterials = new Map<string, { id: string }>();
+    
+    const existingMaterials = new Map<string, string>(); // Map 'leverancier|materiaalnaam' -> docId
     querySnapshot.forEach(doc => {
         const data = doc.data();
-        const key = `${data.leverancier?.toLowerCase() || ''}|${data.materiaalnaam?.toLowerCase() || ''}`;
-        existingMaterials.set(key, { id: doc.id });
+        const key = `${data.leverancier?.trim().toLowerCase() || ''}|${data.materiaalnaam?.trim().toLowerCase() || ''}`;
+        if (key !== '|') {
+            existingMaterials.set(key, doc.id);
+        }
     });
 
     // --- Stap 2: Bereid een batch write voor ---
@@ -55,32 +78,41 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
 
     for (const row of dataRows) {
         const values = row.split(',');
-        const materialData: any = { userId, updatedAt: serverTimestamp() };
-        
+        const rowData: Record<string, string> = {};
         headers.forEach((header, index) => {
-            const firestoreField = CSV_HEADER_MAPPING[header];
-            if (firestoreField) {
-                let value: any = values[index]?.trim() || '';
-
-                // Prijsverwerking: komma naar punt en parsen als float
-                if (firestoreField === 'prijs') {
-                    value = parseFloat(value.replace(',', '.')) || 0;
-                }
-                
-                materialData[firestoreField] = value;
-            }
+            rowData[header] = values[index]?.trim() || '';
         });
+
+        const materiaalnaam = rowData['materiaalnaam'] || '';
+        const leverancier = rowData['leverancier'] || '';
         
-        // Sla over als essentiële velden ontbreken
-        if (!materialData.materiaalnaam || !materialData.eenheid) continue;
+        // Skip row if essential data is missing
+        if (!materiaalnaam || !leverancier) {
+            continue;
+        }
+
+        let categorie = rowData['categorie'] || '';
+        if (categorie.toLowerCase().startsWith('categorie:')) {
+            categorie = categorie.substring(10).trim();
+        }
+
+        const materialData = {
+            userId: userId,
+            categorie: categorie,
+            materiaalnaam: materiaalnaam,
+            prijs: parseEuroToNumber(rowData['prijs']),
+            eenheid: rowData['eenheid'] || '',
+            leverancier: leverancier,
+            updatedAt: serverTimestamp(),
+        };
 
         // --- Stap 3: Bepaal of het een nieuw of een te updaten document is ---
-        const uniqueKey = `${materialData.leverancier?.toLowerCase() || ''}|${materialData.materiaalnaam?.toLowerCase() || ''}`;
-        const existingDoc = existingMaterials.get(uniqueKey);
+        const uniqueKey = `${leverancier.trim().toLowerCase()}|${materiaalnaam.trim().toLowerCase()}`;
+        const existingDocId = existingMaterials.get(uniqueKey);
 
-        if (existingDoc) {
+        if (existingDocId) {
             // Update bestaand document
-            const docRef = doc(firestore, "materials", existingDoc.id);
+            const docRef = doc(firestore, "materials", existingDocId);
             batch.update(docRef, materialData);
         } else {
             // Maak nieuw document
@@ -89,7 +121,7 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
         }
         processedCount++;
     }
-    
+
     if (processedCount === 0) {
         throw new Error("Geen geldige rijen gevonden om te verwerken in de CSV.");
     }
@@ -99,5 +131,3 @@ export async function uploadMaterialsCsv(file: File, userId: string): Promise<{ 
 
     return { updatedCount: processedCount };
 }
-
-    

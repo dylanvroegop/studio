@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, ChangeEvent, useRef } from 'react';
@@ -32,7 +33,7 @@ import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
 function formatCurrency(amount?: number) {
-    if (amount === undefined || amount === null) return '—';
+    if (amount === undefined || amount === null || isNaN(amount)) return '—';
     return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
 }
 
@@ -68,7 +69,7 @@ export default function MaterialenPage() {
         return query(collection(firestore, 'materials'), where('userId', '==', user.uid));
     }, [user, firestore]);
     
-    const { data: materials, isLoading: materialsLoading } = useCollection<Material>(materialsQuery);
+    const { data: materials, isLoading: materialsLoading, error } = useCollection<Material>(materialsQuery);
 
     const [search, setSearch] = useState('');
     const [supplierFilter, setSupplierFilter] = useState<string>('all');
@@ -83,21 +84,32 @@ export default function MaterialenPage() {
 
     const processedMaterials = useMemo(() => {
         return (materials || []).map(m => {
-            const data = m as any; // Firestore data can be complex
+            const data = m as any;
+            let updatedAtDate: Date;
+            if (data.updatedAt instanceof Timestamp) {
+                updatedAtDate = data.updatedAt.toDate();
+            } else if (data.updatedAt instanceof Date) {
+                updatedAtDate = data.updatedAt;
+            } else if (typeof data.updatedAt === 'string') {
+                updatedAtDate = new Date(data.updatedAt);
+            } else {
+                updatedAtDate = new Date(0); // Invalid date as fallback
+            }
+
             return {
                 ...m,
-                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : (data.updatedAt instanceof Date ? data.updatedAt : new Date(0)),
-            } as Material;
+                updatedAt: updatedAtDate,
+            } as Material & { updatedAt: Date };
         });
     }, [materials]);
 
-    // Client-side filteren en sorteren
     const filteredMaterials = useMemo(() => {
         let result = processedMaterials;
 
         if (search) {
+            const lowercasedSearch = search.toLowerCase();
             result = result.filter(m =>
-                (m.materiaalnaam && m.materiaalnaam.toLowerCase().includes(search.toLowerCase()))
+                (m.materiaalnaam && m.materiaalnaam.toLowerCase().includes(lowercasedSearch))
             );
         }
 
@@ -108,7 +120,7 @@ export default function MaterialenPage() {
         return result.sort((a, b) => {
              const dateA = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0;
              const dateB = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0;
-             return dateB - dateA;
+             return dateB - dateA; // Sort descending
         });
     }, [search, supplierFilter, processedMaterials]);
     
@@ -118,9 +130,9 @@ export default function MaterialenPage() {
     }, [filteredMaterials, currentPage]);
 
     const pageCount = Math.ceil(filteredMaterials.length / materialsPerPage);
-    const uniqueSuppliers = useMemo(() => [...new Set(processedMaterials.map(m => m.leverancier).filter(Boolean))], [processedMaterials]) as string[];
+    const uniqueSuppliers = useMemo(() => [...new Set(processedMaterials.map(m => m.leverancier).filter(Boolean).sort())], [processedMaterials]);
 
-    if (isUserLoading || !user) {
+    if (isUserLoading || (!materialsLoading && !user)) {
         return <PageSkeleton />;
     }
 
@@ -144,14 +156,14 @@ export default function MaterialenPage() {
                     <p className="text-muted-foreground">Upload je CSV en beheer alle materialen die in je offertes gebruikt worden.</p>
                 </div>
 
-                <CsvUploadSection user={user} />
+                {user && <CsvUploadSection user={user} />}
 
                 <Card>
                     <CardHeader>
                         <CardTitle>Alle materialen</CardTitle>
                         <div className="mt-4 flex flex-col md:flex-row gap-2">
                              <Input 
-                                placeholder="Zoek op omschrijving..." 
+                                placeholder="Zoek op materiaalnaam..." 
                                 className="max-w-xs"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
@@ -171,6 +183,10 @@ export default function MaterialenPage() {
                         {materialsLoading ? (
                             <div className="space-y-2">
                                 {[...Array(10)].map((_, i) => <div key={i} className="h-10 bg-muted/50 rounded animate-pulse" />)}
+                            </div>
+                        ) : error ? (
+                            <div className="text-center py-8 text-destructive">
+                                Fout bij het laden van materialen: {error.message}
                             </div>
                         ) : (
                             <>
@@ -194,7 +210,7 @@ export default function MaterialenPage() {
                                                 <TableCell>{material.eenheid}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(material.prijs)}</TableCell>
                                                 <TableCell className="text-right">
-                                                    {material.updatedAt instanceof Date && !isNaN(material.updatedAt.getTime())
+                                                    {material.updatedAt instanceof Date && !isNaN(material.updatedAt.getTime()) && material.updatedAt.getTime() > 0
                                                       ? format(material.updatedAt, 'd MMM yyyy', { locale: nl })
                                                       : '—'
                                                     }
@@ -248,7 +264,7 @@ function CsvUploadSection({ user }: { user: User }) {
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const selectedFile = e.target.files[0];
-            if (selectedFile.type.includes('csv')) {
+            if (selectedFile.type === 'text/csv' || selectedFile.name.endsWith('.csv')) {
                 setFile(selectedFile);
             } else {
                 toast({
@@ -273,7 +289,7 @@ function CsvUploadSection({ user }: { user: User }) {
             toast({
                 variant: 'default',
                 title: 'Upload succesvol',
-                description: `${result.updatedCount} materialen zijn bijgewerkt.`,
+                description: `${result.updatedCount} materialen zijn verwerkt.`,
             });
             setFile(null); 
             if (fileInputRef.current) {
@@ -297,7 +313,7 @@ function CsvUploadSection({ user }: { user: User }) {
             <CardHeader>
                 <CardTitle>Materiaalprijzen uploaden (CSV)</CardTitle>
                 <CardDescription>
-                    Upload hier een CSV-bestand met materiaalprijzen. Bestaande materialen worden bijgewerkt op basis van leverancier en materiaalnaam. De CSV moet de kolommen 'categorie', 'materiaalnaam', 'prijs', 'eenheid', en 'leverancier' bevatten.
+                    Upload hier een CSV-bestand met materiaalprijzen. De CSV moet de kolommen 'categorie', 'materiaalnaam', 'prijs', 'eenheid', en 'leverancier' bevatten. Bestaande materialen worden bijgewerkt op basis van leverancier en materiaalnaam.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -308,6 +324,7 @@ function CsvUploadSection({ user }: { user: User }) {
                         onChange={handleFileChange}
                         accept=".csv"
                         className="hidden"
+                        id="csv-upload-input"
                     />
                     <Button 
                         variant="outline" 
