@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, ChangeEvent, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from 'firebase/auth';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
-import { useAuth, useCollection, useFirestore } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { uploadMaterialsCsv } from '@/lib/firebase';
 import type { Material } from '@/lib/types';
 import {
@@ -59,7 +59,7 @@ function PageSkeleton() {
 }
 
 export default function MaterialenPage() {
-    const { user, isUserLoading } = useAuth();
+    const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const router = useRouter();
 
