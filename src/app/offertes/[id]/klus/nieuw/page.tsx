@@ -76,7 +76,7 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-muted-foreground italic">
-                                    "{quote.shortDescription}"
+                                    "werkomschrijving; {quote.shortDescription}"
                                 </p>
                             </CardContent>
                         </Card>
