@@ -37,6 +37,7 @@ export default function NewJobPage() {
 
     useEffect(() => {
         async function fetchQuote() {
+            if (!quoteId) return;
             setLoading(true);
             const quoteData = await getQuoteById(quoteId);
             setQuote(quoteData || null);
