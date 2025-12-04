@@ -119,7 +119,7 @@ export function NewQuoteForm() {
                     </div>
                     <div>
                         <Label htmlFor="achternaam">Achternaam *</Label>
-                        <Input id="achternaam" name="achternaam" placeholder="de Boer" required />
+                        <Input id="achternaam" name="achternaam" required />
                         {errors?.['newClient.achternaam'] && <p className="text-sm text-destructive mt-1">{errors['newClient.achternaam'][0]}</p>}
                     </div>
                 </div>
