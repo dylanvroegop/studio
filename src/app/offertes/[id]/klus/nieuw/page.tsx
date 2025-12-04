@@ -71,11 +71,6 @@ export default function NewJobPage() {
                 <div className="mx-auto max-w-4xl w-full">
                     <div className="text-center mb-8">
                          <p className="text-muted-foreground">Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.</p>
-                         {quote?.shortDescription && (
-                            <p className="text-sm text-muted-foreground italic mt-2">
-                                Werkomschrijving: {quote.shortDescription}
-                            </p>
-                         )}
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
