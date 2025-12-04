@@ -20,14 +20,14 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/firebase';
+import { useUser } from '@/firebase';
 
 export function NewQuoteForm() {
   const [clientType, setClientType] = useState('particulier');
   const [showProjectAddress, setShowProjectAddress] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [isPending, startTransition] = useTransition();
-  const { user } = useAuth();
+  const { user } = useUser();
 
   const router = useRouter();
   const { toast } = useToast();

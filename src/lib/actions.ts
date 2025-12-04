@@ -4,9 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getJobById, updateJob, getFullQuoteDetails } from './data';
 import type { JobCategory } from './types';
-import { addDocumentNonBlocking, serverTimestamp, collection } from '@/firebase';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { addDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
 const NewClientSchema = z.object({
@@ -115,7 +113,7 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   };
   
   try {
-      const docRef = await addDocumentNonBlocking(collection(firestore, "quotes"), quoteData);
+      const docRef = await addDoc(collection(firestore, "quotes"), quoteData);
       if (!docRef) throw new Error("Kon documentreferentie niet ophalen.");
       revalidatePath('/');
       return { redirect: `/offertes/${docRef.id}/klus/nieuw` };
