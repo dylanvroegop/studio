@@ -137,7 +137,7 @@ export function NewQuoteForm() {
                     </div>
                     <div>
                         <Label htmlFor="telefoon">Telefoonnummer (mobiel) *</Label>
-                        <Input id="telefoon" name="telefoon" type="tel" placeholder="0612345678" required />
+                        <Input id="telefoon" name="telefoon" type="tel" required />
                         {errors?.['newClient.telefoon'] && <p className="text-sm text-destructive mt-1">{errors['newClient.telefoon'][0]}</p>}
                     </div>
                 </div>
