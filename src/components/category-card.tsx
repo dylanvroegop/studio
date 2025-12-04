@@ -49,6 +49,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/plafonds`);
       return;
     }
+    if (category.name === 'Wanden') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/wanden`);
+      return;
+    }
     setIsSelected(true);
   }
 
