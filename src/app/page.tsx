@@ -54,7 +54,7 @@ export default function LandingPage() {
                     <p className="text-muted-foreground">Wat wilt u doen?</p>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2 max-w-4xl w-full pt-8">
+                <div className="grid gap-6 max-w-xl w-full pt-8">
                     <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer">
                         <Link href="/offertes/nieuw" className="block p-6 h-full">
                             <CardHeader className="p-0">
