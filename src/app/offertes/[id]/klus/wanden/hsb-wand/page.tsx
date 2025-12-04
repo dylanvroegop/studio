@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,11 @@ export default function HsbWandPage() {
   const handleAddWall = () => {
     setWalls([...walls, { lengte: '', hoogte: '' }]);
   };
+  
+  const handleRemoveWall = (index: number) => {
+    const newWalls = walls.filter((_, i) => i !== index);
+    setWalls(newWalls);
+  };
 
   const handleWallChange = (index: number, field: keyof Wall, value: string) => {
     const newWalls = [...walls];
@@ -52,7 +57,6 @@ export default function HsbWandPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
-    // Validate that all fields are filled
     if (walls.some(wall => !wall.lengte || !wall.hoogte)) {
         toast({
             variant: "destructive",
@@ -64,8 +68,6 @@ export default function HsbWandPage() {
 
     const description = `HSB Wand (${walls.length} stuks)`;
     
-    // Assuming createJobAction is updated to handle multiple walls or just a general description
-    // For now, we pass a general description and the action handles the redirect.
     await createJobAction(quoteId, 'Wanden', description);
   };
   
@@ -109,7 +111,15 @@ export default function HsbWandPage() {
                     <CardContent className="space-y-6">
                         {walls.map((wall, index) => (
                            <div key={index} className="space-y-4 pt-4 border-t border-dashed first:border-t-0 first:pt-0">
-                             <h3 className="font-medium">Wand {index + 1}</h3>
+                             <div className="flex justify-between items-center">
+                                <h3 className="font-medium">Wand {index + 1}</h3>
+                                {index > 0 && (
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">Verwijder wand</span>
+                                    </Button>
+                                )}
+                             </div>
                              <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm)</Label>
