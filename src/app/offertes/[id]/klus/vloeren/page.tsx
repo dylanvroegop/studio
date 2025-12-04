@@ -97,7 +97,7 @@ export default function VloerenPage() {
             )}
           <div className="text-center mb-8">
             <p className="text-muted-foreground">
-              Selecteer één of meerdere categorieën vloeren. Voor elke gekozen categorie vult u in de volgende stap de specifieke details en materialen in.
+              Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.
             </p>
           </div>
 
