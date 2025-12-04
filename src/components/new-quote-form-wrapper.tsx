@@ -203,7 +203,7 @@ export function NewQuoteForm() {
                         name="werkomschrijving"
                         required 
                         maxLength={800}
-                        placeholder="Bijvoorbeeld: Plaatsen van HSB wand in de keuken, inclusief isolatie en afwerking met gipsplaten."
+                        placeholder="Bijv. Plaatsen van HSB wand in keuken, incl. isolatie & gips."
                         className="min-h-[100px]"
                     />
                     {errors?.werkomschrijving && <p className="text-sm text-destructive mt-1">{errors.werkomschrijving[0]}</p>}
