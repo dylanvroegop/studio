@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useTransition } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { supabase } from '@/lib/supabase';
@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, HardHat, Loader2, UploadCloud } from 'lucide-react';
+import { ArrowLeft, HardHat, Loader2, UploadCloud, File as FileIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 
@@ -81,7 +81,7 @@ function CsvUploadSection() {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`Upload naar n8n mislukt: Status ${response.status}. Details: ${errorText}`);
+                throw new Error(`Upload mislukt: ${errorText || `Status ${response.status}`}`);
             }
 
             toast({ title: 'Upload succesvol', description: 'Het prijsbestand wordt verwerkt.' });
@@ -120,15 +120,31 @@ function CsvUploadSection() {
                         disabled={isUploading}
                     />
                 </div>
-                <div>
+                <div className="space-y-2">
                      <Label htmlFor="file-upload">Bestand</Label>
-                    <Input
-                        id="file-upload"
-                        type="file"
-                        accept=".csv"
-                        onChange={handleFileChange}
-                        disabled={isUploading}
-                    />
+                     <div className="flex items-center gap-4">
+                        <Label htmlFor="file-upload" className="flex-shrink-0 cursor-pointer">
+                            <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                                Kies bestand
+                            </div>
+                            <Input
+                                id="file-upload"
+                                type="file"
+                                accept=".csv"
+                                onChange={handleFileChange}
+                                disabled={isUploading}
+                                className="sr-only"
+                            />
+                        </Label>
+                        {selectedFile ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 border rounded-md bg-muted/50 w-full">
+                            <FileIcon className="w-4 h-4" />
+                            <span className="truncate">{selectedFile.name}</span>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">Geen bestand geselecteerd.</p>
+                        )}
+                    </div>
                 </div>
                 <Button
                     onClick={handleUpload}
@@ -329,3 +345,5 @@ export default function MaterialenPage() {
         </div>
     );
 }
+
+    
