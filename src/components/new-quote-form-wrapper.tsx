@@ -48,8 +48,6 @@ export function NewQuoteForm() {
     formData.append('userId', user.uid);
 
     startTransition(async () => {
-      // Dit is stap 1: klantgegevens en korte omschrijving verzamelen.
-      // De server action maakt het document aan in Firestore.
       const result = await createQuoteAction(formData);
 
       if (result?.errors) {
@@ -117,12 +115,12 @@ export function NewQuoteForm() {
                     <div>
                         <Label htmlFor="voornaam">Voornaam *</Label>
                         <Input id="voornaam" name="voornaam" required />
-                        {errors?.['newClient.voornaam'] && <p className="text-sm text-destructive mt-1">{errors['newClient.voornaam'][0]}</p>}
+                        {errors?.voornaam && <p className="text-sm text-destructive mt-1">{errors.voornaam[0]}</p>}
                     </div>
                     <div>
                         <Label htmlFor="achternaam">Achternaam *</Label>
                         <Input id="achternaam" name="achternaam" required />
-                        {errors?.['newClient.achternaam'] && <p className="text-sm text-destructive mt-1">{errors['newClient.achternaam'][0]}</p>}
+                        {errors?.achternaam && <p className="text-sm text-destructive mt-1">{errors.achternaam[0]}</p>}
                     </div>
                 </div>
             </div>
@@ -135,12 +133,12 @@ export function NewQuoteForm() {
                     <div>
                         <Label htmlFor="email">E-mailadres *</Label>
                         <Input id="email" name="email" type="email" required />
-                        {errors?.['newClient.email'] && <p className="text-sm text-destructive mt-1">{errors['newClient.email'][0]}</p>}
+                        {errors?.email && <p className="text-sm text-destructive mt-1">{errors.email[0]}</p>}
                     </div>
                     <div>
                         <Label htmlFor="telefoon">Telefoonnummer (mobiel) *</Label>
                         <Input id="telefoon" name="telefoon" type="tel" required />
-                        {errors?.['newClient.telefoon'] && <p className="text-sm text-destructive mt-1">{errors['newClient.telefoon'][0]}</p>}
+                        {errors?.telefoon && <p className="text-sm text-destructive mt-1">{errors.telefoon[0]}</p>}
                     </div>
                 </div>
             </div>
@@ -153,18 +151,22 @@ export function NewQuoteForm() {
                     <div className="md:col-span-4">
                         <Label htmlFor="straat">Straat *</Label>
                         <Input id="straat" name="straat" required />
+                        {errors?.straat && <p className="text-sm text-destructive mt-1">{errors.straat[0]}</p>}
                     </div>
                      <div className="md:col-span-2">
                         <Label htmlFor="huisnummer">Huisnummer + toev. *</Label>
                         <Input id="huisnummer" name="huisnummer" required />
+                        {errors?.huisnummer && <p className="text-sm text-destructive mt-1">{errors.huisnummer[0]}</p>}
                     </div>
                     <div className="md:col-span-2">
                         <Label htmlFor="postcode">Postcode *</Label>
                         <Input id="postcode" name="postcode" required />
+                         {errors?.postcode && <p className="text-sm text-destructive mt-1">{errors.postcode[0]}</p>}
                     </div>
                      <div className="md:col-span-4">
                         <Label htmlFor="plaats">Plaats</Label>
                         <Input id="plaats" name="plaats" />
+                         {errors?.plaats && <p className="text-sm text-destructive mt-1">{errors.plaats[0]}</p>}
                     </div>
                  </div>
                  <div className="flex items-center space-x-2 pt-2">

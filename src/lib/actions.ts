@@ -6,9 +6,10 @@ import { getJobById, updateJob, getFullQuoteDetails } from './data';
 import type { JobCategory } from './types';
 import { addDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { initializeFirebaseServer } from '@/firebase/server';
-import { getAuth } from 'firebase/auth';
 
-const NewClientSchema = z.object({
+const QuoteFormSchema = z.object({
+  werkomschrijving: z.string().min(10, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
+  userId: z.string(),
   clientType: z.enum(['particulier', 'zakelijk']),
   bedrijfsnaam: z.string().optional(),
   contactpersoon: z.string().optional(),
@@ -20,19 +21,11 @@ const NewClientSchema = z.object({
   huisnummer: z.string().min(1, 'Huisnummer is verplicht'),
   postcode: z.string().min(1, 'Postcode is verplicht'),
   plaats: z.string().optional(),
-  afwijkendProjectadres: z.boolean().optional(),
+  afwijkendProjectadres: z.preprocess((val) => val === 'on', z.boolean()).optional(),
   projectStraat: z.string().optional(),
   projectHuisnummer: z.string().optional(),
   projectPostcode: z.string().optional(),
   projectPlaats: z.string().optional(),
-});
-
-
-const QuoteFormSchema = z.object({
-  werkomschrijving: z.string().min(10, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
-  clientSource: z.enum(['new']),
-  newClient: NewClientSchema,
-  userId: z.string()
 });
 
 
@@ -46,35 +39,7 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
     const { redirect } = await import('next/navigation');
     const { firestore } = initializeFirebaseServer();
 
-    const uid = formData.get('userId');
-    
-    if (!uid) {
-        return { message: 'Gebruiker niet ingelogd.'};
-    }
-
-    const rawData = {
-        werkomschrijving: formData.get('werkomschrijving'),
-        clientSource: 'new', // Hardcoded as per form
-        userId: uid,
-        newClient: {
-            clientType: formData.get('clientType') || 'particulier',
-            bedrijfsnaam: formData.get('bedrijfsnaam'),
-            contactpersoon: formData.get('contactpersoon'),
-            voornaam: formData.get('voornaam'),
-            achternaam: formData.get('achternaam'),
-            email: formData.get('email'),
-            telefoon: formData.get('telefoon'),
-            straat: formData.get('straat'),
-            huisnummer: formData.get('huisnummer'),
-            postcode: formData.get('postcode'),
-            plaats: formData.get('plaats'),
-            afwijkendProjectadres: formData.get('afwijkendProjectadres') === 'on',
-            projectStraat: formData.get('projectStraat'),
-            projectHuisnummer: formData.get('projectHuisnummer'),
-            projectPostcode: formData.get('projectPostcode'),
-            projectPlaats: formData.get('projectPlaats'),
-        }
-    };
+    const rawData = Object.fromEntries(formData);
     
     const validatedFields = QuoteFormSchema.safeParse(rawData);
 
@@ -85,31 +50,50 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
     };
   }
   
-  const { werkomschrijving, newClient } = validatedFields.data;
+  const { 
+      userId,
+      werkomschrijving,
+      clientType,
+      bedrijfsnaam,
+      contactpersoon,
+      voornaam,
+      achternaam,
+      email,
+      telefoon,
+      straat,
+      huisnummer,
+      postcode,
+      plaats,
+      afwijkendProjectadres,
+      projectStraat,
+      projectHuisnummer,
+      projectPostcode,
+      projectPlaats,
+  } = validatedFields.data;
 
   const quoteData = {
-      userId: uid as string,
+      userId: userId,
       status: "concept",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      clientType: newClient.clientType === 'particulier' ? 'Particulier' : 'Zakelijk',
-      companyName: newClient.bedrijfsnaam,
-      contactPerson: newClient.contactpersoon,
-      firstName: newClient.voornaam,
-      lastName: newClient.achternaam,
-      email: newClient.email,
-      phone: newClient.telefoon,
-      billingStreet: newClient.straat,
-      billingHouseNumber: newClient.huisnummer,
-      billingPostcode: newClient.postcode,
-      billingCity: newClient.plaats,
-      hasDifferentProjectAddress: newClient.afwijkendProjectadres,
-      projectStreet: newClient.projectStraat,
-      projectHouseNumber: newClient.projectHuisnummer,
-      projectPostcode: newClient.projectPostcode,
-      projectCity: newClient.projectPlaats,
+      clientType: clientType === 'particulier' ? 'Particulier' : 'Zakelijk',
+      companyName: bedrijfsnaam,
+      contactPerson: contactpersoon,
+      firstName: voornaam,
+      lastName: achternaam,
+      email: email,
+      phone: telefoon,
+      billingStreet: straat,
+      billingHouseNumber: huisnummer,
+      billingPostcode: postcode,
+      billingCity: plaats,
+      hasDifferentProjectAddress: afwijkendProjectadres,
+      projectStreet: projectStraat,
+      projectHouseNumber: projectHuisnummer,
+      projectPostcode: projectPostcode,
+      projectCity: projectPlaats,
       shortDescription: werkomschrijving,
-      clientName: newClient.clientType === 'zakelijk' ? newClient.bedrijfsnaam || `${newClient.voornaam} ${newClient.achternaam}` : `${newClient.voornaam} ${newClient.achternaam}`,
+      clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
       title: werkomschrijving,
   };
   
