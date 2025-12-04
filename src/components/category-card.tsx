@@ -37,6 +37,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/afwerkingen`);
       return;
     }
+    if (category.name === 'Dakrenovatie') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/dakrenovatie`);
+      return;
+    }
     setIsSelected(true);
   }
 
