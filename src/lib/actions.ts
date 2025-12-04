@@ -32,6 +32,7 @@ const QuoteFormSchema = z.object({
   werkomschrijving: z.string().min(10, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
   clientSource: z.enum(['new']),
   newClient: NewClientSchema,
+  userId: z.string()
 });
 
 
@@ -43,19 +44,11 @@ type CreateQuoteState = {
 
 export async function createQuoteAction(formData: FormData): Promise<CreateQuoteState> {
     const { redirect } = await import('next/navigation');
-    const { auth, firestore } = initializeFirebaseServer();
-    // This is a server action, we cannot rely on client-side auth state.
-    // The framework should handle authentication context for server actions.
-    // For now, we'll assume there is a way to get the user, but we can't use `auth.currentUser`.
-    // We'll need to adapt this if a server-side auth method is available.
-    // Let's assume for now we get the UID from a session or similar mechanism.
-    // As a placeholder, this action is not truly secure without proper session management.
-    const uid = formData.get('userId'); // Let's assume userId is passed in form for now.
+    const { firestore } = initializeFirebaseServer();
+
+    const uid = formData.get('userId');
     
-    // A real implementation would get UID from a server-side session.
-    // For now, we'll proceed, but this is a security note.
     if (!uid) {
-        // This check would be more robust with server-side auth state.
         return { message: 'Gebruiker niet ingelogd.'};
     }
 
