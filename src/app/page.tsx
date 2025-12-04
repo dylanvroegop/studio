@@ -64,7 +64,7 @@ export default function LandingPage() {
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
-                                <CardDescription>Voeg de klant en klusinfo toe - wij maken de offerte verder voor u op.</CardDescription>
+                                <CardDescription>Voeg klant- en klusinfo toe — wij regelen de offerte.</CardDescription>
                             </CardContent>
                         </Link>
                     </Card>
