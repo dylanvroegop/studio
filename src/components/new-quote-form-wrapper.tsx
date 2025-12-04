@@ -162,7 +162,7 @@ export function NewQuoteForm() {
                     </div>
                      <div className="md:col-span-4">
                         <Label htmlFor="plaats">Plaats</Label>
-                        <Input id="plaats" name="plaats" placeholder="Amsterdam" />
+                        <Input id="plaats" name="plaats" />
                     </div>
                  </div>
                  <div className="flex items-center space-x-2 pt-2">
@@ -173,7 +173,7 @@ export function NewQuoteForm() {
                      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 pt-4 border-t border-dashed mt-4">
                          <div className="md:col-span-4">
                             <Label htmlFor="projectStraat">Projectstraat</Label>
-                            <Input id="projectStraat" name="projectStraat" placeholder="Klusstraat" />
+                            <Input id="projectStraat" name="projectStraat" />
                         </div>
                          <div className="md:col-span-2">
                             <Label htmlFor="projectHuisnummer">Project huisnummer</Label>
