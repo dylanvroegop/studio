@@ -103,11 +103,11 @@ export function NewQuoteForm() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <div>
                         <Label htmlFor="bedrijfsnaam">Bedrijfsnaam</Label>
-                        <Input id="bedrijfsnaam" name="bedrijfsnaam" placeholder="bv. Hout & Co" />
+                        <Input id="bedrijfsnaam" name="bedrijfsnaam" />
                     </div>
                      <div>
                         <Label htmlFor="contactpersoon">Contactpersoon</Label>
-                        <Input id="contactpersoon" name="contactpersoon" placeholder="bv. Dhr. Jansen" />
+                        <Input id="contactpersoon" name="contactpersoon" />
                     </div>
                 </div>
               )}
