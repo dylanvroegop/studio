@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo, ChangeEvent, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import type { User } from 'firebase/auth';
-import { collection, query, where, Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection } from '@/firebase';
-import type { Material } from '@/lib/types';
+import { useUser } from '@/firebase';
+import { supabase } from '@/lib/supabase';
 import {
   Card,
   CardContent,
@@ -22,14 +20,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, Upload, File, Loader2, HardHat } from 'lucide-react';
-import { format } from 'date-fns';
-import { nl } from 'date-fns/locale';
-import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft, HardHat, Loader2 } from 'lucide-react';
+
+type Material = {
+  row_id: string;
+  categorie: string;
+  materiaalnaam: string;
+  prijs: string;
+  eenheid: string;
+  leverancier: string;
+  user_id: string;
+};
 
 function PageSkeleton() {
     return (
@@ -42,10 +46,7 @@ function PageSkeleton() {
             </header>
             <main className="flex flex-1 flex-col justify-center items-center gap-4 p-4 md:gap-8 md:p-6">
                 <div className="text-center p-8 text-gray-500 flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+                    <Loader2 className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" />
                     Pagina laden...
                 </div>
             </main>
@@ -53,165 +54,17 @@ function PageSkeleton() {
     )
 }
 
-function CsvUploadSection({ user }: { user: User }) {
-    const [file, setFile] = useState<File | null>(null);
-    const [leverancierNaam, setLeverancierNaam] = useState('');
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const { toast } = useToast();
-
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
-                 toast({
-                    variant: 'destructive',
-                    title: 'Bestand te groot',
-                    description: 'Selecteer a.u.b. een bestand kleiner dan 10MB.',
-                });
-                setFile(null);
-            } else {
-                setFile(selectedFile);
-            }
-        }
-    };
-
-    const handleUpload = async () => {
-        if (!file) {
-            toast({ variant: 'destructive', title: 'Gegevens onvolledig', description: 'Kies een bestand om te uploaden.' });
-            return;
-        }
-        if (!leverancierNaam.trim()) {
-            toast({ variant: 'destructive', title: 'Gegevens onvolledig', description: 'Voer een naam voor de leverancier in.' });
-            return;
-        }
-        if (!user) {
-            toast({ variant: 'destructive', title: 'Niet ingelogd', description: 'U moet ingelogd zijn om te uploaden.' });
-            return;
-        }
-        
-        setIsUploading(true);
-        try {
-            const url = 'https://n8n.dylan8n.org/webhook-test/bee441de-eaaa-495e-a294-4be7d3c1a0b2';
-
-            const formData = new FormData();
-            formData.append("bestand", file);
-            formData.append("gebruikerId", user.uid);
-            formData.append("leverancier", leverancierNaam.trim());
-            
-            const res = await fetch(url, {
-                method: "POST",
-                body: formData,
-            });
-
-            if (!res.ok) {
-                 const errorText = await res.text();
-                 throw new Error(`Upload naar n8n mislukt: Status ${res.status}. Reactie: ${errorText || 'Geen response body'}`);
-            }
-
-            toast({
-                title: 'Upload succesvol',
-                description: `Het bestand voor leverancier '${leverancierNaam.trim()}' wordt verwerkt. De materialenlijst wordt binnen enkele ogenblikken bijgewerkt.`,
-            });
-            
-            setFile(null); 
-            setLeverancierNaam('');
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-
-        } catch (error: any) {
-            console.error("Upload error:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Upload Mislukt',
-                description: error.message || 'Er is een onbekende fout opgetreden bij het uploaden.',
-            });
-        } finally {
-            setIsUploading(false);
-        }
-    };
-    
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Prijslijst uploaden</CardTitle>
-                <CardDescription>
-                    Kies een leverancier en een prijslijst (.csv of .pdf) om te uploaden.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="leverancier-naam">Leveranciernaam</Label>
-                    <Input 
-                        id="leverancier-naam"
-                        value={leverancierNaam}
-                        onChange={(e) => setLeverancierNaam(e.target.value)}
-                        placeholder="Bijvoorbeeld: Jongeneel, Bouwcenter, Pontmeyer"
-                        disabled={isUploading}
-                    />
-                 </div>
-
-                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                     <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        accept=".csv,.pdf"
-                        className="hidden"
-                        id="file-upload-input"
-                    />
-                    <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                    >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {file ? 'Ander bestand kiezen' : 'Bestand kiezen'}
-                    </Button>
-                </div>
-
-                 {file && (
-                    <div className="mt-4 flex items-center justify-start p-2 border rounded-md bg-muted/50 text-sm">
-                        <File className="h-5 w-5 text-muted-foreground mr-2 flex-shrink-0" />
-                        <span className="font-medium truncate">{file.name}</span>
-                    </div>
-                )}
-
-                <div>
-                    <Button 
-                        onClick={handleUpload} 
-                        disabled={isUploading || !file || !leverancierNaam.trim()} 
-                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                    >
-                        {isUploading ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        {isUploading ? 'Bezig met uploaden...' : `Uploaden voor "${leverancierNaam.trim() || '...'}"`}
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
 
 export default function MaterialenPage() {
     const { user, isUserLoading } = useUser();
-    const firestore = useFirestore();
     const router = useRouter();
 
-    const materialsQuery = useMemo(() => {
-        if (!user) return null;
-        return query(collection(firestore, 'materials'), where('userId', '==', user.uid));
-    }, [user, firestore]);
+    const [materials, setMaterials] = useState<Material[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     
-    const { data: materials, isLoading: materialsLoading, error } = useCollection<Material>(materialsQuery);
-
     const [search, setSearch] = useState('');
     const [supplierFilter, setSupplierFilter] = useState<string>('all');
-    const [currentPage, setCurrentPage] = useState(1);
-    const materialsPerPage = 25;
 
     useEffect(() => {
         if (!isUserLoading && !user) {
@@ -219,34 +72,41 @@ export default function MaterialenPage() {
         }
     }, [user, isUserLoading, router]);
 
-    const processedMaterials = useMemo(() => {
-        return (materials || []).map(m => {
-            const data = m as any;
-            let updatedAtDate: Date;
-            if (data.updatedAt instanceof Timestamp) {
-                updatedAtDate = data.updatedAt.toDate();
-            } else if (data.updatedAt instanceof Date) {
-                updatedAtDate = data.updatedAt;
-            } else if (typeof data.updatedAt === 'string') {
-                updatedAtDate = new Date(data.updatedAt);
-            } else {
-                updatedAtDate = new Date(0); // Invalid date as fallback
-            }
+    useEffect(() => {
+        if (user?.uid) {
+            const fetchMaterials = async () => {
+                setIsLoading(true);
+                setError(null);
 
-            return {
-                ...m,
-                updatedAt: updatedAtDate,
-            } as Material & { id: string, updatedAt: Date };
-        });
-    }, [materials]);
+                const { data, error } = await supabase
+                    .from('materialen_duplicate')
+                    .select('*')
+                    .eq('user_id', user.uid);
+
+                if (error) {
+                    console.error('Error fetching from Supabase:', error);
+                    setError(`Fout bij het laden van materialen: ${error.message}`);
+                    setMaterials([]);
+                } else {
+                    setMaterials(data as Material[] || []);
+                }
+                setIsLoading(false);
+            };
+
+            fetchMaterials();
+        } else if (!isUserLoading) {
+            // Not logged in, stop loading
+            setIsLoading(false);
+        }
+    }, [user]);
 
     const filteredMaterials = useMemo(() => {
-        let result = processedMaterials;
+        let result = materials;
 
         if (search) {
             const lowercasedSearch = search.toLowerCase();
             result = result.filter(m =>
-                (m.materiaalnaam && m.materiaalnaam.toLowerCase().includes(lowercasedSearch))
+                m.materiaalnaam.toLowerCase().includes(lowercasedSearch)
             );
         }
 
@@ -254,22 +114,14 @@ export default function MaterialenPage() {
             result = result.filter(m => m.leverancier === supplierFilter);
         }
 
-        return result.sort((a, b) => {
-             const dateA = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0;
-             const dateB = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0;
-             return dateB - dateA; // Sort descending
-        });
-    }, [search, supplierFilter, processedMaterials]);
+        return result;
+    }, [search, supplierFilter, materials]);
     
-    const paginatedMaterials = useMemo(() => {
-        const startIndex = (currentPage - 1) * materialsPerPage;
-        return filteredMaterials.slice(startIndex, startIndex + materialsPerPage);
-    }, [filteredMaterials, currentPage]);
+    const uniqueSuppliers = useMemo(() => {
+        return [...new Set(materials.map(m => m.leverancier).filter(Boolean).sort())];
+    }, [materials]);
 
-    const pageCount = Math.ceil(filteredMaterials.length / materialsPerPage);
-    const uniqueSuppliers = useMemo(() => [...new Set(processedMaterials.map(m => m.leverancier).filter(Boolean).sort())], [processedMaterials]);
-
-    if (isUserLoading || (!materialsLoading && !user)) {
+    if (isUserLoading || (!user && !error)) {
         return <PageSkeleton />;
     }
 
@@ -290,14 +142,15 @@ export default function MaterialenPage() {
             <main className="flex-1 p-4 md:p-6 space-y-6">
                 <div>
                     <h1 className="font-semibold text-2xl md:text-3xl">Materialen & prijzen</h1>
-                    <p className="text-muted-foreground">Upload een prijslijst voor een specifieke leverancier.</p>
+                    <p className="text-muted-foreground">Doorzoek uw materiaalbibliotheek.</p>
                 </div>
-
-                {user && <CsvUploadSection user={user} />}
 
                 <Card>
                     <CardHeader>
                         <CardTitle>Alle materialen</CardTitle>
+                        <CardDescription>
+                            Gedownload van uw Supabase database.
+                        </CardDescription>
                         <div className="mt-4 flex flex-col md:flex-row gap-2">
                              <Input 
                                 placeholder="Zoek op materiaalnaam..." 
@@ -306,7 +159,7 @@ export default function MaterialenPage() {
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                                <SelectTrigger className="w-[200px]">
+                                <SelectTrigger className="w-full md:w-[200px]">
                                     <SelectValue placeholder="Leverancier" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -317,73 +170,44 @@ export default function MaterialenPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        {materialsLoading ? (
-                            <div className="space-y-2">
-                                {[...Array(10)].map((_, i) => <div key={i} className="h-10 bg-muted/50 rounded animate-pulse" />)}
+                        {isLoading ? (
+                            <div className="flex justify-center items-center py-10">
+                                <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                                <span>Materialen laden...</span>
                             </div>
                         ) : error ? (
                             <div className="text-center py-8 text-destructive">
-                                Fout bij het laden van materialen: {error.message}
+                                {error}
                             </div>
                         ) : (
-                            <>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Leverancier</TableHead>
-                                            <TableHead>Materiaalnaam</TableHead>
-                                            <TableHead>Categorie</TableHead>
-                                            <TableHead>Eenheid</TableHead>
-                                            <TableHead className="text-right">Prijs</TableHead>
-                                            <TableHead className="text-right">Laatst bijgewerkt</TableHead>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Leverancier</TableHead>
+                                        <TableHead>Materiaalnaam</TableHead>
+                                        <TableHead>Categorie</TableHead>
+                                        <TableHead>Eenheid</TableHead>
+                                        <TableHead className="text-right">Prijs</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredMaterials.length > 0 ? filteredMaterials.map(material => (
+                                        <TableRow key={material.row_id}>
+                                            <TableCell>{material.leverancier || '—'}</TableCell>
+                                            <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
+                                            <TableCell>{material.categorie || '—'}</TableCell>
+                                            <TableCell>{material.eenheid}</TableCell>
+                                            <TableCell className="text-right">{material.prijs}</TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {paginatedMaterials.length > 0 ? paginatedMaterials.map(material => (
-                                            <TableRow key={material.id}>
-                                                <TableCell>{material.leverancier || '—'}</TableCell>
-                                                <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
-                                                <TableCell>{material.categorie || '—'}</TableCell>
-                                                <TableCell>{material.eenheid}</TableCell>
-                                                <TableCell className="text-right">{material.prijs}</TableCell>
-                                                <TableCell className="text-right">
-                                                    {material.updatedAt instanceof Date && !isNaN(material.updatedAt.getTime()) && material.updatedAt.getTime() > 0
-                                                      ? format(material.updatedAt, 'd MMM yyyy', { locale: nl })
-                                                      : '—'
-                                                    }
-                                                </TableCell>
-                                            </TableRow>
-                                        )) : (
-                                            <TableRow>
-                                                <TableCell colSpan={6} className="h-24 text-center">
-                                                    Geen materialen gevonden. Upload een CSV om te beginnen.
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                                {pageCount > 1 && (
-                                     <div className="flex items-center justify-end space-x-2 py-4">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                            disabled={currentPage === 1}
-                                        >
-                                            Vorige
-                                        </Button>
-                                        <span className="text-sm text-muted-foreground">Pagina {currentPage} van {pageCount}</span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage(prev => Math.min(pageCount, prev + 1))}
-                                            disabled={currentPage === pageCount}
-                                        >
-                                            Volgende
-                                        </Button>
-                                    </div>
-                                )}
-                            </>
+                                    )) : (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="h-24 text-center">
+                                                Geen materialen gevonden.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
                         )}
                     </CardContent>
                 </Card>
@@ -391,5 +215,3 @@ export default function MaterialenPage() {
         </div>
     );
 }
-
-    
