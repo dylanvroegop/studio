@@ -154,7 +154,7 @@ export function NewQuoteForm() {
                     </div>
                      <div className="md:col-span-2">
                         <Label htmlFor="huisnummer">Huisnummer + toev. *</Label>
-                        <Input id="huisnummer" name="huisnummer" placeholder="123 A" required />
+                        <Input id="huisnummer" name="huisnummer" required />
                     </div>
                     <div className="md:col-span-2">
                         <Label htmlFor="postcode">Postcode *</Label>
