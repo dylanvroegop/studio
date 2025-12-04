@@ -5,25 +5,61 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { JobIcon, type IconName } from '@/components/icons';
 
 type Subcategory = {
   id: string;
   title: string;
-  count: number;
+  description: string;
+  icon: IconName;
 };
 
 const subcategories: Subcategory[] = [
-  { id: 'vensterbanken', title: 'Vensterbanken & Dagkanten', count: 0 },
-  { id: 'plinten', title: 'Plinten & Afwerklatten', count: 0 },
-  { id: 'stucnaden', title: 'Muur- & Plafond Afwerking Stucnaden', count: 0 },
-  { id: 'trap', title: 'Trap Afwerking', count: 0 },
-  { id: 'koof', title: 'Koof / Omkasting Afwerking', count: 0 },
-  { id: 'radiator', title: 'Radiator Omkastingen', count: 0 },
-  { id: 'binnen', title: 'Diverse Houten Aftimmering Binnen', count: 0 },
-  { id: 'overig', title: 'Overig Aftimmeren', count: 0 },
+  { id: 'vensterbanken', title: 'Vensterbanken', description: 'Vensterbanken & dagkanten', icon: 'finishing' },
+  { id: 'plinten', title: 'Plinten & Afwerklatten', description: 'Plinten en afwerklatten', icon: 'finishing' },
+  { id: 'stucnaden', title: 'Muur & Plafond', description: 'Afwerking stucnaden', icon: 'wall' },
+  { id: 'trap', title: 'Trap Afwerking', description: 'Aftimmering van trappen', icon: 'finishing' },
+  { id: 'koof', title: 'Koof / Omkasting', description: 'Omkastingen en koven', icon: 'siding' },
+  { id: 'radiator', title: 'Radiator Omkasting', description: 'Omkastingen voor radiatoren', icon: 'siding' },
+  { id: 'binnen', title: 'Aftimmering Binnen', description: 'Diverse houten aftimmering', icon: 'door' },
+  { id: 'overig', title: 'Overig Aftimmeren', description: 'Specifiek aftimmerwerk', icon: 'plus' },
 ];
+
+function AfwerkingCategoryCard({
+  category,
+  onSelect,
+  isSelected,
+}: {
+  category: Subcategory;
+  onSelect: (id: string) => void;
+  isSelected: boolean;
+}) {
+  return (
+    <div className="h-full" onClick={() => onSelect(category.id)}>
+      <Card
+        className={cn(
+          "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
+          isSelected ? "border-primary/80 bg-[#1c1c1c]" : "bg-[#131313] border-[rgba(255,0,0,0.2)]",
+          "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+        )}
+      >
+        <div className="w-full h-full text-left p-0">
+          <CardContent className="p-4 flex items-center gap-4 h-full">
+            <JobIcon name={category.icon} className="w-6 h-6 text-primary flex-shrink-0" />
+            <div className="flex flex-col">
+              <h3 className="font-semibold text-base text-white">{category.title}</h3>
+              <p className="text-sm text-[#A3A3A3] mt-1 font-normal">{category.description}</p>
+            </div>
+            {isSelected && <CheckCircle2 className="w-6 h-6 text-primary ml-auto flex-shrink-0" />}
+          </CardContent>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 
 export default function AfwerkingenPage({ params }: { params: { id: string } }) {
   const quoteId = params.id;
@@ -55,35 +91,22 @@ export default function AfwerkingenPage({ params }: { params: { id: string } }) 
         <h1 className="flex-1 text-center font-semibold text-lg -ml-8">Afwerkingen: stap 3 van 4</h1>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-2xl mx-auto w-full">
+        <div className="max-w-4xl mx-auto w-full">
           <div className="text-center mb-8">
             <p className="text-muted-foreground">
               Selecteer één of meerdere categorieën afwerking. Voor elke gekozen categorie vult u in de volgende stap de specifieke details en materialen in.
             </p>
           </div>
 
-          <div className="space-y-4">
-            {subcategories.map((item) => {
-              const isSelected = selected.includes(item.id);
-              return (
-                <Card
-                  key={item.id}
-                  onClick={() => handleSelect(item.id)}
-                  className={cn(
-                    'cursor-pointer transition-all border-2',
-                    isSelected ? 'border-primary bg-primary/5' : 'border-card hover:bg-muted/50'
-                  )}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between p-4">
-                    <div className="flex items-center gap-4">
-                       {isSelected ? <CheckCircle2 className="w-6 h-6 text-primary" /> : <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/50" /> }
-                       <CardTitle className="text-base font-medium">{item.title}</CardTitle>
-                    </div>
-                    <CardDescription>{item.count} werkzaamheden</CardDescription>
-                  </CardHeader>
-                </Card>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+            {subcategories.map((item) => (
+              <AfwerkingCategoryCard
+                key={item.id}
+                category={item}
+                onSelect={handleSelect}
+                isSelected={selected.includes(item.id)}
+              />
+            ))}
           </div>
 
           <div className="mt-8">
