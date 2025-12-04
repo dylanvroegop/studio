@@ -11,6 +11,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription
 } from '@/components/ui/card';
 import {
   Table,
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { ArrowUpRight, HardHat, FilePen, Send, Clock, Copy, PlusCircle, CircleDollarSign, AlertTriangle } from 'lucide-react';
+import { ArrowUpRight, HardHat, FilePen, Send, Clock, Copy, PlusCircle, CircleDollarSign, AlertTriangle, LayoutDashboard } from 'lucide-react';
 import { format, subDays, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -63,7 +64,7 @@ function DashboardSkeleton() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Even geduld a.u.b...
+                    Dashboard laden...
                 </div>
             </main>
         </div>
@@ -158,9 +159,9 @@ export default function Dashboard() {
             case 'createdAt_asc':
                 return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
             case 'amount_desc':
-                return (b.amount || 0) - (a.amount || 0);
+                return (b.amount || 0) - (b.amount || 0);
             case 'amount_asc':
-                return (a.amount || 0) - (b.amount || 0);
+                return (a.amount || 0) - (a.amount || 0);
             case 'createdAt_desc':
             default:
                 return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -219,13 +220,43 @@ export default function Dashboard() {
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         <div className="flex items-center">
           <div>
-            <h1 className="font-semibold text-2xl md:text-3xl">Offerte Cockpit</h1>
-            <p className="text-muted-foreground">Een overzicht van uw meest recente offertes.</p>
+            <h1 className="font-semibold text-2xl md:text-3xl">Welkom bij OfferteHulp</h1>
+            <p className="text-muted-foreground">Wat wilt u doen?</p>
           </div>
+        </div>
+
+        {/* Navigation Cards */}
+        <div className="grid gap-6 md:grid-cols-2 max-w-4xl w-full">
+            <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer">
+                <Link href="/offertes/nieuw" className="block p-6 h-full">
+                    <CardHeader className="p-0">
+                        <div className="flex items-center gap-4 mb-2">
+                            <PlusCircle className="h-8 w-8 text-primary flex-shrink-0" />
+                            <CardTitle className="text-lg">Nieuwe offerte aanmaken</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <CardDescription>Start een nieuwe offerte voor een klant en voeg klussen toe.</CardDescription>
+                    </CardContent>
+                </Link>
+            </Card>
+            <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer md:col-span-2">
+                <Link href="/materialen" className="block p-6 h-full">
+                    <CardHeader className="p-0">
+                        <div className="flex items-center gap-4 mb-2">
+                            <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
+                            <CardTitle className="text-lg">Materialen & Prijzen</CardTitle>
+                        </div>
+                     </CardHeader>
+                    <CardContent className="p-0">
+                        <CardDescription>Beheer uw materiaalbibliotheek en upload nieuwe prijslijsten.</CardDescription>
+                    </CardContent>
+                </Link>
+            </Card>
         </div>
         
         {/* Stat cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-8">
             <StatCard title="Openstaand" value={openStandCount} subtext="Concept + in behandeling" icon={<FilePen className="h-4 w-4 text-muted-foreground" />}/>
             <StatCard title="Verzonden" value={verzondenCount} subtext="Wacht op reactie" icon={<Send className="h-4 w-4 text-muted-foreground" />}/>
             <StatCard title="Geaccepteerd (30d)" value={formatCurrency(geaccepteerd30dSum)} subtext="Totaalbedrag laatste 30 dagen" icon={<CircleDollarSign className="h-4 w-4 text-muted-foreground" />} className="text-green-400" />
