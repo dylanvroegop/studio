@@ -47,7 +47,6 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
         <main className="flex flex-1 flex-col">
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm shadow-sm">
                  <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                    {/* In een echte app wil je misschien terug naar de offerte detailpagina, maar die hebben we nog niet in de nieuwe flow */}
                     <Link href={`/offertes/nieuw`}>
                         <ArrowLeft className="h-4 w-4" />
                         <span className="sr-only">Terug</span>
@@ -76,7 +75,7 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-muted-foreground italic">
-                                    "werkomschrijving; {quote.shortDescription}"
+                                    werkomschrijving; {quote.shortDescription}
                                 </p>
                             </CardContent>
                         </Card>
