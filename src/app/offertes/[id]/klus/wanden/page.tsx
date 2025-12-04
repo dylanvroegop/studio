@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,47 +9,70 @@ import { cn } from '@/lib/utils';
 import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { createJobAction } from '@/lib/actions';
 
 type Subcategory = {
   name: JobCategory;
   description: string;
   icon: IconName;
+  href?: string;
+  action?: () => void;
 };
-
-const subcategories: Subcategory[] = [
-  { name: 'Wanden', description: 'HSB Wand', icon: 'wall' },
-  { name: 'Wanden', description: 'HSB Tussenwand', icon: 'wall' },
-  { name: 'Wanden', description: 'Metalstud Wand', icon: 'wall' },
-  { name: 'Wanden', description: 'Metalstud Tussenwand', icon: 'wall' },
-  { name: 'Wanden', description: 'Overig Wanden', icon: 'plus' },
-];
 
 export default function WandenPage() {
   const params = useParams();
+  const router = useRouter();
   const quoteId = params.id as string;
-  const [selected, setSelected] = useState<string[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useState(false);
 
   useEffect(() => {
     async function fetchQuote() {
-        if (!quoteId) return;
-        setLoading(true);
-        const quoteData = await getQuoteById(quoteId);
-        setQuote(quoteData || null);
-        setLoading(false);
+      if (!quoteId) return;
+      setLoading(true);
+      const quoteData = await getQuoteById(quoteId);
+      setQuote(quoteData || null);
+      setLoading(false);
     }
     fetchQuote();
   }, [quoteId]);
 
-  const handleSelect = (description: string) => {
-    setSelected((prev) =>
-      prev.includes(description)
-        ? prev.filter((item) => item !== description)
-        : [...prev, description]
-    );
+  const handleCreateJob = (description: string) => {
+    startTransition(true);
+    // This is a server action, but we trigger it on the client
+    // It will handle the redirect internally
+    createJobAction(quoteId, 'Wanden', description).finally(() => {
+      startTransition(false);
+    });
   };
+
+  const subcategories: Subcategory[] = [
+    { name: 'Wanden', description: 'HSB Wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
+    { name: 'Wanden', description: 'HSB Tussenwand', icon: 'wall', action: () => handleCreateJob('HSB Tussenwand') },
+    { name: 'Wanden', description: 'Metalstud Wand', icon: 'wall', action: () => handleCreateJob('Metalstud Wand') },
+    { name: 'Wanden', description: 'Metalstud Tussenwand', icon: 'wall', action: () => handleCreateJob('Metalstud Tussenwand') },
+    { name: 'Wanden', description: 'Overig Wanden', icon: 'plus', action: () => handleCreateJob('Overig Wanden') },
+  ];
+
+  const renderCardContent = (item: Subcategory) => (
+    <div
+      className={cn(
+        "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
+        "border-[rgba(255,0,0,0.2)]", // A neutral, non-selected state
+        "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+      )}
+    >
+      <div className="w-full h-full text-left p-0">
+        <div className="p-4 flex items-center gap-4 h-full">
+          <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
+          <div className="flex flex-col">
+            <h3 className="font-semibold text-base text-white">{item.description}</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <main className="flex flex-1 flex-col">
@@ -64,11 +87,11 @@ export default function WandenPage() {
         </div>
         <h1 className="text-center font-semibold text-lg">Wanden: stap 3 van 4</h1>
         <div className="flex items-center justify-end">
-            {loading ? (
-                <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : quote ? (
-                <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
-            ) : null}
+          {loading ? (
+            <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+          ) : quote ? (
+            <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
+          ) : null}
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
@@ -81,31 +104,20 @@ export default function WandenPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
             {subcategories.map((item) => {
-                // We need a custom implementation here because CategoryCard is tied to server actions
-                // which we don't want to use for this multiple-selection-step.
+              if (item.href) {
                 return (
-                     <div key={item.description} onClick={() => handleSelect(item.description)} className="h-full">
-                        <div
-                            className={cn(
-                            "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
-                            selected.includes(item.description) ? "border-primary/80 bg-[#1c1c1c]" : "border-[rgba(255,0,0,0.2)]",
-                            "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
-                            )}
-                        >
-                            <div className="w-full h-full text-left p-0">
-                                <div className="p-4 flex items-center gap-4 h-full">
-                                    <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
-                                    <div className="flex flex-col">
-                                    <h3 className="font-semibold text-base text-white">{item.description}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
+                  <Link key={item.description} href={item.href} className="h-full">
+                    {renderCardContent(item)}
+                  </Link>
+                );
+              }
+              return (
+                <div key={item.description} onClick={() => item.action?.()} className="h-full">
+                   {renderCardContent(item)}
+                </div>
+              );
             })}
           </div>
-
         </div>
       </div>
     </main>
