@@ -16,7 +16,8 @@ service cloud.firestore {
     match /quotes/{quoteId} {
       allow list: if isSignedIn() && request.query.where.userId == request.auth.uid;
       allow get: if isSignedIn() && isOwner(resource.data.userId);
-      allow create, update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
     }
     
     // Rules for the 'materials' collection
