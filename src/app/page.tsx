@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import Link from 'next/link';
-import { PlusCircle, LayoutDashboard, Hammer } from 'lucide-react';
+import { PlusCircle, LayoutDashboard, Hammer, HardHat } from 'lucide-react';
 import { useEffect } from 'react';
 import { DashboardHeader } from '@/components/dashboard-header';
 
@@ -47,7 +47,7 @@ export default function LandingPage() {
                     <h1 className="font-semibold text-2xl md:text-3xl">Welkom bij OfferteHulp</h1>
                     <p className="text-muted-foreground">Wat wilt u doen?</p>
                 </div>
-                <div className="grid gap-6 md:grid-cols-2 max-w-2xl w-full">
+                <div className="grid gap-6 md:grid-cols-2 max-w-4xl w-full">
                     <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer">
                         <Link href="/offertes/nieuw" className="block p-6 h-full">
                             <CardHeader className="p-0">
@@ -70,7 +70,20 @@ export default function LandingPage() {
                                 </div>
                              </CardHeader>
                             <CardContent className="p-0">
-                                <CardDescription>Bekijk en beheer uw bestaande offertes en materialen.</CardDescription>
+                                <CardDescription>Bekijk en beheer uw bestaande offertes.</CardDescription>
+                            </CardContent>
+                        </Link>
+                    </Card>
+                    <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer md:col-span-2">
+                        <Link href="/materialen" className="block p-6 h-full">
+                            <CardHeader className="p-0">
+                                <div className="flex items-center gap-4 mb-2">
+                                    <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
+                                    <CardTitle className="text-lg">Materialen & Prijzen</CardTitle>
+                                </div>
+                             </CardHeader>
+                            <CardContent className="p-0">
+                                <CardDescription>Beheer uw materiaalbibliotheek en upload nieuwe prijslijsten.</CardDescription>
                             </CardContent>
                         </Link>
                     </Card>
