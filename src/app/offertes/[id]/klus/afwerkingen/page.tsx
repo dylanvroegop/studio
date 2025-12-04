@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { JobCategory } from '@/lib/types';
+import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
+import { getQuoteById } from '@/lib/data';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
 type Subcategory = {
   name: JobCategory;
@@ -30,6 +32,19 @@ export default function AfwerkingenPage() {
   const params = useParams();
   const quoteId = params.id as string;
   const [selected, setSelected] = useState<string[]>([]);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchQuote() {
+        if (!quoteId) return;
+        setLoading(true);
+        const quoteData = await getQuoteById(quoteId);
+        setQuote(quoteData || null);
+        setLoading(false);
+    }
+    fetchQuote();
+  }, [quoteId]);
 
   const handleSelect = (description: string) => {
     setSelected((prev) =>
@@ -55,6 +70,29 @@ export default function AfwerkingenPage() {
       </header>
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-4xl mx-auto w-full">
+            {loading ? (
+                <Card className="mb-6 animate-pulse">
+                    <CardHeader>
+                        <div className="h-6 bg-muted rounded w-3/4"></div>
+                        <div className="h-4 bg-muted rounded w-1/2 mt-2"></div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="h-4 bg-muted rounded w-full"></div>
+                    </CardContent>
+                </Card>
+            ) : quote && (
+                <Card className="mb-6 bg-card/50 border-dashed">
+                    <CardHeader>
+                        <CardTitle>Offerte voor: {quote.clientName}</CardTitle>
+                        <CardDescription>Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground italic">
+                            werkomschrijving; {quote.shortDescription}
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
           <div className="text-center mb-8">
             <p className="text-muted-foreground">
               Selecteer één of meerdere categorieën afwerking. Voor elke gekozen categorie vult u in de volgende stap de specifieke details en materialen in.
