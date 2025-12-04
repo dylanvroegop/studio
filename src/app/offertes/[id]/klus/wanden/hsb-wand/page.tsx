@@ -94,7 +94,7 @@ export default function HsbWandPage() {
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-xl mx-auto w-full">
+        <div className="max-w-2xl mx-auto w-full">
             <div className="text-center mb-8">
                 <p className="text-muted-foreground">
                     Vul hieronder de gevraagde gegevens in. Deze informatie gebruiken wij om jouw offerte nauwkeurig voor je uit te werken.
