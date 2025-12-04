@@ -3,19 +3,12 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
-import { useAuth } from '@/firebase';
+import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function NewQuotePage() {
   const router = useRouter();
-  const { user, isUserLoading } = useAuth();
-
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, isUserLoading, router]);
+  const { user, isUserLoading } = useUser();
 
   if (isUserLoading || !user) {
      return (
