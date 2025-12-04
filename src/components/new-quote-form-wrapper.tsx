@@ -150,7 +150,7 @@ export function NewQuoteForm() {
                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                     <div className="md:col-span-4">
                         <Label htmlFor="straat">Straat *</Label>
-                        <Input id="straat" name="straat" placeholder="Voorbeeldstraat" required />
+                        <Input id="straat" name="straat" required />
                     </div>
                      <div className="md:col-span-2">
                         <Label htmlFor="huisnummer">Huisnummer + toev. *</Label>
