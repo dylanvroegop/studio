@@ -72,7 +72,7 @@ export default function NewJobPage({ params }: { params: { id: string } }) {
                         <Card className="mb-6 bg-card/50 border-dashed">
                             <CardHeader>
                                 <CardTitle>Offerte voor: {quote.clientName}</CardTitle>
-                                <CardDescription>U voegt nu een klus toe aan de offerte.</CardDescription>
+                                <CardDescription>Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-muted-foreground italic">
