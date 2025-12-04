@@ -70,7 +70,7 @@ export default function AfwerkingenPage() {
             {loading ? (
                 <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-                <p className="text-sm text-muted-foreground truncate">{quote.clientName}</p>
+                <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
             ) : null}
         </div>
       </header>
