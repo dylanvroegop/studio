@@ -8,7 +8,7 @@ import { addDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { initializeFirebaseServer } from '@/firebase/server';
 
 const QuoteFormSchema = z.object({
-  werkomschrijving: z.string().min(10, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
+  werkomschrijving: z.string().min(1, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
   userId: z.string(),
   clientType: z.enum(['particulier', 'zakelijk']),
   bedrijfsnaam: z.string().optional(),
