@@ -33,7 +33,7 @@ export default function NewQuotePage() {
             <span className="sr-only">Terug</span>
           </Link>
         </Button>
-        <h1 className="flex-1 text-center font-semibold text-lg -ml-8">Nieuwe Offerte: Stap 1 van 4</h1>
+        <h1 className="flex-1 text-center font-semibold text-lg -ml-8">Nieuwe Offerte: Stap 1 van 6</h1>
       </header>
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-4xl mx-auto w-full">

@@ -84,7 +84,7 @@ export default function OverigWandenPage() {
             </Link>
           </Button>
         </div>
-        <h1 className="text-center font-semibold text-lg">Wanden: stap 3 van 4</h1>
+        <h1 className="text-center font-semibold text-lg">Wanden: stap 4 van 6</h1>
         <div className="flex items-center justify-end">
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
