@@ -195,7 +195,7 @@ export function NewQuoteForm() {
             {/* Sectie 4 – Korte omschrijving */}
             <div className="space-y-4">
                  <h3 className="font-medium text-lg">Korte omschrijving van het werk</h3>
-                 <p className="text-sm text-muted-foreground">Geef in één zin aan wat er moet gebeuren. Wij maken er later een duidelijke werkbeschrijving van.</p>
+                 <p className="text-sm text-muted-foreground">Beschrijf kort wat er moet gebeuren — wij maken er later een duidelijke werktekst van.</p>
                  <div>
                     <Label htmlFor="werkomschrijving">Werkomschrijving *</Label>
                     <Textarea 
