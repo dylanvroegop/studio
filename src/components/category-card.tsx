@@ -6,6 +6,7 @@ import type { JobCategory } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { JobIcon, type IconName } from '@/components/icons';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 
 interface CategoryCardProps {
@@ -20,6 +21,7 @@ interface CategoryCardProps {
 
 export function CategoryCard({ quoteId, category, className }: CategoryCardProps) {
   const [isSelected, setIsSelected] = useState(false);
+  const router = useRouter();
   
   const createJobWithCategory = createJobAction.bind(
     null,
@@ -28,7 +30,13 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
     `Nieuwe klus: ${category.name}`
   );
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent<HTMLFormElement>) => {
+    if (category.name === 'Afwerkingen') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/afwerkingen`);
+      return;
+    }
     setIsSelected(true);
   }
 
