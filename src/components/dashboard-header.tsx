@@ -18,7 +18,7 @@ export function DashboardHeader({ user }: { user: User | null }) {
       toast({ title: 'Succes', description: 'U bent uitgelogd.' });
       router.push('/login');
     } catch (error) {
-      console.error('Logout Error:', error);
+      console.error('Logout Fout:', error);
       toast({ variant: 'destructive', title: 'Fout', description: 'Uitloggen mislukt.' });
     }
   };

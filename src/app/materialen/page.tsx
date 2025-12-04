@@ -89,7 +89,7 @@ function CsvUploadSection() {
             setLeverancierNaam('');
             // Optionally, trigger a refresh of the materials list
         } catch (error) {
-            console.error('Upload Error:', error);
+            console.error('Upload Fout:', error);
             const errorMessage = error instanceof Error ? error.message : 'Een onbekende fout is opgetreden.';
             toast({
                 variant: 'destructive',
@@ -196,7 +196,7 @@ export default function MaterialenPage() {
                     .eq('user_id', user.uid);
 
                 if (error) {
-                    console.error('Error fetching from Supabase:', error);
+                    console.error('Fout bij het ophalen van Supabase:', error);
                     setError(`Fout bij het laden van materialen: ${error.message}`);
                     setMaterials([]);
                 } else {

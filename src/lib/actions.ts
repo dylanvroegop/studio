@@ -116,11 +116,11 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   
   try {
       const docRef = await addDocumentNonBlocking(collection(firestore, "quotes"), quoteData);
-      if (!docRef) throw new Error("Failed to get document reference.");
+      if (!docRef) throw new Error("Kon documentreferentie niet ophalen.");
       revalidatePath('/');
       return { redirect: `/offertes/${docRef.id}/klus/nieuw` };
   } catch (error) {
-      console.error("Firebase Write Error in createQuoteAction: ", error);
+      console.error("Firebase schrijf fout in createQuoteAction: ", error);
       let message = 'Database Fout: Offerte kon niet worden aangemaakt.';
       if (error instanceof Error && error.message.includes('permission-error')) {
           message = error.message; // Propagate the detailed error message
@@ -133,7 +133,7 @@ export async function createJobAction(quoteId: string, categorie: JobCategory, o
     const { redirect } = await import('next/navigation');
     try {
         // This function will need to be updated to write to a subcollection in Firestore
-        console.log("Creating job for quote:", quoteId);
+        console.log("Klus aanmaken voor offerte:", quoteId);
         // For now, we redirect to the edit page, which is not yet Firestore-aware
         redirect(`/offertes/${quoteId}/klus/temp-job-id/bewerken`);
     } catch (error) {
@@ -190,7 +190,7 @@ export async function submitQuoteAction(quoteId: string) {
         });
 
         if (!response.ok) {
-            throw new Error(`Webhook failed with status: ${response.status}`);
+            throw new Error(`Webhook mislukt met status: ${response.status}`);
         }
         
         // This will need to be updated to use Firestore

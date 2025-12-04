@@ -127,7 +127,7 @@ export default function Dashboard() {
         setQuotes(quotesData);
         setLoading(false);
     }, (error) => {
-        console.error("Error fetching quotes:", error);
+        console.error("Fout bij ophalen offertes:", error);
         setLoading(false);
     });
     
@@ -186,7 +186,7 @@ export default function Dashboard() {
           router.push(`/offertes/${newDocRef.id}`);
         }
     } catch (error) {
-        console.error("Error duplicating quote:", error);
+        console.error("Fout bij dupliceren offerte:", error);
     }
   }
 

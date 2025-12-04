@@ -35,15 +35,15 @@ export default function LoginPage() {
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
-        toast({ title: 'Success', description: 'Logged in successfully.' });
+        toast({ title: 'Succes', description: 'U bent succesvol ingelogd.' });
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
-        toast({ title: 'Success', description: 'Account created successfully.' });
+        toast({ title: 'Succes', description: 'Uw account is succesvol aangemaakt.' });
       }
       // The useUser effect will handle the redirect.
     } catch (error) {
       const authError = error as AuthError;
-      let errorMessage = 'An unknown error occurred.';
+      let errorMessage = 'Er is een onbekende fout opgetreden.';
       switch (authError.code) {
         case 'auth/invalid-email':
           errorMessage = 'Ongeldig emailadres formaat.';
@@ -106,7 +106,7 @@ export default function LoginPage() {
         <CardContent>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-mailadres</Label>
               <Input
                 id="email"
                 type="email"
@@ -118,7 +118,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Wachtwoord</Label>
               <Input
                 id="password"
                 type="password"
@@ -131,7 +131,7 @@ export default function LoginPage() {
           </div>
           <div className="mt-6 flex flex-col gap-3">
             <Button onClick={() => handleAuthAction(true)} disabled={isLoading} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-              {isLoading ? 'Inloggen...' : 'Log In'}
+              {isLoading ? 'Inloggen...' : 'Inloggen'}
             </Button>
             <Button onClick={() => handleAuthAction(false)} disabled={isLoading} variant="outline" className="w-full">
               {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
