@@ -51,7 +51,7 @@ export default function WandenPage() {
     { name: 'Wanden', description: 'HSB Wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
     { name: 'Wanden', description: 'HSB Tussenwand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
     { name: 'Wanden', description: 'Metalstud Wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
-    { name: 'Wanden', description: 'Metalstud Tussenwand', icon: 'wall', action: () => handleCreateJob('Metalstud Tussenwand') },
+    { name: 'Wanden', description: 'Metalstud Tussenwand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
     { name: 'Wanden', description: 'Overig Wanden', icon: 'plus', action: () => handleCreateJob('Overig Wanden') },
   ];
 
