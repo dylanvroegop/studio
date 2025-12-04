@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CategoryCard } from '@/components/category-card';
 import type { JobCategory } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 
@@ -30,7 +29,6 @@ const subcategories: Subcategory[] = [
 export default function AfwerkingenPage() {
   const params = useParams();
   const quoteId = params.id as string;
-  const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
 
   const handleSelect = (description: string) => {
@@ -39,13 +37,6 @@ export default function AfwerkingenPage() {
         ? prev.filter((item) => item !== description)
         : [...prev, description]
     );
-  };
-
-  const handleNext = () => {
-    // Navigate to the next step, passing selected subcategories
-    // The router.push will be implemented when the next step page is created.
-    console.log('Selected subcategories:', selected);
-    // router.push(`/offertes/${quoteId}/klus/afwerkingen/details?items=${selected.join(',')}`);
   };
 
   return (
@@ -72,7 +63,6 @@ export default function AfwerkingenPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
             {subcategories.map((item) => {
-                const cardCategory = {name: item.name, description: item.description, iconName: item.icon};
                 // We need a custom implementation here because CategoryCard is tied to server actions
                 // which we don't want to use for this multiple-selection-step.
                 return (
@@ -98,16 +88,6 @@ export default function AfwerkingenPage() {
             })}
           </div>
 
-          <div className="mt-8">
-            <Button
-              onClick={handleNext}
-              disabled={selected.length === 0}
-              className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-              size="lg"
-            >
-              Volgende
-            </Button>
-          </div>
         </div>
       </div>
     </main>
