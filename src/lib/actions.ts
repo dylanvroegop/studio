@@ -73,10 +73,10 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
 
   const quoteData = {
       userId: userId,
-      status: "concept",
+      status: "concept" as const,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      clientType: clientType === 'particulier' ? 'Particulier' : 'Zakelijk',
+      clientType: clientType === 'particulier' ? 'Particulier' : 'Zakelijk' as "Particulier" | "Zakelijk",
       companyName: bedrijfsnaam || null,
       contactPerson: contactpersoon || null,
       firstName: voornaam,

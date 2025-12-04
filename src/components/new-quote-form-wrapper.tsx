@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createQuoteAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +19,31 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import { z } from 'zod';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+
+const QuoteFormSchema = z.object({
+  werkomschrijving: z.string().min(1, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
+  clientType: z.enum(['particulier', 'zakelijk']),
+  bedrijfsnaam: z.string().optional(),
+  contactpersoon: z.string().optional(),
+  voornaam: z.string().min(1, 'Voornaam is verplicht'),
+  achternaam: z.string().min(1, 'Achternaam is verplicht'),
+  email: z.string().email('Ongeldig emailadres'),
+  telefoon: z.string().min(1, 'Telefoonnummer is verplicht'),
+  straat: z.string().min(1, 'Straat is verplicht'),
+  huisnummer: z.string().min(1, 'Huisnummer is verplicht'),
+  postcode: z.string().min(1, 'Postcode is verplicht'),
+  plaats: z.string().min(1, 'Plaats is verplicht').optional(),
+  afwijkendProjectadres: z.preprocess((val) => val === 'on', z.boolean()).optional(),
+  projectStraat: z.string().optional(),
+  projectHuisnummer: z.string().optional(),
+  projectPostcode: z.string().optional(),
+  projectPlaats: z.string().optional(),
+});
+
 
 export function NewQuoteForm() {
   const [clientType, setClientType] = useState('particulier');
@@ -28,47 +51,105 @@ export function NewQuoteForm() {
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [isPending, startTransition] = useTransition();
   const { user } = useUser();
+  const firestore = useFirestore();
 
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleFormSubmit = async (formData: FormData) => {
+  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setErrors({});
     
-    if (!user) {
+    if (!user || !firestore) {
         toast({
             variant: 'destructive',
             title: 'Niet ingelogd',
             description: 'U moet ingelogd zijn om een offerte aan te maken.',
         });
-        router.push('/login');
+        if (!user) router.push('/login');
         return;
     }
     
-    formData.append('userId', user.uid);
-
+    const formData = new FormData(event.currentTarget);
+    const rawData = Object.fromEntries(formData);
+    
     startTransition(async () => {
-      const result = await createQuoteAction(formData);
+        const validatedFields = QuoteFormSchema.safeParse(rawData);
 
-      if (result?.errors) {
-        setErrors(result.errors);
-        toast({
-          variant: 'destructive',
-          title: 'Validatiefout',
-          description: result.message || 'Controleer de gemarkeerde velden en probeer het opnieuw.',
-        });
-      } else if (result?.message) {
-          toast({
+        if (!validatedFields.success) {
+            setErrors(validatedFields.error.flatten().fieldErrors);
+            toast({
               variant: 'destructive',
-              title: 'Fout',
-              description: result.message,
-          });
-      } else if (result?.redirect) {
+              title: 'Validatiefout',
+              description: 'Controleer de gemarkeerde velden en probeer het opnieuw.',
+            });
+            return;
+        }
+
+        const { 
+          werkomschrijving,
+          clientType,
+          bedrijfsnaam,
+          contactpersoon,
+          voornaam,
+          achternaam,
+          email,
+          telefoon,
+          straat,
+          huisnummer,
+          postcode,
+          plaats,
+          afwijkendProjectadres,
+          projectStraat,
+          projectHuisnummer,
+          projectPostcode,
+          projectPlaats,
+        } = validatedFields.data;
+
+        const quoteData = {
+          userId: user.uid,
+          status: "concept" as const,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          clientType: clientType === 'particulier' ? 'Particulier' : 'Zakelijk' as "Particulier" | "Zakelijk",
+          companyName: bedrijfsnaam || null,
+          contactPerson: contactpersoon || null,
+          firstName: voornaam,
+          lastName: achternaam,
+          email: email,
+          phone: telefoon,
+          billingStreet: straat,
+          billingHouseNumber: huisnummer,
+          billingPostcode: postcode,
+          billingCity: plaats || null,
+          hasDifferentProjectAddress: afwijkendProjectadres || false,
+          projectStreet: projectStraat || null,
+          projectHouseNumber: projectHuisnummer || null,
+          projectPostcode: projectPostcode || null,
+          projectCity: projectPlaats || null,
+          shortDescription: werkomschrijving,
+          clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
+          title: werkomschrijving,
+      };
+
+      try {
+        const docRef = await addDoc(collection(firestore, "quotes"), quoteData);
         toast({
           title: 'Offerte aangemaakt',
           description: 'U wordt doorgestuurd naar de volgende stap.',
         });
-        router.push(result.redirect);
+        router.push(`/offertes/${docRef.id}/klus/nieuw`);
+      } catch (error) {
+        console.error("Fout bij aanmaken offerte:", error);
+        let message = 'Database Fout: Offerte kon niet worden aangemaakt.';
+        if (error instanceof Error) {
+            message = `Database Fout: ${error.message}`;
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Fout',
+          description: message,
+        });
       }
     });
   };
@@ -82,9 +163,7 @@ export function NewQuoteForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={handleFormSubmit} className="space-y-8">
-            <input type="hidden" name="clientSource" value="new" />
-            
+        <form onSubmit={handleFormSubmit} className="space-y-8">
             {/* Sectie 1 – Klanttype en naam */}
             <div className="space-y-4">
               <h3 className="font-medium text-lg">Klanttype en naam</h3>
