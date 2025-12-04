@@ -106,7 +106,7 @@ function CsvUploadSection() {
             <CardHeader>
                 <CardTitle>Prijslijst uploaden</CardTitle>
                 <CardDescription>
-                    Upload een CSV-prijslijst. De bestandsnaam wordt gebruikt als naam voor de leverancier.
+                    Upload een CSV-prijslijst en voer de naam van de leverancier in.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
