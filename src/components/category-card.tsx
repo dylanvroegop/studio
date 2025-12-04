@@ -61,6 +61,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/vloeren`);
       return;
     }
+    if (category.name === 'Kozijnen') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/kozijnen`);
+      return;
+    }
     setIsSelected(true);
   }
 
