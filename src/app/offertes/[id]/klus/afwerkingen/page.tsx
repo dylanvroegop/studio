@@ -1,74 +1,43 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { CategoryCard } from '@/components/category-card';
+import type { JobCategory } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 
 type Subcategory = {
-  id: string;
-  title: string;
+  name: JobCategory;
   description: string;
   icon: IconName;
 };
 
 const subcategories: Subcategory[] = [
-  { id: 'vensterbanken', title: 'Vensterbanken', description: 'Vensterbanken & dagkanten', icon: 'finishing' },
-  { id: 'plinten', title: 'Plinten & Afwerklatten', description: 'Plinten en afwerklatten', icon: 'finishing' },
-  { id: 'stucnaden', title: 'Muur & Plafond', description: 'Afwerking stucnaden', icon: 'wall' },
-  { id: 'trap', title: 'Trap Afwerking', description: 'Aftimmering van trappen', icon: 'finishing' },
-  { id: 'koof', title: 'Koof / Omkasting', description: 'Omkastingen en koven', icon: 'siding' },
-  { id: 'radiator', title: 'Radiator Omkasting', description: 'Omkastingen voor radiatoren', icon: 'siding' },
-  { id: 'binnen', title: 'Aftimmering Binnen', description: 'Diverse houten aftimmering', icon: 'door' },
-  { id: 'overig', title: 'Overig Aftimmeren', description: 'Specifiek aftimmerwerk', icon: 'plus' },
+  { name: 'Afwerkingen', description: 'Vensterbanken & dagkanten', icon: 'finishing' },
+  { name: 'Afwerkingen', description: 'Plinten en afwerklatten', icon: 'finishing' },
+  { name: 'Afwerkingen', description: 'Afwerking stucnaden', icon: 'wall' },
+  { name: 'Afwerkingen', description: 'Aftimmering van trappen', icon: 'finishing' },
+  { name: 'Afwerkingen', description: 'Omkastingen en koven', icon: 'siding' },
+  { name: 'Afwerkingen', description: 'Omkastingen voor radiatoren', icon: 'siding' },
+  { name: 'Afwerkingen', description: 'Diverse houten aftimmering', icon: 'door' },
+  { name: 'Afwerkingen', description: 'Specifiek aftimmerwerk', icon: 'plus' },
 ];
 
-function AfwerkingCategoryCard({
-  category,
-  onSelect,
-  isSelected,
-}: {
-  category: Subcategory;
-  onSelect: (id: string) => void;
-  isSelected: boolean;
-}) {
-  return (
-    <div className="h-full" onClick={() => onSelect(category.id)}>
-      <Card
-        className={cn(
-          "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
-          isSelected ? "border-primary/80 bg-[#1c1c1c]" : "bg-[#131313] border-[rgba(255,0,0,0.2)]",
-          "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
-        )}
-      >
-        <div className="w-full h-full text-left p-0">
-          <CardContent className="p-4 flex items-center gap-4 h-full">
-            <JobIcon name={category.icon} className="w-6 h-6 text-primary flex-shrink-0" />
-            <div className="flex flex-col">
-              <h3 className="font-semibold text-base text-white">{category.title}</h3>
-              <p className="text-sm text-[#A3A3A3] mt-1 font-normal">{category.description}</p>
-            </div>
-            {isSelected && <CheckCircle2 className="w-6 h-6 text-primary ml-auto flex-shrink-0" />}
-          </CardContent>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-
-export default function AfwerkingenPage({ params }: { params: { id: string } }) {
-  const quoteId = params.id;
+export default function AfwerkingenPage() {
+  const params = useParams();
+  const quoteId = params.id as string;
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
 
-  const handleSelect = (id: string) => {
+  const handleSelect = (description: string) => {
     setSelected((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(description)
+        ? prev.filter((item) => item !== description)
+        : [...prev, description]
     );
   };
 
@@ -99,14 +68,31 @@ export default function AfwerkingenPage({ params }: { params: { id: string } }) 
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-            {subcategories.map((item) => (
-              <AfwerkingCategoryCard
-                key={item.id}
-                category={item}
-                onSelect={handleSelect}
-                isSelected={selected.includes(item.id)}
-              />
-            ))}
+            {subcategories.map((item) => {
+                const cardCategory = {name: item.name, description: item.description, iconName: item.icon};
+                // We need a custom implementation here because CategoryCard is tied to server actions
+                // which we don't want to use for this multiple-selection-step.
+                return (
+                     <div key={item.description} onClick={() => handleSelect(item.description)} className="h-full">
+                        <div
+                            className={cn(
+                            "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
+                            selected.includes(item.description) ? "border-primary/80 bg-[#1c1c1c]" : "border-[rgba(255,0,0,0.2)]",
+                            "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+                            )}
+                        >
+                            <div className="w-full h-full text-left p-0">
+                                <div className="p-4 flex items-center gap-4 h-full">
+                                    <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
+                                    <div className="flex flex-col">
+                                    <h3 className="font-semibold text-base text-white">{item.description}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            })}
           </div>
 
           <div className="mt-8">
