@@ -67,6 +67,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/kozijnen`);
       return;
     }
+    if (category.name === 'Gevelbekleding') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/gevelbekleding`);
+      return;
+    }
     setIsSelected(true);
   }
 
