@@ -47,7 +47,15 @@ export default function HsbWandMaterialenPage() {
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        {/* Page content for materials will be added here later */}
+        <div className="max-w-2xl mx-auto w-full">
+            <div className="text-center mb-8">
+                 <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Wand</h1>
+                <p className="text-muted-foreground mt-2">
+                    Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als preset opslaan voor volgende offertes.
+                </p>
+            </div>
+            {/* Page content for materials will be added here later */}
+        </div>
       </div>
     </main>
   );
