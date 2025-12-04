@@ -221,12 +221,6 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
             <h1 className="font-semibold text-2xl md:text-3xl">Dashboard</h1>
             <div className="flex gap-2">
-                <Button asChild variant="outline">
-                    <Link href="/materialen">
-                        <HardHat className="mr-2 h-4 w-4" />
-                        Materialen & Prijzen
-                    </Link>
-                </Button>
                 <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
                     <Link href="/offertes/nieuw">
                         <PlusCircle className="mr-2 h-4 w-4" />
@@ -234,6 +228,22 @@ export default function Dashboard() {
                     </Link>
                 </Button>
             </div>
+        </div>
+        
+        <div className="grid gap-6 md:grid-cols-2 max-w-4xl w-full">
+            <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer md:col-span-2">
+                <Link href="/materialen" className="block p-6 h-full">
+                    <CardHeader className="p-0">
+                        <div className="flex items-center gap-4 mb-2">
+                            <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
+                            <CardTitle className="text-lg">Materialen & Prijzen</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <CardDescription>Beheer uw materiaalbibliotheek en upload nieuwe prijslijsten.</CardDescription>
+                    </CardContent>
+                </Link>
+            </Card>
         </div>
         
         {/* Stat cards */}
