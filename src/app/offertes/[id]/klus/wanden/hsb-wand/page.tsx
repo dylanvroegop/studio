@@ -68,6 +68,8 @@ export default function HsbWandPage() {
     // For now, we pass a general description and the action handles the redirect.
     await createJobAction(quoteId, 'Wanden', description);
   };
+  
+  const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
 
   return (
     <main className="flex flex-1 flex-col">
@@ -146,7 +148,7 @@ export default function HsbWandPage() {
                     <Button variant="outline" asChild>
                         <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
                     </Button>
-                    <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                         Volgende
                     </Button>
                 </div>
