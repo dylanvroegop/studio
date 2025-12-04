@@ -40,7 +40,7 @@ export default function LoginPage() {
         await createUserWithEmailAndPassword(auth, email, password);
         toast({ title: 'Succes', description: 'Uw account is succesvol aangemaakt.' });
       }
-      // The useUser effect will handle the redirect.
+      router.push('/');
     } catch (error) {
       const authError = error as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';
