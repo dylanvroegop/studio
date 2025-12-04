@@ -48,35 +48,45 @@ export default function NewJobPage() {
 
     return (
         <main className="flex flex-1 flex-col">
-            <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm shadow-sm">
-                 <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                    <Link href={`/offertes/nieuw`}>
-                        <ArrowLeft className="h-4 w-4" />
-                        <span className="sr-only">Terug</span>
-                    </Link>
-                </Button>
-                <h1 className="flex-1 text-center font-semibold text-lg -ml-8">Kies een klus: stap 2 van 4</h1>
+            <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+                <div className="flex items-center justify-start">
+                    <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                        <Link href={`/offertes/nieuw`}>
+                            <ArrowLeft className="h-4 w-4" />
+                            <span className="sr-only">Terug</span>
+                        </Link>
+                    </Button>
+                </div>
+                <h1 className="text-center font-semibold text-lg">Kies een klus: stap 2 van 4</h1>
+                <div className="flex items-center justify-end"></div>
             </header>
-            <div className="p-4 md:p-6 flex-1">
-                <div className="max-w-4xl mx-auto w-full">
+
+            <div className="flex-1 p-4 md:p-6">
+                <div className="mx-auto max-w-4xl w-full">
                      {loading ? (
                         <Card className="mb-6 animate-pulse">
                             <CardHeader>
                                 <div className="h-6 bg-muted rounded w-3/4"></div>
+                                <div className="h-4 bg-muted rounded w-1/2 mt-2"></div>
                             </CardHeader>
+                            <CardContent>
+                                <div className="h-4 bg-muted rounded w-full"></div>
+                            </CardContent>
                         </Card>
                     ) : quote && (
                         <Card className="mb-6 bg-card/50 border-dashed">
                             <CardHeader>
                                 <CardTitle>Offerte voor: {quote.clientName}</CardTitle>
+                                <CardDescription>Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.</CardDescription>
                             </CardHeader>
+                            <CardContent>
+                                <p className="text-sm text-muted-foreground italic">
+                                    werkomschrijving; {quote.shortDescription}
+                                </p>
+                            </CardContent>
                         </Card>
                     )}
-
-                    <p className="text-muted-foreground text-center mb-6">
-                        Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.
-                    </p>
-
+                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                         {categories.map(category => {
                             const cardCategory = {name: category.name, description: category.description, iconName: category.icon};
