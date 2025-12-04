@@ -78,7 +78,7 @@ export function NewQuoteForm() {
       <CardHeader>
         <CardTitle>Klantinformatie</CardTitle>
         <CardDescription>
-          Vul hieronder de gegevens van de klant in. Deze informatie wordt gebruikt op de offerte en voor de communicatie rond het project.
+          Vul de klantgegevens in — dit komt op de offerte.
         </CardDescription>
       </CardHeader>
       <CardContent>
