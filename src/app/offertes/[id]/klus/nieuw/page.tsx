@@ -59,33 +59,23 @@ export default function NewJobPage() {
             </header>
             <div className="p-4 md:p-6 flex-1">
                 <div className="max-w-4xl mx-auto w-full">
-
                      {loading ? (
                         <Card className="mb-6 animate-pulse">
                             <CardHeader>
                                 <div className="h-6 bg-muted rounded w-3/4"></div>
-                                <div className="h-4 bg-muted rounded w-1/2 mt-2"></div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="h-4 bg-muted rounded w-full"></div>
-                            </CardContent>
                         </Card>
                     ) : quote && (
                         <Card className="mb-6 bg-card/50 border-dashed">
                             <CardHeader>
                                 <CardTitle>Offerte voor: {quote.clientName}</CardTitle>
-                                <CardDescription>Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.</CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <p className="text-sm text-muted-foreground italic">
-                                    werkomschrijving; {quote.shortDescription}
-                                </p>
-                            </CardContent>
                         </Card>
                     )}
 
-
-                    <p className="text-muted-foreground text-center mb-6">Kies een categorie om te beginnen.</p>
+                    <p className="text-muted-foreground text-center mb-6">
+                        Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.
+                    </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                         {categories.map(category => {
