@@ -56,17 +56,23 @@ export default function AfwerkingenPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-sm shadow-sm">
-        <div className="flex items-center gap-4">
-            <Button asChild variant="outline" size="icon" className="h-8 w-8">
+      <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <div className="flex items-center justify-start">
+          <Button asChild variant="outline" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/nieuw`}>
-                <ArrowLeft className="h-4 w-4" />
-                <span className="sr-only">Terug</span>
+              <ArrowLeft className="h-4 w-4" />
+              <span className="sr-only">Terug</span>
             </Link>
-            </Button>
+          </Button>
         </div>
-        <h1 className="font-semibold text-lg">Afwerkingen: stap 3 van 4</h1>
-        <div className="flex items-center gap-4" style={{width: '64px'}}></div>
+        <h1 className="text-center font-semibold text-lg">Afwerkingen: stap 3 van 4</h1>
+        <div className="flex items-center justify-end">
+            {loading ? (
+                <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+            ) : quote ? (
+                <p className="text-sm text-muted-foreground truncate">{quote.clientName}</p>
+            ) : null}
+        </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-4xl mx-auto w-full">
