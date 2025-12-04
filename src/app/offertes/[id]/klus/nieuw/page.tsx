@@ -9,6 +9,7 @@ import type { IconName } from '@/components/icons';
 import { useEffect, useState } from 'react';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { useParams } from 'next/navigation';
 
 const categories: { name: JobCategory; description: string; icon: IconName }[] = [
     { name: "Wanden", description: "Binnen- en buitenwanden", icon: "wall" },
@@ -28,8 +29,9 @@ const categories: { name: JobCategory; description: string; icon: IconName }[] =
 ];
 
 
-export default function NewJobPage({ params }: { params: { id: string } }) {
-    const quoteId = params.id;
+export default function NewJobPage() {
+    const params = useParams();
+    const quoteId = params.id as string;
     const [quote, setQuote] = useState<Quote | null>(null);
     const [loading, setLoading] = useState(true);
 
