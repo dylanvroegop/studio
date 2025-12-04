@@ -73,6 +73,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/gevelbekleding`);
       return;
     }
+    if (category.name === 'Deuren') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/deuren`);
+      return;
+    }
     setIsSelected(true);
   }
 
