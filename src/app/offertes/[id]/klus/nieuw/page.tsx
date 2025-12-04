@@ -54,7 +54,7 @@ export default function NewJobPage() {
                         <span className="sr-only">Terug</span>
                     </Link>
                 </Button>
-                <h1 className="font-semibold text-lg flex-1 text-center -ml-8">Kies een klus: stap 2 van 4.</h1>
+                <h1 className="flex-1 text-center font-semibold text-lg -ml-8">Kies een klus: stap 2 van 4</h1>
             </header>
             <div className="p-4 md:p-6 flex-1">
                 <div className="max-w-4xl mx-auto w-full">
