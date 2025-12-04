@@ -34,7 +34,7 @@ export default function NewQuotePage() {
               <span className="sr-only">Terug</span>
             </Link>
           </Button>
-          <h1 className="font-semibold text-2xl">Nieuwe Offerte: Stap 1</h1>
+          <h1 className="font-semibold text-2xl">Nieuwe Offerte: Stap 1 van 4</h1>
         </div>
         <NewQuoteForm />
       </div>
