@@ -177,15 +177,15 @@ export function NewQuoteForm() {
                         </div>
                          <div className="md:col-span-2">
                             <Label htmlFor="projectHuisnummer">Project huisnummer</Label>
-                            <Input id="projectHuisnummer" name="projectHuisnummer" placeholder="456" />
+                            <Input id="projectHuisnummer" name="projectHuisnummer" />
                         </div>
                         <div className="md:col-span-2">
                             <Label htmlFor="projectPostcode">Project postcode</Label>
-                            <Input id="projectPostcode" name="projectPostcode" placeholder="5678 CD" />
+                            <Input id="projectPostcode" name="projectPostcode" />
                         </div>
                          <div className="md:col-span-4">
                             <Label htmlFor="projectPlaats">Project plaats</Label>
-                            <Input id="projectPlaats" name="projectPlaats" placeholder="Utrecht" />
+                            <Input id="projectPlaats" name="projectPlaats" />
                         </div>
                      </div>
                 )}
