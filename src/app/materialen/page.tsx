@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { supabase } from '@/lib/supabase';
@@ -23,7 +23,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, HardHat, Loader2 } from 'lucide-react';
+import { ArrowLeft, HardHat, Loader2, UploadCloud } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Label } from '@/components/ui/label';
 
 type Material = {
   row_id: string;
@@ -34,6 +36,116 @@ type Material = {
   leverancier: string;
   user_id: string;
 };
+
+function CsvUploadSection() {
+    const { user } = useUser();
+    const { toast } = useToast();
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [leverancierNaam, setLeverancierNaam] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
+    const router = useRouter();
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files) {
+            setSelectedFile(event.target.files[0]);
+        }
+    };
+
+    const handleUpload = async () => {
+        if (!selectedFile) {
+            toast({ variant: "destructive", title: "Geen bestand geselecteerd", description: "Selecteer een CSV-bestand om te uploaden." });
+            return;
+        }
+        if (!leverancierNaam.trim()) {
+            toast({ variant: "destructive", title: "Leveranciersnaam vereist", description: "Voer een naam voor de leverancier in." });
+            return;
+        }
+        if (!user) {
+            toast({ variant: "destructive", title: "Niet ingelogd", description: "U moet ingelogd zijn om te kunnen uploaden." });
+            router.push('/login');
+            return;
+        }
+
+        setIsUploading(true);
+
+        const formData = new FormData();
+        formData.append("bestand", selectedFile);
+        formData.append("gebruikerId", user.uid);
+        formData.append("leverancierNaam", leverancierNaam.trim());
+
+        try {
+            const response = await fetch('https://n8n.dylan8n.org/webhook-test/bee441de-eaaa-495e-a294-4be7d3c1a0b2', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Upload naar n8n mislukt: Status ${response.status}. Details: ${errorText}`);
+            }
+
+            toast({ title: 'Upload succesvol', description: 'Het prijsbestand wordt verwerkt.' });
+            setSelectedFile(null);
+            setLeverancierNaam('');
+            // Optionally, trigger a refresh of the materials list
+        } catch (error) {
+            console.error('Upload Error:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Een onbekende fout is opgetreden.';
+            toast({
+                variant: 'destructive',
+                title: 'Upload Mislukt',
+                description: errorMessage,
+            });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Prijslijst uploaden</CardTitle>
+                <CardDescription>
+                    Upload een CSV-prijslijst. De bestandsnaam wordt gebruikt als naam voor de leverancier.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <div>
+                    <Label htmlFor="leverancier">Leveranciernaam</Label>
+                    <Input
+                        id="leverancier"
+                        placeholder="Bijvoorbeeld: Jongeneel, Bouwcenter, Pontmeyer"
+                        value={leverancierNaam}
+                        onChange={(e) => setLeverancierNaam(e.target.value)}
+                        disabled={isUploading}
+                    />
+                </div>
+                <div>
+                     <Label htmlFor="file-upload">Bestand</Label>
+                    <Input
+                        id="file-upload"
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileChange}
+                        disabled={isUploading}
+                    />
+                </div>
+                <Button
+                    onClick={handleUpload}
+                    disabled={isUploading || !selectedFile || !leverancierNaam.trim()}
+                    className="w-full"
+                >
+                    {isUploading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <UploadCloud className="mr-2 h-4 w-4" />
+                    )}
+                    {isUploading ? 'Bezig met uploaden...' : 'Bestand uploaden'}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
 
 function PageSkeleton() {
     return (
@@ -142,8 +254,10 @@ export default function MaterialenPage() {
             <main className="flex-1 p-4 md:p-6 space-y-6">
                 <div>
                     <h1 className="font-semibold text-2xl md:text-3xl">Materialen & prijzen</h1>
-                    <p className="text-muted-foreground">Doorzoek uw materiaalbibliotheek.</p>
+                    <p className="text-muted-foreground">Doorzoek uw materiaalbibliotheek en upload nieuwe prijslijsten.</p>
                 </div>
+
+                <CsvUploadSection />
 
                 <Card>
                     <CardHeader>
