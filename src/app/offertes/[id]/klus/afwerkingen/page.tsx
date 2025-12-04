@@ -50,14 +50,17 @@ export default function AfwerkingenPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm shadow-sm">
-        <Button asChild variant="outline" size="icon" className="h-8 w-8">
-          <Link href={`/offertes/${quoteId}/klus/nieuw`}>
-            <ArrowLeft className="h-4 w-4" />
-            <span className="sr-only">Terug</span>
-          </Link>
-        </Button>
-        <h1 className="flex-1 text-center font-semibold text-lg -ml-8">Afwerkingen: stap 3 van 4</h1>
+      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center gap-4">
+            <Button asChild variant="outline" size="icon" className="h-8 w-8">
+            <Link href={`/offertes/${quoteId}/klus/nieuw`}>
+                <ArrowLeft className="h-4 w-4" />
+                <span className="sr-only">Terug</span>
+            </Link>
+            </Button>
+        </div>
+        <h1 className="font-semibold text-lg">Afwerkingen: stap 3 van 4</h1>
+        <div className="flex items-center gap-4" style={{width: '64px'}}></div>
       </header>
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-4xl mx-auto w-full">
