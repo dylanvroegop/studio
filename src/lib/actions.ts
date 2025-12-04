@@ -105,8 +105,9 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   } catch (error) {
       console.error("Firebase schrijf fout in createQuoteAction: ", error);
       let message = 'Database Fout: Offerte kon niet worden aangemaakt.';
-      if (error instanceof Error && error.message.includes('permission-error')) {
-          message = error.message; // Propagate the detailed error message
+      if (error instanceof Error) {
+          // Provide more specific error feedback
+          message = `Database Fout: ${error.message}`;
       }
       return { message };
   }
