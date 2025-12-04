@@ -1,11 +1,9 @@
-// TODO: Deze pagina zal later worden geïntegreerd met Supabase voor het ophalen van materialen
-// en het opslaan van de gemaakte keuzes. Alle huidige data is mock-data voor UI-ontwikkeling.
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft, X, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -25,7 +23,7 @@ type Materiaal = {
   prijs: number;
 };
 
-// TODO: later vervangen door Supabase-query voor materialen
+// TODO: Deze data wordt later via Supabase geladen.
 const mockMaterialen: Materiaal[] = [
   { id: 'h1', naam: 'Vuren SLS 38x123 C18', categorie: 'Houtskeletbouw', eenheid: 'm1', prijs: 2.85 },
   { id: 'h2', naam: 'Vuren SLS 38x140 C24', categorie: 'Houtskeletbouw', eenheid: 'm1', prijs: 3.45 },
@@ -210,6 +208,13 @@ export default function HsbWandMaterialenPage() {
     }));
   };
 
+  const handleMateriaalVerwijderen = (slotKey: string) => {
+    setGekozenMaterialen(prev => ({
+        ...prev,
+        [slotKey]: undefined,
+    }));
+  };
+
   // TODO: De "Volgende" knop is voor nu uitgeschakeld. Deze zal later naar de overzichtspagina leiden.
   const isVolgendeIngeschakeld = materiaalSlotConfig.flatMap(s => s.slots).every(slot => !!gekozenMaterialen[slot.key]);
 
@@ -265,9 +270,22 @@ export default function HsbWandMaterialenPage() {
                                                 <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                             )}
                                         </div>
-                                        <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(slot)}>
-                                            {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            {gekozenMateriaal && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    onClick={() => handleMateriaalVerwijderen(slot.key)}
+                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                    aria-label="Verwijder materiaal"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(slot)}>
+                                                {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
+                                            </Button>
+                                        </div>
                                     </div>
                                 );
                             })}
