@@ -1,6 +1,7 @@
-import { getFirestore, collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
+import { initializeFirebaseServer } from '@/firebase/server';
+import { doc, getDoc } from 'firebase/firestore';
 import type { Client, Quote, Job, JobMaterial, User } from './types';
-import { initializeFirebase } from '@/firebase';
+
 
 // This file will be deprecated in favor of direct Firestore calls.
 // The functions are kept for now to avoid breaking other parts of the app, but will be removed.
@@ -16,12 +17,20 @@ let jobMaterials: JobMaterial[] = [
 ];
 
 export const getQuoteById = async (id: string): Promise<Quote | undefined> => {
-    const { firestore } = initializeFirebase();
+    const { firestore } = initializeFirebaseServer();
     const docRef = doc(firestore, "quotes", id);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() } as Quote;
+        const data = docSnap.data();
+        return {
+            id: docSnap.id,
+            ...data,
+            // Convert Firestore Timestamps to serializable format for client components
+            createdAt: data.createdAt.toDate(),
+            updatedAt: data.updatedAt.toDate(),
+            sentAt: data.sentAt ? data.sentAt.toDate() : undefined,
+        } as unknown as Quote;
     } else {
         return undefined;
     }
@@ -54,7 +63,7 @@ export const getFullQuoteDetails = async (quoteId: string) => {
 
     // Client is now part of the quote document, so we don't need a separate fetch.
     const client: Client = {
-        id: 'temp-client-id',
+        id: 'temp-client-id', // This is temporary, as we don't store clients separately anymore
         userId: quote.userId,
         naam: quote.clientName,
         email: quote.email,
@@ -62,7 +71,7 @@ export const getFullQuoteDetails = async (quoteId: string) => {
         adres: `${quote.billingStreet} ${quote.billingHouseNumber}`,
         postcode: quote.billingPostcode,
         plaats: quote.billingCity || '',
-        createdAt: quote.createdAt.toDate().toISOString(),
+        createdAt: (quote.createdAt as unknown as Date).toISOString(),
     };
 
     const quoteJobs = await getJobsForQuote(quoteId);
@@ -80,5 +89,3 @@ export const getFullQuoteDetails = async (quoteId: string) => {
         jobs: jobsWithMaterials,
     };
 }
-
-    

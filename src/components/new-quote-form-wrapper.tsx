@@ -44,6 +44,8 @@ export function NewQuoteForm() {
         router.push('/login');
         return;
     }
+    
+    formData.append('userId', user.uid);
 
     startTransition(async () => {
       // Dit is stap 1: klantgegevens en korte omschrijving verzamelen.

@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { getJobById, updateJob, getFullQuoteDetails } from './data';
 import type { JobCategory } from './types';
 import { addDoc, serverTimestamp, collection } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebaseServer } from '@/firebase/server';
+import { getAuth } from 'firebase/auth';
 
 const NewClientSchema = z.object({
   clientType: z.enum(['particulier', 'zakelijk']),
@@ -42,17 +43,26 @@ type CreateQuoteState = {
 
 export async function createQuoteAction(formData: FormData): Promise<CreateQuoteState> {
     const { redirect } = await import('next/navigation');
-    const { auth, firestore } = initializeFirebase();
-    const currentUser = auth.currentUser;
-
-    if (!currentUser) {
-        // This should be caught on the client, but as a fallback.
+    const { auth, firestore } = initializeFirebaseServer();
+    // This is a server action, we cannot rely on client-side auth state.
+    // The framework should handle authentication context for server actions.
+    // For now, we'll assume there is a way to get the user, but we can't use `auth.currentUser`.
+    // We'll need to adapt this if a server-side auth method is available.
+    // Let's assume for now we get the UID from a session or similar mechanism.
+    // As a placeholder, this action is not truly secure without proper session management.
+    const uid = formData.get('userId'); // Let's assume userId is passed in form for now.
+    
+    // A real implementation would get UID from a server-side session.
+    // For now, we'll proceed, but this is a security note.
+    if (!uid) {
+        // This check would be more robust with server-side auth state.
         return { message: 'Gebruiker niet ingelogd.'};
     }
 
     const rawData = {
         werkomschrijving: formData.get('werkomschrijving'),
         clientSource: 'new', // Hardcoded as per form
+        userId: uid,
         newClient: {
             clientType: formData.get('clientType') || 'particulier',
             bedrijfsnaam: formData.get('bedrijfsnaam'),
@@ -84,10 +94,8 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   
   const { werkomschrijving, newClient } = validatedFields.data;
 
-  // Stap 1: klantgegevens en korte omschrijving verzamelen.
-  // De server action maakt het document aan in Firestore.
   const quoteData = {
-      userId: currentUser.uid,
+      userId: uid as string,
       status: "concept",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -202,5 +210,3 @@ export async function submitQuoteAction(quoteId: string) {
     revalidatePath('/');
     redirect('/');
 }
-
-    
