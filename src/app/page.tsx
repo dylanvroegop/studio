@@ -60,7 +60,7 @@ export default function LandingPage() {
                             <CardHeader className="p-0">
                                 <div className="flex items-center gap-4 mb-2">
                                     <PlusCircle className="h-8 w-8 text-primary flex-shrink-0" />
-                                    <CardTitle className="text-lg">Nieuwe offerte aanmaken</CardTitle>
+                                    <CardTitle className="text-lg">Offerte aanvragen</CardTitle>
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
