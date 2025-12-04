@@ -25,18 +25,20 @@ export default function NewQuotePage() {
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="flex items-center gap-4 mb-8">
-          <Button asChild variant="outline" size="icon" className="h-7 w-7">
-            <Link href="/">
-              <ArrowLeft className="h-4 w-4" />
-              <span className="sr-only">Terug</span>
-            </Link>
-          </Button>
-          <h1 className="font-semibold text-2xl">Nieuwe Offerte: Stap 1 van 4</h1>
+    <main className="flex flex-1 flex-col">
+       <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm shadow-sm">
+        <Button asChild variant="outline" size="icon" className="h-8 w-8">
+          <Link href="/">
+            <ArrowLeft className="h-4 w-4" />
+            <span className="sr-only">Terug</span>
+          </Link>
+        </Button>
+        <h1 className="flex-1 text-center font-semibold text-lg -ml-8">Nieuwe Offerte: Stap 1 van 4</h1>
+      </header>
+      <div className="flex-1 p-4 md:p-8">
+        <div className="max-w-4xl mx-auto w-full">
+          <NewQuoteForm />
         </div>
-        <NewQuoteForm />
       </div>
     </main>
   );
