@@ -77,8 +77,8 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       clientType: clientType === 'particulier' ? 'Particulier' : 'Zakelijk',
-      companyName: bedrijfsnaam,
-      contactPerson: contactpersoon,
+      companyName: bedrijfsnaam || null,
+      contactPerson: contactpersoon || null,
       firstName: voornaam,
       lastName: achternaam,
       email: email,
@@ -86,12 +86,12 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
       billingStreet: straat,
       billingHouseNumber: huisnummer,
       billingPostcode: postcode,
-      billingCity: plaats,
+      billingCity: plaats || null,
       hasDifferentProjectAddress: afwijkendProjectadres,
-      projectStreet: projectStraat,
-      projectHouseNumber: projectHuisnummer,
-      projectPostcode: projectPostcode,
-      projectCity: projectPlaats,
+      projectStreet: projectStraat || null,
+      projectHouseNumber: projectHuisnummer || null,
+      projectPostcode: projectPostcode || null,
+      projectCity: projectPlaats || null,
       shortDescription: werkomschrijving,
       clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
       title: werkomschrijving,
@@ -106,7 +106,6 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
       console.error("Firebase schrijf fout in createQuoteAction: ", error);
       let message = 'Database Fout: Offerte kon niet worden aangemaakt.';
       if (error instanceof Error) {
-          // Provide more specific error feedback
           message = `Database Fout: ${error.message}`;
       }
       return { message };
