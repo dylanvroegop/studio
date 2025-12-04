@@ -114,7 +114,7 @@ export function NewQuoteForm() {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <div>
                         <Label htmlFor="voornaam">Voornaam *</Label>
-                        <Input id="voornaam" name="voornaam" placeholder="Jan" required />
+                        <Input id="voornaam" name="voornaam" required />
                         {errors?.['newClient.voornaam'] && <p className="text-sm text-destructive mt-1">{errors['newClient.voornaam'][0]}</p>}
                     </div>
                     <div>
