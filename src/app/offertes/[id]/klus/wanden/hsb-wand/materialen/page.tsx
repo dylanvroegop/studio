@@ -1,18 +1,24 @@
-// Deze pagina zal later een volledige Supabase-integratie krijgen voor
-// het ophalen van materialen en het opslaan van de gemaakte keuzes.
-// Momenteel wordt alles client-side met mock data afgehandeld.
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, PlusCircle, MinusCircle } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+
 
 // ==================================
 // Definities en Mock Data
@@ -45,8 +51,6 @@ const mockMaterialen: Materiaal[] = [
 
 type MateriaalSlot = {
   key: string;
-  label: string;
-  description?: string;
   standaardCategorieen: string[];
 };
 
@@ -91,7 +95,7 @@ function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, 
       <div className="bg-card text-card-foreground border border-border rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
         <header className="p-4 border-b flex items-center justify-between">
             <div>
-                 <h2 className="text-lg font-semibold">{`Kies materiaal voor: ${slot.label}`}</h2>
+                 <h2 className="text-lg font-semibold">Kies materiaal</h2>
                  <p className="text-sm text-muted-foreground">Zoek op naam of kies uit de lijst.</p>
             </div>
             <Button variant="ghost" size="icon" onClick={onSluiten} aria-label="Sluiten">
@@ -157,8 +161,11 @@ export default function HsbWandMaterialenPage() {
   const [loading, setLoading] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, Materiaal | undefined>>({});
+  const [gipsLagen, setGipsLagen] = useState(1);
+  const [tempGipsLagen, setTempGipsLagen] = useState(1);
   
   const [modalOpen, setModalOpen] = useState(false);
+  const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [actiefSlot, setActiefSlot] = useState<MateriaalSlot | null>(null);
 
   useEffect(() => {
@@ -181,6 +188,16 @@ export default function HsbWandMaterialenPage() {
     setModalOpen(false);
     setActiefSlot(null);
   };
+  
+  const openLagenKiezer = () => {
+    setTempGipsLagen(gipsLagen);
+    setLagenModalOpen(true);
+  }
+
+  const handleLagenOpslaan = () => {
+    setGipsLagen(tempGipsLagen);
+    setLagenModalOpen(false);
+  }
 
   const handleMateriaalSelectie = (slotKey: string, materiaal: Materiaal) => {
     setGekozenMaterialen(prev => ({ ...prev, [slotKey]: materiaal }));
@@ -190,33 +207,48 @@ export default function HsbWandMaterialenPage() {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
         delete newState[slotKey];
+        if (slotKey === 'gipsPlaat') {
+            setGipsLagen(1); // Reset lagen if gips is removed
+        }
         return newState;
     });
   };
 
-  const isVolgendeIngeschakeld = true; // Voor nu altijd ingeschakeld
+  const isVolgendeIngeschakeld = true;
 
   const renderSelectieRij = (slot: MateriaalSlot) => {
     const gekozenMateriaal = gekozenMaterialen[slot.key];
+    const isGipsSlot = slot.key === 'gipsPlaat';
+
     return (
-      <div key={slot.key} className="flex items-center justify-between pt-4 first:pt-0">
-        <div>
-          {gekozenMateriaal ? (
-            <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.naam}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {gekozenMateriaal && (
-            <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(slot.key)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-              <Trash2 className="h-4 w-4" />
+      <div key={slot.key}>
+        <div className="flex items-center justify-between pt-4 first:pt-0">
+          <div>
+            {gekozenMateriaal ? (
+              <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.naam}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {gekozenMateriaal && (
+              <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(slot.key)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(slot)}>
+              {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
             </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(slot)}>
-            {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
-          </Button>
+          </div>
         </div>
+        {isGipsSlot && gekozenMateriaal && (
+            <div className="flex items-center justify-between mt-2 pl-1">
+                <p className="text-sm text-muted-foreground">Lagen: {gipsLagen}</p>
+                <Button variant="link" size="sm" className="h-auto p-0 text-accent" onClick={openLagenKiezer}>
+                    Lagen aanpassen
+                </Button>
+            </div>
+        )}
       </div>
     );
   };
@@ -259,7 +291,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Balktype voor de wandconstructie.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        {renderSelectieRij({ key: 'typeBalk', label: 'Selecteer type balk', standaardCategorieen: ['Hout'] })}
+                        {renderSelectieRij({ key: 'typeBalk', standaardCategorieen: ['Hout'] })}
                     </CardContent>
                 </Card>
 
@@ -269,7 +301,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Kies het isolatiemateriaal voor deze wand.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        {renderSelectieRij({ key: 'typeIsolatie', label: 'Selecteer type isolatie', standaardCategorieen: ['Isolatie'] })}
+                        {renderSelectieRij({ key: 'typeIsolatie', standaardCategorieen: ['Isolatie'] })}
                     </CardContent>
                  </Card>
 
@@ -279,7 +311,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Selecteer de benodigde luchtdichtingsfolie.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                       {renderSelectieRij({ key: 'typeFolie', label: 'Selecteer type folie', standaardCategorieen: ['Folie'] })}
+                       {renderSelectieRij({ key: 'typeFolie', standaardCategorieen: ['Folie'] })}
                     </CardContent>
                  </Card>
 
@@ -289,7 +321,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Binnenplaat of constructieplaat.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                       {renderSelectieRij({ key: 'typeConstructieplaat', label: 'Selecteer type plaat', standaardCategorieen: ['Constructieplaat'] })}
+                       {renderSelectieRij({ key: 'typeConstructieplaat', standaardCategorieen: ['Constructieplaat'] })}
                     </CardContent>
                  </Card>
 
@@ -299,7 +331,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        {renderSelectieRij({ key: 'gipsPlaat', label: 'Selecteer type plaat', standaardCategorieen: ['Gips'] })}
+                        {renderSelectieRij({ key: 'gipsPlaat', standaardCategorieen: ['Gips'] })}
                     </CardContent>
                  </Card>
 
@@ -309,8 +341,8 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Materiaal voor kozijnen en deuren.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        {renderSelectieRij({ key: 'typeKozijn', label: 'Selecteer type kozijn', standaardCategorieen: ['Kozijnen'] })}
-                        {renderSelectieRij({ key: 'typeDeur', label: 'Selecteer type deur', standaardCategorieen: ['Deuren'] })}
+                        {renderSelectieRij({ key: 'typeKozijn', standaardCategorieen: ['Kozijnen'] })}
+                        {renderSelectieRij({ key: 'typeDeur', standaardCategorieen: ['Deuren'] })}
                     </CardContent>
                  </Card>
 
@@ -320,7 +352,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Vulmiddel of stucafwerking.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        {renderSelectieRij({ key: 'stucVulling', label: 'Selecteer type stuc vulling', standaardCategorieen: ['Stuc'] })}
+                        {renderSelectieRij({ key: 'stucVulling', standaardCategorieen: ['Stuc'] })}
                     </CardContent>
                  </Card>
 
@@ -330,7 +362,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Afwerkplinten voor deze wand.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                       {renderSelectieRij({ key: 'afwerkplint', label: 'Selecteer type afwerkplint', standaardCategorieen: ['Plinten'] })}
+                       {renderSelectieRij({ key: 'afwerkplint', standaardCategorieen: ['Plinten'] })}
                     </CardContent>
                  </Card>
 
@@ -340,7 +372,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                       {renderSelectieRij({ key: 'extraMateriaal', label: 'Voeg extra materiaal toe', standaardCategorieen: ['Extra'] })}
+                       {renderSelectieRij({ key: 'extraMateriaal', standaardCategorieen: ['Extra'] })}
                     </CardContent>
                  </Card>
 
@@ -365,6 +397,46 @@ export default function HsbWandMaterialenPage() {
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
       />
+      
+       <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>Aantal lagen gips</DialogTitle>
+                    <DialogDescription>
+                        Standaard gebruiken we 1 laag. Pas dit alleen aan bij speciale situaties.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <div className="flex items-center justify-center gap-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-12 w-12"
+                            onClick={() => setTempGipsLagen(prev => Math.max(1, prev - 1))}
+                        >
+                            <Minus className="h-6 w-6" />
+                        </Button>
+                        <div className="flex h-12 w-24 items-center justify-center rounded-md border border-input bg-background text-2xl font-bold">
+                            {tempGipsLagen}
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-12 w-12"
+                            onClick={() => setTempGipsLagen(prev => Math.min(4, prev + 1))}
+                        >
+                            <Plus className="h-6 w-6" />
+                        </Button>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setLagenModalOpen(false)}>Annuleren</Button>
+                    <Button type="button" onClick={handleLagenOpslaan}>Opslaan</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </>
   );
 }

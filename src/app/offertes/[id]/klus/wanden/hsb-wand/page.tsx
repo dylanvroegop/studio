@@ -19,7 +19,6 @@ type Wall = {
   lengte: string;
   hoogte: string;
   balkafstand: string;
-  gipsLagen: string;
   heeftSparingen: boolean;
   aantalSparingen: string;
   omschrijvingSparingen: string;
@@ -30,7 +29,6 @@ const defaultWallState: Wall = {
   lengte: '',
   hoogte: '',
   balkafstand: '600',
-  gipsLagen: '1',
   heeftSparingen: false,
   aantalSparingen: '',
   omschrijvingSparingen: '',
@@ -154,39 +152,6 @@ export default function HsbWandPage() {
                                    <Label htmlFor={`balkafstand-${index}`}>Balkafstand (h.o.h.)</Label>
                                    <Input id={`balkafstand-${index}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} />
                                    <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
-                                 </div>
-                                 <div className="space-y-2">
-                                    <Label htmlFor={`gipsLagen-${index}`}>Aantal lagen gips</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            className="h-10 w-10"
-                                            onClick={() => {
-                                                const currentValue = parseInt(wall.gipsLagen) || 1;
-                                                handleWallChange(index, 'gipsLagen', Math.max(1, currentValue - 1).toString());
-                                            }}
-                                        >
-                                            <Minus className="h-4 w-4" />
-                                        </Button>
-                                        <div className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base justify-center items-center md:text-sm">
-                                            {wall.gipsLagen}
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            className="h-10 w-10"
-                                            onClick={() => {
-                                                const currentValue = parseInt(wall.gipsLagen) || 0;
-                                                handleWallChange(index, 'gipsLagen', (currentValue + 1).toString());
-                                            }}
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">Aantal binnenlagen gips of fermacell.</p>
                                  </div>
                                </div>
                                  <div className="space-y-4 rounded-md border p-4">
