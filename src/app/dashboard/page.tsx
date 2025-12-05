@@ -221,7 +221,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
             <h1 className="font-semibold text-2xl md:text-3xl">Dashboard</h1>
             <div className="flex gap-2">
-                <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <Button asChild>
                     <Link href="/offertes/nieuw">
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Offerte aanvragen
@@ -386,3 +386,5 @@ export default function Dashboard() {
     </TooltipProvider>
   );
 }
+
+    
