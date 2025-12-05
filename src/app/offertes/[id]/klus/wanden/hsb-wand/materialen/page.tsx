@@ -55,7 +55,6 @@ const materiaalSlotConfig: SlotSectie[] = [
     titel: 'Wandconstructie – Houten Balken',
     slots: [
       { key: 'typeBalk', label: 'Selecteer type balk', standaardCategorieen: ['Hout'] },
-      { key: 'lengteBalk', label: 'Selecteer lengte balk', standaardCategorieen: ['Hout'] },
     ]
   },
   {
