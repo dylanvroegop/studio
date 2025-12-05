@@ -31,6 +31,7 @@ export default function RegisterPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passwordConfirmError, setPasswordConfirmError] = useState<string | null>(null);
   
   const router = useRouter();
   const auth = useAuth();
@@ -42,12 +43,25 @@ export default function RegisterPage() {
       router.push('/dashboard');
     }
   }, [user, isUserLoading, router]);
+
+  const validatePasswords = () => {
+    if (password && passwordConfirm && password !== passwordConfirm) {
+      setPasswordConfirmError('De wachtwoorden komen niet overeen.');
+    } else {
+      setPasswordConfirmError(null);
+    }
+  };
+
+  useEffect(() => {
+    validatePasswords();
+  }, [password, passwordConfirm]);
   
   const handleRegister = async () => {
     setError(null);
+    validatePasswords();
 
     if (password !== passwordConfirm) {
-      setError('De wachtwoorden komen niet overeen.');
+      // The inline error is already shown, no need for a general alert.
       return;
     }
     if (!termsAccepted) {
@@ -145,6 +159,7 @@ export default function RegisterPage() {
                     <div className="space-y-2">
                         <Label htmlFor="passwordConfirm">Wachtwoord herhalen</Label>
                         <Input id="passwordConfirm" type="password" required value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} disabled={isLoading} />
+                        {passwordConfirmError && <p className="text-sm text-destructive mt-1">{passwordConfirmError}</p>}
                     </div>
                 </div>
             </div>
