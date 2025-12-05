@@ -197,15 +197,13 @@ function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord 
     
     const prijsLabelMap: Record<string, string> = {
       'stuk': 'Prijs per stuk (€)',
-      'doos / pak': 'Prijs per doos / pak (€)',
       'm¹': 'Prijs per meter (€)',
       'm²': 'Prijs per m² (géén plaatprijs!)',
       'm³': 'Prijs per m³ (€)',
     };
     
     const prijsHelperTextMap: Record<string, string> = {
-      'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken.',
-      'doos / pak': 'Vul hier de prijs van één doos/pak in. Wij berekenen automatisch hoeveel er nodig is.',
+      'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken. Koop je dit normaal in een doos of pak? Reken dan eerst de prijs per stuk uit, anders klopt de offerte niet.',
       'm¹': 'Let op: dit is prijs per strekkende meter. Niet per balk, niet per bundel. Krijg je een prijs per stuk? Reken die eerst om naar prijs per meter.',
       'm²': 'Geen plaatprijs! Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
       'm³': 'Let op: gebruik m³ alleen als het materiaal echt per kubieke meter wordt verkocht (bijv. isolatie in bulk). Krijg je een prijs per plaat of balk? Gebruik dan m² of m¹ in plaats van m³.',
@@ -242,7 +240,6 @@ function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord 
                                     <SelectItem value="m³">m³</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground">Gebruik ‘stuk’ ook voor materialen die per doos of set worden geleverd. Voer dan de prijs per stuk in.</p>
                         </div>
                     </div>
                     {isEenheidDimensie && (
@@ -363,18 +360,13 @@ export default function HsbWandMaterialenPage() {
   };
   
   const handleExtraMateriaalOpslaan = (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => {
-    if ('id' in materiaal) { // Update existing
+    if ('id' in materiaal && materiaal.id) { // Update existing
       setExtraMaterialen(prev => prev.map(m => m.id === materiaal.id ? materiaal : m));
     } else { // Add new
       const nieuwMateriaal = { ...materiaal, id: new Date().toISOString() };
       setExtraMaterialen(prev => [...prev, nieuwMateriaal]);
     }
   };
-  
-  const handleExtraMateriaalVerwijderen = (id: string) => {
-    setExtraMaterialen(prev => prev.filter(m => m.id !== id));
-  };
-
 
   const handleMateriaalVerwijderen = (slotKey: string) => {
     setGekozenMaterialen(prev => {
@@ -427,14 +419,11 @@ export default function HsbWandMaterialenPage() {
     return `${item.naam} – ${details}`;
   };
 
-  const [editListModalOpen, setEditListModalOpen] = useState(false);
-  const handleWijzigenClick = () => {
-      if (extraMaterialen.length === 1) {
-          openExtraMateriaalModal('edit', extraMaterialen[0]);
-      } else {
-          setEditListModalOpen(true);
-      }
-  }
+  const handleEditExtraMaterial = () => {
+    if (extraMaterialen.length > 0) {
+      openExtraMateriaalModal('edit', extraMaterialen[0]);
+    }
+  };
 
 
   return (
@@ -593,32 +582,42 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2 divide-y divide-border -mt-4">
-                         <div className="flex items-center justify-between pt-4 first:pt-0">
-                           <div className="space-y-1">
-                                {extraMaterialen.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                                ) : (
-                                    <>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {extraMaterialen.length === 1 ? 'Gekozen extra materiaal:' : 'Gekozen extra materialen:'}
-                                        </p>
-                                        {extraMaterialen.map(item => (
-                                            <p key={item.id} className="text-sm text-primary">{formatExtraMateriaalRow(item)}</p>
-                                        ))}
-                                    </>
-                                )}
-                           </div>
+                      <div className="pt-4 first:pt-0">
+                        <div className="flex items-center justify-between">
+                            <div className="flex-1 space-y-1 pr-4">
+                              {extraMaterialen.length === 0 ? (
+                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                              ) : (
+                                <>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {extraMaterialen.length === 1 ? 'Gekozen extra materiaal:' : 'Gekozen extra materialen:'}
+                                  </p>
+                                  {extraMaterialen.map(item => (
+                                      <p key={item.id} className="text-sm text-primary">{formatExtraMateriaalRow(item)}</p>
+                                  ))}
+                                </>
+                              )}
+                            </div>
                            <div className="flex items-center gap-2">
                                {extraMaterialen.length > 0 && (
                                    <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
                                        <Trash2 className="h-4 w-4" />
                                    </Button>
                                )}
-                               <Button variant="outline" size="sm" onClick={() => extraMaterialen.length > 0 ? handleWijzigenClick() : openExtraMateriaalModal('add')}>
+                               <Button variant="outline" size="sm" onClick={() => extraMaterialen.length > 0 ? handleEditExtraMaterial() : openExtraMateriaalModal('add')}>
                                    {extraMaterialen.length > 0 ? 'Wijzigen' : 'Kiezen'}
                                </Button>
                            </div>
                          </div>
+                         {extraMaterialen.length > 0 && (
+                            <div className="mt-2 pl-1">
+                                <button onClick={() => openExtraMateriaalModal('add')} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                                   <PlusCircle className="w-3 h-3"/>
+                                   Extra materiaal toevoegen
+                               </button>
+                             </div>
+                         )}
+                       </div>
                     </CardContent>
                  </Card>
 
@@ -691,40 +690,6 @@ export default function HsbWandMaterialenPage() {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-        
-        <Dialog open={editListModalOpen} onOpenChange={setEditListModalOpen}>
-             <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Extra materialen beheren</DialogTitle>
-                    <DialogDescription>
-                        Kies een item om te bewerken, of voeg een nieuw item toe.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2 py-4">
-                    {extraMaterialen.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-2 -m-2 rounded-md hover:bg-muted/50">
-                            <span>{formatExtraMateriaalRow(item)}</span>
-                            <div className="flex items-center gap-2">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openExtraMateriaalModal('edit', item)}>
-                                    <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive/80 hover:text-destructive" onClick={() => handleExtraMateriaalVerwijderen(item.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <DialogFooter className="justify-between sm:justify-between">
-                     <Button variant="outline" onClick={() => openExtraMateriaalModal('add')}>
-                        <PlusCircle className="mr-2 h-4 w-4"/>
-                        Nieuw item toevoegen
-                    </Button>
-                    <Button onClick={() => setEditListModalOpen(false)}>Sluiten</Button>
-                </DialogFooter>
-             </DialogContent>
-        </Dialog>
     </>
   );
 }
-
