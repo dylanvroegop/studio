@@ -36,6 +36,11 @@ const mockMaterialen: Materiaal[] = [
   { id: 'p2', naam: 'Gipsvezelplaat Fermacell 12.5mm', categorie: 'Gips', eenheid: 'm2', prijs: 7.80 },
   { id: 'osb1', naam: 'OSB-3 18mm TG4', categorie: 'Constructieplaat', eenheid: 'm2', prijs: 11.25 },
   { id: 'f1', naam: 'Miofol 125S dampremmende folie', categorie: 'Folie', eenheid: 'm2', prijs: 1.50 },
+  { id: 'k1', naam: 'Houten binnenkozijn stomp', categorie: 'Kozijnen', eenheid: 'st', prijs: 85.00 },
+  { id: 'd1', naam: 'Opdekdeur wit', categorie: 'Deuren', eenheid: 'st', prijs: 120.00 },
+  { id: 's1', naam: 'Knauf Roodband 25kg', categorie: 'Stuc', eenheid: 'zak', prijs: 15.00 },
+  { id: 'pl1', naam: 'MDF Plint 90x12mm', categorie: 'Plinten', eenheid: 'm1', prijs: 3.50 },
+  { id: 'extra1', naam: 'Schroeven 5x60', categorie: 'Extra', eenheid: 'doos', prijs: 12.50 },
 ];
 
 type MateriaalSlot = {
@@ -44,43 +49,6 @@ type MateriaalSlot = {
   description?: string;
   standaardCategorieen: string[];
 };
-
-type SlotSectie = {
-  titel: string;
-  description: string;
-  slots: MateriaalSlot[];
-};
-
-const materiaalSlotConfig: SlotSectie[] = [
-  {
-    titel: 'Constructie',
-    description: 'Balktype voor de wandconstructie.',
-    slots: [
-      { key: 'typeBalk', label: 'Selecteer type balk', standaardCategorieen: ['Hout'] },
-    ]
-  },
-  {
-    titel: 'Isolatie',
-    description: 'Kies het isolatiemateriaal voor deze wand.',
-    slots: [
-      { key: 'typeIsolatie', label: 'Selecteer type isolatie', standaardCategorieen: ['Isolatie'] },
-    ]
-  },
-  {
-    titel: 'Folie',
-    description: 'Selecteer de benodigde luchtdichtingsfolie.',
-    slots: [
-        { key: 'typeFolie', label: 'Selecteer type folie', standaardCategorieen: ['Folie'] }
-    ]
-  },
-  {
-    titel: 'Binnenbekleding',
-    description: 'Binnenplaat of constructieplaat.',
-    slots: [
-        { key: 'typeConstructieplaat', label: 'Selecteer type plaat', standaardCategorieen: ['Constructieplaat'] }
-    ]
-  },
-];
 
 // ==================================
 // Modal Component
@@ -228,6 +196,33 @@ export default function HsbWandMaterialenPage() {
 
   const isVolgendeIngeschakeld = true; // Voor nu altijd ingeschakeld
 
+  const renderSelectieRij = (slot: MateriaalSlot) => {
+    const gekozenMateriaal = gekozenMaterialen[slot.key];
+    return (
+      <div key={slot.key} className="flex items-center justify-between pt-4 first:pt-0">
+        <div>
+          <Label className="font-medium">{slot.label}</Label>
+          {slot.description && <p className="text-xs text-muted-foreground">{slot.description}</p>}
+          {gekozenMateriaal ? (
+            <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.naam}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {gekozenMateriaal && (
+            <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(slot.key)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(slot)}>
+            {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -260,108 +255,96 @@ export default function HsbWandMaterialenPage() {
               </div>
 
               <div className="space-y-8">
-                {materiaalSlotConfig.map(sectie => (
-                    <Card key={sectie.titel}>
-                        <CardHeader>
-                            <CardTitle>{sectie.titel}</CardTitle>
-                            <CardDescription>{sectie.description}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                            {sectie.slots.map(slot => {
-                                const gekozenMateriaal = gekozenMaterialen[slot.key];
-                                return (
-                                    <div key={slot.key} className="flex items-center justify-between pt-4 first:pt-0">
-                                        <div>
-                                            {gekozenMateriaal ? (
-                                                <p className="text-sm text-primary">
-                                                    Gekozen: {gekozenMateriaal.naam}
-                                                </p>
-                                            ) : (
-                                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {gekozenMateriaal && (
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    onClick={() => handleMateriaalVerwijderen(slot.key)}
-                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                    aria-label="Verwijder materiaal"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                            <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(slot)}>
-                                                {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </CardContent>
-                    </Card>
-                ))}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Constructie</CardTitle>
+                        <CardDescription>Balktype voor de wandconstructie.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                        {renderSelectieRij({ key: 'typeBalk', label: 'Selecteer type balk', standaardCategorieen: ['Hout'] })}
+                    </CardContent>
+                </Card>
 
-                {/* Andere secties */}
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Isolatie</CardTitle>
+                        <CardDescription>Kies het isolatiemateriaal voor deze wand.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                        {renderSelectieRij({ key: 'typeIsolatie', label: 'Selecteer type isolatie', standaardCategorieen: ['Isolatie'] })}
+                    </CardContent>
+                 </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Folie</CardTitle>
+                        <CardDescription>Selecteer de benodigde luchtdichtingsfolie.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                       {renderSelectieRij({ key: 'typeFolie', label: 'Selecteer type folie', standaardCategorieen: ['Folie'] })}
+                    </CardContent>
+                 </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Binnenbekleding</CardTitle>
+                        <CardDescription>Binnenplaat of constructieplaat.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                       {renderSelectieRij({ key: 'typeConstructieplaat', label: 'Selecteer type plaat', standaardCategorieen: ['Constructieplaat'] })}
+                    </CardContent>
+                 </Card>
+
                  <Card>
                     <CardHeader>
                         <CardTitle>Gips / Fermacell</CardTitle>
                         <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        <div className="flex items-center justify-between pt-4 first:pt-0">
-                            <div>
-                                {gekozenMaterialen['gipsPlaat'] ? (
-                                    <p className="text-sm text-primary">
-                                        Gekozen: {gekozenMaterialen['gipsPlaat']!.naam}
-                                    </p>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {gekozenMaterialen['gipsPlaat'] && (
-                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gipsPlaat')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                )}
-                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer({ key: 'gipsPlaat', label: 'Selecteer type plaat', standaardCategorieen: ['Gips'] })}>
-                                    {gekozenMaterialen['gipsPlaat'] ? 'Wijzigen' : 'Kiezen'}
-                                </Button>
-                            </div>
-                        </div>
+                        {renderSelectieRij({ key: 'gipsPlaat', label: 'Selecteer type plaat', standaardCategorieen: ['Gips'] })}
                     </CardContent>
                  </Card>
+
                  <Card>
                     <CardHeader>
                         <CardTitle>Kozijnen & Deuren</CardTitle>
                         <CardDescription>Materiaal voor kozijnen en deuren.</CardDescription>
                     </CardHeader>
-                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                        {renderSelectieRij({ key: 'typeKozijn', label: 'Selecteer type kozijn', standaardCategorieen: ['Kozijnen'] })}
+                        {renderSelectieRij({ key: 'typeDeur', label: 'Selecteer type deur', standaardCategorieen: ['Deuren'] })}
+                    </CardContent>
                  </Card>
+
                  <Card>
                     <CardHeader>
                         <CardTitle>Stucwerk</CardTitle>
                         <CardDescription>Vulmiddel of stucafwerking.</CardDescription>
                     </CardHeader>
-                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                        {renderSelectieRij({ key: 'stucVulling', label: 'Selecteer type stuc vulling', standaardCategorieen: ['Stuc'] })}
+                    </CardContent>
                  </Card>
+
                  <Card>
                     <CardHeader>
                         <CardTitle>Plinten</CardTitle>
                         <CardDescription>Afwerkplinten voor deze wand.</CardDescription>
                     </CardHeader>
-                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                       {renderSelectieRij({ key: 'afwerkplint', label: 'Selecteer type afwerkplint', standaardCategorieen: ['Plinten'] })}
+                    </CardContent>
                  </Card>
+
                  <Card>
                     <CardHeader>
                         <CardTitle>Extra materiaal</CardTitle>
                         <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                     </CardHeader>
-                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                       {renderSelectieRij({ key: 'extraMateriaal', label: 'Voeg extra materiaal toe', standaardCategorieen: ['Extra'] })}
+                    </CardContent>
                  </Card>
-
 
               </div>
 
