@@ -10,7 +10,7 @@ import { ArrowLeft, X, Trash2, PlusCircle, MinusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -47,30 +47,35 @@ type MateriaalSlot = {
 
 type SlotSectie = {
   titel: string;
+  description: string;
   slots: MateriaalSlot[];
 };
 
 const materiaalSlotConfig: SlotSectie[] = [
   {
-    titel: 'Wandconstructie – Houten Balken',
+    titel: 'Constructie',
+    description: 'Balktype voor de wandconstructie.',
     slots: [
       { key: 'typeBalk', label: 'Selecteer type balk', standaardCategorieen: ['Hout'] },
     ]
   },
   {
-    titel: 'Isolatiematerialen – Minerale Wol / PIR / EPS',
+    titel: 'Isolatie',
+    description: 'Kies het isolatiemateriaal voor deze wand.',
     slots: [
       { key: 'typeIsolatie', label: 'Selecteer type isolatie', standaardCategorieen: ['Isolatie'] },
     ]
   },
   {
-    titel: 'Luchtdichting – Folie',
+    titel: 'Folie',
+    description: 'Selecteer de benodigde luchtdichtingsfolie.',
     slots: [
         { key: 'typeFolie', label: 'Selecteer type folie', standaardCategorieen: ['Folie'] }
     ]
   },
   {
-    titel: 'Wandbekleding – OSB / Constructieplaten',
+    titel: 'Binnenbekleding',
+    description: 'Binnenplaat of constructieplaat.',
     slots: [
         { key: 'typeConstructieplaat', label: 'Selecteer type plaat', standaardCategorieen: ['Constructieplaat'] }
     ]
@@ -108,14 +113,12 @@ function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, 
     onSluiten();
   }
 
-  const isBalkafstand = slot.key === 'hohAfstand';
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div className="bg-card text-card-foreground border border-border rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
         <header className="p-4 border-b flex items-center justify-between">
             <div>
-                 <h2 className="text-lg font-semibold">{isBalkafstand ? 'Kies balkafstand' : `Kies materiaal voor: ${slot.label}`}</h2>
+                 <h2 className="text-lg font-semibold">{`Kies materiaal voor: ${slot.label}`}</h2>
                  <p className="text-sm text-muted-foreground">Zoek op naam of kies uit de lijst.</p>
             </div>
             <Button variant="ghost" size="icon" onClick={onSluiten} aria-label="Sluiten">
@@ -126,7 +129,7 @@ function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, 
         <div className="p-4 border-b">
             <Input 
                 type="text"
-                placeholder={isBalkafstand ? "Zoek op afstandswaarde..." : "Zoek op materiaalnaam..."}
+                placeholder={"Zoek op materiaalnaam..."}
                 value={zoekterm}
                 onChange={(e) => setZoekterm(e.target.value)}
             />
@@ -265,6 +268,7 @@ export default function HsbWandMaterialenPage() {
                     <Card key={sectie.titel}>
                         <CardHeader>
                             <CardTitle>{sectie.titel}</CardTitle>
+                            <CardDescription>{sectie.description}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4 divide-y divide-border -mt-4">
                             {sectie.slots.map(slot => {
@@ -273,7 +277,6 @@ export default function HsbWandMaterialenPage() {
                                     <div key={slot.key} className="flex items-center justify-between pt-4 first:pt-0">
                                         <div>
                                             <Label className="font-medium">{slot.label}</Label>
-                                            {slot.description && <p className="text-sm text-muted-foreground">{slot.description}</p>}
                                             {gekozenMateriaal ? (
                                                 <p className="text-sm text-primary">
                                                     Gekozen: {gekozenMateriaal.naam}
@@ -307,7 +310,10 @@ export default function HsbWandMaterialenPage() {
 
                 {/* Gipsplaat Sectie */}
                 <Card>
-                    <CardHeader><CardTitle>Wandbekleding – Gips / Fermacell / Vochtwerend Gips</CardTitle></CardHeader>
+                    <CardHeader>
+                        <CardTitle>Gips / Fermacell</CardTitle>
+                        <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
+                    </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
                         <div className="flex items-center justify-between pt-4 first:pt-0">
                             <div>
@@ -333,10 +339,34 @@ export default function HsbWandMaterialenPage() {
                 </Card>
 
                 {/* Andere secties */}
-                 <Card><CardHeader><CardTitle>Kozijnen & Deuren</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent></Card>
-                 <Card><CardHeader><CardTitle>Wandafwerking – Stuc Vulmiddelen</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent></Card>
-                 <Card><CardHeader><CardTitle>Wandafwerking – Plinten</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent></Card>
-                 <Card><CardHeader><CardTitle>Extra materiaal</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent></Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Kozijnen & Deuren</CardTitle>
+                        <CardDescription>Materiaal voor kozijnen en deuren.</CardDescription>
+                    </CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                 </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Stucwerk</CardTitle>
+                        <CardDescription>Vulmiddel of stucafwerking.</CardDescription>
+                    </CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                 </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Plinten</CardTitle>
+                        <CardDescription>Afwerkplinten voor deze wand.</CardDescription>
+                    </CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                 </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Extra materiaal</CardTitle>
+                        <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
+                    </CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground italic">Nog niet geïmplementeerd.</p></CardContent>
+                 </Card>
 
 
               </div>
