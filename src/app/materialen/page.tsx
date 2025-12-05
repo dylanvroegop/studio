@@ -251,11 +251,11 @@ export default function MaterialenPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Leverancier</TableHead>
                                         <TableHead>Materiaalnaam</TableHead>
-                                        <TableHead>Categorie</TableHead>
-                                        <TableHead>Eenheid</TableHead>
                                         <TableHead className="text-right">Prijs</TableHead>
+                                        <TableHead>Eenheid</TableHead>
+                                        <TableHead>Categorie</TableHead>
+                                        <TableHead>Leverancier</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -273,11 +273,11 @@ export default function MaterialenPage() {
 
                                         return (
                                             <TableRow key={material.row_id}>
-                                                <TableCell>{material.leverancier || '—'}</TableCell>
                                                 <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
-                                                <TableCell>{material.categorie || '—'}</TableCell>
-                                                <TableCell>{material.eenheid}</TableCell>
                                                 <TableCell className="text-right">{prijsLabel}</TableCell>
+                                                <TableCell>{material.eenheid}</TableCell>
+                                                <TableCell>{material.categorie || '—'}</TableCell>
+                                                <TableCell>{material.leverancier || '—'}</TableCell>
                                             </TableRow>
                                         )
                                     }) : (
