@@ -23,9 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, HardHat, Loader2, UploadCloud, File as FileIcon } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { Label } from '@/components/ui/label';
+import { ArrowLeft, HardHat, Loader2 } from 'lucide-react';
 
 type Material = {
   row_id: string;
@@ -36,132 +34,6 @@ type Material = {
   leverancier: string;
   user_id: string;
 };
-
-function CsvUploadSection() {
-    const { user } = useUser();
-    const { toast } = useToast();
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [leverancierNaam, setLeverancierNaam] = useState('');
-    const [isUploading, setIsUploading] = useState(false);
-    const router = useRouter();
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files) {
-            setSelectedFile(event.target.files[0]);
-        }
-    };
-
-    const handleUpload = async () => {
-        if (!selectedFile) {
-            toast({ variant: "destructive", title: "Geen bestand geselecteerd", description: "Selecteer een CSV-bestand om te uploaden." });
-            return;
-        }
-        if (!leverancierNaam.trim()) {
-            toast({ variant: "destructive", title: "Leveranciersnaam vereist", description: "Voer een naam voor de leverancier in." });
-            return;
-        }
-        if (!user) {
-            toast({ variant: "destructive", title: "Niet ingelogd", description: "U moet ingelogd zijn om te kunnen uploaden." });
-            router.push('/login');
-            return;
-        }
-
-        setIsUploading(true);
-
-        const formData = new FormData();
-        formData.append("bestand", selectedFile);
-        formData.append("gebruikerId", user.uid);
-        formData.append("leverancierNaam", leverancierNaam.trim());
-
-        try {
-            const response = await fetch('https://n8n.dylan8n.org/webhook-test/bee441de-eaaa-495e-a294-4be7d3c1a0b2', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Upload mislukt: ${errorText || `Status ${response.status}`}`);
-            }
-
-            toast({ title: 'Upload succesvol', description: 'Het prijsbestand wordt verwerkt.' });
-            setSelectedFile(null);
-            setLeverancierNaam('');
-            // Optionally, trigger a refresh of the materials list
-        } catch (error) {
-            console.error('Upload Fout:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Een onbekende fout is opgetreden.';
-            toast({
-                variant: 'destructive',
-                title: 'Upload Mislukt',
-                description: errorMessage,
-            });
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Prijslijst uploaden</CardTitle>
-                <CardDescription>
-                    Upload een CSV-prijslijst en voer de naam van de leverancier in.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div>
-                    <Label htmlFor="leverancier">Leveranciernaam</Label>
-                    <Input
-                        id="leverancier"
-                        placeholder="Bijvoorbeeld: Jongeneel, Bouwcenter, Pontmeyer"
-                        value={leverancierNaam}
-                        onChange={(e) => setLeverancierNaam(e.target.value)}
-                        disabled={isUploading}
-                    />
-                </div>
-                <div className="space-y-2">
-                     <Label htmlFor="file-upload">Bestand</Label>
-                     <div className="flex items-center gap-4">
-                        <Label htmlFor="file-upload" className="flex-shrink-0 cursor-pointer">
-                            <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
-                                Kies bestand
-                            </div>
-                            <Input
-                                id="file-upload"
-                                type="file"
-                                accept=".csv"
-                                onChange={handleFileChange}
-                                disabled={isUploading}
-                                className="sr-only"
-                            />
-                        </Label>
-                        {selectedFile ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 border rounded-md bg-muted/50 w-full">
-                            <FileIcon className="w-4 h-4" />
-                            <span className="truncate">{selectedFile.name}</span>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground italic">Geen bestand geselecteerd.</p>
-                        )}
-                    </div>
-                </div>
-                <Button
-                    onClick={handleUpload}
-                    disabled={isUploading || !selectedFile || !leverancierNaam.trim()}
-                    className="w-full"
-                >
-                    {isUploading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                        <UploadCloud className="mr-2 h-4 w-4" />
-                    )}
-                    {isUploading ? 'Bezig met uploaden...' : 'Bestand uploaden'}
-                </Button>
-            </CardContent>
-        </Card>
-    );
-}
 
 function PageSkeleton() {
     return (
@@ -270,10 +142,8 @@ export default function MaterialenPage() {
             <main className="flex-1 p-4 md:p-6 space-y-6">
                 <div>
                     <h1 className="font-semibold text-2xl md:text-3xl">Materialen & prijzen</h1>
-                    <p className="text-muted-foreground">Doorzoek uw materiaalbibliotheek en upload nieuwe prijslijsten.</p>
+                    <p className="text-muted-foreground">Doorzoek uw materiaalbibliotheek.</p>
                 </div>
-
-                <CsvUploadSection />
 
                 <Card>
                     <CardHeader>
@@ -345,5 +215,3 @@ export default function MaterialenPage() {
         </div>
     );
 }
-
-    
