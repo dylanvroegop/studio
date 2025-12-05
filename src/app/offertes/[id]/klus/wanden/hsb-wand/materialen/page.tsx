@@ -166,7 +166,7 @@ const defaultExtraMateriaal = {
 type ExtraMateriaalModalProps = {
     open: boolean;
     onSluiten: () => void;
-    onOpslaan: (materiaal: ExtraMateriaal) => void;
+    onOpslaan: (materiaal: Omit<ExtraMateriaal, 'id'>) => void;
 }
 
 function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModalProps) {
@@ -177,8 +177,7 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
     };
 
     const handleOpslaan = () => {
-        const nieuwItem: ExtraMateriaal = {
-            id: new Date().toISOString(),
+        const nieuwItem: Omit<ExtraMateriaal, 'id'> = {
             naam: item.naam,
             eenheid: item.eenheid,
             prijsPerEenheid: Number(item.prijsPerEenheid),
@@ -200,12 +199,12 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                     <DialogTitle>Extra materiaal toevoegen</DialogTitle>
                     <DialogDescription>
                         Gebruik dit voor uitzonderlijke materialen die niet in de vaste lijst staan.
-                        <p className="text-xs text-muted-foreground mt-2">
-                            Hier definieer je alleen het materiaal en de prijs per eenheid. De benodigde hoeveelheid wordt later automatisch berekend.
-                        </p>
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4">
+                   <p className="text-xs text-muted-foreground -mt-2">
+                        Hier definieer je alleen het materiaal en de prijs per eenheid. De benodigde hoeveelheid wordt later automatisch berekend.
+                    </p>
                    <div className="space-y-2">
                         <Label htmlFor="extra-naam">Materiaalnaam *</Label>
                         <Input id="extra-naam" value={item.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" />
@@ -216,13 +215,13 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                             <Select value={item.eenheid} onValueChange={value => handleFieldChange('eenheid', value)}>
                                 <SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value="stuk">stuk</SelectItem>
                                     <SelectItem value="m¹">m¹</SelectItem>
                                     <SelectItem value="m²">m²</SelectItem>
                                     <SelectItem value="m³">m³</SelectItem>
-                                    <SelectItem value="stuk">stuk</SelectItem>
-                                    <SelectItem value="set">set</SelectItem>
                                 </SelectContent>
                             </Select>
+                            <p className="text-xs text-muted-foreground">Gebruik ‘stuk’ ook voor materialen die per doos of set worden geleverd. Voer dan de prijs per stuk in.</p>
                         </div>
                     </div>
                     {isEenheidDimensie && (
@@ -324,8 +323,9 @@ export default function HsbWandMaterialenPage() {
     setGekozenMaterialen(prev => ({ ...prev, [slotKey]: materiaal }));
   };
   
-  const handleExtraMateriaalOpslaan = (materiaal: ExtraMateriaal) => {
-    setExtraMaterialen(prev => [...prev, materiaal]);
+  const handleExtraMateriaalOpslaan = (materiaal: Omit<ExtraMateriaal, 'id'>) => {
+    const nieuwMateriaal = { ...materiaal, id: new Date().toISOString() };
+    setExtraMaterialen(prev => [...prev, nieuwMateriaal]);
   };
 
   const handleMateriaalVerwijderen = (slotKey: string) => {
@@ -529,18 +529,33 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        <div className="flex items-center justify-between pt-4 first:pt-0">
-                           <div>
-                             {extraMaterialen.length > 0 ? (
-                               <p className="text-sm text-primary mt-1">Aantal items: {extraMaterialen.length}</p>
-                             ) : (
-                               <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                             )}
-                           </div>
-                           <Button variant="outline" size="sm" onClick={() => setExtraMateriaalModalOpen(true)}>
-                             Kiezen
-                           </Button>
-                         </div>
+                         {extraMaterialen.length > 0 ? (
+                            <div className="pt-4">
+                                <ul className="space-y-3">
+                                {extraMaterialen.map(item => (
+                                    <li key={item.id} className="flex justify-between items-center text-sm p-2 -m-2 rounded-md hover:bg-muted/50">
+                                        <div>
+                                            <p className="font-medium">{item.naam}</p>
+                                            <p className="text-xs text-muted-foreground">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(item.prijsPerEenheid)} / {item.eenheid}</p>
+                                        </div>
+                                        <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen(prev => prev.filter(m => m.id !== item.id))} className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                                            <Trash2 className="w-4 h-4"/>
+                                        </Button>
+                                    </li>
+                                ))}
+                                </ul>
+                            </div>
+                        ) : (
+                           <div className="flex items-center justify-between pt-4 first:pt-0">
+                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between pt-4">
+                             {extraMaterialen.length > 0 && <p className="text-sm font-medium">Totaal: {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(totaalExtraMateriaal)}</p>}
+                             <Button variant="outline" size="sm" onClick={() => setExtraMateriaalModalOpen(true)} className="ml-auto">
+                                 Materiaal toevoegen
+                             </Button>
+                        </div>
                     </CardContent>
                  </Card>
 
