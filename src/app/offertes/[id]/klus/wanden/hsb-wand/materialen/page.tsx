@@ -393,35 +393,42 @@ export default function HsbWandMaterialenPage() {
     );
   };
   
-  const renderExtraMateriaalRij = (item: ExtraMateriaal) => {
-        let details = item.eenheid;
-        if (item.eenheid === 'm²' && item.lengteMm && item.breedteMm) {
-            details = `m² – ${item.lengteMm} × ${item.breedteMm} mm`;
-        } else if (item.eenheid === 'm¹' && item.lengteMm) {
-            details = `m¹ – lengte ${item.lengteMm} mm`;
-        }
+  const renderExtraMateriaalCardContent = () => {
+    const aantal = extraMaterialen.length;
 
-        return (
-            <div key={item.id} className="flex items-center justify-between pt-4 first:pt-0">
-                <div>
-                    <p className="font-medium text-sm">{item.naam}</p>
-                    <p className="text-xs text-muted-foreground">{details}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen(prev => prev.filter(m => m.id !== item.id))} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder extra materiaal">
-                        <Trash2 className="h-4 w-4"/>
-                    </Button>
-                     <Button variant="outline" size="sm" onClick={() => {
-                        // TODO: Implement edit functionality for extra materials
-                        // For now, just re-opens the add modal
-                        alert('Bewerken is nog niet geïmplementeerd. Verwijder en voeg opnieuw toe.');
-                     }}>
-                        Wijzigen
-                     </Button>
-                </div>
-            </div>
-        )
-  }
+    let statusText: React.ReactNode;
+    if (aantal === 0) {
+      statusText = <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>;
+    } else if (aantal === 1) {
+      const item = extraMaterialen[0];
+      let details = item.eenheid;
+       if (item.eenheid === 'm²' && item.lengteMm && item.breedteMm) {
+          details = `m² – ${item.lengteMm} × ${item.breedteMm} mm`;
+      } else if (item.eenheid === 'm¹' && item.lengteMm) {
+          details = `m¹ – lengte ${item.lengteMm} mm`;
+      }
+      statusText = <p className="text-sm text-primary mt-1">Gekozen: {item.naam} – {details}</p>;
+    } else {
+      statusText = <p className="text-sm text-primary mt-1">Gekozen: {aantal} extra materialen</p>;
+    }
+
+    return (
+      <div className="flex items-center justify-between pt-4 first:pt-0">
+        <div>{statusText}</div>
+        <div className="flex items-center gap-2">
+          {aantal > 0 && (
+            <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setExtraMateriaalModalOpen(true)}>
+            {aantal > 0 ? 'Wijzigen' : 'Kiezen'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <>
@@ -579,18 +586,7 @@ export default function HsbWandMaterialenPage() {
                         <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                         {extraMaterialen.length > 0 ? (
-                            extraMaterialen.map(item => renderExtraMateriaalRij(item))
-                        ) : (
-                           <div className="flex items-center justify-between pt-4 first:pt-0">
-                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                            </div>
-                        )}
-                        <div className="flex items-center justify-end pt-4">
-                             <Button variant="outline" size="sm" onClick={() => setExtraMateriaalModalOpen(true)}>
-                                 Materiaal toevoegen
-                             </Button>
-                        </div>
+                        {renderExtraMateriaalCardContent()}
                     </CardContent>
                  </Card>
 
