@@ -130,7 +130,7 @@ export default function LoginPage() {
             </div>
           </div>
           <div className="mt-6 flex flex-col gap-3">
-            <Button onClick={() => handleAuthAction(true)} disabled={isLoading} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+            <Button onClick={() => handleAuthAction(true)} disabled={isLoading} className="w-full">
               {isLoading ? 'Inloggen...' : 'Inloggen'}
             </Button>
             <Button onClick={() => handleAuthAction(false)} disabled={isLoading} variant="outline" className="w-full">
