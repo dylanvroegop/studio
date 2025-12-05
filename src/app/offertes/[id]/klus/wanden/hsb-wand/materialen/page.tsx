@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -201,8 +201,8 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
     };
     
     const prijsHelperTextMap: Record<string, string> = {
-        'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken.',
-        'doos / pak': 'Vul hier de prijs van één doos/pak in. Wij berekenen automatisch hoeveel er nodig is.',
+        'stuk': "Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken. Koop je dit normaal in een doos of pak? Reken dan eerst de prijs per stuk uit, anders klopt de offerte niet.",
+        'doos / pak': "Vul hier de prijs van één doos/pak in. Wij berekenen automatisch hoeveel er nodig is.",
         'm¹': 'Let op: dit is prijs per strekkende meter. Niet per balk, niet per bundel. Krijg je een prijs per stuk? Reken die eerst om naar prijs per meter.',
         'm²': 'Geen plaatprijs! Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
         'm³': 'Let op: gebruik m³ alleen als het materiaal echt per kubieke meter wordt verkocht (bijv. isolatie in bulk). Krijg je een prijs per plaat of balk? Gebruik dan m² of m¹ in plaats van m³.',
@@ -272,9 +272,14 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                     )}
                     <div className="grid grid-cols-1 gap-4">
                          <div className="space-y-2">
-                            <Label htmlFor="extra-prijs">{dynamischPrijsLabel} *</Label>
+                            <Label htmlFor="extra-prijs" className="text-red-300">{dynamischPrijsLabel} *</Label>
                             <Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', e.target.value)} placeholder="Bijv. 3,25"/>
-                             {dynamischPrijsHelperText && <p className="text-xs text-muted-foreground">{dynamischPrijsHelperText}</p>}
+                             {dynamischPrijsHelperText && (
+                                <div className="mt-2 flex items-start gap-2 rounded-md border border-red-800 bg-red-950/40 p-2 text-sm text-red-300">
+                                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                    <p>{dynamischPrijsHelperText}</p>
+                                </div>
+                             )}
                         </div>
                     </div>
                 </div>
