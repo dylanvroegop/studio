@@ -201,8 +201,6 @@ export default function HsbWandMaterialenPage() {
     return (
       <div key={slot.key} className="flex items-center justify-between pt-4 first:pt-0">
         <div>
-          <Label className="font-medium">{slot.label}</Label>
-          {slot.description && <p className="text-xs text-muted-foreground">{slot.description}</p>}
           {gekozenMateriaal ? (
             <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.naam}</p>
           ) : (
