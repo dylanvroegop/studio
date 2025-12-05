@@ -19,9 +19,6 @@ type Wall = {
   lengte: string;
   hoogte: string;
   balkafstand: string;
-  heeftSparingen: boolean;
-  aantalSparingen: string;
-  omschrijvingSparingen: string;
   opmerkingen: string;
 };
 
@@ -29,9 +26,6 @@ const defaultWallState: Wall = {
   lengte: '',
   hoogte: '',
   balkafstand: '600',
-  heeftSparingen: false,
-  aantalSparingen: '',
-  omschrijvingSparingen: '',
   opmerkingen: '',
 };
 
@@ -154,24 +148,6 @@ export default function HsbWandPage() {
                                    <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
                                  </div>
                                </div>
-                                 <div className="space-y-4 rounded-md border p-4">
-                                     <div className="flex items-center justify-between">
-                                         <Label htmlFor={`sparingen-${index}`} className="font-medium">Sparingen in deze wand</Label>
-                                         <Switch id={`sparingen-${index}`} checked={wall.heeftSparingen} onCheckedChange={(checked) => handleWallChange(index, 'heeftSparingen', checked)} />
-                                     </div>
-                                     {wall.heeftSparingen && (
-                                         <div className="space-y-4 pt-4 border-t border-dashed">
-                                             <div className="space-y-2">
-                                                 <Label htmlFor={`aantal-sparingen-${index}`}>Aantal sparingen</Label>
-                                                 <Input id={`aantal-sparingen-${index}`} type="number" placeholder="Bijv. 2" value={wall.aantalSparingen} onChange={(e) => handleWallChange(index, 'aantalSparingen', e.target.value)} />
-                                             </div>
-                                             <div className="space-y-2">
-                                                 <Label htmlFor={`omschrijving-sparingen-${index}`}>Omschrijving sparing(en)</Label>
-                                                 <Textarea id={`omschrijving-sparingen-${index}`} placeholder="Bijv. 1x deurkozijn, 1x raam" value={wall.omschrijvingSparingen} onChange={(e) => handleWallChange(index, 'omschrijvingSparingen', e.target.value)} />
-                                             </div>
-                                         </div>
-                                     )}
-                                 </div>
                                 <div className="space-y-2">
                                   <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen</Label>
                                   <Textarea id={`opmerkingen-${index}`} placeholder="Eventuele bijzonderheden..." value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
