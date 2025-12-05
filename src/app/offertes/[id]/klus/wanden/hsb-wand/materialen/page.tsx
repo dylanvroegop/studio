@@ -59,6 +59,11 @@ function bepaalSectieVoorMateriaal(materiaalnaam: string, categorie: string | nu
     const naam = materiaalnaam.toLowerCase();
     const cat = categorie?.toLowerCase() || '';
 
+    // Speciale categorie check
+    if (cat === 'bouwhout') {
+      return 'balktype';
+    }
+
     const mapping: Record<SectieKey, string[]> = {
         balktype: ['vuren sls', 'vuren geschaafd', 'vuren ruw', 'lvl', 'balk', 'fijnbezaagd', 'douglas', 'piketpaal', 'mastiek', 'bekistingsbrug'],
         plinten: ['plint'],
@@ -72,11 +77,6 @@ function bepaalSectieVoorMateriaal(materiaalnaam: string, categorie: string | nu
         extra: []
     };
     
-    // Speciale categorie check
-    if (cat === 'bouwhout') {
-      return 'balktype';
-    }
-
     for (const sectie of sectieSleutels) {
         if (sectie !== 'extra' && mapping[sectie].some(trefwoord => naam.includes(trefwoord))) {
             return sectie;
