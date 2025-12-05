@@ -120,7 +120,7 @@ export default function MaterialenPage() {
                     .from('materialen_duplicate')
                     .select('*')
                     .eq('user_id', user.uid)
-                    .order('materiaalnaam', { ascending: true });
+                    .order('lijst_volgorde', { ascending: true });
 
                 if (error) {
                     console.error('Fout bij het ophalen van Supabase:', error);
