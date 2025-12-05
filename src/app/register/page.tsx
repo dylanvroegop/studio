@@ -40,7 +40,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.push('/dashboard');
+      router.push('/');
     }
   }, [user, isUserLoading, router]);
 
@@ -110,7 +110,7 @@ export default function RegisterPage() {
       const businessDocRef = doc(firestore, 'businesses', newUser.uid);
       setDocumentNonBlocking(businessDocRef, businessData, { merge: true });
 
-      router.push('/dashboard');
+      router.push('/');
 
     } catch (e) {
       const authError = e as AuthError;
@@ -271,5 +271,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
-    
