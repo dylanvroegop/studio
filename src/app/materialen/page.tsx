@@ -24,26 +24,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, HardHat, Loader2 } from 'lucide-react';
+import { DashboardHeader } from '@/components/dashboard-header';
 
 type Material = {
   row_id: string;
   categorie: string;
   materiaalnaam: string;
-  prijs: string;
+  prijs: number;
   eenheid: string;
   leverancier: string;
   user_id: string;
 };
 
+function formatCurrency(amount?: number) {
+    if (amount === undefined || amount === null) return '—';
+    return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
+}
+
 function PageSkeleton() {
     return (
         <div className="flex flex-col min-h-screen">
-             <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 backdrop-blur-xl">
-                 <div className="flex items-center gap-2 flex-1">
-                    <HardHat className="w-7 h-7 text-primary" />
-                    <span className="text-lg font-semibold">OfferteHulp</span>
-                 </div>
-            </header>
+             <DashboardHeader user={null} />
             <main className="flex flex-1 flex-col justify-center items-center gap-4 p-4 md:gap-8 md:p-6">
                 <div className="text-center p-8 text-gray-500 flex items-center">
                     <Loader2 className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" />
@@ -81,7 +82,8 @@ export default function MaterialenPage() {
                 const { data, error } = await supabase
                     .from('materialen_duplicate')
                     .select('*')
-                    .eq('user_id', user.uid);
+                    .eq('user_id', user.uid)
+                    .order('materiaalnaam', { ascending: true });
 
                 if (error) {
                     console.error('Fout bij het ophalen van Supabase:', error);
@@ -127,22 +129,19 @@ export default function MaterialenPage() {
 
     return (
         <div className="flex flex-col min-h-screen">
-             <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 backdrop-blur-xl">
-                <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                    <Link href="/">
-                        <ArrowLeft className="h-4 w-4" />
-                        <span className="sr-only">Terug</span>
-                    </Link>
-                </Button>
-                <div className="flex items-center gap-2 flex-1">
-                    <HardHat className="w-7 h-7 text-primary" />
-                    <span className="text-lg font-semibold">OfferteHulp</span>
-                </div>
-            </header>
+             <DashboardHeader user={user} />
             <main className="flex-1 p-4 md:p-6 space-y-6">
-                <div>
-                    <h1 className="font-semibold text-2xl md:text-3xl">Materialen & prijzen</h1>
-                    <p className="text-muted-foreground">Doorzoek uw materiaalbibliotheek.</p>
+                <div className="flex items-center gap-4">
+                    <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                        <Link href="/dashboard">
+                            <ArrowLeft className="h-4 w-4" />
+                            <span className="sr-only">Terug</span>
+                        </Link>
+                    </Button>
+                    <div>
+                        <h1 className="font-semibold text-2xl md:text-3xl">Materialen & Prijzen</h1>
+                        <p className="text-muted-foreground">Doorzoek uw materiaalbibliotheek.</p>
+                    </div>
                 </div>
 
                 <Card>
@@ -197,7 +196,7 @@ export default function MaterialenPage() {
                                             <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
                                             <TableCell>{material.categorie || '—'}</TableCell>
                                             <TableCell>{material.eenheid}</TableCell>
-                                            <TableCell className="text-right">{material.prijs}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(material.prijs)}</TableCell>
                                         </TableRow>
                                     )) : (
                                         <TableRow>
