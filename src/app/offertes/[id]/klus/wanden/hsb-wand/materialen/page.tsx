@@ -419,13 +419,6 @@ export default function HsbWandMaterialenPage() {
     return `${item.naam} – ${details}`;
   };
 
-  const handleEditExtraMaterial = () => {
-    if (extraMaterialen.length > 0) {
-      openExtraMateriaalModal('edit', extraMaterialen[0]);
-    }
-  };
-
-
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -576,50 +569,47 @@ export default function HsbWandMaterialenPage() {
                     </CardContent>
                  </Card>
 
-                 <Card>
+                <Card>
                     <CardHeader>
                         <CardTitle>Extra materiaal</CardTitle>
                         <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2 divide-y divide-border -mt-4">
-                      <div className="pt-4 first:pt-0">
-                        <div className="flex items-center justify-between">
-                            <div className="flex-1 space-y-1 pr-4">
-                              {extraMaterialen.length === 0 ? (
-                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                              ) : (
-                                <>
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    {extraMaterialen.length === 1 ? 'Gekozen extra materiaal:' : 'Gekozen extra materialen:'}
-                                  </p>
-                                  {extraMaterialen.map(item => (
-                                      <p key={item.id} className="text-sm text-primary">{formatExtraMateriaalRow(item)}</p>
-                                  ))}
-                                </>
-                              )}
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                        <div className="pt-4 first:pt-0">
+                            <div className="flex items-center justify-between">
+                                <div className="flex-1 pr-4">
+                                    {extraMaterialen.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                    ) : (
+                                        <div className="space-y-2 mt-1">
+                                            {extraMaterialen.map(item => (
+                                                <p key={item.id} className="text-sm text-primary">{formatExtraMateriaalRow(item)}</p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {extraMaterialen.length > 0 && (
+                                        <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                    <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal(extraMaterialen.length > 0 ? 'edit' : 'add', extraMaterialen[0])}>
+                                        {extraMaterialen.length > 0 ? 'Wijzigen' : 'Kiezen'}
+                                    </Button>
+                                </div>
                             </div>
-                           <div className="flex items-center gap-2">
-                               {extraMaterialen.length > 0 && (
-                                   <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
-                                       <Trash2 className="h-4 w-4" />
-                                   </Button>
-                               )}
-                               <Button variant="outline" size="sm" onClick={() => extraMaterialen.length > 0 ? handleEditExtraMaterial() : openExtraMateriaalModal('add')}>
-                                   {extraMaterialen.length > 0 ? 'Wijzigen' : 'Kiezen'}
-                               </Button>
-                           </div>
-                         </div>
-                         {extraMaterialen.length > 0 && (
-                            <div className="mt-2 pl-1">
-                                <button onClick={() => openExtraMateriaalModal('add')} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                                   <PlusCircle className="w-3 h-3"/>
-                                   Extra materiaal toevoegen
-                               </button>
-                             </div>
-                         )}
-                       </div>
+                            {extraMaterialen.length > 0 && (
+                                <div className="mt-2 pl-1">
+                                    <button onClick={() => openExtraMateriaalModal('add')} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                                        <PlusCircle className="w-3 h-3" />
+                                        Extra materiaal toevoegen
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </CardContent>
-                 </Card>
+                </Card>
 
               </div>
 
