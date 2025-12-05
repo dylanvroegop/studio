@@ -194,16 +194,18 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
     
     const prijsLabelMap: Record<string, string> = {
       'stuk': 'Prijs per stuk (€)',
+      'doos / pak': 'Prijs per doos / pak (€)',
       'm¹': 'Prijs per meter (€)',
-      'm²': 'Prijs per m² (€)',
+      'm²': 'Prijs per m² (géén plaatprijs!)',
       'm³': 'Prijs per m³ (€)',
     };
     
     const prijsHelperTextMap: Record<string, string> = {
-        'stuk': 'Prijs per stuk, ook als je het in een doos of set koopt.',
-        'm¹': 'Gebruik de prijs per strekkende meter, niet per bundel.',
-        'm²': 'Let op: gebruik hier de prijs per m². Krijg je een prijs per plaat? Deel die eerst door het aantal m² van één plaat.',
-        'm³': 'Gebruik hier de prijs per m³. Reken prijs per plaat/pakket eerst om naar m³.',
+        'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen zoals beslag of haken.',
+        'doos / pak': 'Vul hier de prijs van één doos/pak in. Wij berekenen automatisch hoeveel er nodig is.',
+        'm¹': 'Gebruik de prijs per strekkende meter. Niet per bundel.',
+        'm²': 'Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
+        'm³': 'Gebruik hier de prijs per m³. Reken eventuele pakketten zelf om.',
     };
 
     const dynamischPrijsLabel = prijsLabelMap[item.eenheid] || 'Materiaalkosten per eenheid (€)';
@@ -234,12 +236,12 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                                 <SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="stuk">stuk</SelectItem>
+                                    <SelectItem value="doos / pak">doos / pak</SelectItem>
                                     <SelectItem value="m¹">m¹</SelectItem>
                                     <SelectItem value="m²">m²</SelectItem>
                                     <SelectItem value="m³">m³</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground">Gebruik ‘stuk’ ook voor materialen die per doos of set worden geleverd. Voer dan de prijs per stuk in.</p>
                         </div>
                     </div>
                     {isEenheidDimensie && (
