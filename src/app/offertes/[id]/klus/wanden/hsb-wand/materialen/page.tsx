@@ -56,7 +56,6 @@ const materiaalSlotConfig: SlotSectie[] = [
     slots: [
       { key: 'typeBalk', label: 'Selecteer type balk', standaardCategorieen: ['Hout'] },
       { key: 'lengteBalk', label: 'Selecteer lengte balk', standaardCategorieen: ['Hout'] },
-      { key: 'hohAfstand', label: 'Selecteer balkafstand', description: 'Hart-op-hart afstand tussen de balken (h.o.h.).', standaardCategorieen: [] },
     ]
   },
   {
