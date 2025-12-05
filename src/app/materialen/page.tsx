@@ -8,6 +8,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -100,6 +101,9 @@ export default function MaterialenPage() {
     const [supplierFilter, setSupplierFilter] = useState<string>('all');
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 50;
+
     useEffect(() => {
         if (!isUserLoading && !user) {
             router.push('/login');
@@ -135,6 +139,12 @@ export default function MaterialenPage() {
         }
     }, [user]);
 
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, supplierFilter, categoryFilter]);
+
+
     const filteredMaterials = useMemo(() => {
         let result = materials;
 
@@ -155,6 +165,13 @@ export default function MaterialenPage() {
 
         return result;
     }, [search, supplierFilter, categoryFilter, materials]);
+
+    const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
+    const paginatedMaterials = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        return filteredMaterials.slice(start, end);
+    }, [currentPage, filteredMaterials, itemsPerPage]);
     
     const uniqueSuppliers = useMemo(() => {
         return [...new Set(materials.map(m => m.leverancier).filter(Boolean).sort())];
@@ -242,7 +259,7 @@ export default function MaterialenPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredMaterials.length > 0 ? filteredMaterials.map(material => {
+                                    {paginatedMaterials.length > 0 ? paginatedMaterials.map(material => {
                                         const prijsNumber = parsePriceToNumber(material.prijs);
                                         const prijsLabel =
                                           prijsNumber == null
@@ -274,6 +291,29 @@ export default function MaterialenPage() {
                             </Table>
                         )}
                     </CardContent>
+                     {totalPages > 1 && (
+                        <CardFooter className="flex items-center justify-center pt-6">
+                            <div className="flex items-center gap-4">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    Vorige
+                                </Button>
+                                <span className="text-sm text-muted-foreground">
+                                    Pagina {currentPage} van {totalPages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    Volgende
+                                </Button>
+                            </div>
+                        </CardFooter>
+                    )}
                 </Card>
             </main>
         </div>
