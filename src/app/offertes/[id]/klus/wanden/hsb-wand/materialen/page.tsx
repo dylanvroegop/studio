@@ -60,13 +60,10 @@ type ExtraMateriaal = {
   id: string;
   naam: string;
   eenheid: string;
-  aantal: number;
   lengteMm?: number;
   breedteMm?: number;
   hoogteMm?: number;
   prijsPerEenheid: number;
-  totaalMateriaal: number;
-  urenArbeid?: number;
 }
 
 // ==================================
@@ -160,7 +157,6 @@ function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, 
 const defaultExtraMateriaal = {
     naam: '',
     eenheid: 'stuk',
-    aantal: 1,
     lengteMm: undefined,
     breedteMm: undefined,
     hoogteMm: undefined,
@@ -179,43 +175,16 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
     const handleFieldChange = (field: string, value: any) => {
         setItem(prev => ({...prev, [field]: value}));
     };
-    
-    const totaalMateriaal = useMemo(() => {
-        const aantal = Number(item.aantal) || 0;
-        const prijs = Number(item.prijsPerEenheid) || 0;
-        let effectiveAmount = aantal;
-
-        const lengteM = (Number(item.lengteMm) || 0) / 1000;
-        const breedteM = (Number(item.breedteMm) || 0) / 1000;
-        const hoogteM = (Number(item.hoogteMm) || 0) / 1000;
-
-        switch(item.eenheid) {
-            case 'm¹':
-                if (lengteM > 0) effectiveAmount = aantal * lengteM;
-                break;
-            case 'm²':
-                if (lengteM > 0 && breedteM > 0) effectiveAmount = aantal * lengteM * breedteM;
-                break;
-            case 'm³':
-                 if (lengteM > 0 && breedteM > 0 && hoogteM > 0) effectiveAmount = aantal * lengteM * breedteM * hoogteM;
-                 break;
-        }
-
-        return effectiveAmount * prijs;
-    }, [item]);
 
     const handleOpslaan = () => {
         const nieuwItem: ExtraMateriaal = {
             id: new Date().toISOString(),
             naam: item.naam,
             eenheid: item.eenheid,
-            aantal: Number(item.aantal),
             prijsPerEenheid: Number(item.prijsPerEenheid),
-            totaalMateriaal: totaalMateriaal,
             lengteMm: item.lengteMm ? Number(item.lengteMm) : undefined,
             breedteMm: item.breedteMm ? Number(item.breedteMm) : undefined,
             hoogteMm: item.hoogteMm ? Number(item.hoogteMm) : undefined,
-            urenArbeid: undefined,
         }
         onOpslaan(nieuwItem);
         setItem(defaultExtraMateriaal);
@@ -231,6 +200,9 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                     <DialogTitle>Extra materiaal toevoegen</DialogTitle>
                     <DialogDescription>
                         Gebruik dit voor uitzonderlijke materialen die niet in de vaste lijst staan.
+                        <p className="text-xs text-muted-foreground mt-2">
+                            Hier definieer je alleen het materiaal en de prijs per eenheid. De benodigde hoeveelheid wordt later automatisch berekend.
+                        </p>
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4">
@@ -238,7 +210,7 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                         <Label htmlFor="extra-naam">Materiaalnaam *</Label>
                         <Input id="extra-naam" value={item.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1">
                         <div className="space-y-2">
                             <Label htmlFor="extra-eenheid">Eenheid *</Label>
                             <Select value={item.eenheid} onValueChange={value => handleFieldChange('eenheid', value)}>
@@ -251,10 +223,6 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                                     <SelectItem value="set">set</SelectItem>
                                 </SelectContent>
                             </Select>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="extra-aantal">Aantal *</Label>
-                            <Input id="extra-aantal" type="number" min="1" value={item.aantal} onChange={e => handleFieldChange('aantal', e.target.value)} />
                         </div>
                     </div>
                     {isEenheidDimensie && (
@@ -288,9 +256,6 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                             <Label htmlFor="extra-prijs">Materiaalkosten per eenheid (€) *</Label>
                             <Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', e.target.value)} placeholder="Bijv. 12,50"/>
                         </div>
-                    </div>
-                    <div className="pt-4 border-t">
-                        <p className="text-lg font-semibold text-right">Totaal materiaal: {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(totaalMateriaal)}</p>
                     </div>
                 </div>
                 <DialogFooter>
@@ -405,7 +370,7 @@ export default function HsbWandMaterialenPage() {
   };
 
   const totaalExtraMateriaal = useMemo(() => {
-    return extraMaterialen.reduce((sum, item) => sum + item.totaalMateriaal, 0);
+    return extraMaterialen.reduce((sum, item) => sum + item.prijsPerEenheid, 0);
   }, [extraMaterialen]);
 
   return (
@@ -567,7 +532,7 @@ export default function HsbWandMaterialenPage() {
                         <div className="flex items-center justify-between pt-4 first:pt-0">
                            <div>
                              {extraMaterialen.length > 0 ? (
-                               <p className="text-sm text-primary mt-1">Aantal items: {extraMaterialen.length} — Totaal: {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(totaalExtraMateriaal)}</p>
+                               <p className="text-sm text-primary mt-1">Aantal items: {extraMaterialen.length}</p>
                              ) : (
                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
                              )}
