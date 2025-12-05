@@ -201,11 +201,11 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
     };
     
     const prijsHelperTextMap: Record<string, string> = {
-        'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen zoals beslag of haken.',
+        'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken.',
         'doos / pak': 'Vul hier de prijs van één doos/pak in. Wij berekenen automatisch hoeveel er nodig is.',
-        'm¹': 'Gebruik de prijs per strekkende meter. Niet per bundel.',
-        'm²': 'Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
-        'm³': 'Gebruik hier de prijs per m³. Reken eventuele pakketten zelf om.',
+        'm¹': 'Let op: dit is prijs per strekkende meter. Niet per balk, niet per bundel. Krijg je een prijs per stuk? Reken die eerst om naar prijs per meter.',
+        'm²': 'Geen plaatprijs! Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
+        'm³': 'Let op: gebruik m³ alleen als het materiaal echt per kubieke meter wordt verkocht (bijv. isolatie in bulk). Krijg je een prijs per plaat of balk? Gebruik dan m² of m¹ in plaats van m³.',
     };
 
     const dynamischPrijsLabel = prijsLabelMap[item.eenheid] || 'Materiaalkosten per eenheid (€)';
@@ -223,7 +223,7 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                 </DialogHeader>
                 <div className="grid gap-6 py-4">
                    <p className="text-xs text-muted-foreground -mt-2">
-                        Hier definieer je alleen het materiaal en de prijs per eenheid. De benodigde hoeveelheid wordt later automatisch berekend.
+                        Voer altijd de prijs per gekozen eenheid in. Verkeerde prijzen geven verkeerde offertes.
                     </p>
                    <div className="space-y-2">
                         <Label htmlFor="extra-naam">Materiaalnaam *</Label>
