@@ -191,6 +191,24 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
     };
     
     const isEenheidDimensie = ['m¹', 'm²', 'm³'].includes(item.eenheid);
+    
+    const prijsLabelMap: Record<string, string> = {
+      'stuk': 'Prijs per stuk (€)',
+      'm¹': 'Prijs per meter (€)',
+      'm²': 'Prijs per m² (€)',
+      'm³': 'Prijs per m³ (€)',
+    };
+    
+    const prijsHelperTextMap: Record<string, string> = {
+        'stuk': 'Prijs per stuk, ook als je het in een doos of set koopt.',
+        'm¹': 'Gebruik de prijs per strekkende meter, niet per bundel.',
+        'm²': 'Let op: gebruik hier de prijs per m². Krijg je een prijs per plaat? Deel die eerst door het aantal m² van één plaat.',
+        'm³': 'Gebruik hier de prijs per m³. Reken prijs per plaat/pakket eerst om naar m³.',
+    };
+
+    const dynamischPrijsLabel = prijsLabelMap[item.eenheid] || 'Materiaalkosten per eenheid (€)';
+    const dynamischPrijsHelperText = prijsHelperTextMap[item.eenheid];
+
 
     return (
         <Dialog open={open} onOpenChange={onSluiten}>
@@ -252,8 +270,9 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                     )}
                     <div className="grid grid-cols-1 gap-4">
                          <div className="space-y-2">
-                            <Label htmlFor="extra-prijs">Materiaalkosten per eenheid (€) *</Label>
-                            <Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', e.target.value)} placeholder="Bijv. 12,50"/>
+                            <Label htmlFor="extra-prijs">{dynamischPrijsLabel} *</Label>
+                            <Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', e.target.value)} placeholder="Bijv. 3,25"/>
+                             {dynamischPrijsHelperText && <p className="text-xs text-muted-foreground">{dynamischPrijsHelperText}</p>}
                         </div>
                     </div>
                 </div>
@@ -483,7 +502,7 @@ export default function HsbWandMaterialenPage() {
                     </CardContent>
                  </Card>
 
-                 <Card>
+                <Card>
                     <CardHeader>
                         <CardTitle>Kozijnen</CardTitle>
                         <CardDescription>Materiaal voor raamkozijnen in deze wand.</CardDescription>
@@ -491,9 +510,9 @@ export default function HsbWandMaterialenPage() {
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
                         {renderSelectieRij({ key: 'typeKozijn', standaardCategorieen: ['Kozijnen'] })}
                     </CardContent>
-                 </Card>
+                </Card>
 
-                 <Card>
+                <Card>
                     <CardHeader>
                         <CardTitle>Deuren</CardTitle>
                         <CardDescription>Materiaal voor deuren in deze wand.</CardDescription>
@@ -501,7 +520,7 @@ export default function HsbWandMaterialenPage() {
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
                         {renderSelectieRij({ key: 'typeDeur', standaardCategorieen: ['Deuren'] })}
                     </CardContent>
-                 </Card>
+                </Card>
 
                  <Card>
                     <CardHeader>
@@ -551,7 +570,7 @@ export default function HsbWandMaterialenPage() {
                             </div>
                         )}
                         <div className="flex items-center justify-between pt-4">
-                             {extraMaterialen.length > 0 && <p className="text-sm font-medium">Totaal: {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(totaalExtraMateriaal)}</p>}
+                             {extraMaterialen.length > 0 && <p className="text-sm font-medium">Aantal items: {extraMaterialen.length} — Totaal materiaal: {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(totaalExtraMateriaal)}</p>}
                              <Button variant="outline" size="sm" onClick={() => setExtraMateriaalModalOpen(true)} className="ml-auto">
                                  Materiaal toevoegen
                              </Button>
