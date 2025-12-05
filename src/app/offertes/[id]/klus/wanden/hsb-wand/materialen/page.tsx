@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -413,18 +413,30 @@ export default function HsbWandMaterialenPage() {
     }
 
     return (
-      <div className="flex items-center justify-between pt-4 first:pt-0">
-        <div>{statusText}</div>
-        <div className="flex items-center gap-2">
-          {aantal > 0 && (
-            <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setExtraMateriaalModalOpen(true)}>
-            {aantal > 0 ? 'Wijzigen' : 'Kiezen'}
-          </Button>
+      <div>
+        <div className="flex items-center justify-between pt-4 first:pt-0">
+            <div>
+              {statusText}
+            </div>
+            <div className="flex items-center gap-2">
+                {aantal > 0 && (
+                    <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setExtraMateriaalModalOpen(true)}>
+                    {aantal > 0 ? 'Wijzigen' : 'Kiezen'}
+                </Button>
+            </div>
         </div>
+        {aantal > 0 && (
+            <div className="mt-2 pl-1">
+                <button onClick={() => setExtraMateriaalModalOpen(true)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                    <PlusCircle className="w-3 h-3"/>
+                    Extra materiaal toevoegen
+                </button>
+            </div>
+        )}
       </div>
     );
   };
