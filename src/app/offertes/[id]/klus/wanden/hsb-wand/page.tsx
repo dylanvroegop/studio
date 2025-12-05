@@ -23,7 +23,6 @@ type Wall = {
   heeftSparingen: boolean;
   aantalSparingen: string;
   omschrijvingSparingen: string;
-  wandtype: 'dragend' | 'niet-dragend' | 'onbekend';
   opmerkingen: string;
 };
 
@@ -35,7 +34,6 @@ const defaultWallState: Wall = {
   heeftSparingen: false,
   aantalSparingen: '',
   omschrijvingSparingen: '',
-  wandtype: 'onbekend',
   opmerkingen: '',
 };
 
@@ -210,20 +208,6 @@ export default function HsbWandPage() {
                                      )}
                                  </div>
                                 <div className="space-y-2">
-                                  <Label htmlFor={`wandtype-${index}`}>Wandtype</Label>
-                                  <Select value={wall.wandtype} onValueChange={(value: Wall['wandtype']) => handleWallChange(index, 'wandtype', value)}>
-                                    <SelectTrigger id={`wandtype-${index}`}>
-                                      <SelectValue placeholder="Kies een type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="dragend">Dragend</SelectItem>
-                                      <SelectItem value="niet-dragend">Niet-dragend</SelectItem>
-                                      <SelectItem value="onbekend">Onbekend</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                   <p className="text-xs text-muted-foreground">Gebruik voor berekening en materiaallijst.</p>
-                                </div>
-                                <div className="space-y-2">
                                   <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen</Label>
                                   <Textarea id={`opmerkingen-${index}`} placeholder="Eventuele bijzonderheden..." value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
                                 </div>
@@ -249,5 +233,3 @@ export default function HsbWandPage() {
     </main>
   );
 }
-
-    
