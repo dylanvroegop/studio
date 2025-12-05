@@ -98,10 +98,15 @@ function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, 
   const [zoekterm, setZoekterm] = useState('');
   
   const gefilterdeMaterialen = useMemo(() => {
-    if (!slot || slot.standaardCategorieen.length === 0) return [];
-    return mockMaterialen
-      .filter(m => slot.standaardCategorieen.includes(m.categorie))
-      .filter(m => m.naam.toLowerCase().includes(zoekterm.toLowerCase()));
+    if (!slot) return [];
+    let materialenLijst = mockMaterialen;
+
+    const categorieFilter = slot.standaardCategorieen;
+    if(categorieFilter.length > 0){
+        materialenLijst = materialenLijst.filter(m => categorieFilter.includes(m.categorie));
+    }
+    
+    return materialenLijst.filter(m => m.naam.toLowerCase().includes(zoekterm.toLowerCase()));
   }, [zoekterm, slot]);
 
   if (!open || !slot) {
@@ -184,8 +189,7 @@ export default function HsbWandMaterialenPage() {
   const [loading, setLoading] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, Materiaal | undefined>>({});
-  const [gekozenGipsplaat, setGekozenGipsplaat] = useState<Materiaal | undefined>();
-
+  
   const [modalOpen, setModalOpen] = useState(false);
   const [actiefSlot, setActiefSlot] = useState<MateriaalSlot | null>(null);
 
@@ -220,14 +224,6 @@ export default function HsbWandMaterialenPage() {
         delete newState[slotKey];
         return newState;
     });
-  };
-  
-  const handleGipsSelectie = (slotKey: string, materiaal: Materiaal) => {
-    setGekozenGipsplaat(materiaal);
-  };
-  
-  const handleGipsVerwijderen = () => {
-    setGekozenGipsplaat(undefined);
   };
 
   const isVolgendeIngeschakeld = true; // Voor nu altijd ingeschakeld
@@ -276,13 +272,12 @@ export default function HsbWandMaterialenPage() {
                                 return (
                                     <div key={slot.key} className="flex items-center justify-between pt-4 first:pt-0">
                                         <div>
-                                            <Label className="font-medium">{slot.label}</Label>
                                             {gekozenMateriaal ? (
                                                 <p className="text-sm text-primary">
                                                     Gekozen: {gekozenMateriaal.naam}
                                                 </p>
                                             ) : (
-                                                !slot.description && <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
+                                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -308,8 +303,8 @@ export default function HsbWandMaterialenPage() {
                     </Card>
                 ))}
 
-                {/* Gipsplaat Sectie */}
-                <Card>
+                {/* Andere secties */}
+                 <Card>
                     <CardHeader>
                         <CardTitle>Gips / Fermacell</CardTitle>
                         <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
@@ -317,28 +312,27 @@ export default function HsbWandMaterialenPage() {
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
                         <div className="flex items-center justify-between pt-4 first:pt-0">
                             <div>
-                                <Label className="font-medium">Selecteer type plaat</Label>
-                                {gekozenGipsplaat ? (
-                                    <p className="text-sm text-primary">Gekozen: {gekozenGipsplaat.naam}</p>
+                                {gekozenMaterialen['gipsPlaat'] ? (
+                                    <p className="text-sm text-primary">
+                                        Gekozen: {gekozenMaterialen['gipsPlaat']!.naam}
+                                    </p>
                                 ) : (
                                     <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                {gekozenGipsplaat && (
-                                    <Button variant="ghost" size="icon" onClick={handleGipsVerwijderen} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder gipsplaat">
+                                {gekozenMaterialen['gipsPlaat'] && (
+                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gipsPlaat')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 )}
-                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer({ key: 'gipsplaat', label: 'Selecteer type plaat', standaardCategorieen: ['Gips'] })}>
-                                    {gekozenGipsplaat ? 'Wijzigen' : 'Kiezen'}
+                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer({ key: 'gipsPlaat', label: 'Selecteer type plaat', standaardCategorieen: ['Gips'] })}>
+                                    {gekozenMaterialen['gipsPlaat'] ? 'Wijzigen' : 'Kiezen'}
                                 </Button>
                             </div>
                         </div>
                     </CardContent>
-                </Card>
-
-                {/* Andere secties */}
+                 </Card>
                  <Card>
                     <CardHeader>
                         <CardTitle>Kozijnen & Deuren</CardTitle>
@@ -386,9 +380,9 @@ export default function HsbWandMaterialenPage() {
       <MateriaalKiezerModal
           open={modalOpen}
           slot={actiefSlot}
-          geselecteerdMateriaalId={actiefSlot ? (actiefSlot.key === 'gipsplaat' ? gekozenGipsplaat?.id : gekozenMaterialen[actiefSlot.key]?.id) : undefined}
+          geselecteerdMateriaalId={actiefSlot ? gekozenMaterialen[actiefSlot.key]?.id : undefined}
           onSluiten={sluitMateriaalKiezer}
-          onSelecteren={actiefSlot?.key === 'gipsplaat' ? handleGipsSelectie : handleMateriaalSelectie}
+          onSelecteren={handleMateriaalSelectie}
       />
     </>
   );
