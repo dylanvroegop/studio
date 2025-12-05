@@ -241,7 +241,7 @@ export default function RegisterPage() {
             <Button onClick={handleRegister} disabled={isLoading} className="w-full">
               {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
             </Button>
-             <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-muted-foreground">
               Heb je al een account?{' '}
               <Link href="/login" className="underline text-primary hover:text-primary/80">
                 Inloggen
