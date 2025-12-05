@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -160,8 +160,36 @@ export default function HsbWandPage() {
                                    <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
                                  </div>
                                  <div className="space-y-2">
-                                   <Label htmlFor={`gipsLagen-${index}`}>Aantal lagen gips</Label>
-                                   <Input id={`gipsLagen-${index}`} type="number" placeholder="Bijv. 1" value={wall.gipsLagen} onChange={(e) => handleWallChange(index, 'gipsLagen', e.target.value)} />
+                                    <Label htmlFor={`gipsLagen-${index}`}>Aantal lagen gips</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-10 w-10"
+                                            onClick={() => {
+                                                const currentValue = parseInt(wall.gipsLagen) || 1;
+                                                handleWallChange(index, 'gipsLagen', Math.max(1, currentValue - 1).toString());
+                                            }}
+                                        >
+                                            <Minus className="h-4 w-4" />
+                                        </Button>
+                                        <div className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base justify-center items-center md:text-sm">
+                                            {wall.gipsLagen}
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-10 w-10"
+                                            onClick={() => {
+                                                const currentValue = parseInt(wall.gipsLagen) || 0;
+                                                handleWallChange(index, 'gipsLagen', (currentValue + 1).toString());
+                                            }}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                     <p className="text-xs text-muted-foreground">Aantal binnenlagen gips of fermacell.</p>
                                  </div>
                                </div>
