@@ -1,3 +1,6 @@
+// Deze pagina zal later een volledige Supabase-integratie krijgen voor
+// het ophalen van materialen en het opslaan van de gemaakte keuzes.
+// Momenteel wordt alles client-side met mock data afgehandeld.
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -38,6 +41,7 @@ const mockMaterialen: Materiaal[] = [
 type MateriaalSlot = {
   key: string;
   label: string;
+  description?: string;
   standaardCategorieen: string[];
 };
 
@@ -52,7 +56,7 @@ const materiaalSlotConfig: SlotSectie[] = [
     slots: [
       { key: 'typeBalk', label: 'Selecteer type balk', standaardCategorieen: ['Hout'] },
       { key: 'lengteBalk', label: 'Selecteer lengte balk', standaardCategorieen: ['Hout'] },
-      { key: 'hohAfstand', label: 'Selecteer afstand (h.o.h.)', standaardCategorieen: [] }, // Dummy, geen materialen
+      { key: 'hohAfstand', label: 'Selecteer balkafstand', description: 'Hart-op-hart afstand tussen de balken (h.o.h.).', standaardCategorieen: [] },
     ]
   },
   {
@@ -81,39 +85,39 @@ const materiaalSlotConfig: SlotSectie[] = [
 
 type MateriaalKiezerModalProps = {
   open: boolean;
-  slotKey: string;
-  slotLabel: string;
-  standaardCategorieen: string[];
+  slot: MateriaalSlot | null;
   geselecteerdMateriaalId?: string;
   onSluiten: () => void;
   onSelecteren: (slotKey: string, materiaal: Materiaal) => void;
 };
 
-function MateriaalKiezerModal({ open, slotKey, slotLabel, standaardCategorieen, geselecteerdMateriaalId, onSluiten, onSelecteren }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, onSelecteren }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
   
   const gefilterdeMaterialen = useMemo(() => {
-    if (standaardCategorieen.length === 0) return [];
+    if (!slot || slot.standaardCategorieen.length === 0) return [];
     return mockMaterialen
-      .filter(m => standaardCategorieen.includes(m.categorie))
+      .filter(m => slot.standaardCategorieen.includes(m.categorie))
       .filter(m => m.naam.toLowerCase().includes(zoekterm.toLowerCase()));
-  }, [zoekterm, standaardCategorieen]);
+  }, [zoekterm, slot]);
 
-  if (!open) {
+  if (!open || !slot) {
     return null;
   }
 
   const handleSelect = (materiaal: Materiaal) => {
-    onSelecteren(slotKey, materiaal);
+    onSelecteren(slot.key, materiaal);
     onSluiten();
   }
+
+  const isBalkafstand = slot.key === 'hohAfstand';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div className="bg-card text-card-foreground border border-border rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
         <header className="p-4 border-b flex items-center justify-between">
             <div>
-                 <h2 className="text-lg font-semibold">Kies materiaal voor: {slotLabel}</h2>
+                 <h2 className="text-lg font-semibold">{isBalkafstand ? 'Kies balkafstand' : `Kies materiaal voor: ${slot.label}`}</h2>
                  <p className="text-sm text-muted-foreground">Zoek op naam of kies uit de lijst.</p>
             </div>
             <Button variant="ghost" size="icon" onClick={onSluiten} aria-label="Sluiten">
@@ -124,7 +128,7 @@ function MateriaalKiezerModal({ open, slotKey, slotLabel, standaardCategorieen, 
         <div className="p-4 border-b">
             <Input 
                 type="text"
-                placeholder="Zoek op materiaalnaam..."
+                placeholder={isBalkafstand ? "Zoek op afstandswaarde..." : "Zoek op materiaalnaam..."}
                 value={zoekterm}
                 onChange={(e) => setZoekterm(e.target.value)}
             />
@@ -211,7 +215,11 @@ export default function HsbWandMaterialenPage() {
   };
 
   const handleMateriaalVerwijderen = (slotKey: string) => {
-    setGekozenMaterialen(prev => ({ ...prev, [slotKey]: undefined }));
+    setGekozenMaterialen(prev => {
+        const newState = { ...prev };
+        delete newState[slotKey];
+        return newState;
+    });
   };
   
   const handleGipsSelectie = (slotKey: string, materiaal: Materiaal) => {
@@ -268,12 +276,13 @@ export default function HsbWandMaterialenPage() {
                                     <div key={slot.key} className="flex items-center justify-between pt-4 first:pt-0">
                                         <div>
                                             <Label className="font-medium">{slot.label}</Label>
+                                            {slot.description && <p className="text-sm text-muted-foreground">{slot.description}</p>}
                                             {gekozenMateriaal ? (
-                                                <p className="text-sm text-muted-foreground">
+                                                <p className="text-sm text-primary">
                                                     Gekozen: {gekozenMateriaal.naam}
                                                 </p>
                                             ) : (
-                                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
+                                                !slot.description && <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -307,7 +316,7 @@ export default function HsbWandMaterialenPage() {
                             <div>
                                 <Label className="font-medium">Selecteer type plaat</Label>
                                 {gekozenGipsplaat ? (
-                                    <p className="text-sm text-muted-foreground">Gekozen: {gekozenGipsplaat.naam}</p>
+                                    <p className="text-sm text-primary">Gekozen: {gekozenGipsplaat.naam}</p>
                                 ) : (
                                     <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                 )}
@@ -359,9 +368,7 @@ export default function HsbWandMaterialenPage() {
 
       <MateriaalKiezerModal
           open={modalOpen}
-          slotKey={actiefSlot?.key ?? ''}
-          slotLabel={actiefSlot?.label ?? ''}
-          standaardCategorieen={actiefSlot?.standaardCategorieen ?? []}
+          slot={actiefSlot}
           geselecteerdMateriaalId={actiefSlot ? (actiefSlot.key === 'gipsplaat' ? gekozenGipsplaat?.id : gekozenMaterialen[actiefSlot.key]?.id) : undefined}
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={actiefSlot?.key === 'gipsplaat' ? handleGipsSelectie : handleMateriaalSelectie}
