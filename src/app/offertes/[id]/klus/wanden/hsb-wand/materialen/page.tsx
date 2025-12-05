@@ -348,8 +348,8 @@ export default function HsbWandMaterialenPage() {
 
                  <Card>
                     <CardHeader>
-                        <CardTitle>Stucwerk</CardTitle>
-                        <CardDescription>Vulmiddel of stucafwerking.</CardDescription>
+                        <CardTitle>Naden vullen</CardTitle>
+                        <CardDescription>Vulmiddel voor het dichten van naden tussen platen.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
                         {renderSelectieRij({ key: 'stucVulling', standaardCategorieen: ['Stuc'] })}
