@@ -77,7 +77,6 @@ export default function HsbWandPage() {
         return;
     }
     
-    // Store wall data in localStorage to pass to the next page
     localStorage.setItem(`quote-${quoteId}-hsb-wanden`, JSON.stringify(walls));
     
     router.push(`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`);
@@ -141,16 +140,16 @@ export default function HsbWandPage() {
                                      <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
                                    </div>
                                </div>
-                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div className="space-y-2">
+                               <div className="space-y-2">
                                    <Label htmlFor={`balkafstand-${index}`}>Balkafstand (h.o.h.)</Label>
                                    <Input id={`balkafstand-${index}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} />
                                    <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
-                                 </div>
                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen</Label>
-                                  <Textarea id={`opmerkingen-${index}`} placeholder="Eventuele bijzonderheden..." value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
+
+                               <div className="space-y-2 pt-2">
+                                  <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
+                                   <p className="text-xs text-muted-foreground">Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.</p>
+                                  <Textarea id={`opmerkingen-${index}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
                                 </div>
                            </CardContent>
                        </Card>
