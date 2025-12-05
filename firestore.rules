@@ -26,5 +26,11 @@ service cloud.firestore {
       allow get: if isSignedIn() && isOwner(resource.data.userId);
       allow write: if isSignedIn() && isOwner(request.resource.data.userId);
     }
+
+    // Rules for the 'businesses' collection
+    match /businesses/{businessId} {
+      allow create: if isSignedIn() && isOwner(businessId);
+      allow get, update, delete: if isSignedIn() && isOwner(businessId);
+    }
   }
 }
