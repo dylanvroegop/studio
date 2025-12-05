@@ -98,6 +98,7 @@ export default function MaterialenPage() {
     
     const [search, setSearch] = useState('');
     const [supplierFilter, setSupplierFilter] = useState<string>('all');
+    const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
     useEffect(() => {
         if (!isUserLoading && !user) {
@@ -147,12 +148,20 @@ export default function MaterialenPage() {
         if (supplierFilter !== 'all') {
             result = result.filter(m => m.leverancier === supplierFilter);
         }
+        
+        if (categoryFilter !== 'all') {
+            result = result.filter(m => m.categorie === categoryFilter);
+        }
 
         return result;
-    }, [search, supplierFilter, materials]);
+    }, [search, supplierFilter, categoryFilter, materials]);
     
     const uniqueSuppliers = useMemo(() => {
         return [...new Set(materials.map(m => m.leverancier).filter(Boolean).sort())];
+    }, [materials]);
+
+    const uniqueCategories = useMemo(() => {
+        return [...new Set(materials.map(m => m.categorie).filter(Boolean).sort())];
     }, [materials]);
 
     if (isUserLoading || (!user && !error)) {
@@ -189,15 +198,26 @@ export default function MaterialenPage() {
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
-                            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                                <SelectTrigger className="w-full md:w-[200px]">
-                                    <SelectValue placeholder="Leverancier" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Alle leveranciers</SelectItem>
-                                    {uniqueSuppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                            <div className="flex gap-2">
+                                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                                    <SelectTrigger className="w-full md:w-[200px]">
+                                        <SelectValue placeholder="Leverancier" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Alle leveranciers</SelectItem>
+                                        {uniqueSuppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                                    <SelectTrigger className="w-full md:w-[200px]">
+                                        <SelectValue placeholder="Categorie" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Alle categorieën</SelectItem>
+                                        {uniqueCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>
