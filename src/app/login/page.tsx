@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   AuthError,
 } from 'firebase/auth';
+import Link from 'next/link';
 import { useAuth, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,71 +14,51 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Hammer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const { toast } = useToast();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [user, isUserLoading, router]);
 
-  const handleAuthAction = async (isLogin: boolean) => {
+  const handleLogin = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-        toast({ title: 'Succes', description: 'U bent succesvol ingelogd.' });
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-        toast({ title: 'Succes', description: 'Uw account is succesvol aangemaakt.' });
-      }
-      router.push('/');
-    } catch (error) {
-      const authError = error as AuthError;
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push('/dashboard');
+    } catch (e) {
+      const authError = e as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';
       switch (authError.code) {
         case 'auth/invalid-email':
           errorMessage = 'Ongeldig emailadres formaat.';
           break;
-        case 'auth/weak-password':
-          errorMessage = 'Wachtwoord moet minimaal 6 tekens lang zijn.';
-          break;
-        case 'auth/email-already-in-use':
-          errorMessage = 'Dit emailadres is al geregistreerd. Probeer in te loggen.';
-          break;
         case 'auth/user-not-found':
         case 'auth/invalid-credential':
         case 'auth/wrong-password':
-          errorMessage = 'Ongeldig emailadres of wachtwoord. Controleer uw gegevens of maak een nieuw account aan.';
+          errorMessage = 'Ongeldig emailadres of wachtwoord. Controleer uw gegevens.';
           break;
-        case 'auth/operation-not-allowed':
-          errorMessage = 'Email/Password sign-in is niet ingeschakeld in uw Firebase Console.';
-          break;
-        case 'auth/invalid-api-key':
-        case 'auth/network-request-failed':
-             errorMessage = 'Verbinding met Firebase mislukt. Controleer uw API-sleutel en netwerkverbinding.'
-             break;
         default:
-          errorMessage = `Authenticatie mislukt: ${authError.message}`;
+          errorMessage = `Authenticatie mislukt. Probeer het opnieuw.`;
       }
-      toast({
-        variant: 'destructive',
-        title: 'Authenticatie Fout',
-        description: errorMessage,
-      });
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   if (isUserLoading || user) {
       return (
           <div className="min-h-screen flex items-center justify-center p-4">
@@ -128,14 +108,26 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
             </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Inlogfout</AlertTitle>
+                <AlertDescription>
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
-          <div className="mt-6 flex flex-col gap-3">
-            <Button onClick={() => handleAuthAction(true)} disabled={isLoading} className="w-full">
+          <div className="mt-6 flex flex-col gap-4">
+            <Button onClick={handleLogin} disabled={isLoading} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
               {isLoading ? 'Inloggen...' : 'Inloggen'}
             </Button>
-            <Button onClick={() => handleAuthAction(false)} disabled={isLoading} variant="outline" className="w-full">
-              {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
-            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Nog geen account?{' '}
+              <Link href="/register" className="underline text-primary hover:text-primary/80">
+                Account aanmaken
+              </Link>
+            </p>
           </div>
         </CardContent>
       </Card>
