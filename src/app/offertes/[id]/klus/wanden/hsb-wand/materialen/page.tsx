@@ -242,13 +242,12 @@ export default function HsbWandMaterialenPage() {
           </div>
         </div>
         {isGipsSlot && gekozenMateriaal && (
-            <div className="flex items-center justify-between mt-2 pl-1">
-                <p className="text-sm text-muted-foreground">Lagen: {gipsLagen}</p>
-                 <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                    <Settings className="w-3 h-3"/>
-                    Lagen aanpassen
-                </button>
-            </div>
+          <div className="mt-2 pl-1">
+             <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                <Settings className="w-3 h-3"/>
+                Lagen: {gipsLagen} (aanpassen)
+            </button>
+          </div>
         )}
       </div>
     );
@@ -288,7 +287,7 @@ export default function HsbWandMaterialenPage() {
               <div className="space-y-8">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Constructie</CardTitle>
+                        <CardTitle>Balktype</CardTitle>
                         <CardDescription>Balktype voor de wandconstructie.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
