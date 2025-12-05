@@ -337,11 +337,20 @@ export default function HsbWandMaterialenPage() {
 
                  <Card>
                     <CardHeader>
-                        <CardTitle>Kozijnen & Deuren</CardTitle>
-                        <CardDescription>Materiaal voor kozijnen en deuren.</CardDescription>
+                        <CardTitle>Kozijnen</CardTitle>
+                        <CardDescription>Materiaal voor raamkozijnen in deze wand.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 divide-y divide-border -mt-4">
                         {renderSelectieRij({ key: 'typeKozijn', standaardCategorieen: ['Kozijnen'] })}
+                    </CardContent>
+                 </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Deuren</CardTitle>
+                        <CardDescription>Materiaal voor deuren in deze wand.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
                         {renderSelectieRij({ key: 'typeDeur', standaardCategorieen: ['Deuren'] })}
                     </CardContent>
                  </Card>
