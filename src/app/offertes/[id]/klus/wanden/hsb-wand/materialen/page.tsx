@@ -181,7 +181,6 @@ export default function HsbWandMaterialenPage() {
   const [loading, setLoading] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, Materiaal | undefined>>({});
-  const [gipsLagen, setGipsLagen] = useState(1);
   const [gekozenGipsplaat, setGekozenGipsplaat] = useState<Materiaal | undefined>();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -329,16 +328,6 @@ export default function HsbWandMaterialenPage() {
                                     {gekozenGipsplaat ? 'Wijzigen' : 'Kiezen'}
                                 </Button>
                             </div>
-                        </div>
-                        <div className="flex items-center justify-between pt-4">
-                             <div>
-                                <Label className="font-medium">+ Extra laag gips</Label>
-                                <p className="text-sm text-muted-foreground">Huidig: {gipsLagen} laag</p>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setGipsLagen(v => Math.max(1, v - 1))} disabled={gipsLagen <= 1}><MinusCircle className="h-4 w-4"/></Button>
-                                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setGipsLagen(v => v + 1)}><PlusCircle className="h-4 w-4"/></Button>
-                             </div>
                         </div>
                     </CardContent>
                 </Card>
