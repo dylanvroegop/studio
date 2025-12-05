@@ -224,7 +224,7 @@ export default function Dashboard() {
                 <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
                     <Link href="/offertes/nieuw">
                         <PlusCircle className="mr-2 h-4 w-4" />
-                        Nieuwe Offerte
+                        Offerte aanvragen
                     </Link>
                 </Button>
             </div>
