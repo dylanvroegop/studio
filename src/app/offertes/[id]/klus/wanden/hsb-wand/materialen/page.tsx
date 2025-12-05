@@ -165,7 +165,6 @@ const defaultExtraMateriaal = {
     breedteMm: undefined,
     hoogteMm: undefined,
     prijsPerEenheid: undefined,
-    urenArbeid: undefined,
 };
 
 type ExtraMateriaalModalProps = {
@@ -216,7 +215,7 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
             lengteMm: item.lengteMm ? Number(item.lengteMm) : undefined,
             breedteMm: item.breedteMm ? Number(item.breedteMm) : undefined,
             hoogteMm: item.hoogteMm ? Number(item.hoogteMm) : undefined,
-            urenArbeid: item.urenArbeid ? Number(item.urenArbeid) : undefined,
+            urenArbeid: undefined,
         }
         onOpslaan(nieuwItem);
         setItem(defaultExtraMateriaal);
@@ -250,7 +249,6 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                                     <SelectItem value="m³">m³</SelectItem>
                                     <SelectItem value="stuk">stuk</SelectItem>
                                     <SelectItem value="set">set</SelectItem>
-                                    <SelectItem value="uur">uur</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -285,15 +283,10 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan }: ExtraMateriaalModal
                             <p className="text-xs text-muted-foreground">Gebruik alleen lengte/breedte/hoogte als de prijs per m¹/m²/m³ wordt berekend.</p>
                         </div>
                     )}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                          <div className="space-y-2">
                             <Label htmlFor="extra-prijs">Materiaalkosten per eenheid (€) *</Label>
                             <Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', e.target.value)} placeholder="Bijv. 12,50"/>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="extra-uren">Uren arbeid (optioneel)</Label>
-                            <Input id="extra-uren" type="number" value={item.urenArbeid || ''} onChange={e => handleFieldChange('urenArbeid', e.target.value)} placeholder="Bijv. 0,5"/>
-                             <p className="text-xs text-muted-foreground">Extra arbeidstijd die bij dit materiaal hoort.</p>
                         </div>
                     </div>
                     <div className="pt-4 border-t">
