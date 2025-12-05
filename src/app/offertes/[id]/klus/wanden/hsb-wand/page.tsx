@@ -20,7 +20,6 @@ type Wall = {
   hoogte: string;
   balkafstand: string;
   gipsLagen: string;
-  isolatieDikte: string;
   heeftSparingen: boolean;
   aantalSparingen: string;
   omschrijvingSparingen: string;
@@ -33,7 +32,6 @@ const defaultWallState: Wall = {
   hoogte: '',
   balkafstand: '600',
   gipsLagen: '1',
-  isolatieDikte: '',
   heeftSparingen: false,
   aantalSparingen: '',
   omschrijvingSparingen: '',
@@ -193,11 +191,6 @@ export default function HsbWandPage() {
                                     <p className="text-xs text-muted-foreground">Aantal binnenlagen gips of fermacell.</p>
                                  </div>
                                </div>
-                                <div className="space-y-2">
-                                   <Label htmlFor={`isolatieDikte-${index}`}>Isolatiedikte (mm)</Label>
-                                   <Input id={`isolatieDikte-${index}`} type="number" placeholder="Bijv. 140" value={wall.isolatieDikte} onChange={(e) => handleWallChange(index, 'isolatieDikte', e.target.value)} />
-                                    <p className="text-xs text-muted-foreground">Overschrijf de standaard isolatiedikte indien nodig.</p>
-                                 </div>
                                  <div className="space-y-4 rounded-md border p-4">
                                      <div className="flex items-center justify-between">
                                          <Label htmlFor={`sparingen-${index}`} className="font-medium">Sparingen in deze wand</Label>
@@ -256,3 +249,5 @@ export default function HsbWandPage() {
     </main>
   );
 }
+
+    
