@@ -30,16 +30,48 @@ type Material = {
   row_id: string;
   categorie: string;
   materiaalnaam: string;
-  prijs: number;
+  prijs: number | string | null; // Allow for mixed types from DB
   eenheid: string;
   leverancier: string;
   user_id: string;
 };
 
-function formatCurrency(amount?: number) {
-    if (amount === undefined || amount === null) return '—';
-    return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
+function parsePriceToNumber(raw: unknown): number | null {
+  if (raw == null) return null;
+
+  if (typeof raw === "number") {
+    return Number.isNaN(raw) ? null : raw;
+  }
+
+  if (typeof raw !== "string") return null;
+
+  let value = raw.trim();
+
+  // Remove euro sign and any spaces
+  value = value.replace(/€/g, "").replace(/\s+/g, "");
+
+  // Remove any characters that are not digit, dot or comma
+  value = value.replace(/[^0-9.,-]/g, "");
+
+  if (!value) return null;
+
+  // If there is both '.' and ',', treat '.' as thousands separator and ',' as decimal
+  const hasDot = value.includes(".");
+  const hasComma = value.includes(",");
+
+  if (hasDot && hasComma) {
+    // Remove all dots, use comma as decimal separator
+    value = value.replace(/\./g, "").replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    // Only comma → decimal separator
+    value = value.replace(",", ".");
+  }
+  // Only dot → already decimal, do nothing
+
+  const num = parseFloat(value);
+  return Number.isNaN(num) ? null : num;
 }
+
 
 function PageSkeleton() {
     return (
@@ -190,15 +222,28 @@ export default function MaterialenPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredMaterials.length > 0 ? filteredMaterials.map(material => (
-                                        <TableRow key={material.row_id}>
-                                            <TableCell>{material.leverancier || '—'}</TableCell>
-                                            <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
-                                            <TableCell>{material.categorie || '—'}</TableCell>
-                                            <TableCell>{material.eenheid}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(material.prijs)}</TableCell>
-                                        </TableRow>
-                                    )) : (
+                                    {filteredMaterials.length > 0 ? filteredMaterials.map(material => {
+                                        const prijsNumber = parsePriceToNumber(material.prijs);
+                                        const prijsLabel =
+                                          prijsNumber == null
+                                            ? "—"
+                                            : new Intl.NumberFormat("nl-NL", {
+                                                style: "currency",
+                                                currency: "EUR",
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2,
+                                              }).format(prijsNumber);
+
+                                        return (
+                                            <TableRow key={material.row_id}>
+                                                <TableCell>{material.leverancier || '—'}</TableCell>
+                                                <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
+                                                <TableCell>{material.categorie || '—'}</TableCell>
+                                                <TableCell>{material.eenheid}</TableCell>
+                                                <TableCell className="text-right">{prijsLabel}</TableCell>
+                                            </TableRow>
+                                        )
+                                    }) : (
                                         <TableRow>
                                             <TableCell colSpan={5} className="h-24 text-center">
                                                 Geen materialen gevonden.
