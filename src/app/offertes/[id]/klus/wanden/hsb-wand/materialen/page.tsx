@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -21,42 +21,25 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
+import { useUser } from '@/firebase';
 
 
 // ==================================
-// Definities en Mock Data
+// Definities en Data
 // ==================================
-
-// TODO: Dit wordt later vervangen door een Supabase-query voor materialen
 type Materiaal = {
+  row_id: string;
   id: string;
-  naam: string;
-  categorie: string;
+  materiaalnaam: string;
+  categorie: string | null;
   eenheid: string;
-  prijs: number;
-  sort_order: number;
+  prijs: number | string | null;
+  sort_order: number | null;
+  user_id: string;
 };
 
-const mockMaterialen: Materiaal[] = [
-  { id: 'h1', naam: 'Vuren SLS 38x123 C18', categorie: 'Hout', eenheid: 'm1', prijs: 2.85, sort_order: 1 },
-  { id: 'h2', naam: 'Vuren SLS 38x140 C24', categorie: 'Hout', eenheid: 'm1', prijs: 3.45, sort_order: 2 },
-  { id: 'i1', naam: 'Glaswol Isover 120mm RD 3.4', categorie: 'Isolatie', eenheid: 'm2', prijs: 8.50, sort_order: 3 },
-  { id: 'i2', naam: 'Steenwol Rockwool 120mm', categorie: 'Isolatie', eenheid: 'm2', prijs: 9.75, sort_order: 4 },
-  { id: 'p1', naam: 'Gipsplaat RK 12.5mm 60x260cm', categorie: 'Gips', eenheid: 'm2', prijs: 4.20, sort_order: 5 },
-  { id: 'p2', naam: 'Gipsvezelplaat Fermacell 12.5mm', categorie: 'Gips', eenheid: 'm2', prijs: 7.80, sort_order: 6 },
-  { id: 'osb1', naam: 'OSB-3 18mm TG4', categorie: 'Constructieplaat', eenheid: 'm2', prijs: 11.25, sort_order: 7 },
-  { id: 'f1', naam: 'Miofol 125S dampremmende folie', categorie: 'Folie', eenheid: 'm2', prijs: 1.50, sort_order: 8 },
-  { id: 'k1', naam: 'Houten binnenkozijn stomp', categorie: 'Kozijnen', eenheid: 'st', prijs: 85.00, sort_order: 9 },
-  { id: 'd1', naam: 'Opdekdeur wit', categorie: 'Deuren', eenheid: 'st', prijs: 120.00, sort_order: 10 },
-  { id: 's1', naam: 'Knauf Roodband 25kg', categorie: 'Stuc', eenheid: 'zak', prijs: 15.00, sort_order: 11 },
-  { id: 'pl1', naam: 'MDF Plint 90x12mm', categorie: 'Plinten', eenheid: 'm1', prijs: 3.50, sort_order: 12 },
-  { id: 'extra1', naam: 'Schroeven 5x60', categorie: 'Extra', eenheid: 'doos', prijs: 12.50, sort_order: 13 },
-];
-
-type MateriaalSlot = {
-  key: string;
-  standaardCategorieen: string[];
-};
+type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
 
 type ExtraMateriaal = {
   id: string;
@@ -68,6 +51,62 @@ type ExtraMateriaal = {
   prijsPerEenheid: number;
 }
 
+const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra'] as const;
+type SectieKey = typeof sectieSleutels[number];
+
+// Helper om sectie te bepalen
+function bepaalSectieVoorMateriaal(materiaalnaam: string, categorie: string | null): SectieKey {
+    const naam = materiaalnaam.toLowerCase();
+    const cat = categorie?.toLowerCase() || '';
+
+    const mapping: Record<SectieKey, string[]> = {
+        balktype: ['vuren sls', 'vuren geschaafd', 'vuren ruw', 'lvl', 'balk', 'fijnbezaagd', 'douglas', 'piketpaal', 'mastiek', 'bekistingsbrug'],
+        plinten: ['plint'],
+        kozijnen: ['kozijnhout', 'raamhout', 'glaslat', 'neuslat', 'weldorpel', 'raamdorpel', 'dorpel', 'vensterbank'],
+        deuren: ['deur', 'deuren', 'skantrae', 'berklon'],
+        gips_fermacell: ['gipskarton', 'gipskartonplaten', 'fermacell', 'habito', 'metalstuds', 'glasroc', 'gipsvezelplaat'],
+        isolatie: ['minerale wol', 'steenwol', 'rockwool', 'rockroof', 'rockfit', 'rocksono', 'rockvent', 'vlaswol', 'eps', 'xps', 'pir', 'kooltherm', 'jackodur', 'slimfix', 'isolatie'],
+        naden_vullen: ['jointfiller', 'voegenfinisher', 'voegengips', 'promix', 'lijm', 'mortel', 'band', 'tape', 'isolatieband'],
+        binnenbekleding: ['koplat', 'aftimmerlat', 'sierlijst', 'kastplank', 'meubelpanelen', 'plafondplaat', 'plafondlijst'],
+        folie: ['folie', 'dampremmende', 'dakbeschot', 'dakbedekking', 'epdm'],
+        extra: []
+    };
+    
+    // Speciale categorie check
+    if (cat === 'bouwhout') {
+      return 'balktype';
+    }
+
+    for (const sectie of sectieSleutels) {
+        if (sectie !== 'extra' && mapping[sectie].some(trefwoord => naam.includes(trefwoord))) {
+            return sectie;
+        }
+    }
+    
+    return 'extra';
+}
+
+function parsePrijsNaarNummer(raw: unknown): number | null {
+  if (raw == null) return null;
+  if (typeof raw === "number") return Number.isNaN(raw) ? null : raw;
+  if (typeof raw !== "string") return null;
+
+  let value = raw.trim().replace(/€/g, "").replace(/\s+/g, "").replace(/[^0-9.,-]/g, "");
+  if (!value) return null;
+
+  const hasDot = value.includes(".");
+  const hasComma = value.includes(",");
+  if (hasDot && hasComma) {
+    value = value.replace(/\./g, "").replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    value = value.replace(",", ".");
+  }
+
+  const num = parseFloat(value);
+  return Number.isNaN(num) ? null : num;
+}
+
+
 // ==================================
 // Modal Components
 // ==================================
@@ -75,8 +114,8 @@ type ExtraMateriaal = {
 type ReorderModalProps = {
   open: boolean;
   onSluiten: () => void;
-  materialen: Materiaal[];
-  onOpslaan: (opgeslagenMaterialen: Materiaal[]) => void;
+  materialen: MateriaalKeuze[];
+  onOpslaan: (opgeslagenMaterialen: MateriaalKeuze[]) => void;
 }
 
 function ReorderModal({ open, onSluiten, materialen, onOpslaan }: ReorderModalProps) {
@@ -104,7 +143,7 @@ function ReorderModal({ open, onSluiten, materialen, onOpslaan }: ReorderModalPr
               <Reorder.Item key={item.id} value={item}>
                 <div className="flex items-center gap-4 p-2 rounded-md bg-muted/50 cursor-grab active:cursor-grabbing">
                   <GripVertical className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">{item.naam}</span>
+                  <span className="font-medium">{item.materiaalnaam}</span>
                 </div>
               </Reorder.Item>
             ))}
@@ -122,35 +161,27 @@ function ReorderModal({ open, onSluiten, materialen, onOpslaan }: ReorderModalPr
 
 type MateriaalKiezerModalProps = {
   open: boolean;
-  slot: MateriaalSlot | null;
+  sectieSleutel: SectieKey;
   geselecteerdMateriaalId?: string;
   onSluiten: () => void;
-  onSelecteren: (slotKey: string, materiaal: Materiaal) => void;
+  onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
   openReorderModal: () => void;
-  materialen: Materiaal[];
+  materialen: MateriaalKeuze[];
 };
 
-function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
   
   const gefilterdeMaterialen = useMemo(() => {
-    if (!slot) return [];
-    let materialenLijst = materialen;
+    return materialen.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
+  }, [zoekterm, materialen]);
 
-    const categorieFilter = slot.standaardCategorieen;
-    if(categorieFilter.length > 0){
-        materialenLijst = materialenLijst.filter(m => categorieFilter.includes(m.categorie));
-    }
-    
-    return materialenLijst.filter(m => m.naam.toLowerCase().includes(zoekterm.toLowerCase()));
-  }, [zoekterm, slot, materialen]);
-
-  if (!open || !slot) {
+  if (!open || !sectieSleutel) {
     return null;
   }
 
-  const handleSelect = (materiaal: Materiaal) => {
-    onSelecteren(slot.key, materiaal);
+  const handleSelect = (materiaal: MateriaalKeuze) => {
+    onSelecteren(sectieSleutel, materiaal);
     onSluiten();
   }
 
@@ -184,7 +215,7 @@ function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, 
                     >
                         <div className="flex justify-between items-center">
                             <div>
-                                <p className="font-medium">{materiaal.naam}</p>
+                                <p className="font-medium">{materiaal.materiaalnaam}</p>
                                 <p className="text-sm text-muted-foreground">{materiaal.categorie}</p>
                             </div>
                             <div className="text-right">
@@ -228,7 +259,6 @@ type ExtraMateriaalModalProps = {
 
 function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord }: ExtraMateriaalModalProps) {
     const [item, setItem] = useState<Omit<ExtraMateriaal, 'id'> | ExtraMateriaal>(defaultExtraMateriaal);
-    const [huidigBewerkingsItem, setHuidigBewerkingsItem] = useState<ExtraMateriaal | null>(null);
 
     useEffect(() => {
       if (open) {
@@ -280,62 +310,10 @@ function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord 
                  </DialogHeader>
 
                 <div className="grid gap-6 py-4">
-                   <div className="space-y-2">
-                        <Label htmlFor="extra-naam">Materiaalnaam *</Label>
-                        <Input id="extra-naam" value={item.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" />
-                    </div>
-                    <div className="grid grid-cols-1">
-                        <div className="space-y-2">
-                            <Label htmlFor="extra-eenheid">Eenheid *</Label>
-                            <Select value={item.eenheid} onValueChange={value => handleFieldChange('eenheid', value as ExtraMateriaal['eenheid'])}>
-                                <SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="stuk">stuk</SelectItem>
-                                    <SelectItem value="m¹">m¹</SelectItem>
-                                    <SelectItem value="m²">m²</SelectItem>
-                                    <SelectItem value="m³">m³</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    {isEenheidDimensie && (
-                        <div className="p-4 border rounded-md space-y-4">
-                            <p className="text-sm font-medium">Maatvoering (alleen indien relevant)</p>
-                             <div className="grid grid-cols-3 gap-4">
-                                {['m¹', 'm²', 'm³'].includes(item.eenheid) && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="extra-lengte">Lengte (mm)</Label>
-                                        <Input id="extra-lengte" type="number" value={item.lengteMm || ''} onChange={e => handleFieldChange('lengteMm', e.target.value)} placeholder="Bijv. 3000"/>
-                                    </div>
-                                )}
-                                 {['m²', 'm³'].includes(item.eenheid) && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="extra-breedte">Breedte (mm)</Label>
-                                        <Input id="extra-breedte" type="number" value={item.breedteMm || ''} onChange={e => handleFieldChange('breedteMm', e.target.value)} placeholder="Bijv. 600"/>
-                                    </div>
-                                )}
-                                 {['m³'].includes(item.eenheid) && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="extra-hoogte">Hoogte / dikte (mm)</Label>
-                                        <Input id="extra-hoogte" type="number" value={item.hoogteMm || ''} onChange={e => handleFieldChange('hoogteMm', e.target.value)} placeholder="Bijv. 50"/>
-                                    </div>
-                                )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">Gebruik alleen lengte/breedte/hoogte als de prijs per m¹/m²/m³ wordt berekend.</p>
-                        </div>
-                    )}
-                    <div className="grid grid-cols-1 gap-4">
-                         <div className="space-y-2">
-                            <Label htmlFor="extra-prijs" className="text-red-300">{dynamischPrijsLabel} *</Label>
-                            <Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', Number(e.target.value))} placeholder="Bijv. 3,25"/>
-                             {dynamischPrijsHelperText && (
-                                <div className="mt-2 flex items-start gap-2 rounded-md border border-red-800 bg-red-950/40 p-2 text-sm text-red-300">
-                                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                                    <p>{dynamischPrijsHelperText}</p>
-                                </div>
-                             )}
-                        </div>
-                    </div>
+                   <div className="space-y-2"><Label htmlFor="extra-naam">Materiaalnaam *</Label><Input id="extra-naam" value={item.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" /></div>
+                    <div className="grid grid-cols-1"><div className="space-y-2"><Label htmlFor="extra-eenheid">Eenheid *</Label><Select value={item.eenheid} onValueChange={value => handleFieldChange('eenheid', value as ExtraMateriaal['eenheid'])}><SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="stuk">stuk</SelectItem><SelectItem value="m¹">m¹</SelectItem><SelectItem value="m²">m²</SelectItem><SelectItem value="m³">m³</SelectItem></SelectContent></Select></div></div>
+                    {isEenheidDimensie && (<div className="p-4 border rounded-md space-y-4"><p className="text-sm font-medium">Maatvoering (alleen indien relevant)</p><div className="grid grid-cols-3 gap-4">{['m¹', 'm²', 'm³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-lengte">Lengte (mm)</Label><Input id="extra-lengte" type="number" value={item.lengteMm || ''} onChange={e => handleFieldChange('lengteMm', e.target.value)} placeholder="Bijv. 3000"/></div>)}{['m²', 'm³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-breedte">Breedte (mm)</Label><Input id="extra-breedte" type="number" value={item.breedteMm || ''} onChange={e => handleFieldChange('breedteMm', e.target.value)} placeholder="Bijv. 600"/></div>)}{['m³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-hoogte">Hoogte / dikte (mm)</Label><Input id="extra-hoogte" type="number" value={item.hoogteMm || ''} onChange={e => handleFieldChange('hoogteMm', e.target.value)} placeholder="Bijv. 50"/></div>)}</div><p className="text-xs text-muted-foreground">Gebruik alleen lengte/breedte/hoogte als de prijs per m¹/m²/m³ wordt berekend.</p></div>)}
+                    <div className="grid grid-cols-1 gap-4"><div className="space-y-2"><Label htmlFor="extra-prijs" className="text-red-300">{dynamischPrijsLabel} *</Label><Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', Number(e.target.value))} placeholder="Bijv. 3,25"/>{dynamischPrijsHelperText && (<div className="mt-2 flex items-start gap-2 rounded-md border border-red-800 bg-red-950/40 p-2 text-sm text-red-300"><AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" /><p>{dynamischPrijsHelperText}</p></div>)}</div></div>
                 </div>
 
                 <DialogFooter>
@@ -356,47 +334,94 @@ function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord 
 export default function HsbWandMaterialenPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useUser();
   const quoteId = params.id as string;
   
   const [quote, setQuote] = useState<Quote | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isPaginaLaden, setPaginaLaden] = useState(true);
   
-  const [standaardMaterialen, setStandaardMaterialen] = useState<Materiaal[]>(() => {
-    return mockMaterialen.sort((a,b) => a.sort_order - b.sort_order || a.naam.localeCompare(b.naam));
-  });
-  const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, Materiaal | undefined>>({});
+  // State voor materialen
+  const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
+  const [isMaterialenLaden, setMaterialenLaden] = useState(true);
+  const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
+  
+  const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [extraMaterialen, setExtraMaterialen] = useState<ExtraMateriaal[]>([]);
   const [gipsLagen, setGipsLagen] = useState(1);
   const [tempGipsLagen, setTempGipsLagen] = useState(1);
   
-  const [materiaalModalOpen, setMateriaalModalOpen] = useState(false);
+  // State voor modals
+  const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [extraMateriaalModalOpen, setExtraMateriaalModalOpen] = useState(false);
   const [extraMateriaalModalMode, setExtraMateriaalModalMode] = useState<'add' | 'edit'>('add');
   const [editingExtraMateriaal, setEditingExtraMateriaal] = useState<ExtraMateriaal | undefined>(undefined);
-  const [reorderModalOpen, setReorderModalOpen] = useState(false);
-  
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
-  const [actiefSlot, setActiefSlot] = useState<MateriaalSlot | null>(null);
 
+  // Quote data ophalen
   useEffect(() => {
     async function fetchQuote() {
       if (!quoteId) return;
-      setLoading(true);
+      setPaginaLaden(true);
       const quoteData = await getQuoteById(quoteId);
       setQuote(quoteData || null);
-      setLoading(false);
+      setPaginaLaden(false);
     }
     fetchQuote();
   }, [quoteId]);
 
-  const openMateriaalKiezer = (slot: MateriaalSlot) => {
-    setActiefSlot(slot);
-    setMateriaalModalOpen(true);
+  // Supabase materialen ophalen
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const haalMaterialenOp = async () => {
+        setMaterialenLaden(true);
+        setFoutMaterialen(null);
+
+        const { data, error } = await supabase
+            .from('materialen_duplicate')
+            .select('*')
+            .eq('user_id', user.uid);
+
+        if (error) {
+            console.error('Fout bij het ophalen van Supabase:', error);
+            setFoutMaterialen(`Fout bij het laden van materialen: ${error.message}`);
+            setAlleMaterialen([]);
+        } else {
+            const getransformeerdeData = (data as Materiaal[]).map(m => ({
+                id: m.row_id,
+                materiaalnaam: m.materiaalnaam,
+                categorie: m.categorie,
+                eenheid: m.eenheid,
+                prijs: parsePrijsNaarNummer(m.prijs) || 0,
+                sort_order: m.sort_order
+            }));
+            setAlleMaterialen(getransformeerdeData);
+        }
+        setMaterialenLaden(false);
+    };
+
+    haalMaterialenOp();
+  }, [user?.uid]);
+
+  const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
+      return alleMaterialen
+          .filter(m => bepaalSectieVoorMateriaal(m.materiaalnaam, m.categorie) === sectieKey)
+          .sort((a, b) => {
+              const orderA = a.sort_order ?? Infinity;
+              const orderB = b.sort_order ?? Infinity;
+              if (orderA !== orderB) return orderA - orderB;
+              return a.materiaalnaam.localeCompare(b.materiaalnaam);
+          });
+  }, [alleMaterialen]);
+
+
+  const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
+    setActieveSectie(sectieSleutel);
   };
   
   const sluitMateriaalKiezer = () => {
-    setMateriaalModalOpen(false);
-    setActiefSlot(null);
+    setActieveSectie(null);
   };
   
   const openExtraMateriaalModal = (mode: 'add' | 'edit', item?: ExtraMateriaal) => {
@@ -415,61 +440,90 @@ export default function HsbWandMaterialenPage() {
     setLagenModalOpen(false);
   }
 
-  const handleMateriaalSelectie = (slotKey: string, materiaal: Materiaal) => {
-    setGekozenMaterialen(prev => ({ ...prev, [slotKey]: materiaal }));
+  const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
+    setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
   };
   
   const handleExtraMateriaalOpslaan = (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => {
-    if ('id' in materiaal && materiaal.id) { // Update existing
+    if ('id' in materiaal && materiaal.id) {
       setExtraMaterialen(prev => prev.map(m => m.id === materiaal.id ? materiaal : m));
-    } else { // Add new
+    } else {
       const nieuwMateriaal = { ...materiaal, id: new Date().toISOString() };
       setExtraMaterialen(prev => [...prev, nieuwMateriaal]);
     }
   };
 
-  const handleMateriaalVerwijderen = (slotKey: string) => {
+  const handleMateriaalVerwijderen = (sectieSleutel: SectieKey) => {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
-        delete newState[slotKey];
-        if (slotKey === 'gipsPlaat') {
-            setGipsLagen(1); // Reset lagen if gips is removed
+        delete newState[sectieSleutel];
+        if (sectieSleutel === 'gips_fermacell') {
+            setGipsLagen(1);
         }
         return newState;
     });
   };
 
+  const handleStandaardMaterialenOpslaan = async (opgeslagenMaterialen: MateriaalKeuze[]) => {
+      const updates = opgeslagenMaterialen.map(m => ({
+          row_id: m.id,
+          sort_order: m.sort_order,
+          user_id: user?.uid
+      }));
+
+      const { error } = await supabase.from('materialen_duplicate').upsert(updates);
+      if (error) {
+          console.error("Fout bij opslaan sortering:", error);
+          // Toon een toast?
+      } else {
+          // Update lokale state om re-render te forceren
+          setAlleMaterialen(prev => {
+              const materialMap = new Map(opgeslagenMaterialen.map(m => [m.id, m]));
+              return prev.map(p => materialMap.has(p.id) ? materialMap.get(p.id)! : p);
+          });
+      }
+  }
+
   const isVolgendeIngeschakeld = true;
 
-  const renderSelectieRij = (slot: MateriaalSlot, title: string) => {
-    const gekozenMateriaal = gekozenMaterialen[slot.key];
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
+    const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
+    const materialenVoorSectie = filterMaterialenVoorSectie(sectieSleutel);
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{title}</CardTitle>
+                <CardTitle>{titel}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                 <div key={slot.key} className="pt-4 first:pt-0">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            {gekozenMateriaal ? (
-                            <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.naam}</p>
-                            ) : (
-                            <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                            )}
+            <CardContent className="-mt-4">
+                 <div className="pt-4 first:pt-0">
+                    {isMaterialenLaden ? (
+                         <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                    ) : foutMaterialen ? (
+                         <p className="text-sm text-destructive mt-1">Laden van materialen mislukt.</p>
+                    ) : materialenVoorSectie.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal beschikbaar voor deze categorie.</p>
+                    ) : (
+                         <div className="flex items-center justify-between">
+                            <div>
+                                {gekozenMateriaal ? (
+                                <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
+                                ) : (
+                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {gekozenMateriaal && (
+                                <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                                )}
+                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(sectieSleutel)}>
+                                {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
+                                </Button>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            {gekozenMateriaal && (
-                            <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(slot.key)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                            )}
-                            <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(slot)}>
-                            {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
-                            </Button>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </CardContent>
         </Card>
@@ -488,12 +542,6 @@ export default function HsbWandMaterialenPage() {
     return `${item.naam} – ${details.join(' – ')}`;
   };
   
-  const handleStandaardMaterialenOpslaan = (opgeslagenMaterialen: Materiaal[]) => {
-      // In a real app, this would be an API call. For now, we update local state.
-      const sorted = opgeslagenMaterialen.sort((a,b) => a.sort_order - b.sort_order || a.naam.localeCompare(b.naam));
-      setStandaardMaterialen(sorted);
-  }
-
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -508,7 +556,7 @@ export default function HsbWandMaterialenPage() {
           </div>
           <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
           <div className="flex items-center justify-end">
-            {loading ? (
+            {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
               <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
@@ -526,59 +574,65 @@ export default function HsbWandMaterialenPage() {
               </div>
 
               <div className="space-y-8">
-                {renderSelectieRij({ key: 'typeBalk', standaardCategorieen: ['Hout'] }, 'Balktype')}
-                {renderSelectieRij({ key: 'typeIsolatie', standaardCategorieen: ['Isolatie'] }, 'Isolatie')}
-                {renderSelectieRij({ key: 'typeFolie', standaardCategorieen: ['Folie'] }, 'Folie')}
-                {renderSelectieRij({ key: 'typeConstructieplaat', standaardCategorieen: ['Constructieplaat'] }, 'Binnenbekleding')}
+                {renderSelectieRij('balktype', 'Balktype')}
+                {renderSelectieRij('isolatie', 'Isolatie')}
+                {renderSelectieRij('folie', 'Folie')}
+                {renderSelectieRij('binnenbekleding', 'Constructieplaat')}
                  <Card>
                     <CardHeader>
                         <CardTitle>Gips / Fermacell</CardTitle>
                         <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
-                        <div key='gipsPlaat' className="pt-4 first:pt-0">
-                           <div className="flex items-center justify-between">
-                             <div>
-                               {gekozenMaterialen['gipsPlaat'] ? (
-                                 <p className="text-sm text-primary mt-1">Gekozen: {gekozenMaterialen['gipsPlaat'].naam}</p>
-                               ) : (
-                                 <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                               )}
-                             </div>
-                             <div className="flex items-center gap-2">
-                               {gekozenMaterialen['gipsPlaat'] && (
-                                 <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gipsPlaat')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                   <Trash2 className="h-4 w-4" />
-                                 </Button>
-                               )}
-                               <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer({ key: 'gipsPlaat', standaardCategorieen: ['Gips'] })}>
-                                 {gekozenMaterialen['gipsPlaat'] ? 'Wijzigen' : 'Kiezen'}
-                               </Button>
-                             </div>
-                           </div>
-                           {gekozenMaterialen['gipsPlaat'] && (
-                             <div className="mt-2 pl-1">
+                    <CardContent className="-mt-4">
+                        <div key='gips_fermacell' className="pt-4 first:pt-0">
+                           {isMaterialenLaden ? (
+                               <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                           ) : (
+                            <>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                {gekozenMaterialen['gips_fermacell'] ? (
+                                    <p className="text-sm text-primary mt-1">Gekozen: {gekozenMaterialen['gips_fermacell'].materiaalnaam}</p>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                {gekozenMaterialen['gips_fermacell'] && (
+                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gips_fermacell')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                    <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                )}
+                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('gips_fermacell')}>
+                                    {gekozenMaterialen['gips_fermacell'] ? 'Wijzigen' : 'Kiezen'}
+                                </Button>
+                                </div>
+                            </div>
+                            {gekozenMaterialen['gips_fermacell'] && (
+                                <div className="mt-2 pl-1">
                                 <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                                   <Settings className="w-3 h-3"/>
-                                   Lagen: {gipsLagen} (aanpassen)
-                               </button>
-                             </div>
+                                    <Settings className="w-3 h-3"/>
+                                    Lagen: {gipsLagen} (aanpassen)
+                                </button>
+                                </div>
+                            )}
+                            </>
                            )}
                          </div>
                     </CardContent>
                  </Card>
 
-                {renderSelectieRij({ key: 'typeKozijn', standaardCategorieen: ['Kozijnen'] }, 'Kozijnen')}
-                {renderSelectieRij({ key: 'typeDeur', standaardCategorieen: ['Deuren'] }, 'Deuren')}
-                {renderSelectieRij({ key: 'stucVulling', standaardCategorieen: ['Stuc'] }, 'Naden vullen')}
-                {renderSelectieRij({ key: 'afwerkplint', standaardCategorieen: ['Plinten'] }, 'Plinten')}
+                {renderSelectieRij('kozijnen', 'Kozijnen')}
+                {renderSelectieRij('deuren', 'Deuren')}
+                {renderSelectieRij('naden_vullen', 'Naden vullen')}
+                {renderSelectieRij('plinten', 'Plinten')}
                 
                 <Card>
                     <CardHeader>
                         <CardTitle>Extra materiaal</CardTitle>
                         <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4 divide-y divide-border -mt-4">
+                    <CardContent className="-mt-4">
                         <div className="pt-4 first:pt-0">
                             {extraMaterialen.length === 0 ? (
                                 <div className="flex items-center justify-between">
@@ -635,18 +689,18 @@ export default function HsbWandMaterialenPage() {
         </div>
       </main>
 
-      <MateriaalKiezerModal
-          open={materiaalModalOpen}
-          slot={actiefSlot}
-          geselecteerdMateriaalId={actiefSlot ? gekozenMaterialen[actiefSlot.key]?.id : undefined}
+       {actieveSectie && <MateriaalKiezerModal
+          open={!!actieveSectie}
+          sectieSleutel={actieveSectie}
+          geselecteerdMateriaalId={actieveSectie ? gekozenMaterialen[actieveSectie]?.id : undefined}
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
-          materialen={standaardMaterialen}
+          materialen={filterMaterialenVoorSectie(actieveSectie)}
           openReorderModal={() => {
-            setMateriaalModalOpen(false);
+            sluitMateriaalKiezer();
             setReorderModalOpen(true);
           }}
-      />
+      />}
       
       <ExtraMateriaalModal
           open={extraMateriaalModalOpen}
@@ -656,15 +710,15 @@ export default function HsbWandMaterialenPage() {
           existingRecord={editingExtraMateriaal}
       />
 
-      <ReorderModal 
+      {actieveSectie && <ReorderModal 
         open={reorderModalOpen}
         onSluiten={() => {
             setReorderModalOpen(false);
-            setMateriaalModalOpen(true);
+            openMateriaalKiezer(actieveSectie);
         }}
-        materialen={standaardMaterialen}
+        materialen={filterMaterialenVoorSectie(actieveSectie)}
         onOpslaan={handleStandaardMaterialenOpslaan}
-      />
+      />}
       
        <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
             <DialogContent className="sm:max-w-[425px]">
