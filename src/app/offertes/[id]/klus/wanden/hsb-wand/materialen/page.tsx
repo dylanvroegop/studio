@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -244,9 +244,10 @@ export default function HsbWandMaterialenPage() {
         {isGipsSlot && gekozenMateriaal && (
             <div className="flex items-center justify-between mt-2 pl-1">
                 <p className="text-sm text-muted-foreground">Lagen: {gipsLagen}</p>
-                <Button variant="link" size="sm" className="h-auto p-0 text-accent" onClick={openLagenKiezer}>
+                 <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <Settings className="w-3 h-3"/>
                     Lagen aanpassen
-                </Button>
+                </button>
             </div>
         )}
       </div>
