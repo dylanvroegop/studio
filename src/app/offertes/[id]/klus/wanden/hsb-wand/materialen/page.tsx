@@ -154,74 +154,46 @@ function MateriaalKiezerModal({ open, slot, geselecteerdMateriaalId, onSluiten, 
   );
 }
 
-const defaultExtraMateriaal = {
+const defaultExtraMateriaal: Omit<ExtraMateriaal, 'id'> = {
     naam: '',
     eenheid: 'stuk',
     lengteMm: undefined,
     breedteMm: undefined,
     hoogteMm: undefined,
-    prijsPerEenheid: undefined,
+    prijsPerEenheid: 0,
 };
 
 type ExtraMateriaalModalProps = {
     open: boolean;
-    onSluiten: () => void;
-    onOpslaan: (materiaal: Omit<ExtraMateriaal, 'id'>) => void;
-    onUpdate: (materiaal: ExtraMateriaal) => void;
-    bestaandeMaterialen: ExtraMateriaal[];
-    verwijderMateriaal: (id: string) => void;
     mode: 'add' | 'edit';
+    onSluiten: () => void;
+    onOpslaan: (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => void;
+    existingRecord?: ExtraMateriaal;
 }
 
-function ExtraMateriaalModal({ open, onSluiten, onOpslaan, onUpdate, bestaandeMaterialen, verwijderMateriaal, mode }: ExtraMateriaalModalProps) {
-    const [itemToEdit, setItemToEdit] = useState<ExtraMateriaal | typeof defaultExtraMateriaal>(defaultExtraMateriaal);
-    const [isEditing, setIsEditing] = useState(false);
+function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord }: ExtraMateriaalModalProps) {
+    const [item, setItem] = useState<Omit<ExtraMateriaal, 'id'> | ExtraMateriaal>(defaultExtraMateriaal);
 
     useEffect(() => {
         if (open) {
-            setIsEditing(false); // Reset edit state when modal opens
-            setItemToEdit(defaultExtraMateriaal);
+            if (mode === 'edit' && existingRecord) {
+                setItem(existingRecord);
+            } else {
+                setItem(defaultExtraMateriaal);
+            }
         }
-    }, [open]);
+    }, [open, mode, existingRecord]);
 
-    const handleFieldChange = (field: string, value: any) => {
-        setItemToEdit(prev => ({...prev, [field]: value}));
+    const handleFieldChange = (field: keyof Omit<ExtraMateriaal, 'id'>, value: any) => {
+        setItem(prev => ({...prev, [field]: value}));
     };
 
     const handleOpslaan = () => {
-        const itemData: Omit<ExtraMateriaal, 'id'> = {
-            naam: itemToEdit.naam,
-            eenheid: itemToEdit.eenheid,
-            prijsPerEenheid: Number(itemToEdit.prijsPerEenheid) || 0,
-            lengteMm: itemToEdit.lengteMm ? Number(itemToEdit.lengteMm) : undefined,
-            breedteMm: itemToEdit.breedteMm ? Number(itemToEdit.breedteMm) : undefined,
-            hoogteMm: itemToEdit.hoogteMm ? Number(itemToEdit.hoogteMm) : undefined,
-        }
-
-        if ('id' in itemToEdit && itemToEdit.id) {
-             onUpdate({ ...itemData, id: itemToEdit.id });
-        } else {
-            onOpslaan(itemData);
-        }
-        setIsEditing(false);
-        setItemToEdit(defaultExtraMateriaal);
-        // Do not close the modal if there are other materials to manage
-        if (bestaandeMaterialen.length === 0 && !('id' in itemToEdit)) {
-            onSluiten();
-        }
-    };
-    
-    const startEditing = (materiaal: ExtraMateriaal) => {
-        setItemToEdit(materiaal);
-        setIsEditing(true);
+        onOpslaan(item);
+        onSluiten();
     };
 
-    const cancelEditing = () => {
-        setIsEditing(false);
-        setItemToEdit(defaultExtraMateriaal);
-    };
-
-    const isEenheidDimensie = ['m¹', 'm²', 'm³'].includes(itemToEdit.eenheid);
+    const isEenheidDimensie = ['m¹', 'm²', 'm³'].includes(item.eenheid);
     
     const prijsLabelMap: Record<string, string> = {
       'stuk': 'Prijs per stuk (€)',
@@ -232,126 +204,98 @@ function ExtraMateriaalModal({ open, onSluiten, onOpslaan, onUpdate, bestaandeMa
     };
     
     const prijsHelperTextMap: Record<string, string> = {
-        'stuk': "Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken.",
-        'doos / pak': "Vul hier de prijs van één doos/pak in. Wij berekenen automatisch hoeveel er nodig is.",
+        'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken.',
+        'doos / pak': 'Vul hier de prijs van één doos/pak in. Wij berekenen automatisch hoeveel er nodig is.',
         'm¹': 'Let op: dit is prijs per strekkende meter. Niet per balk, niet per bundel. Krijg je een prijs per stuk? Reken die eerst om naar prijs per meter.',
         'm²': 'Geen plaatprijs! Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
         'm³': 'Let op: gebruik m³ alleen als het materiaal echt per kubieke meter wordt verkocht (bijv. isolatie in bulk). Krijg je een prijs per plaat of balk? Gebruik dan m² of m¹ in plaats van m³.',
     };
 
-    const dynamischPrijsLabel = prijsLabelMap[itemToEdit.eenheid] || 'Materiaalkosten per eenheid (€)';
-    const dynamischPrijsHelperText = prijsHelperTextMap[itemToEdit.eenheid];
+    const dynamischPrijsLabel = prijsLabelMap[item.eenheid] || 'Materiaalkosten per eenheid (€)';
+    const dynamischPrijsHelperText = prijsHelperTextMap[item.eenheid];
     
-    const showForm = isEditing || mode === 'add';
-
     return (
         <Dialog open={open} onOpenChange={onSluiten}>
             <DialogContent className="sm:max-w-2xl">
                  <DialogHeader>
-                    <DialogTitle>{isEditing ? 'Materiaal Bewerken' : 'Extra Materiaal'}</DialogTitle>
+                    <DialogTitle>{mode === 'edit' ? 'Materiaal Bewerken' : 'Extra Materiaal Toevoegen'}</DialogTitle>
                      <DialogDescription>
-                         {isEditing || mode === 'add' ? 'Gebruik dit voor uitzonderlijke materialen die niet in de vaste lijst staan.' : 'Beheer de lijst met extra materialen voor deze klus.'}
+                         Gebruik dit voor uitzonderlijke materialen die niet in de vaste lijst staan.
                          <span className="block mt-1 text-xs text-muted-foreground">Voer altijd de prijs per gekozen eenheid in. Verkeerde prijzen geven verkeerde offertes.</span>
                      </DialogDescription>
                  </DialogHeader>
 
-                {showForm ? (
-                    <div className="grid gap-6 py-4">
-                       <div className="space-y-2">
-                            <Label htmlFor="extra-naam">Materiaalnaam *</Label>
-                            <Input id="extra-naam" value={itemToEdit.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" />
-                        </div>
-                        <div className="grid grid-cols-1">
-                            <div className="space-y-2">
-                                <Label htmlFor="extra-eenheid">Eenheid *</Label>
-                                <Select value={itemToEdit.eenheid} onValueChange={value => handleFieldChange('eenheid', value)}>
-                                    <SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="stuk">stuk</SelectItem>
-                                        <SelectItem value="doos / pak">doos / pak</SelectItem>
-                                        <SelectItem value="m¹">m¹</SelectItem>
-                                        <SelectItem value="m²">m²</SelectItem>
-                                        <SelectItem value="m³">m³</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        {isEenheidDimensie && (
-                            <div className="p-4 border rounded-md space-y-4">
-                                <p className="text-sm font-medium">Maatvoering (voor prijsberekening)</p>
-                                 <div className="grid grid-cols-3 gap-4">
-                                    {['m¹', 'm²', 'm³'].includes(itemToEdit.eenheid) && (
-                                        <div className="space-y-2">
-                                            <Label htmlFor="extra-lengte">Lengte (mm)</Label>
-                                            <Input id="extra-lengte" type="number" value={itemToEdit.lengteMm || ''} onChange={e => handleFieldChange('lengteMm', e.target.value)} placeholder="Bijv. 3000"/>
-                                        </div>
-                                    )}
-                                     {['m²', 'm³'].includes(itemToEdit.eenheid) && (
-                                        <div className="space-y-2">
-                                            <Label htmlFor="extra-breedte">Breedte (mm)</Label>
-                                            <Input id="extra-breedte" type="number" value={itemToEdit.breedteMm || ''} onChange={e => handleFieldChange('breedteMm', e.target.value)} placeholder="Bijv. 600"/>
-                                        </div>
-                                    )}
-                                     {['m³'].includes(itemToEdit.eenheid) && (
-                                        <div className="space-y-2">
-                                            <Label htmlFor="extra-hoogte">Hoogte / dikte (mm)</Label>
-                                            <Input id="extra-hoogte" type="number" value={itemToEdit.hoogteMm || ''} onChange={e => handleFieldChange('hoogteMm', e.target.value)} placeholder="Bijv. 50"/>
-                                        </div>
-                                    )}
-                                </div>
-                                <p className="text-xs text-muted-foreground">Gebruik alleen lengte/breedte/hoogte als de prijs per m¹/m²/m³ wordt berekend.</p>
-                            </div>
-                        )}
-                        <div className="grid grid-cols-1 gap-4">
-                             <div className="space-y-2">
-                                <Label htmlFor="extra-prijs" className="text-red-300">{dynamischPrijsLabel} *</Label>
-                                <Input id="extra-prijs" type="number" value={itemToEdit.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', e.target.value)} placeholder="Bijv. 3,25"/>
-                                 {dynamischPrijsHelperText && (
-                                    <div className="mt-2 flex items-start gap-2 rounded-md border border-red-800 bg-red-950/40 p-2 text-sm text-red-300">
-                                        <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                                        <p>{dynamischPrijsHelperText}</p>
-                                    </div>
-                                 )}
-                            </div>
+                <div className="grid gap-6 py-4">
+                   <div className="space-y-2">
+                        <Label htmlFor="extra-naam">Materiaalnaam *</Label>
+                        <Input id="extra-naam" value={item.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" />
+                    </div>
+                    <div className="grid grid-cols-1">
+                        <div className="space-y-2">
+                            <Label htmlFor="extra-eenheid">Eenheid *</Label>
+                            <Select value={item.eenheid} onValueChange={value => handleFieldChange('eenheid', value)}>
+                                <SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="stuk">stuk</SelectItem>
+                                    <SelectItem value="doos / pak">doos / pak</SelectItem>
+                                    <SelectItem value="m¹">m¹</SelectItem>
+                                    <SelectItem value="m²">m²</SelectItem>
+                                    <SelectItem value="m³">m³</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
-                 ) : (
-                    <div className="py-4 space-y-2">
-                        {bestaandeMaterialen.length > 0 ? (
-                            bestaandeMaterialen.map(mat => (
-                                <div key={mat.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
-                                    <span className="text-sm">{mat.naam}</span>
-                                    <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditing(mat)}><Edit className="h-4 w-4"/></Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/80 hover:text-destructive" onClick={() => verwijderMateriaal(mat.id)}><Trash2 className="h-4 w-4"/></Button>
+                    {isEenheidDimensie && (
+                        <div className="p-4 border rounded-md space-y-4">
+                            <p className="text-sm font-medium">Maatvoering (voor prijsberekening)</p>
+                             <div className="grid grid-cols-3 gap-4">
+                                {['m¹', 'm²', 'm³'].includes(item.eenheid) && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="extra-lengte">Lengte (mm)</Label>
+                                        <Input id="extra-lengte" type="number" value={item.lengteMm || ''} onChange={e => handleFieldChange('lengteMm', e.target.value)} placeholder="Bijv. 3000"/>
                                     </div>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-sm text-center text-muted-foreground py-4">Geen extra materialen toegevoegd.</p>
-                        )}
-                        <Button variant="outline" className="w-full mt-4" onClick={() => setIsEditing(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Nieuw materiaal toevoegen
-                        </Button>
-                    </div>
-                 )}
-                <DialogFooter>
-                    {showForm ? (
-                         <>
-                            <Button type="button" variant="ghost" onClick={bestaandeMaterialen.length > 0 ? cancelEditing : onSluiten}>Annuleren</Button>
-                            <Button type="button" onClick={handleOpslaan} disabled={!itemToEdit.naam || !itemToEdit.prijsPerEenheid}>
-                                { 'id' in itemToEdit ? 'Wijziging Opslaan' : 'Toevoegen' }
-                            </Button>
-                         </>
-                    ) : (
-                        <Button type="button" onClick={onSluiten}>Sluiten</Button>
+                                )}
+                                 {['m²', 'm³'].includes(item.eenheid) && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="extra-breedte">Breedte (mm)</Label>
+                                        <Input id="extra-breedte" type="number" value={item.breedteMm || ''} onChange={e => handleFieldChange('breedteMm', e.target.value)} placeholder="Bijv. 600"/>
+                                    </div>
+                                )}
+                                 {['m³'].includes(item.eenheid) && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="extra-hoogte">Hoogte / dikte (mm)</Label>
+                                        <Input id="extra-hoogte" type="number" value={item.hoogteMm || ''} onChange={e => handleFieldChange('hoogteMm', e.target.value)} placeholder="Bijv. 50"/>
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Gebruik alleen lengte/breedte/hoogte als de prijs per m¹/m²/m³ wordt berekend.</p>
+                        </div>
                     )}
+                    <div className="grid grid-cols-1 gap-4">
+                         <div className="space-y-2">
+                            <Label htmlFor="extra-prijs" className="text-red-300">{dynamischPrijsLabel} *</Label>
+                            <Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', Number(e.target.value))} placeholder="Bijv. 3,25"/>
+                             {dynamischPrijsHelperText && (
+                                <div className="mt-2 flex items-start gap-2 rounded-md border border-red-800 bg-red-950/40 p-2 text-sm text-red-300">
+                                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                    <p>{dynamischPrijsHelperText}</p>
+                                </div>
+                             )}
+                        </div>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onSluiten}>Annuleren</Button>
+                    <Button type="button" onClick={handleOpslaan} disabled={!item.naam || !item.prijsPerEenheid}>
+                        { mode === 'edit' ? 'Wijziging Opslaan' : 'Toevoegen' }
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 }
+
 
 // ==================================
 // Pagina Component
@@ -416,14 +360,14 @@ export default function HsbWandMaterialenPage() {
     setGekozenMaterialen(prev => ({ ...prev, [slotKey]: materiaal }));
   };
   
-  const handleExtraMateriaalOpslaan = (materiaal: Omit<ExtraMateriaal, 'id'>) => {
-    const nieuwMateriaal = { ...materiaal, id: new Date().toISOString() };
-    setExtraMaterialen(prev => [...prev, nieuwMateriaal]);
+  const handleExtraMateriaalOpslaan = (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => {
+    if ('id' in materiaal) { // Update existing
+      setExtraMaterialen(prev => prev.map(m => m.id === materiaal.id ? materiaal : m));
+    } else { // Add new
+      const nieuwMateriaal = { ...materiaal, id: new Date().toISOString() };
+      setExtraMaterialen(prev => [...prev, nieuwMateriaal]);
+    }
   };
-  
-  const handleExtraMateriaalUpdate = (updatedMateriaal: ExtraMateriaal) => {
-      setExtraMaterialen(prev => prev.map(m => m.id === updatedMateriaal.id ? updatedMateriaal : m));
-  }
   
   const handleExtraMateriaalVerwijderen = (id: string) => {
     setExtraMaterialen(prev => prev.filter(m => m.id !== id));
@@ -473,48 +417,37 @@ export default function HsbWandMaterialenPage() {
   
   const renderExtraMateriaalCardContent = () => {
     const aantal = extraMaterialen.length;
-
     let statusText: React.ReactNode;
+  
     if (aantal === 0) {
       statusText = <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>;
-    } else if (aantal === 1) {
-      const item = extraMaterialen[0];
-      let details = item.eenheid;
-       if (item.eenheid === 'm²' && item.lengteMm && item.breedteMm) {
-          details = `m² – ${item.lengteMm} × ${item.breedteMm} mm`;
-      } else if (item.eenheid === 'm¹' && item.lengteMm) {
-          details = `m¹ – lengte ${item.lengteMm} mm`;
-      }
-      statusText = <p className="text-sm text-primary mt-1">Gekozen: {item.naam} – {details}</p>;
     } else {
-      statusText = <p className="text-sm text-primary mt-1">Gekozen: {aantal} extra materialen</p>;
+      statusText = extraMaterialen.map(item => {
+        let details = item.eenheid;
+        if (item.eenheid === 'm²' && item.lengteMm && item.breedteMm) {
+          details = `m² – ${item.lengteMm} × ${item.breedteMm} mm`;
+        } else if (item.eenheid === 'm¹' && item.lengteMm) {
+          details = `m¹ – lengte ${item.lengteMm} mm`;
+        }
+        return <p key={item.id} className="text-sm text-primary mt-1">Gekozen: {item.naam} – {details}</p>;
+      });
     }
-
+  
     return (
       <div>
         <div className="flex items-center justify-between pt-4 first:pt-0">
-            <div>
-              {statusText}
-            </div>
-            <div className="flex items-center gap-2">
-                {aantal > 0 && (
-                    <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal(aantal > 0 ? 'edit' : 'add')}>
-                    {aantal > 0 ? 'Wijzigen' : 'Kiezen'}
-                </Button>
-            </div>
+          <div className="space-y-1">{statusText}</div>
+          <div className="flex items-center gap-2">
+            {aantal > 0 && (
+              <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal(aantal > 0 ? 'edit' : 'add')}>
+              {aantal > 0 ? 'Wijzigen' : 'Kiezen'}
+            </Button>
+          </div>
         </div>
-        {aantal > 0 && (
-            <div className="mt-2 pl-1">
-                <button onClick={() => openExtraMateriaalModal('add')} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                    <PlusCircle className="w-3 h-3"/>
-                    Extra materiaal toevoegen
-                </button>
-            </div>
-        )}
       </div>
     );
   };
@@ -704,12 +637,10 @@ export default function HsbWandMaterialenPage() {
       
       <ExtraMateriaalModal
           open={extraMateriaalModalOpen}
+          mode={extraMateriaalModalMode}
           onSluiten={() => setExtraMateriaalModalOpen(false)}
           onOpslaan={handleExtraMateriaalOpslaan}
-          onUpdate={handleExtraMateriaalUpdate}
-          bestaandeMaterialen={extraMaterialen}
-          verwijderMateriaal={handleExtraMateriaalVerwijderen}
-          mode={extraMateriaalModalMode}
+          existingRecord={extraMaterialen.length > 0 ? extraMaterialen[0] : undefined}
       />
       
        <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
