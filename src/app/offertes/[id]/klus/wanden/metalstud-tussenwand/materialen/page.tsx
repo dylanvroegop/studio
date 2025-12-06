@@ -51,7 +51,7 @@ type ExtraMateriaal = {
   prijsPerEenheid: number;
 }
 
-const sectieSleutels = ['profielen', 'isolatie', 'osb_1', 'osb_2', 'gips_1', 'gips_2', 'naden_vullen', 'extra'] as const;
+const sectieSleutels = ['profielen', 'isolatie', 'osb_1', 'osb_2', 'gips_1', 'gips_2', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -542,11 +542,17 @@ export default function MetalstudTussenwandMaterialenPage() {
               <div className="space-y-8">
                 {renderSelectieRij('profielen', 'Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
+                
                 {renderSelectieRij('osb_1', 'OSB / Constructieplaat')}
                 {renderSelectieRij('osb_2', 'OSB / Constructieplaat')}
+
                 {renderGipsSelectieRij('gips_1', 'Gips / Fermacell')}
                 {renderGipsSelectieRij('gips_2', 'Gips / Fermacell')}
+
+                {renderSelectieRij('kozijnen', 'Kozijnen')}
+                {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
+                {renderSelectieRij('plinten', 'Plinten')}
                 
                 <Card>
                     <CardHeader>
