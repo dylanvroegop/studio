@@ -492,7 +492,7 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
-                {renderSelectieRij('binnenbekleding', 'Constructieplaat')}
+                {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
                  <Card>
                     <CardHeader>
                         <CardTitle>Gips / Fermacell</CardTitle>
