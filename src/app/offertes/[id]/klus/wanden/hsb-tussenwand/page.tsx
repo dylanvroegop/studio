@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -54,7 +53,7 @@ export default function HsbTussenwandPage() {
     setWalls(newWalls);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (walls.some(wall => !wall.lengte || !wall.hoogte)) {
@@ -65,10 +64,9 @@ export default function HsbTussenwandPage() {
         });
         return;
     }
-
-    const description = `HSB Tussenwand (${walls.length} stuks)`;
     
-    await createJobAction(quoteId, 'Wanden', description);
+    // For now, we just navigate. Later we can store the data.
+    router.push(`/offertes/${quoteId}/klus/wanden/hsb-tussenwand/materialen`);
   };
   
   const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
@@ -100,7 +98,7 @@ export default function HsbTussenwandPage() {
                     Vul hieronder de gevraagde gegevens in. Deze informatie gebruiken wij om jouw offerte nauwkeurig voor je uit te werken.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
                 <Card>
                     <CardHeader>
                         <CardTitle>Afmetingen – HSB Tussenwand</CardTitle>
@@ -158,7 +156,7 @@ export default function HsbTussenwandPage() {
                     <Button variant="outline" asChild>
                         <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
                     </Button>
-                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                    <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                         Volgende
                     </Button>
                 </div>
