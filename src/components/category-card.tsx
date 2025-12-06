@@ -79,6 +79,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/deuren`);
       return;
     }
+    if (category.name === 'Boeiboorden') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/boeiboorden`);
+      return;
+    }
     setIsSelected(true);
   }
 
