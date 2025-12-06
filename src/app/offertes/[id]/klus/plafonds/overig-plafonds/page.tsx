@@ -12,10 +12,18 @@ import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
 
 type Plafond = {
   lengte: string;
   breedte: string;
+  opmerkingen: string;
+};
+
+const defaultPlafondState: Plafond = {
+  lengte: '',
+  breedte: '',
+  opmerkingen: '',
 };
 
 export default function OverigPlafondsPage() {
@@ -26,7 +34,7 @@ export default function OverigPlafondsPage() {
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [plafonds, setPlafonds] = useState<Plafond[]>([{ lengte: '', breedte: '' }]);
+  const [plafonds, setPlafonds] = useState<Plafond[]>([defaultPlafondState]);
 
   useEffect(() => {
     async function fetchQuote() {
@@ -40,10 +48,10 @@ export default function OverigPlafondsPage() {
   }, [quoteId]);
   
   const handleAddPlafond = () => {
-    setPlafonds([...plafonds, { lengte: '', breedte: '' }]);
+    setPlafonds([...plafonds, { ...defaultPlafondState }]);
   };
 
-  const handlePlafondChange = (index: number, field: keyof Plafond, value: string) => {
+  const handlePlafondChange = <K extends keyof Plafond>(index: number, field: K, value: Plafond[K]) => {
     const newPlafonds = [...plafonds];
     newPlafonds[index][field] = value;
     setPlafonds(newPlafonds);
@@ -70,6 +78,8 @@ export default function OverigPlafondsPage() {
     
     await createJobAction(quoteId, 'Plafonds', description);
   };
+  
+  const isNextDisabled = plafonds.some(p => !p.lengte || !p.breedte);
 
   return (
     <main className="flex flex-1 flex-col">
@@ -92,75 +102,62 @@ export default function OverigPlafondsPage() {
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-xl mx-auto w-full">
+        <div className="max-w-2xl mx-auto w-full">
             <div className="text-center mb-8">
                  <h2 className="font-semibold text-2xl">Overig Plafonds</h2>
                 <p className="text-muted-foreground mt-2">
-                    Vul hieronder de gevraagde gegevens in. Deze informatie gebruiken wij om jouw offerte nauwkeurig voor je uit te werken.
+                    Vul hieronder de afmetingen in. Voor elke aparte ruimte of oppervlakte, voeg een nieuw plafond toe.
                 </p>
             </div>
             <form onSubmit={handleSubmit}>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Afmetingen – Overig Plafond</CardTitle>
-                        <CardDescription>
-                            Totaal aantal plafonds: {plafonds.length}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {plafonds.map((plafond, index) => (
-                           <div key={index} className="space-y-4 pt-4 border-t border-dashed first:border-t-0 first:pt-0">
-                             <div className="flex justify-between items-center">
-                                <h3 className="font-medium">Plafond {index + 1}</h3>
-                                {index > 0 && (
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemovePlafond(index)} className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Verwijder plafond</span>
-                                    </Button>
-                                )}
-                             </div>
-                             <div className="grid grid-cols-2 gap-4">
-                               <div className="space-y-2">
-                                 <Label htmlFor={`lengte-${index}`}>Lengte (mm)</Label>
-                                 <Input 
-                                    id={`lengte-${index}`} 
-                                    name={`lengte-${index}`} 
-                                    type="number" 
-                                    placeholder="Bijv. 5000" 
-                                    required 
-                                    value={plafond.lengte}
-                                    onChange={(e) => handlePlafondChange(index, 'lengte', e.target.value)}
-                                 />
-                               </div>
-                               <div className="space-y-2">
-                                 <Label htmlFor={`breedte-${index}`}>Breedte (mm)</Label>
-                                 <Input 
-                                    id={`breedte-${index}`} 
-                                    name={`breedte-${index}`} 
-                                    type="number" 
-                                    placeholder="Bijv. 3000" 
-                                    required
-                                    value={plafond.breedte}
-                                    onChange={(e) => handlePlafondChange(index, 'breedte', e.target.value)}
-                                 />
-                               </div>
-                             </div>
+              <div className="space-y-6">
+                {plafonds.map((plafond, index) => (
+                   <Card key={index}>
+                       <CardHeader className="flex flex-row items-center justify-between">
+                           <div>
+                               <CardTitle>Plafond {index + 1}</CardTitle>
+                               <CardDescription>
+                                   Specificeer de afmetingen en details voor dit plafond.
+                               </CardDescription>
                            </div>
-                        ))}
-                         <Button type="button" variant="outline" className="w-full" onClick={handleAddPlafond}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Plafond toevoegen
-                        </Button>
-                    </CardContent>
-                </Card>
-                <div className="mt-6 flex justify-between items-center">
-                    <Button variant="outline" asChild>
-                        <Link href={`/offertes/${quoteId}/klus/plafonds`}>Terug</Link>
-                    </Button>
-                    <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                        Volgende
-                    </Button>
-                </div>
+                            {index > 0 && (
+                                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemovePlafond(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Verwijder plafond</span>
+                                </Button>
+                            )}
+                       </CardHeader>
+                       <CardContent className="space-y-6">
+                           <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                 <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={plafond.lengte} onChange={(e) => handlePlafondChange(index, 'lengte', e.target.value)} />
+                               </div>
+                               <div className="space-y-2">
+                                 <Label htmlFor={`breedte-${index}`}>Breedte (mm) *</Label>
+                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 3000" required value={plafond.breedte} onChange={(e) => handlePlafondChange(index, 'breedte', e.target.value)} />
+                               </div>
+                           </div>
+                           <div className="space-y-2 pt-2">
+                              <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
+                              <Textarea id={`opmerkingen-${index}`} placeholder="Bijzondere details, alleen indien nodig…" value={plafond.opmerkingen} onChange={(e) => handlePlafondChange(index, 'opmerkingen', e.target.value)} />
+                            </div>
+                       </CardContent>
+                   </Card>
+                ))}
+              </div>
+              <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddPlafond}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Plafond toevoegen
+              </Button>
+              <div className="mt-6 flex justify-between items-center">
+                  <Button variant="outline" asChild>
+                      <Link href={`/offertes/${quoteId}/klus/plafonds`}>Terug</Link>
+                  </Button>
+                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                      Volgende
+                  </Button>
+              </div>
             </form>
         </div>
       </div>
