@@ -51,7 +51,7 @@ type ExtraMateriaal = {
   prijsPerEenheid: number;
 }
 
-const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra'] as const;
+const sectieSleutels = ['profielen', 'isolatie', 'osb_1', 'osb_2', 'gips_1', 'gips_2', 'naden_vullen', 'extra'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -374,7 +374,7 @@ export default function MetalstudTussenwandMaterialenPage() {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
         delete newState[sectieSleutel];
-        if (sectieSleutel === 'gips_fermacell') {
+        if (sectieSleutel === 'gips_1' || sectieSleutel === 'gips_2') {
             setGipsLagen(1);
         }
         return newState;
@@ -403,7 +403,7 @@ export default function MetalstudTussenwandMaterialenPage() {
 
   const isVolgendeIngeschakeld = true;
 
-  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const materialenVoorSectie = filterMaterialenVoorSectie(sectieSleutel);
 
@@ -411,6 +411,7 @@ export default function MetalstudTussenwandMaterialenPage() {
         <Card>
             <CardHeader>
                 <CardTitle>{titel}</CardTitle>
+                 {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
             </CardHeader>
             <CardContent className="-mt-4">
                  <div className="pt-4 first:pt-0">
@@ -438,6 +439,56 @@ export default function MetalstudTussenwandMaterialenPage() {
                                 </Button>
                             </div>
                         </div>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+  };
+
+  const renderGipsSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
+    const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>{titel}</CardTitle>
+                {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
+            </CardHeader>
+            <CardContent className="-mt-4">
+                <div className="pt-4 first:pt-0">
+                    {isMaterialenLaden ? (
+                        <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                    ) : (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    {gekozenMateriaal ? (
+                                        <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {gekozenMateriaal && (
+                                        <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                    <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(sectieSleutel)}>
+                                        {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
+                                    </Button>
+                                </div>
+                            </div>
+                            {gekozenMateriaal && (
+                                <div className="mt-2 pl-1">
+                                    <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                                        <Settings className="w-3 h-3"/>
+                                        Lagen: {gipsLagen} (aanpassen)
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </CardContent>
@@ -489,51 +540,12 @@ export default function MetalstudTussenwandMaterialenPage() {
               </div>
 
               <div className="space-y-8">
-                {renderSelectieRij('balktype', 'Profielen')}
+                {renderSelectieRij('profielen', 'Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Gips / Fermacell</CardTitle>
-                        <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="-mt-4">
-                        <div key='gips_fermacell' className="pt-4 first:pt-0">
-                           {isMaterialenLaden ? (
-                               <div className="h-8 bg-muted/50 rounded animate-pulse" />
-                           ) : (
-                            <>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                {gekozenMaterialen['gips_fermacell'] ? (
-                                    <p className="text-sm text-primary mt-1">Gekozen: {gekozenMaterialen['gips_fermacell'].materiaalnaam}</p>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                                )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                {gekozenMaterialen['gips_fermacell'] && (
-                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gips_fermacell')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                    <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                )}
-                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('gips_fermacell')}>
-                                    {gekozenMaterialen['gips_fermacell'] ? 'Wijzigen' : 'Kiezen'}
-                                </Button>
-                                </div>
-                            </div>
-                            {gekozenMaterialen['gips_fermacell'] && (
-                                <div className="mt-2 pl-1">
-                                <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                                    <Settings className="w-3 h-3"/>
-                                    Lagen: {gipsLagen} (aanpassen)
-                                </button>
-                                </div>
-                            )}
-                            </>
-                           )}
-                         </div>
-                    </CardContent>
-                 </Card>
+                {renderSelectieRij('osb_1', 'OSB / Constructieplaat')}
+                {renderSelectieRij('osb_2', 'OSB / Constructieplaat')}
+                {renderGipsSelectieRij('gips_1', 'Gips / Fermacell')}
+                {renderGipsSelectieRij('gips_2', 'Gips / Fermacell')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 
                 <Card>
