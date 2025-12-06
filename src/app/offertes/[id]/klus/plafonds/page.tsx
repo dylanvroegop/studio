@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,26 +9,27 @@ import { cn } from '@/lib/utils';
 import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
 type Subcategory = {
   name: JobCategory;
   description: string;
   icon: IconName;
+  href?: string;
 };
-
-const subcategories: Subcategory[] = [
-  { name: 'Plafonds', description: 'Gipsplafond – Houten Framewerk', icon: 'ceiling' },
-  { name: 'Plafonds', description: 'Gipsplafond – Metalstud C/U', icon: 'ceiling' },
-  { name: 'Plafonds', description: 'Overig Plafonds', icon: 'plus' },
-];
 
 export default function PlafondsPage() {
   const params = useParams();
+  const router = useRouter();
   const quoteId = params.id as string;
-  const [selected, setSelected] = useState<string[]>([]);
+  
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const subcategories: Subcategory[] = [
+    { name: 'Plafonds', description: 'Gipsplafond – Houten Framewerk', icon: 'ceiling', href: `/offertes/${quoteId}/klus/plafonds/gipsplafond-houten-framewerk` },
+    { name: 'Plafonds', description: 'Gipsplafond – Metalstud C/U', icon: 'ceiling' },
+    { name: 'Plafonds', description: 'Overig Plafonds', icon: 'plus' },
+  ];
 
   useEffect(() => {
     async function fetchQuote() {
@@ -40,14 +41,26 @@ export default function PlafondsPage() {
     }
     fetchQuote();
   }, [quoteId]);
+  
+  const renderCardContent = (item: Subcategory) => (
+      <div
+        className={cn(
+          "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
+          "border-[rgba(255,0,0,0.2)]",
+          "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+        )}
+      >
+        <div className="w-full h-full text-left p-0">
+            <div className="p-4 flex items-center gap-4 h-full">
+                <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
+                <div className="flex flex-col">
+                <h3 className="font-semibold text-base text-white">{item.description}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+  );
 
-  const handleSelect = (description: string) => {
-    setSelected((prev) =>
-      prev.includes(description)
-        ? prev.filter((item) => item !== description)
-        : [...prev, description]
-    );
-  };
 
   return (
     <main className="flex flex-1 flex-col">
@@ -79,28 +92,19 @@ export default function PlafondsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
             {subcategories.map((item) => {
-                // We need a custom implementation here because CategoryCard is tied to server actions
-                // which we don't want to use for this multiple-selection-step.
+              if (item.href) {
                 return (
-                     <div key={item.description} onClick={() => handleSelect(item.description)} className="h-full">
-                        <div
-                            className={cn(
-                            "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
-                            selected.includes(item.description) ? "border-primary/80 bg-[#1c1c1c]" : "border-[rgba(255,0,0,0.2)]",
-                            "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
-                            )}
-                        >
-                            <div className="w-full h-full text-left p-0">
-                                <div className="p-4 flex items-center gap-4 h-full">
-                                    <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
-                                    <div className="flex flex-col">
-                                    <h3 className="font-semibold text-base text-white">{item.description}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
+                  <Link key={item.description} href={item.href} className="h-full">
+                    {renderCardContent(item)}
+                  </Link>
+                );
+              }
+              // Fallback for items without href for now
+              return (
+                <div key={item.description} className="h-full" onClick={() => alert('Nog niet geïmplementeerd')}>
+                  {renderCardContent(item)}
+                </div>
+              );
             })}
           </div>
 
