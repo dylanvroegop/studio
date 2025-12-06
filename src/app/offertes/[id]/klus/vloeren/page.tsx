@@ -40,7 +40,7 @@ export default function VloerenPage() {
     { name: 'Vloeren', description: 'Houten vloer (OSB / Underlayment)', icon: 'floor', href: `/offertes/${quoteId}/klus/vloeren/houten-vloer` },
     { name: 'Vloeren', description: 'Laminaat / PVC / Klik-Vinyl', icon: 'floor', href: `/offertes/${quoteId}/klus/vloeren/laminaat` },
     { name: 'Vloeren', description: 'Vlonder / Terrasconstructie', icon: 'floor', href: `/offertes/${quoteId}/klus/vloeren/vlonder` },
-    { name: 'Vloeren', description: 'Overig Vloeren', icon: 'plus' },
+    { name: 'Vloeren', description: 'Overig Vloeren', icon: 'plus', href: `/offertes/${quoteId}/klus/vloeren/overig-vloeren` },
   ];
 
   const handleSelect = (description: string) => {
