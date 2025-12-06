@@ -40,7 +40,7 @@ export default function DakrenovatiePage() {
     { name: 'Dakrenovatie', description: 'Hellend Dak Vervangen', icon: 'roof', href: `/offertes/${quoteId}/klus/dakrenovatie/hellend-dak-vervangen` },
     { name: 'Dakrenovatie', description: 'EPDM Dakbedekking', icon: 'roof', href: `/offertes/${quoteId}/klus/dakrenovatie/epdm-dakbedekking` },
     { name: 'Dakrenovatie', description: 'Golfplaat Dak – Op Houten Constructie', icon: 'roof', href: `/offertes/${quoteId}/klus/dakrenovatie/golfplaat-dak` },
-    { name: 'Dakrenovatie', description: 'Overig Dakrenovatie', icon: 'plus' },
+    { name: 'Dakrenovatie', description: 'Overig Dakrenovatie', icon: 'plus', href: `/offertes/${quoteId}/klus/dakrenovatie/overig-dakrenovatie` },
   ];
 
   const handleSelect = (description: string) => {
