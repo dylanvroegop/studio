@@ -37,7 +37,7 @@ export default function VloerenPage() {
   }, [quoteId]);
 
   const subcategories: Subcategory[] = [
-    { name: 'Vloeren', description: 'Houten vloer (OSB / Underlayment Fermacell)', icon: 'floor', href: `/offertes/${quoteId}/klus/vloeren/houten-vloer` },
+    { name: 'Vloeren', description: 'Houten vloer (OSB / Underlayment)', icon: 'floor', href: `/offertes/${quoteId}/klus/vloeren/houten-vloer` },
     { name: 'Vloeren', description: 'Laminaat / PVC / Klik-Vinyl (Afwerking)', icon: 'floor' },
     { name: 'Vloeren', description: 'Vlonder / Terrasconstructie', icon: 'floor' },
     { name: 'Vloeren', description: 'Overig Vloeren', icon: 'plus' },

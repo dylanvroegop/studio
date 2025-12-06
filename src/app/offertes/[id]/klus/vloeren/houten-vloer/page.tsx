@@ -108,7 +108,7 @@ export default function HoutenVloerPage() {
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-2xl mx-auto w-full">
             <div className="text-center mb-8">
-                <h2 className="font-semibold text-2xl">Houten vloer – OSB / Underlayment / Fermacell</h2>
+                <h2 className="font-semibold text-2xl">Houten vloer – OSB / Underlayment</h2>
                 <p className="text-muted-foreground mt-2">
                     Vul hieronder de afmetingen in. Voor elke aparte ruimte of oppervlakte, voeg een nieuwe vloer toe.
                 </p>
