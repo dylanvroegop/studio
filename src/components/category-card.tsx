@@ -85,6 +85,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/boeiboorden`);
       return;
     }
+    if (category.name === 'Glas zetten') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/glas-zetten`);
+      return;
+    }
     setIsSelected(true);
   }
 
