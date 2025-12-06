@@ -489,7 +489,7 @@ export default function MetalstudWandMaterialenPage() {
               </div>
 
               <div className="space-y-8">
-                {renderSelectieRij('balktype', 'Balktype')}
+                {renderSelectieRij('balktype', 'Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
