@@ -15,14 +15,8 @@ type Subcategory = {
   name: JobCategory;
   description: string;
   icon: IconName;
+  href?: string;
 };
-
-const subcategories: Subcategory[] = [
-  { name: 'Dakrenovatie', description: 'Hellend Dak Vervangen', icon: 'roof' },
-  { name: 'Dakrenovatie', description: 'EPDM Dakbedekking', icon: 'roof' },
-  { name: 'Dakrenovatie', description: 'Golfplaat Dak – Op Houten Constructie', icon: 'roof' },
-  { name: 'Dakrenovatie', description: 'Overig Dakrenovatie', icon: 'plus' },
-];
 
 export default function DakrenovatiePage() {
   const params = useParams();
@@ -42,6 +36,13 @@ export default function DakrenovatiePage() {
     fetchQuote();
   }, [quoteId]);
 
+  const subcategories: Subcategory[] = [
+    { name: 'Dakrenovatie', description: 'Hellend Dak Vervangen', icon: 'roof', href: `/offertes/${quoteId}/klus/dakrenovatie/hellend-dak-vervangen` },
+    { name: 'Dakrenovatie', description: 'EPDM Dakbedekking', icon: 'roof' },
+    { name: 'Dakrenovatie', description: 'Golfplaat Dak – Op Houten Constructie', icon: 'roof' },
+    { name: 'Dakrenovatie', description: 'Overig Dakrenovatie', icon: 'plus' },
+  ];
+
   const handleSelect = (description: string) => {
     setSelected((prev) =>
       prev.includes(description)
@@ -49,6 +50,25 @@ export default function DakrenovatiePage() {
         : [...prev, description]
     );
   };
+  
+    const renderCardContent = (item: Subcategory) => (
+      <div
+        className={cn(
+          "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
+          selected.includes(item.description) ? "border-primary/80 bg-[#1c1c1c]" : "border-[rgba(255,0,0,0.2)]",
+          "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+        )}
+      >
+        <div className="w-full h-full text-left p-0">
+            <div className="p-4 flex items-center gap-4 h-full">
+                <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
+                <div className="flex flex-col">
+                <h3 className="font-semibold text-base text-white">{item.description}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+  );
 
   return (
     <main className="flex flex-1 flex-col">
@@ -80,26 +100,16 @@ export default function DakrenovatiePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
             {subcategories.map((item) => {
-                // We need a custom implementation here because CategoryCard is tied to server actions
-                // which we don't want to use for this multiple-selection-step.
+                if(item.href) {
+                     return (
+                        <Link key={item.description} href={item.href} className="h-full">
+                            {renderCardContent(item)}
+                        </Link>
+                    )
+                }
                 return (
                      <div key={item.description} onClick={() => handleSelect(item.description)} className="h-full">
-                        <div
-                            className={cn(
-                            "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
-                            selected.includes(item.description) ? "border-primary/80 bg-[#1c1c1c]" : "border-[rgba(255,0,0,0.2)]",
-                            "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
-                            )}
-                        >
-                            <div className="w-full h-full text-left p-0">
-                                <div className="p-4 flex items-center gap-4 h-full">
-                                    <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
-                                    <div className="flex flex-col">
-                                    <h3 className="font-semibold text-base text-white">{item.description}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {renderCardContent(item)}
                     </div>
                 )
             })}
