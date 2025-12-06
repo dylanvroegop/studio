@@ -54,58 +54,6 @@ type ExtraMateriaal = {
 const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
-// Helper om sectie te bepalen
-function bepaalSectieVoorMateriaal(materiaalnaam: string, categorie: string | null): SectieKey {
-    const naam = materiaalnaam.toLowerCase();
-    const cat = categorie?.toLowerCase() || '';
-
-    // Speciale categorie check
-    if (cat === 'bouwhout') {
-      return 'balktype';
-    }
-
-    const mapping: Record<SectieKey, string[]> = {
-        balktype: ['vuren sls', 'vuren geschaafd', 'vuren ruw', 'lvl', 'balk', 'fijnbezaagd', 'douglas', 'piketpaal', 'mastiek', 'bekistingsbrug'],
-        plinten: ['plint'],
-        kozijnen: ['kozijnhout', 'raamhout', 'glaslat', 'neuslat', 'weldorpel', 'raamdorpel', 'dorpel', 'vensterbank'],
-        deuren: ['deur', 'deuren', 'skantrae', 'berklon'],
-        gips_fermacell: ['gipskarton', 'gipskartonplaten', 'fermacell', 'habito', 'metalstuds', 'glasroc', 'gipsvezelplaat'],
-        isolatie: ['minerale wol', 'steenwol', 'rockwool', 'rockroof', 'rockfit', 'rocksono', 'rockvent', 'vlaswol', 'eps', 'xps', 'pir', 'kooltherm', 'jackodur', 'slimfix', 'isolatie'],
-        naden_vullen: ['jointfiller', 'voegenfinisher', 'voegengips', 'promix', 'lijm', 'mortel', 'band', 'tape', 'isolatieband'],
-        binnenbekleding: ['koplat', 'aftimmerlat', 'sierlijst', 'kastplank', 'meubelpanelen', 'plafondplaat', 'plafondlijst'],
-        folie: ['folie', 'dampremmende', 'dakbeschot', 'dakbedekking', 'epdm'],
-        extra: []
-    };
-    
-    for (const sectie of sectieSleutels) {
-        if (sectie !== 'extra' && mapping[sectie].some(trefwoord => naam.includes(trefwoord))) {
-            return sectie;
-        }
-    }
-    
-    return 'extra';
-}
-
-function parsePrijsNaarNummer(raw: unknown): number | null {
-  if (raw == null) return null;
-  if (typeof raw === "number") return Number.isNaN(raw) ? null : raw;
-  if (typeof raw !== "string") return null;
-
-  let value = raw.trim().replace(/€/g, "").replace(/\s+/g, "").replace(/[^0-9.,-]/g, "");
-  if (!value) return null;
-
-  const hasDot = value.includes(".");
-  const hasComma = value.includes(",");
-  if (hasDot && hasComma) {
-    value = value.replace(/\./g, "").replace(",", ".");
-  } else if (hasComma && !hasDot) {
-    value = value.replace(",", ".");
-  }
-
-  const num = parseFloat(value);
-  return Number.isNaN(num) ? null : num;
-}
-
 
 // ==================================
 // Modal Components
@@ -370,50 +318,19 @@ export default function HsbWandMaterialenPage() {
     fetchQuote();
   }, [quoteId]);
 
-  // Supabase materialen ophalen
-  useEffect(() => {
-    if (!user?.uid) return;
+  // Set loading to false after a short delay to prevent flash of loading state
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setMaterialenLaden(false);
+        }, 50); // Small delay
+        return () => clearTimeout(timer);
+    }, []);
 
-    const haalMaterialenOp = async () => {
-        setMaterialenLaden(true);
-        setFoutMaterialen(null);
-
-        const { data, error } = await supabase
-            .from('materialen_duplicate')
-            .select('*')
-            .eq('user_id', user.uid);
-
-        if (error) {
-            console.error('Fout bij het ophalen van Supabase:', error);
-            setFoutMaterialen(`Fout bij het laden van materialen: ${error.message}`);
-            setAlleMaterialen([]);
-        } else {
-            const getransformeerdeData = (data as Materiaal[]).map(m => ({
-                id: m.row_id,
-                materiaalnaam: m.materiaalnaam,
-                categorie: m.categorie,
-                eenheid: m.eenheid,
-                prijs: parsePrijsNaarNummer(m.prijs) || 0,
-                sort_order: m.sort_order
-            }));
-            setAlleMaterialen(getransformeerdeData);
-        }
-        setMaterialenLaden(false);
-    };
-
-    haalMaterialenOp();
-  }, [user?.uid]);
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-      return alleMaterialen
-          .filter(m => bepaalSectieVoorMateriaal(m.materiaalnaam, m.categorie) === sectieKey)
-          .sort((a, b) => {
-              const orderA = a.sort_order ?? Infinity;
-              const orderB = b.sort_order ?? Infinity;
-              if (orderA !== orderB) return orderA - orderB;
-              return a.materiaalnaam.localeCompare(b.materiaalnaam);
-          });
-  }, [alleMaterialen]);
+      // Always return empty array as per user request
+      return [];
+  }, []);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
@@ -501,8 +418,6 @@ export default function HsbWandMaterialenPage() {
                          <div className="h-8 bg-muted/50 rounded animate-pulse" />
                     ) : foutMaterialen ? (
                          <p className="text-sm text-destructive mt-1">Laden van materialen mislukt.</p>
-                    ) : materialenVoorSectie.length === 0 ? (
-                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal beschikbaar voor deze categorie.</p>
                     ) : (
                          <div className="flex items-center justify-between">
                             <div>
