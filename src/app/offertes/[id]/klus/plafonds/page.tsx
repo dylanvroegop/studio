@@ -27,7 +27,7 @@ export default function PlafondsPage() {
 
   const subcategories: Subcategory[] = [
     { name: 'Plafonds', description: 'Gipsplafond – Houten Framewerk', icon: 'ceiling', href: `/offertes/${quoteId}/klus/plafonds/gipsplafond-houten-framewerk` },
-    { name: 'Plafonds', description: 'Gipsplafond – Metalstud C/U', icon: 'ceiling' },
+    { name: 'Plafonds', description: 'Gipsplafond – Metalstud C/U', icon: 'ceiling', href: `/offertes/${quoteId}/klus/plafonds/gipsplafond-metalstud` },
     { name: 'Plafonds', description: 'Overig Plafonds', icon: 'plus' },
   ];
 
