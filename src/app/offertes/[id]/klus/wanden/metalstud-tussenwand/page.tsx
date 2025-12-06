@@ -8,14 +8,23 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
 
 type Wall = {
   lengte: string;
   hoogte: string;
+  balkafstand: string;
+  opmerkingen: string;
+};
+
+const defaultWallState: Wall = {
+  lengte: '',
+  hoogte: '',
+  balkafstand: '600',
+  opmerkingen: '',
 };
 
 export default function MetalstudTussenwandPage() {
@@ -26,7 +35,7 @@ export default function MetalstudTussenwandPage() {
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [walls, setWalls] = useState<Wall[]>([{ lengte: '', hoogte: '' }]);
+  const [walls, setWalls] = useState<Wall[]>([defaultWallState]);
 
   useEffect(() => {
     async function fetchQuote() {
@@ -40,7 +49,7 @@ export default function MetalstudTussenwandPage() {
   }, [quoteId]);
   
   const handleAddWall = () => {
-    setWalls([...walls, { lengte: '', hoogte: '' }]);
+    setWalls([...walls, { ...defaultWallState }]);
   };
   
   const handleRemoveWall = (index: number) => {
@@ -48,13 +57,13 @@ export default function MetalstudTussenwandPage() {
     setWalls(newWalls);
   };
 
-  const handleWallChange = (index: number, field: keyof Wall, value: string) => {
+  const handleWallChange = <K extends keyof Wall>(index: number, field: K, value: Wall[K]) => {
     const newWalls = [...walls];
     newWalls[index][field] = value;
     setWalls(newWalls);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (walls.some(wall => !wall.lengte || !wall.hoogte)) {
@@ -65,10 +74,10 @@ export default function MetalstudTussenwandPage() {
         });
         return;
     }
-
-    const description = `Metalstud Tussenwand (${walls.length} stuks)`;
     
-    await createJobAction(quoteId, 'Wanden', description);
+    localStorage.setItem(`quote-${quoteId}-metalstud-tussenwanden`, JSON.stringify(walls));
+    
+    router.push(`/offertes/${quoteId}/klus/wanden/metalstud-tussenwand/materialen`);
   };
   
   const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
@@ -100,65 +109,59 @@ export default function MetalstudTussenwandPage() {
                     Vul hieronder de gevraagde gegevens in. Deze informatie gebruiken wij om jouw offerte nauwkeurig voor je uit te werken.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Afmetingen – Metalstud Tussenwand</CardTitle>
-                        <CardDescription>
-                            Totaal aantal wanden: {walls.length}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {walls.map((wall, index) => (
-                           <div key={index} className="space-y-4 pt-4 border-t border-dashed first:border-t-0 first:pt-0">
-                             <div className="flex justify-between items-center">
-                                <h3 className="font-medium">Wand {index + 1}</h3>
+            <form>
+                <div className="space-y-6">
+                    {walls.map((wall, index) => (
+                       <Card key={index}>
+                           <CardHeader className="flex flex-row items-center justify-between">
+                               <div>
+                                   <CardTitle>Wand {index + 1}</CardTitle>
+                                   <CardDescription>
+                                       Specificeer de afmetingen en details voor deze wand.
+                                   </CardDescription>
+                               </div>
                                 {index > 0 && (
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
                                         <Trash2 className="h-4 w-4" />
                                         <span className="sr-only">Verwijder wand</span>
                                     </Button>
                                 )}
-                             </div>
-                             <div className="grid grid-cols-2 gap-4">
-                               <div className="space-y-2">
-                                 <Label htmlFor={`lengte-${index}`}>Lengte (mm)</Label>
-                                 <Input 
-                                    id={`lengte-${index}`} 
-                                    name={`lengte-${index}`} 
-                                    type="number" 
-                                    placeholder="Bijv. 5000" 
-                                    required 
-                                    value={wall.lengte}
-                                    onChange={(e) => handleWallChange(index, 'lengte', e.target.value)}
-                                 />
+                           </CardHeader>
+                           <CardContent className="space-y-6">
+                               <div className="grid grid-cols-2 gap-4">
+                                   <div className="space-y-2">
+                                     <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
+                                     <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} />
+                                   </div>
+                                   <div className="space-y-2">
+                                     <Label htmlFor={`hoogte-${index}`}>Hoogte (mm) *</Label>
+                                     <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
+                                   </div>
                                </div>
                                <div className="space-y-2">
-                                 <Label htmlFor={`hoogte-${index}`}>Hoogte / Breedte (mm)</Label>
-                                 <Input 
-                                    id={`hoogte-${index}`} 
-                                    name={`hoogte-${index}`} 
-                                    type="number" 
-                                    placeholder="Bijv. 2600" 
-                                    required
-                                    value={wall.hoogte}
-                                    onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)}
-                                 />
+                                   <Label htmlFor={`balkafstand-${index}`}>Balkafstand (h.o.h.)</Label>
+                                   <Input id={`balkafstand-${index}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} />
+                                   <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de profielen.</p>
                                </div>
-                             </div>
-                           </div>
-                        ))}
-                         <Button type="button" variant="outline" className="w-full" onClick={handleAddWall}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Wand toevoegen
-                        </Button>
-                    </CardContent>
-                </Card>
+
+                               <div className="space-y-2 pt-2">
+                                  <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
+                                   <p className="text-xs text-muted-foreground">Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.</p>
+                                  <Textarea id={`opmerkingen-${index}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
+                                </div>
+                           </CardContent>
+                       </Card>
+                    ))}
+                </div>
+                 <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddWall}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Wand toevoegen
+                </Button>
                 <div className="mt-6 flex justify-between items-center">
                     <Button variant="outline" asChild>
                         <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
                     </Button>
-                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                    <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                         Volgende
                     </Button>
                 </div>
