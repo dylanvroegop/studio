@@ -38,7 +38,7 @@ export default function VloerenPage() {
 
   const subcategories: Subcategory[] = [
     { name: 'Vloeren', description: 'Houten vloer (OSB / Underlayment)', icon: 'floor', href: `/offertes/${quoteId}/klus/vloeren/houten-vloer` },
-    { name: 'Vloeren', description: 'Laminaat / PVC / Klik-Vinyl', icon: 'floor' },
+    { name: 'Vloeren', description: 'Laminaat / PVC / Klik-Vinyl', icon: 'floor', href: `/offertes/${quoteId}/klus/vloeren/laminaat` },
     { name: 'Vloeren', description: 'Vlonder / Terrasconstructie', icon: 'floor' },
     { name: 'Vloeren', description: 'Overig Vloeren', icon: 'plus' },
   ];
