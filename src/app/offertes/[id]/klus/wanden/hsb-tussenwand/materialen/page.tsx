@@ -544,11 +544,11 @@ export default function HsbTussenwandMaterialenPage() {
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
                 
-                {renderSelectieRij('binnenbekleding', 'Constructieplaat')}
-                {renderSelectieRij('buitenbekleding', 'Constructieplaat')}
+                {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
+                {renderSelectieRij('buitenbekleding', 'OSB / Constructieplaat')}
 
-                {renderGipsSelectieRij('gips_fermacell_1', 'Gips / Fermacell', 'Kies de binnenafwerking van de wand.')}
-                {renderGipsSelectieRij('gips_fermacell_2', 'Gips / Fermacell', 'Kies de buitenafwerking van de wand.')}
+                {renderGipsSelectieRij('gips_fermacell_1', 'Gips / Fermacell')}
+                {renderGipsSelectieRij('gips_fermacell_2', 'Gips / Fermacell')}
 
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
