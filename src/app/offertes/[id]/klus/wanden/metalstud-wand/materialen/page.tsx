@@ -489,8 +489,10 @@ export default function MetalstudWandMaterialenPage() {
               </div>
 
               <div className="space-y-8">
-                {renderSelectieRij('balktype', 'Profielen')}
+                {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
+                {renderSelectieRij('folie', 'Folie')}
+                {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
                  <Card>
                     <CardHeader>
                         <CardTitle>Gips / Fermacell</CardTitle>
@@ -534,7 +536,11 @@ export default function MetalstudWandMaterialenPage() {
                          </div>
                     </CardContent>
                  </Card>
+
+                {renderSelectieRij('kozijnen', 'Kozijnen')}
+                {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
+                {renderSelectieRij('plinten', 'Plinten')}
                 
                 <Card>
                     <CardHeader>
