@@ -37,7 +37,7 @@ export default function GevelbekledingPage() {
 
   const subcategories: Subcategory[] = [
     { name: 'Gevelbekleding', description: 'Houten Gevelbekleding', icon: 'siding', href: `/offertes/${quoteId}/klus/gevelbekleding/houten-gevelbekleding` },
-    { name: 'Gevelbekleding', description: 'Keralit / Kunststof Panelen', icon: 'siding' },
+    { name: 'Gevelbekleding', description: 'Keralit / Kunststof Panelen', icon: 'siding', href: `/offertes/${quoteId}/klus/gevelbekleding/keralit-kunststof-panelen` },
     { name: 'Gevelbekleding', description: 'Overig Gevelbekleding', icon: 'plus' },
   ];
 
