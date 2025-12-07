@@ -507,8 +507,8 @@ export default function HsbWandMaterialenPage() {
             });
         }
         
-        const newDocRef = collection(firestore, 'presets');
-        batch.set(doc(newDocRef), newPresetData);
+        const newDocRef = doc(collection(firestore, 'presets'));
+        batch.set(newDocRef, newPresetData);
 
         await batch.commit();
 
@@ -520,6 +520,7 @@ export default function HsbWandMaterialenPage() {
         const querySnapshot = await getDocs(q);
         const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
         setPresets(fetchedPresets);
+        setGekozenPresetId(newDocRef.id); // set current preset to the one just created
 
     } catch (error) {
         console.error("Fout bij opslaan preset:", error);
@@ -618,6 +619,22 @@ export default function HsbWandMaterialenPage() {
                       Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan voor volgende offertes.
                   </p>
               </div>
+              
+              <div className="mb-8">
+                <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
+                <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                    <SelectTrigger id='preset-select'>
+                        <SelectValue placeholder="Kies een voorinstelling..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="default">Standaard (leeg)</SelectItem>
+                        {presets.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+              </div>
+
 
               <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Balktype')}
@@ -735,31 +752,15 @@ export default function HsbWandMaterialenPage() {
                     )}
                 </Card>
 
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Voorinstellingen</CardTitle>
-                        <CardDescription>Laad een opgeslagen configuratie of sla de huidige op.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-2">
-                        <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Kies een voorinstelling..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">Standaard (leeg)</SelectItem>
-                                {presets.map(p => (
-                                    <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full sm:w-auto">
-                            <Save className="mr-2 h-4 w-4" />
-                            Opslaan als voorinstelling
-                        </Button>
-                    </CardContent>
-                </Card>
-
               </div>
+              
+              <div className="mt-8">
+                <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
+                    <Save className="mr-2 h-4 w-4" />
+                    Huidige selectie opslaan als voorinstelling
+                </Button>
+              </div>
+
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>

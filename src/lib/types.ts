@@ -116,4 +116,3 @@ export type Preset = {
   gipsLagen?: number;
   createdAt: Timestamp;
 };
-
