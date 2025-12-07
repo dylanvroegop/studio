@@ -39,7 +39,7 @@ export default function KozijnenPage() {
   const subcategories: Subcategory[] = [
     { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-hout` },
     { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Staal', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-staal` },
-    { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Hout', icon: 'frame' },
+    { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-hout/materialen` },
     { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Kunststof', icon: 'frame' },
     { name: 'Kozijnen', description: 'Zelfgemaakte Kozijnen', icon: 'frame' },
     { name: 'Kozijnen', description: 'Overig Kozijnen', icon: 'plus' },
