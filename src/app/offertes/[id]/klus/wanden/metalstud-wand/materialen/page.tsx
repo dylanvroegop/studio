@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote } from '@/lib/types';
+import type { Quote, Preset as PresetType } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,9 +20,11 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Reorder } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2 } from 'lucide-react';
 
 
 // ==================================
@@ -59,53 +61,60 @@ type SectieKey = typeof sectieSleutels[number];
 // Modal Components
 // ==================================
 
-type ReorderModalProps = {
+type SavePresetDialogProps = {
   open: boolean;
-  onSluiten: () => void;
-  materialen: MateriaalKeuze[];
-  onOpslaan: (opgeslagenMaterialen: MateriaalKeuze[]) => void;
-}
+  onOpenChange: (open: boolean) => void;
+  onSave: (presetName: string, isDefault: boolean) => void;
+};
 
-function ReorderModal({ open, onSluiten, materialen, onOpslaan }: ReorderModalProps) {
-  const [items, setItems] = useState(materialen);
+function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps) {
+  const [name, setName] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    setItems(materialen);
-  }, [materialen]);
-
-  const handleSave = () => {
-    const opgeslagenMaterialen = items.map((item, index) => ({...item, sort_order: index}));
-    onOpslaan(opgeslagenMaterialen);
-    onSluiten();
-  }
-
+  const handleSave = async () => {
+    if (!name) return;
+    setIsSaving(true);
+    await onSave(name, isDefault);
+    setIsSaving(false);
+    onOpenChange(false);
+    // Reset state after closing
+    setTimeout(() => {
+        setName('');
+        setIsDefault(false);
+    }, 200);
+  };
+  
   return (
-    <Dialog open={open} onOpenChange={onSluiten}>
-      <DialogContent className="max-w-md max-h-[80vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle>Materiaal volgorde aanpassen</DialogTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Voorinstelling opslaan</DialogTitle>
+          <DialogDescription>
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij Metalstud wanden.
+          </DialogDescription>
         </DialogHeader>
-        <div className="overflow-y-auto flex-1 px-6">
-          <Reorder.Group axis="y" values={items} onReorder={setItems} className="space-y-2">
-            {items.map(item => (
-              <Reorder.Item key={item.id} value={item}>
-                <div className="flex items-center gap-4 p-2 rounded-md bg-muted/50 cursor-grab active:cursor-grabbing">
-                  <GripVertical className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">{item.materiaalnaam}</span>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
+        <div className="space-y-4 py-4">
+            <div className="space-y-2">
+                <Label htmlFor="preset-name">Naam voorinstelling *</Label>
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard metalstud wand" />
+            </div>
+            <div className="flex items-center space-x-2">
+                <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor Metalstud wanden</Label>
+            </div>
         </div>
-        <DialogFooter className="p-6 pt-4 border-t">
-          <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
-          <Button onClick={handleSave}>Opslaan</Button>
+        <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+            <Button onClick={handleSave} disabled={!name || isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSaving ? 'Opslaan...' : 'Opslaan'}
+            </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
-
 
 type MateriaalKiezerModalProps = {
   open: boolean;
@@ -188,92 +197,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
-const defaultExtraMateriaal: Omit<ExtraMateriaal, 'id'> = {
-    naam: '',
-    eenheid: 'stuk',
-    lengteMm: undefined,
-    breedteMm: undefined,
-    hoogteMm: undefined,
-    prijsPerEenheid: 0,
-};
-
-type ExtraMateriaalModalProps = {
-    open: boolean;
-    mode: 'add' | 'edit';
-    onSluiten: () => void;
-    onOpslaan: (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => void;
-    existingRecord?: ExtraMateriaal;
-}
-
-function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord }: ExtraMateriaalModalProps) {
-    const [item, setItem] = useState<Omit<ExtraMateriaal, 'id'> | ExtraMateriaal>(defaultExtraMateriaal);
-
-    useEffect(() => {
-      if (open) {
-        if (mode === 'edit' && existingRecord) {
-            setItem(existingRecord)
-        } else {
-            setItem(defaultExtraMateriaal);
-        }
-      }
-    }, [open, mode, existingRecord]);
-
-    const handleFieldChange = (field: keyof Omit<ExtraMateriaal, 'id'>, value: any) => {
-        setItem(prev => ({...prev, [field]: value}));
-    };
-
-    const handleOpslaan = () => {
-        onOpslaan(item);
-        onSluiten();
-    };
-
-    const isEenheidDimensie = ['m¹', 'm²', 'm³'].includes(item.eenheid);
-    
-    const prijsLabelMap: Record<string, string> = {
-      'stuk': 'Prijs per stuk (€)',
-      'm¹': 'Prijs per meter (€)',
-      'm²': 'Prijs per m² (géén plaatprijs!)',
-      'm³': 'Prijs per m³ (€)',
-    };
-    
-    const prijsHelperTextMap: Record<string, string> = {
-      'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken. Koop je dit normaal in een doos of pak? Reken dan eerst de prijs per stuk uit, anders klopt de offerte niet.',
-      'm¹': 'Let op: dit is prijs per strekkende meter. Niet per balk, niet per bundel. Krijg je een prijs per stuk? Reken die eerst om naar prijs per meter.',
-      'm²': 'Geen plaatprijs! Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
-      'm³': 'Let op: gebruik m³ alleen als het materiaal echt per kubieke meter wordt verkocht (bijv. isolatie in bulk). Krijg je een prijs per plaat of balk? Gebruik dan m² of m¹ in plaats van m³.',
-    };
-
-    const dynamischPrijsLabel = prijsLabelMap[item.eenheid] || 'Materiaalkosten per eenheid (€)';
-    const dynamischPrijsHelperText = prijsHelperTextMap[item.eenheid];
-    
-    return (
-        <Dialog open={open} onOpenChange={onSluiten}>
-            <DialogContent className="sm:max-w-2xl">
-                 <DialogHeader>
-                    <DialogTitle>{mode === 'edit' ? 'Materiaal Bewerken' : 'Extra Materiaal Toevoegen'}</DialogTitle>
-                     <DialogDescription>
-                         Gebruik dit voor uitzonderlijke materialen die niet in de vaste lijst staan.
-                         <span className="block mt-1 text-xs text-muted-foreground">Voer altijd de prijs per gekozen eenheid in. Verkeerde prijzen geven verkeerde offertes.</span>
-                     </DialogDescription>
-                 </DialogHeader>
-
-                <div className="grid gap-6 py-4">
-                   <div className="space-y-2"><Label htmlFor="extra-naam">Materiaalnaam *</Label><Input id="extra-naam" value={item.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" /></div>
-                    <div className="grid grid-cols-1"><div className="space-y-2"><Label htmlFor="extra-eenheid">Eenheid *</Label><Select value={item.eenheid} onValueChange={value => handleFieldChange('eenheid', value as ExtraMateriaal['eenheid'])}><SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="stuk">stuk</SelectItem><SelectItem value="m¹">m¹</SelectItem><SelectItem value="m²">m²</SelectItem><SelectItem value="m³">m³</SelectItem></SelectContent></Select></div></div>
-                    {isEenheidDimensie && (<div className="p-4 border rounded-md space-y-4"><p className="text-sm font-medium">Maatvoering (alleen indien relevant)</p><div className="grid grid-cols-3 gap-4">{['m¹', 'm²', 'm³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-lengte">Lengte (mm)</Label><Input id="extra-lengte" type="number" value={item.lengteMm || ''} onChange={e => handleFieldChange('lengteMm', e.target.value)} placeholder="Bijv. 3000"/></div>)}{['m²', 'm³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-breedte">Breedte (mm)</Label><Input id="extra-breedte" type="number" value={item.breedteMm || ''} onChange={e => handleFieldChange('breedteMm', e.target.value)} placeholder="Bijv. 600"/></div>)}{['m³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-hoogte">Hoogte / dikte (mm)</Label><Input id="extra-hoogte" type="number" value={item.hoogteMm || ''} onChange={e => handleFieldChange('hoogteMm', e.target.value)} placeholder="Bijv. 50"/></div>)}</div><p className="text-xs text-muted-foreground">Gebruik alleen lengte/breedte/hoogte als de prijs per m¹/m²/m³ wordt berekend.</p></div>)}
-                    <div className="grid grid-cols-1 gap-4"><div className="space-y-2"><Label htmlFor="extra-prijs" className="text-red-300">{dynamischPrijsLabel} *</Label><Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', Number(e.target.value))} placeholder="Bijv. 3,25"/>{dynamischPrijsHelperText && (<div className="mt-2 flex items-start gap-2 rounded-md border border-red-800 bg-red-950/40 p-2 text-sm text-red-300"><AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" /><p>{dynamischPrijsHelperText}</p></div>)}</div></div>
-                </div>
-
-                <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onSluiten}>Annuleren</Button>
-                    <Button type="button" onClick={handleOpslaan} disabled={!item.naam || !item.prijsPerEenheid}>
-                        { mode === 'edit' ? 'Wijziging Opslaan' : 'Toevoegen' }
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
 
 // ==================================
 // Pagina Component
@@ -283,7 +206,10 @@ export default function MetalstudWandMaterialenPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const quoteId = params.id as string;
+  const JOB_TYPE = "metalstud-wand";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -293,18 +219,27 @@ export default function MetalstudWandMaterialenPage() {
   const [isMaterialenLaden, setMaterialenLaden] = useState(true);
   const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
   
+  // State voor presets
+  const [presets, setPresets] = useState<PresetType[]>([]);
+  const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
+  const [isPresetsLaden, setPresetsLaden] = useState(true);
+  
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
-  const [extraMaterialen, setExtraMaterialen] = useState<ExtraMateriaal[]>([]);
   const [gipsLagen, setGipsLagen] = useState(1);
   const [tempGipsLagen, setTempGipsLagen] = useState(1);
   
+  // State for collapsible cards / hidden slots
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
-  const [extraMateriaalModalOpen, setExtraMateriaalModalOpen] = useState(false);
-  const [extraMateriaalModalMode, setExtraMateriaalModalMode] = useState<'add' | 'edit'>('add');
-  const [editingExtraMateriaal, setEditingExtraMateriaal] = useState<ExtraMateriaal | undefined>(undefined);
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
+  const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
+
+  const toggleSection = (sectieSleutel: SectieKey) => {
+    setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
+  };
 
   // Quote data ophalen
   useEffect(() => {
@@ -317,6 +252,65 @@ export default function MetalstudWandMaterialenPage() {
     }
     fetchQuote();
   }, [quoteId]);
+
+  // Presets ophalen
+  useEffect(() => {
+    if (!user || !firestore) return;
+
+    const fetchPresets = async () => {
+      setPresetsLaden(true);
+      try {
+        const presetsRef = collection(firestore, 'presets');
+        const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
+        const querySnapshot = await getDocs(q);
+        const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
+        setPresets(fetchedPresets);
+
+        const defaultPreset = fetchedPresets.find(p => p.isDefault);
+        if (defaultPreset) {
+          setGekozenPresetId(defaultPreset.id);
+        } else {
+          setGekozenPresetId('default');
+        }
+      } catch (error) {
+        console.error("Fout bij ophalen presets:", error);
+        toast({ variant: 'destructive', title: 'Fout', description: 'Kon presets niet laden.' });
+      } finally {
+        setPresetsLaden(false);
+      }
+    };
+
+    fetchPresets();
+  }, [user, firestore, toast]);
+  
+  // Gekozen preset toepassen
+  useEffect(() => {
+    if (gekozenPresetId === 'default') {
+      // Reset naar leeg
+      setGekozenMaterialen({});
+      setCollapsedSections({});
+      setGipsLagen(1);
+      return;
+    }
+    
+    // Wacht tot materialen geladen zijn
+    if (alleMaterialen.length === 0) return;
+
+    const preset = presets.find(p => p.id === gekozenPresetId);
+    if (!preset) return;
+
+    const nieuweGekozenMaterialen: Record<string, MateriaalKeuze | undefined> = {};
+    for (const slot in preset.slots) {
+      const materiaalId = preset.slots[slot];
+      const materiaal = alleMaterialen.find(m => m.id === materiaalId);
+      if (materiaal) {
+        nieuweGekozenMaterialen[slot] = materiaal;
+      }
+    }
+    setGekozenMaterialen(nieuweGekozenMaterialen);
+    setCollapsedSections(preset.collapsedSections || {});
+    setGipsLagen(preset.gipsLagen || 1);
+  }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Set loading to false after a short delay to prevent flash of loading state
     useEffect(() => {
@@ -341,12 +335,6 @@ export default function MetalstudWandMaterialenPage() {
     setActieveSectie(null);
   };
   
-  const openExtraMateriaalModal = (mode: 'add' | 'edit', item?: ExtraMateriaal) => {
-    setExtraMateriaalModalMode(mode);
-    setEditingExtraMateriaal(item);
-    setExtraMateriaalModalOpen(true);
-  };
-
   const openLagenKiezer = () => {
     setTempGipsLagen(gipsLagen);
     setLagenModalOpen(true);
@@ -360,15 +348,6 @@ export default function MetalstudWandMaterialenPage() {
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
   };
-  
-  const handleExtraMateriaalOpslaan = (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => {
-    if ('id' in materiaal && materiaal.id) {
-      setExtraMaterialen(prev => prev.map(m => m.id === materiaal.id ? materiaal : m));
-    } else {
-      const nieuwMateriaal = { ...materiaal, id: new Date().toISOString() };
-      setExtraMaterialen(prev => [...prev, nieuwMateriaal]);
-    }
-  };
 
   const handleMateriaalVerwijderen = (sectieSleutel: SectieKey) => {
     setGekozenMaterialen(prev => {
@@ -381,50 +360,97 @@ export default function MetalstudWandMaterialenPage() {
     });
   };
 
-  const handleStandaardMaterialenOpslaan = async (opgeslagenMaterialen: MateriaalKeuze[]) => {
-      const updates = opgeslagenMaterialen.map(m => ({
-          row_id: m.id,
-          sort_order: m.sort_order,
-          user_id: user?.uid
-      }));
+  const handleSavePreset = async (presetName: string, isDefault: boolean) => {
+    if (!user || !firestore) return;
 
-      const { error } = await supabase.from('materialen_duplicate').upsert(updates);
-      if (error) {
-          console.error("Fout bij opslaan sortering:", error);
-          // Toon een toast?
-      } else {
-          // Update lokale state om re-render te forceren
-          setAlleMaterialen(prev => {
-              const materialMap = new Map(opgeslagenMaterialen.map(m => [m.id, m]));
-              return prev.map(p => materialMap.has(p.id) ? materialMap.get(p.id)! : p);
-          });
-      }
-  }
+    const slots: Record<string, string> = {};
+    for (const key in gekozenMaterialen) {
+        const materiaal = gekozenMaterialen[key];
+        if (materiaal) {
+            slots[key] = materiaal.id;
+        }
+    }
+    
+    const newPresetData: Omit<PresetType, 'id'> = {
+        userId: user.uid,
+        jobType: JOB_TYPE,
+        name: presetName,
+        isDefault: isDefault,
+        slots: slots,
+        collapsedSections: collapsedSections,
+        gipsLagen: gipsLagen,
+        createdAt: serverTimestamp() as any,
+    };
+    
+    try {
+        const batch = writeBatch(firestore);
+
+        if (isDefault) {
+            const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach(doc => {
+                batch.update(doc.ref, { isDefault: false });
+            });
+        }
+        
+        const newDocRef = doc(collection(firestore, 'presets'));
+        batch.set(newDocRef, newPresetData);
+
+        await batch.commit();
+
+        toast({ title: 'Voorinstelling opgeslagen', description: `"${presetName}" is succesvol opgeslagen.` });
+        setSavePresetModalOpen(false);
+        
+        const newPreset = { id: newDocRef.id, ...newPresetData } as PresetType;
+        setPresets(prev => [...prev.map(p => ({...p, isDefault: isDefault ? false : p.isDefault })), newPreset]);
+        setGekozenPresetId(newDocRef.id);
+
+    } catch (error) {
+        console.error("Fout bij opslaan preset:", error);
+        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
+    }
+  };
 
   const isVolgendeIngeschakeld = true;
 
-  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
-    const materialenVoorSectie = filterMaterialenVoorSectie(sectieSleutel);
+    const isCollapsed = collapsedSections[sectieSleutel];
 
+    if (isCollapsed) {
+        return (
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
+                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
+            </div>
+        );
+    }
+    
     return (
         <Card>
-            <CardHeader>
-                <CardTitle>{titel}</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between p-4">
+                <div className="space-y-1.5">
+                    <CardTitle className="text-base">{titel}</CardTitle>
+                    {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
+                   <X className="h-4 w-4" />
+                   <span className="sr-only">Verberg sectie</span>
+                </Button>
             </CardHeader>
-            <CardContent className="-mt-4">
-                 <div className="pt-4 first:pt-0">
+            <CardContent className="p-4 pt-0">
+                 <div className="border-t pt-4">
                     {isMaterialenLaden ? (
-                         <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                         <div className="h-10 bg-muted/50 rounded animate-pulse" />
                     ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive mt-1">Laden van materialen mislukt.</p>
+                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
                     ) : (
-                         <div className="flex items-center justify-between">
+                         <div className="flex items-center justify-between min-h-[40px]">
                             <div>
                                 {gekozenMateriaal ? (
-                                <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
+                                <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
                                 ) : (
-                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
@@ -440,21 +466,17 @@ export default function MetalstudWandMaterialenPage() {
                         </div>
                     )}
                 </div>
+                {(sectieSleutel === 'gips_fermacell') && gekozenMateriaal && !isMaterialenLaden && (
+                    <div className="mt-2 pl-1">
+                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                            <Settings className="w-3 h-3"/>
+                            Lagen: {gipsLagen} (aanpassen)
+                        </button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
-  };
-  
-  const formatExtraMateriaalRow = (item: ExtraMateriaal) => {
-    let details = [];
-    if (item.eenheid === 'm²' && item.lengteMm && item.breedteMm) {
-      details.push(`m²`, `${item.lengteMm} × ${item.breedteMm} mm`);
-    } else if (item.eenheid === 'm¹' && item.lengteMm) {
-      details.push(`m¹`, `lengte ${item.lengteMm} mm`);
-    } else {
-        details.push(item.eenheid);
-    }
-    return `${item.naam} – ${details.join(' – ')}`;
   };
   
   return (
@@ -484,125 +506,78 @@ export default function MetalstudWandMaterialenPage() {
               <div className="text-center mb-8">
                    <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Metalstud Wand</h1>
                   <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als preset opslaan voor volgende offertes.
+                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan.
                   </p>
               </div>
+              
+              <div className="mb-8">
+                  <Label htmlFor='preset-select' className='text-xs text-muted-foreground'>Voorinstellingen</Label>
+                  <div className="flex items-center gap-2">
+                      <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                          <SelectTrigger id='preset-select' className="h-9">
+                              <SelectValue placeholder="Kies een voorinstelling..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="default">Standaard (leeg)</SelectItem>
+                              {presets.map(p => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                              ))}
+                          </SelectContent>
+                      </Select>
+                      <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setGekozenPresetId('default')}
+                          disabled={gekozenPresetId === 'default'}
+                          className="text-muted-foreground"
+                      >
+                         <RotateCcw className="h-3.5 w-3.5 mr-2"/>
+                          Reset
+                      </Button>
+                  </div>
+              </div>
 
-              <div className="space-y-8">
+
+              <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Gips / Fermacell</CardTitle>
-                        <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="-mt-4">
-                        <div key='gips_fermacell' className="pt-4 first:pt-0">
-                           {isMaterialenLaden ? (
-                               <div className="h-8 bg-muted/50 rounded animate-pulse" />
-                           ) : (
-                            <>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                {gekozenMaterialen['gips_fermacell'] ? (
-                                    <p className="text-sm text-primary mt-1">Gekozen: {gekozenMaterialen['gips_fermacell'].materiaalnaam}</p>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                                )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                {gekozenMaterialen['gips_fermacell'] && (
-                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gips_fermacell')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                    <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                )}
-                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('gips_fermacell')}>
-                                    {gekozenMaterialen['gips_fermacell'] ? 'Wijzigen' : 'Kiezen'}
-                                </Button>
-                                </div>
-                            </div>
-                            {gekozenMaterialen['gips_fermacell'] && (
-                                <div className="mt-2 pl-1">
-                                <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                                    <Settings className="w-3 h-3"/>
-                                    Lagen: {gipsLagen} (aanpassen)
-                                </button>
-                                </div>
-                            )}
-                            </>
-                           )}
-                         </div>
-                    </CardContent>
-                 </Card>
-
+                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell', 'Kies de binnenafwerking van de wand.')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('plinten', 'Plinten')}
-                
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Extra materiaal</CardTitle>
-                        <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="-mt-4">
-                        <div className="pt-4 first:pt-0">
-                            {extraMaterialen.length === 0 ? (
-                                <div className="flex items-center justify-between">
-                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                                     <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('add')}>
-                                        Kiezen
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex-1 space-y-2">
-                                            <p className="text-sm text-primary mt-1">
-                                                {extraMaterialen.length > 1 ? 'Gekozen extra materialen:' : 'Gekozen extra materiaal:'}
-                                            </p>
-                                            <div className="space-y-1">
-                                                {extraMaterialen.map(item => (
-                                                    <p key={item.id} className="text-sm text-primary">{formatExtraMateriaalRow(item)}</p>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('edit', extraMaterialen[0])}>
-                                                Wijzigen
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4">
-                                         <button onClick={() => openExtraMateriaalModal('add')} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                                            <PlusCircle className="w-3 h-3"/>
-                                            Extra materiaal toevoegen
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-
+                {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
               </div>
+              
+              <div className="mt-8">
+                <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
+                    <Save className="mr-2 h-4 w-4" />
+                    Huidige keuzes opslaan voor volgende keer
+                </Button>
+              </div>
+
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-wand`}>Terug</Link>
                   </Button>
-                  <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                      Volgende
-                  </Button>
+                  <div>
+                    <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                        Volgende
+                    </Button>
+                   </div>
               </div>
           </div>
         </div>
       </main>
+
+       <SavePresetDialog 
+         open={savePresetModalOpen}
+         onOpenChange={setSavePresetModalOpen}
+         onSave={handleSavePreset}
+       />
 
        {actieveSectie && <MateriaalKiezerModal
           open={!!actieveSectie}
@@ -615,24 +590,6 @@ export default function MetalstudWandMaterialenPage() {
             sluitMateriaalKiezer();
             setReorderModalOpen(true);
           }}
-      />}
-      
-      <ExtraMateriaalModal
-          open={extraMateriaalModalOpen}
-          mode={extraMateriaalModalMode}
-          onSluiten={() => setExtraMateriaalModalOpen(false)}
-          onOpslaan={handleExtraMateriaalOpslaan}
-          existingRecord={editingExtraMateriaal}
-      />
-
-      {actieveSectie && <ReorderModal 
-        open={reorderModalOpen}
-        onSluiten={() => {
-            setReorderModalOpen(false);
-            openMateriaalKiezer(actieveSectie);
-        }}
-        materialen={filterMaterialenVoorSectie(actieveSectie)}
-        onOpslaan={handleStandaardMaterialenOpslaan}
       />}
       
        <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
