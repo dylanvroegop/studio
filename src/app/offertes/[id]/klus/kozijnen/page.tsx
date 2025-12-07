@@ -41,7 +41,7 @@ export default function KozijnenPage() {
     { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Staal', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-staal` },
     { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-hout/materialen` },
     { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Kunststof', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-kunststof/materialen` },
-    { name: 'Kozijnen', description: 'Zelfgemaakte Kozijnen', icon: 'frame' },
+    { name: 'Kozijnen', description: 'Zelfgemaakte Kozijnen', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/zelfgemaakte-kozijnen/materialen` },
     { name: 'Kozijnen', description: 'Overig Kozijnen', icon: 'plus' },
   ];
 
