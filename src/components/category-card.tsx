@@ -91,6 +91,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/glas-zetten`);
       return;
     }
+    if (category.name === 'Dakramen') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/dakramen/materialen`);
+      return;
+    }
     setIsSelected(true);
   }
 
