@@ -73,14 +73,9 @@ export default function HoutenVloerPage() {
         return;
     }
     
-    // Here you would typically save the data and navigate
     localStorage.setItem(`quote-${quoteId}-houten-vloer`, JSON.stringify(vloeren));
     
-    // TODO: Create the actual materials page and navigate to it
-    toast({
-        title: 'Volgende stap niet geïmplementeerd',
-        description: 'De materialenpagina voor dit klustype bestaat nog niet.',
-    });
+    router.push(`/offertes/${quoteId}/klus/vloeren/houten-vloer/materialen`);
   };
   
   const isNextDisabled = vloeren.some(p => !p.lengte || !p.breedte);
