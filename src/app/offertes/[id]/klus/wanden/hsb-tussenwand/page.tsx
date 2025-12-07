@@ -35,7 +35,7 @@ export default function HsbTussenwandPage() {
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [walls, setWalls] = useState<Wall[]>([{ ...defaultWallState }]);
+  const [walls, setWalls] = useState<Wall[]>([defaultWallState]);
 
   useEffect(() => {
     async function fetchQuote() {
