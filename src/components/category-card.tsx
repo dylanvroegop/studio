@@ -97,6 +97,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/dakramen/materialen`);
       return;
     }
+    if (category.name === 'Schutting / Tuinafscheiding') {
+        e.preventDefault();
+        setIsSelected(true);
+        router.push(`/offertes/${quoteId}/klus/schutting`);
+        return;
+    }
     setIsSelected(true);
   }
 
