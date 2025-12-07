@@ -600,6 +600,21 @@ export default function HsbWandMaterialenPage() {
                   </p>
               </div>
 
+              <div className="mb-8">
+                <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
+                <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                    <SelectTrigger id='preset-select'>
+                        <SelectValue placeholder="Kies een voorinstelling..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="default">Standaard (leeg)</SelectItem>
+                        {presets.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
@@ -696,7 +711,7 @@ export default function HsbWandMaterialenPage() {
                                                 <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('edit', extraMateriaal[0])}>
+                                                <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('edit', extraMaterialen[0])}>
                                                     Wijzigen
                                                 </Button>
                                             </div>
@@ -716,21 +731,6 @@ export default function HsbWandMaterialenPage() {
 
               </div>
               
-              <div className="mb-8 mt-4">
-                <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
-                <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
-                    <SelectTrigger id='preset-select'>
-                        <SelectValue placeholder="Kies een voorinstelling..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="default">Standaard (leeg)</SelectItem>
-                        {presets.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-              </div>
-
               <div className="mt-4">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
                     <Save className="mr-2 h-4 w-4" />
