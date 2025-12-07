@@ -544,18 +544,18 @@ export default function HsbWandMaterialenPage() {
             </CardHeader>
             {!isCollapsed && (
                 <CardContent className="p-4 pt-0">
-                     <div className="pt-2 first:pt-0 border-t">
+                     <div className="border-t pt-4">
                         {isMaterialenLaden ? (
-                             <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                             <div className="h-10 bg-muted/50 rounded animate-pulse" />
                         ) : foutMaterialen ? (
-                             <p className="text-sm text-destructive mt-1">Laden van materialen mislukt.</p>
+                             <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
                         ) : (
-                             <div className="flex items-center justify-between">
+                             <div className="flex items-center justify-between min-h-[40px]">
                                 <div>
                                     {gekozenMateriaal ? (
-                                    <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
+                                    <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
                                     ) : (
-                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                    <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -653,17 +653,16 @@ export default function HsbWandMaterialenPage() {
                     </CardHeader>
                     {!collapsedSections['gips_fermacell'] && (
                         <CardContent className="p-4 pt-0">
-                            <div key='gips_fermacell' className="pt-2 border-t">
+                            <div key='gips_fermacell' className="border-t pt-4">
                                {isMaterialenLaden ? (
-                                   <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                                   <div className="h-10 bg-muted/50 rounded animate-pulse" />
                                ) : (
-                                <>
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between min-h-[40px]">
                                     <div>
                                     {gekozenMaterialen['gips_fermacell'] ? (
-                                        <p className="text-sm text-primary mt-1">Gekozen: {gekozenMaterialen['gips_fermacell'].materiaalnaam}</p>
+                                        <p className="text-sm text-primary">Gekozen: {gekozenMaterialen['gips_fermacell'].materiaalnaam}</p>
                                     ) : (
-                                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                        <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                     )}
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -677,7 +676,8 @@ export default function HsbWandMaterialenPage() {
                                     </Button>
                                     </div>
                                 </div>
-                                {gekozenMaterialen['gips_fermacell'] && (
+                               )}
+                                {gekozenMaterialen['gips_fermacell'] && !isMaterialenLaden && (
                                     <div className="mt-2 pl-1">
                                     <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
                                         <Settings className="w-3 h-3"/>
@@ -685,8 +685,6 @@ export default function HsbWandMaterialenPage() {
                                     </button>
                                     </div>
                                 )}
-                                </>
-                               )}
                              </div>
                         </CardContent>
                     )}
@@ -709,19 +707,19 @@ export default function HsbWandMaterialenPage() {
                     </CardHeader>
                     {!collapsedSections['extra'] && (
                         <CardContent className="p-4 pt-0">
-                            <div className="pt-2 border-t">
+                            <div className="border-t pt-4">
                                 {extraMaterialen.length === 0 ? (
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                    <div className="flex items-center justify-between min-h-[40px]">
+                                        <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
                                          <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('add')}>
                                             Kiezen
                                         </Button>
                                     </div>
                                 ) : (
-                                    <div>
+                                    <div className="min-h-[40px]">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1 space-y-2">
-                                                <p className="text-sm text-primary mt-1">
+                                                <p className="text-sm text-primary">
                                                     {extraMaterialen.length > 1 ? 'Gekozen extra materialen:' : 'Gekozen extra materiaal:'}
                                                 </p>
                                                 <div className="space-y-1">
@@ -757,7 +755,7 @@ export default function HsbWandMaterialenPage() {
               <div className="mt-8">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
                     <Save className="mr-2 h-4 w-4" />
-                    Huidige selectie opslaan als voorinstelling
+                    Opslaan als voorinstelling
                 </Button>
               </div>
 
