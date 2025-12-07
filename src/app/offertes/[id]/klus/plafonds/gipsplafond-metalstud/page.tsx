@@ -73,15 +73,9 @@ export default function GipsplafondMetalstudPage() {
         return;
     }
     
-    // For now, we just navigate to a placeholder materials page
     localStorage.setItem(`quote-${quoteId}-gipsplafond-metalstud`, JSON.stringify(plafonds));
     
-    // TODO: Create the actual materials page and navigate to it
-    // router.push(`/offertes/${quoteId}/klus/plafonds/gipsplafond-metalstud/materialen`);
-    toast({
-        title: 'Volgende stap niet geïmplementeerd',
-        description: 'De materialenpagina voor dit klustype bestaat nog niet.',
-    });
+    router.push(`/offertes/${quoteId}/klus/plafonds/gipsplafond-metalstud/materialen`);
   };
   
   const isNextDisabled = plafonds.some(p => !p.lengte || !p.breedte);
