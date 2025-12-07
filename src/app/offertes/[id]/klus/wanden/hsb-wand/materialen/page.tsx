@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -512,7 +512,7 @@ export default function HsbWandMaterialenPage() {
 
         await batch.commit();
 
-        toast({ title: 'Preset opgeslagen', description: `Preset "${presetName}" is succesvol opgeslagen.` });
+        toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
         // Herlaad presets
         const presetsRef = collection(firestore, 'presets');
@@ -523,7 +523,7 @@ export default function HsbWandMaterialenPage() {
 
     } catch (error) {
         console.error("Fout bij opslaan preset:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de preset niet opslaan.' });
+        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
     }
   };
 
@@ -615,20 +615,20 @@ export default function HsbWandMaterialenPage() {
               <div className="text-center mb-8">
                    <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Wand</h1>
                   <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als preset opslaan voor volgende offertes.
+                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan voor volgende offertes.
                   </p>
               </div>
 
               <div className="space-y-4">
                  <Card>
                     <CardHeader>
-                        <CardTitle>Presets</CardTitle>
+                        <CardTitle>Voorinstellingen</CardTitle>
                         <CardDescription>Laad een opgeslagen configuratie of sla de huidige op.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col sm:flex-row gap-2">
                         <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Kies een preset..." />
+                                <SelectValue placeholder="Kies een voorinstelling..." />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="default">Standaard (leeg)</SelectItem>
@@ -639,7 +639,7 @@ export default function HsbWandMaterialenPage() {
                         </Select>
                         <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full sm:w-auto">
                             <Save className="mr-2 h-4 w-4" />
-                            Opslaan als preset
+                            Opslaan als voorinstelling
                         </Button>
                     </CardContent>
                 </Card>
@@ -876,19 +876,19 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Preset opslaan</DialogTitle>
+          <DialogTitle>Voorinstelling opslaan</DialogTitle>
           <DialogDescription>
             Sla de huidige materiaalconfiguratie op voor later gebruik.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
             <div className="space-y-2">
-                <Label htmlFor="preset-name">Presetnaam</Label>
+                <Label htmlFor="preset-name">Naam voorinstelling</Label>
                 <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard verbouwing" />
             </div>
             <div className="flex items-center space-x-2">
                 <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
-                <Label htmlFor="default-preset">Maak dit mijn standaard preset voor HSB wanden</Label>
+                <Label htmlFor="default-preset">Maak dit mijn standaard voorinstelling voor HSB wanden</Label>
             </div>
         </div>
         <DialogFooter>
