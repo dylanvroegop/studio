@@ -118,9 +118,11 @@ type MateriaalKiezerModalProps = {
   onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
   openReorderModal: () => void;
   materialen: MateriaalKeuze[];
+  isVerborgen: boolean;
+  onVerborgenToggle: (sectieSleutel: SectieKey) => void;
 };
 
-function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen, isVerborgen, onVerborgenToggle }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
   
   const gefilterdeMaterialen = useMemo(() => {
@@ -183,7 +185,11 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
             </ul>
         </div>
 
-        <DialogFooter className="p-6 pt-4 border-t">
+        <DialogFooter className="p-6 pt-4 border-t flex-col sm:flex-row gap-4 sm:gap-2">
+            <div className="flex items-center space-x-2 mr-auto">
+              <Checkbox id="niet-van-toepassing" checked={isVerborgen} onCheckedChange={() => onVerborgenToggle(sectieSleutel)} />
+              <Label htmlFor="niet-van-toepassing" className="text-sm text-muted-foreground">Niet van toepassing (verberg deze keuze)</Label>
+            </div>
             <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
         </DialogFooter>
       </DialogContent>
@@ -309,6 +315,9 @@ export default function HsbWandMaterialenPage() {
   const [gipsLagen, setGipsLagen] = useState(1);
   const [tempGipsLagen, setTempGipsLagen] = useState(1);
   
+  // State for collapsible cards / hidden slots
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
@@ -318,11 +327,9 @@ export default function HsbWandMaterialenPage() {
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   
-  // State for collapsible cards
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
-  const toggleSection = (sectieSleutel: SectieKey) => {
-    setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
+  const toggleSection = (sectieSleutel: SectieKey, forceState?: boolean) => {
+    setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: forceState !== undefined ? forceState : !prev[sectieSleutel] }));
   };
 
   // Quote data ophalen
@@ -514,45 +521,53 @@ export default function HsbWandMaterialenPage() {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
 
+    if (isCollapsed) {
+        return (
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
+                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel, false)}>Toon weer</Button>
+            </div>
+        );
+    }
+    
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <CardTitle className="text-lg">{titel}</CardTitle>
-                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8">
-                    {isCollapsed ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
+                   <X className="h-4 w-4" />
+                   <span className="sr-only">Verberg sectie</span>
                 </Button>
             </CardHeader>
-            {!isCollapsed && (
-                <CardContent className="p-4 pt-0">
-                     <div className="border-t pt-4">
-                        {isMaterialenLaden ? (
-                             <div className="h-10 bg-muted/50 rounded animate-pulse" />
-                        ) : foutMaterialen ? (
-                             <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
-                        ) : (
-                             <div className="flex items-center justify-between min-h-[40px]">
-                                <div>
-                                    {gekozenMateriaal ? (
-                                    <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
-                                    ) : (
-                                    <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {gekozenMateriaal && (
-                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                    )}
-                                    <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(sectieSleutel)}>
-                                    {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
-                                    </Button>
-                                </div>
+            <CardContent className="p-4 pt-0">
+                 <div className="border-t pt-4">
+                    {isMaterialenLaden ? (
+                         <div className="h-10 bg-muted/50 rounded animate-pulse" />
+                    ) : foutMaterialen ? (
+                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
+                    ) : (
+                         <div className="flex items-center justify-between min-h-[40px]">
+                            <div>
+                                {gekozenMateriaal ? (
+                                <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
+                                ) : (
+                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
+                                )}
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            )}
+                            <div className="flex items-center gap-2">
+                                {gekozenMateriaal && (
+                                <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                                )}
+                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(sectieSleutel)}>
+                                {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
         </Card>
     );
   };
@@ -626,8 +641,8 @@ export default function HsbWandMaterialenPage() {
                             <CardTitle className="text-lg">Gips / Fermacell</CardTitle>
                             <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => toggleSection('gips_fermacell')} className="h-8 w-8">
-                            {collapsedSections['gips_fermacell'] ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+                        <Button variant="ghost" size="icon" onClick={() => toggleSection('gips_fermacell')} className="h-8 w-8 text-muted-foreground">
+                            {collapsedSections['gips_fermacell'] ? <PlusCircle className="h-5 w-5" /> : <X className="h-5 w-5" />}
                         </Button>
                     </CardHeader>
                     {!collapsedSections['gips_fermacell'] && (
@@ -680,8 +695,8 @@ export default function HsbWandMaterialenPage() {
                             <CardTitle className="text-lg">Extra materiaal</CardTitle>
                             <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => toggleSection('extra')} className="h-8 w-8">
-                           {collapsedSections['extra'] ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+                        <Button variant="ghost" size="icon" onClick={() => toggleSection('extra')} className="h-8 w-8 text-muted-foreground">
+                           {collapsedSections['extra'] ? <PlusCircle className="h-5 w-5" /> : <X className="h-5 w-5" />}
                         </Button>
                     </CardHeader>
                     {!collapsedSections['extra'] && (
@@ -734,7 +749,7 @@ export default function HsbWandMaterialenPage() {
               <div className="mt-4">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
                     <Save className="mr-2 h-4 w-4" />
-                    Opslaan voor volgende keer
+                    Huidige keuzes opslaan voor volgende keer
                 </Button>
               </div>
 
@@ -768,6 +783,11 @@ export default function HsbWandMaterialenPage() {
             sluitMateriaalKiezer();
             setReorderModalOpen(true);
           }}
+          isVerborgen={collapsedSections[actieveSectie] || false}
+          onVerborgenToggle={(sectie) => {
+            toggleSection(sectie);
+            sluitMateriaalKiezer();
+          }}
       />}
       
       <ExtraMateriaalModal
@@ -785,7 +805,7 @@ export default function HsbWandMaterialenPage() {
             openMateriaalKiezer(actieveSectie);
         }}
         materialen={filterMaterialenVoorSectie(actieveSectie)}
-        onOpslaan={handleStandaardMaterialenOpslaan}
+        onOpslaan={() => {}}
       />}
       
        <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
