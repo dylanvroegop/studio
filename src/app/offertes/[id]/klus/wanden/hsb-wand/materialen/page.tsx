@@ -118,11 +118,9 @@ type MateriaalKiezerModalProps = {
   onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
   openReorderModal: () => void;
   materialen: MateriaalKeuze[];
-  isVerborgen: boolean;
-  onVerborgenToggle: (sectieSleutel: SectieKey) => void;
 };
 
-function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen, isVerborgen, onVerborgenToggle }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
   
   const gefilterdeMaterialen = useMemo(() => {
@@ -185,11 +183,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
             </ul>
         </div>
 
-        <DialogFooter className="p-6 pt-4 border-t flex-col sm:flex-row gap-4 sm:gap-2">
-            <div className="flex items-center space-x-2 mr-auto">
-              <Checkbox id="niet-van-toepassing" checked={isVerborgen} onCheckedChange={() => onVerborgenToggle(sectieSleutel)} />
-              <Label htmlFor="niet-van-toepassing" className="text-sm text-muted-foreground">Niet van toepassing (verberg deze keuze)</Label>
-            </div>
+        <DialogFooter className="p-6 pt-4 border-t">
             <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
         </DialogFooter>
       </DialogContent>
@@ -692,11 +686,6 @@ export default function HsbWandMaterialenPage() {
           openReorderModal={() => {
             sluitMateriaalKiezer();
             setReorderModalOpen(true);
-          }}
-          isVerborgen={collapsedSections[actieveSectie] || false}
-          onVerborgenToggle={(sectie) => {
-            toggleSection(sectie);
-            sluitMateriaalKiezer();
           }}
       />}
       
