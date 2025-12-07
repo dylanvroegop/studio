@@ -453,26 +453,6 @@ export default function HsbWandMaterialenPage() {
     });
   };
 
-  const handleStandaardMaterialenOpslaan = async (opgeslagenMaterialen: MateriaalKeuze[]) => {
-      const updates = opgeslagenMaterialen.map(m => ({
-          row_id: m.id,
-          sort_order: m.sort_order,
-          user_id: user?.uid
-      }));
-
-      const { error } = await supabase.from('materialen_duplicate').upsert(updates);
-      if (error) {
-          console.error("Fout bij opslaan sortering:", error);
-          // Toon een toast?
-      } else {
-          // Update lokale state om re-render te forceren
-          setAlleMaterialen(prev => {
-              const materialMap = new Map(opgeslagenMaterialen.map(m => [m.id, m]));
-              return prev.map(p => materialMap.has(p.id) ? materialMap.get(p.id)! : p);
-          });
-      }
-  }
-
   const handleSavePreset = async (presetName: string, isDefault: boolean) => {
     if (!user || !firestore) return;
 
@@ -619,22 +599,6 @@ export default function HsbWandMaterialenPage() {
                       Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan voor volgende offertes.
                   </p>
               </div>
-              
-              <div className="mb-8">
-                <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
-                <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
-                    <SelectTrigger id='preset-select'>
-                        <SelectValue placeholder="Kies een voorinstelling..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="default">Standaard (leeg)</SelectItem>
-                        {presets.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-              </div>
-
 
               <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Balktype')}
@@ -732,7 +696,7 @@ export default function HsbWandMaterialenPage() {
                                                 <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('edit', extraMaterialen[0])}>
+                                                <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('edit', extraMateriaal[0])}>
                                                     Wijzigen
                                                 </Button>
                                             </div>
@@ -752,10 +716,25 @@ export default function HsbWandMaterialenPage() {
 
               </div>
               
-              <div className="mt-8">
+              <div className="mb-8 mt-4">
+                <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
+                <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                    <SelectTrigger id='preset-select'>
+                        <SelectValue placeholder="Kies een voorinstelling..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="default">Standaard (leeg)</SelectItem>
+                        {presets.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+              </div>
+
+              <div className="mt-4">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
                     <Save className="mr-2 h-4 w-4" />
-                    Opslaan als voorinstelling
+                    Opslaan voor volgende keer
                 </Button>
               </div>
 
