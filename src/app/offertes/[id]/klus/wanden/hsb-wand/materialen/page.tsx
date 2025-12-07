@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -305,6 +305,13 @@ export default function HsbWandMaterialenPage() {
   const [extraMateriaalModalMode, setExtraMateriaalModalMode] = useState<'add' | 'edit'>('add');
   const [editingExtraMateriaal, setEditingExtraMateriaal] = useState<ExtraMateriaal | undefined>(undefined);
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
+  
+  // State for collapsible cards
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const toggleSection = (sectieSleutel: SectieKey) => {
+    setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
+  };
 
   // Quote data ophalen
   useEffect(() => {
@@ -405,42 +412,47 @@ export default function HsbWandMaterialenPage() {
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
-    const materialenVoorSectie = filterMaterialenVoorSectie(sectieSleutel);
+    const isCollapsed = collapsedSections[sectieSleutel];
 
     return (
         <Card>
-            <CardHeader>
-                <CardTitle>{titel}</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between p-4">
+                <CardTitle className="text-lg">{titel}</CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8">
+                    {isCollapsed ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+                </Button>
             </CardHeader>
-            <CardContent className="-mt-4">
-                 <div className="pt-4 first:pt-0">
-                    {isMaterialenLaden ? (
-                         <div className="h-8 bg-muted/50 rounded animate-pulse" />
-                    ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive mt-1">Laden van materialen mislukt.</p>
-                    ) : (
-                         <div className="flex items-center justify-between">
-                            <div>
-                                {gekozenMateriaal ? (
-                                <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
-                                ) : (
-                                <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                                )}
+            {!isCollapsed && (
+                <CardContent className="p-4 pt-0">
+                     <div className="pt-2 first:pt-0 border-t">
+                        {isMaterialenLaden ? (
+                             <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                        ) : foutMaterialen ? (
+                             <p className="text-sm text-destructive mt-1">Laden van materialen mislukt.</p>
+                        ) : (
+                             <div className="flex items-center justify-between">
+                                <div>
+                                    {gekozenMateriaal ? (
+                                    <p className="text-sm text-primary mt-1">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
+                                    ) : (
+                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {gekozenMateriaal && (
+                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    )}
+                                    <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(sectieSleutel)}>
+                                    {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                {gekozenMateriaal && (
-                                <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                                )}
-                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(sectieSleutel)}>
-                                {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </CardContent>
+                        )}
+                    </div>
+                </CardContent>
+            )}
         </Card>
     );
   };
@@ -488,53 +500,60 @@ export default function HsbWandMaterialenPage() {
                   </p>
               </div>
 
-              <div className="space-y-8">
+              <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
                  <Card>
-                    <CardHeader>
-                        <CardTitle>Gips / Fermacell</CardTitle>
-                        <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
+                    <CardHeader className="flex flex-row items-center justify-between p-4">
+                        <div className="space-y-1.5">
+                            <CardTitle className="text-lg">Gips / Fermacell</CardTitle>
+                            <CardDescription>Kies de binnenafwerking van de wand.</CardDescription>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => toggleSection('gips_fermacell')} className="h-8 w-8">
+                            {collapsedSections['gips_fermacell'] ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+                        </Button>
                     </CardHeader>
-                    <CardContent className="-mt-4">
-                        <div key='gips_fermacell' className="pt-4 first:pt-0">
-                           {isMaterialenLaden ? (
-                               <div className="h-8 bg-muted/50 rounded animate-pulse" />
-                           ) : (
-                            <>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                {gekozenMaterialen['gips_fermacell'] ? (
-                                    <p className="text-sm text-primary mt-1">Gekozen: {gekozenMaterialen['gips_fermacell'].materiaalnaam}</p>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                                )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                {gekozenMaterialen['gips_fermacell'] && (
-                                    <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gips_fermacell')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                    <Trash2 className="h-4 w-4" />
+                    {!collapsedSections['gips_fermacell'] && (
+                        <CardContent className="p-4 pt-0">
+                            <div key='gips_fermacell' className="pt-2 border-t">
+                               {isMaterialenLaden ? (
+                                   <div className="h-8 bg-muted/50 rounded animate-pulse" />
+                               ) : (
+                                <>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                    {gekozenMaterialen['gips_fermacell'] ? (
+                                        <p className="text-sm text-primary mt-1">Gekozen: {gekozenMaterialen['gips_fermacell'].materiaalnaam}</p>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                    )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                    {gekozenMaterialen['gips_fermacell'] && (
+                                        <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('gips_fermacell')} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                        <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                    <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('gips_fermacell')}>
+                                        {gekozenMaterialen['gips_fermacell'] ? 'Wijzigen' : 'Kiezen'}
                                     </Button>
+                                    </div>
+                                </div>
+                                {gekozenMaterialen['gips_fermacell'] && (
+                                    <div className="mt-2 pl-1">
+                                    <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                                        <Settings className="w-3 h-3"/>
+                                        Lagen: {gipsLagen} (aanpassen)
+                                    </button>
+                                    </div>
                                 )}
-                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('gips_fermacell')}>
-                                    {gekozenMaterialen['gips_fermacell'] ? 'Wijzigen' : 'Kiezen'}
-                                </Button>
-                                </div>
-                            </div>
-                            {gekozenMaterialen['gips_fermacell'] && (
-                                <div className="mt-2 pl-1">
-                                <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                                    <Settings className="w-3 h-3"/>
-                                    Lagen: {gipsLagen} (aanpassen)
-                                </button>
-                                </div>
-                            )}
-                            </>
-                           )}
-                         </div>
-                    </CardContent>
+                                </>
+                               )}
+                             </div>
+                        </CardContent>
+                    )}
                  </Card>
 
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
@@ -543,51 +562,58 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('plinten', 'Plinten')}
                 
                 <Card>
-                    <CardHeader>
-                        <CardTitle>Extra materiaal</CardTitle>
-                        <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
+                    <CardHeader className="flex flex-row items-center justify-between p-4">
+                        <div className="space-y-1.5">
+                            <CardTitle className="text-lg">Extra materiaal</CardTitle>
+                            <CardDescription>Optionele extra materialen voor dit project.</CardDescription>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => toggleSection('extra')} className="h-8 w-8">
+                           {collapsedSections['extra'] ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+                        </Button>
                     </CardHeader>
-                    <CardContent className="-mt-4">
-                        <div className="pt-4 first:pt-0">
-                            {extraMaterialen.length === 0 ? (
-                                <div className="flex items-center justify-between">
-                                    <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
-                                     <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('add')}>
-                                        Kiezen
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div>
+                    {!collapsedSections['extra'] && (
+                        <CardContent className="p-4 pt-0">
+                            <div className="pt-2 border-t">
+                                {extraMaterialen.length === 0 ? (
                                     <div className="flex items-center justify-between">
-                                        <div className="flex-1 space-y-2">
-                                            <p className="text-sm text-primary mt-1">
-                                                {extraMaterialen.length > 1 ? 'Gekozen extra materialen:' : 'Gekozen extra materiaal:'}
-                                            </p>
-                                            <div className="space-y-1">
-                                                {extraMaterialen.map(item => (
-                                                    <p key={item.id} className="text-sm text-primary">{formatExtraMateriaalRow(item)}</p>
-                                                ))}
+                                        <p className="text-sm text-muted-foreground italic mt-1">Nog geen materiaal gekozen</p>
+                                         <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('add')}>
+                                            Kiezen
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1 space-y-2">
+                                                <p className="text-sm text-primary mt-1">
+                                                    {extraMaterialen.length > 1 ? 'Gekozen extra materialen:' : 'Gekozen extra materiaal:'}
+                                                </p>
+                                                <div className="space-y-1">
+                                                    {extraMaterialen.map(item => (
+                                                        <p key={item.id} className="text-sm text-primary">{formatExtraMateriaalRow(item)}</p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('edit', extraMaterialen[0])}>
+                                                    Wijzigen
+                                                </Button>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button variant="ghost" size="icon" onClick={() => setExtraMaterialen([])} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder alle extra materialen">
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => openExtraMateriaalModal('edit', extraMaterialen[0])}>
-                                                Wijzigen
-                                            </Button>
+                                        <div className="mt-4">
+                                             <button onClick={() => openExtraMateriaalModal('add')} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                                                <PlusCircle className="w-3 h-3"/>
+                                                Extra materiaal toevoegen
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="mt-4">
-                                         <button onClick={() => openExtraMateriaalModal('add')} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                                            <PlusCircle className="w-3 h-3"/>
-                                            Extra materiaal toevoegen
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
+                                )}
+                            </div>
+                        </CardContent>
+                    )}
                 </Card>
 
               </div>
