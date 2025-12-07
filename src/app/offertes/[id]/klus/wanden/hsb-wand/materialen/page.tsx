@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2, ChevronDown, ChevronUp, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote } from '@/lib/types';
+import type { Quote, Preset as PresetType } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 // ==================================
@@ -283,7 +286,10 @@ export default function HsbWandMaterialenPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const quoteId = params.id as string;
+  const JOB_TYPE = "hsb-wand";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -292,6 +298,11 @@ export default function HsbWandMaterialenPage() {
   const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
   const [isMaterialenLaden, setMaterialenLaden] = useState(true);
   const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
+  
+  // State voor presets
+  const [presets, setPresets] = useState<PresetType[]>([]);
+  const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
+  const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [extraMaterialen, setExtraMaterialen] = useState<ExtraMateriaal[]>([]);
@@ -305,6 +316,7 @@ export default function HsbWandMaterialenPage() {
   const [extraMateriaalModalMode, setExtraMateriaalModalMode] = useState<'add' | 'edit'>('add');
   const [editingExtraMateriaal, setEditingExtraMateriaal] = useState<ExtraMateriaal | undefined>(undefined);
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
+  const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   
   // State for collapsible cards
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -324,6 +336,59 @@ export default function HsbWandMaterialenPage() {
     }
     fetchQuote();
   }, [quoteId]);
+
+  // Presets ophalen
+  useEffect(() => {
+    if (!user || !firestore) return;
+
+    const fetchPresets = async () => {
+      setPresetsLaden(true);
+      try {
+        const presetsRef = collection(firestore, 'presets');
+        const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
+        const querySnapshot = await getDocs(q);
+        const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
+        setPresets(fetchedPresets);
+
+        const defaultPreset = fetchedPresets.find(p => p.isDefault);
+        if (defaultPreset) {
+          setGekozenPresetId(defaultPreset.id);
+        }
+      } catch (error) {
+        console.error("Fout bij ophalen presets:", error);
+        toast({ variant: 'destructive', title: 'Fout', description: 'Kon presets niet laden.' });
+      } finally {
+        setPresetsLaden(false);
+      }
+    };
+
+    fetchPresets();
+  }, [user, firestore, toast]);
+  
+  // Gekozen preset toepassen
+  useEffect(() => {
+    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
+      // Reset naar leeg
+      setGekozenMaterialen({});
+      setCollapsedSections({});
+      setGipsLagen(1);
+      return;
+    }
+    const preset = presets.find(p => p.id === gekozenPresetId);
+    if (!preset) return;
+
+    const nieuweGekozenMaterialen: Record<string, MateriaalKeuze | undefined> = {};
+    for (const slot in preset.slots) {
+      const materiaalId = preset.slots[slot];
+      const materiaal = alleMaterialen.find(m => m.id === materiaalId);
+      if (materiaal) {
+        nieuweGekozenMaterialen[slot] = materiaal;
+      }
+    }
+    setGekozenMaterialen(nieuweGekozenMaterialen);
+    setCollapsedSections(preset.collapsedSections || {});
+    setGipsLagen(preset.gipsLagen || 1);
+  }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Set loading to false after a short delay to prevent flash of loading state
     useEffect(() => {
@@ -407,6 +472,60 @@ export default function HsbWandMaterialenPage() {
           });
       }
   }
+
+  const handleSavePreset = async (presetName: string, isDefault: boolean) => {
+    if (!user || !firestore) return;
+
+    const slots: Record<string, string> = {};
+    for (const key in gekozenMaterialen) {
+        const materiaal = gekozenMaterialen[key];
+        if (materiaal) {
+            slots[key] = materiaal.id;
+        }
+    }
+    
+    const newPresetData: Omit<PresetType, 'id'> = {
+        userId: user.uid,
+        jobType: JOB_TYPE,
+        name: presetName,
+        isDefault: isDefault,
+        slots: slots,
+        collapsedSections: collapsedSections,
+        gipsLagen: gipsLagen,
+        createdAt: serverTimestamp() as any,
+    };
+    
+    try {
+        const batch = writeBatch(firestore);
+
+        // Als dit de nieuwe default wordt, zet alle andere defaults uit
+        if (isDefault) {
+            const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach(doc => {
+                batch.update(doc.ref, { isDefault: false });
+            });
+        }
+        
+        const newDocRef = collection(firestore, 'presets');
+        batch.set(doc(newDocRef), newPresetData);
+
+        await batch.commit();
+
+        toast({ title: 'Preset opgeslagen', description: `Preset "${presetName}" is succesvol opgeslagen.` });
+        setSavePresetModalOpen(false);
+        // Herlaad presets
+        const presetsRef = collection(firestore, 'presets');
+        const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
+        const querySnapshot = await getDocs(q);
+        const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
+        setPresets(fetchedPresets);
+
+    } catch (error) {
+        console.error("Fout bij opslaan preset:", error);
+        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de preset niet opslaan.' });
+    }
+  };
 
   const isVolgendeIngeschakeld = true;
 
@@ -501,6 +620,30 @@ export default function HsbWandMaterialenPage() {
               </div>
 
               <div className="space-y-4">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Presets</CardTitle>
+                        <CardDescription>Laad een opgeslagen configuratie of sla de huidige op.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col sm:flex-row gap-2">
+                        <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Kies een preset..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="default">Standaard (leeg)</SelectItem>
+                                {presets.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full sm:w-auto">
+                            <Save className="mr-2 h-4 w-4" />
+                            Opslaan als preset
+                        </Button>
+                    </CardContent>
+                </Card>
+
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
@@ -630,6 +773,12 @@ export default function HsbWandMaterialenPage() {
         </div>
       </main>
 
+       <SavePresetDialog 
+         open={savePresetModalOpen}
+         onOpenChange={setSavePresetModalOpen}
+         onSave={handleSavePreset}
+       />
+
        {actieveSectie && <MateriaalKiezerModal
           open={!!actieveSectie}
           sectieSleutel={actieveSectie}
@@ -702,4 +851,54 @@ export default function HsbWandMaterialenPage() {
         </Dialog>
     </>
   );
+}
+
+type SavePresetDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (presetName: string, isDefault: boolean) => void;
+};
+
+function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps) {
+  const [name, setName] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    await onSave(name, isDefault);
+    setIsSaving(false);
+    setName('');
+    setIsDefault(false);
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Preset opslaan</DialogTitle>
+          <DialogDescription>
+            Sla de huidige materiaalconfiguratie op voor later gebruik.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+            <div className="space-y-2">
+                <Label htmlFor="preset-name">Presetnaam</Label>
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard verbouwing" />
+            </div>
+            <div className="flex items-center space-x-2">
+                <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
+                <Label htmlFor="default-preset">Maak dit mijn standaard preset voor HSB wanden</Label>
+            </div>
+        </div>
+        <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+            <Button onClick={handleSave} disabled={!name || isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSaving ? 'Opslaan...' : 'Opslaan'}
+            </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }

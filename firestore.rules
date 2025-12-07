@@ -32,5 +32,12 @@ service cloud.firestore {
       allow create: if isSignedIn() && isOwner(businessId);
       allow get, update, delete: if isSignedIn() && isOwner(businessId);
     }
+
+    // Rules for the 'presets' collection
+    match /presets/{presetId} {
+        allow list, get: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
   }
 }

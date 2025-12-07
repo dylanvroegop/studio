@@ -244,6 +244,52 @@
         "offertesPerMaand",
         "createdAt"
       ]
+    },
+    "Preset": {
+      "title": "Preset",
+      "type": "object",
+      "description": "Stores user-defined material and setting presets for a specific job type.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns this preset."
+        },
+        "jobType": {
+          "type": "string",
+          "description": "The type of job this preset applies to (e.g., 'hsb-wand')."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user-defined name for the preset."
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Whether this preset should be applied by default."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "slots": {
+          "type": "object",
+          "description": "A map of slot keys to the chosen material ID.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "collapsedSections": {
+          "type": "object",
+          "description": "A map of slot keys to a boolean indicating if the section is collapsed.",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "gipsLagen": {
+            "type": "number",
+            "description": "The number of gips layers for this preset, if applicable."
+        }
+      },
+      "required": ["userId", "jobType", "name", "createdAt", "slots"]
     }
   },
   "auth": {
@@ -269,6 +315,12 @@
         "$ref": "#/entities/Business"
       },
       "description": "Stores business information for each user (UID is document ID)."
+    },
+    "presets": {
+      "schema": {
+        "$ref": "#/entities/Preset"
+      },
+      "description": "Stores user-defined presets for job materials and settings."
     }
   }
 }

@@ -105,13 +105,15 @@ export type Material = {
     updatedAt: Timestamp;
 };
 
-
 export type Preset = {
   id: string;
   userId: string;
-  categorie: JobCategory;
-  subcategorie: string;
-  naam: string;
-  materialsTemplate: Omit<JobMaterial, 'id' | 'jobId' | 'createdAt' | 'hoeveelheid'> & { standaardHoeveelheidPerM2OfM1: number };
-  createdAt: string;
+  jobType: string;
+  name: string;
+  isDefault: boolean;
+  slots: Record<string, string>;
+  collapsedSections: Record<string, boolean>;
+  gipsLagen?: number;
+  createdAt: Timestamp;
 };
+
