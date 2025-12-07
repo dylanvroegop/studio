@@ -75,10 +75,7 @@ export default function LaminaatVloerPage() {
     
     localStorage.setItem(`quote-${quoteId}-laminaat-vloer`, JSON.stringify(vloeren));
     
-    toast({
-        title: 'Volgende stap niet geïmplementeerd',
-        description: 'De materialenpagina voor dit klustype bestaat nog niet.',
-    });
+    router.push(`/offertes/${quoteId}/klus/vloeren/laminaat/materialen`);
   };
   
   const isNextDisabled = vloeren.some(p => !p.lengte || !p.breedte);
