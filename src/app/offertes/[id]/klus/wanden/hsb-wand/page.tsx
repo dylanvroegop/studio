@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,22 +12,22 @@ import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Wall = {
+  id: string;
   lengte: string;
   hoogte: string;
   balkafstand: string;
   opmerkingen: string;
 };
 
-const defaultWallState: Wall = {
+const createNewWall = (): Wall => ({
+  id: crypto.randomUUID(),
   lengte: '',
   hoogte: '',
   balkafstand: '600',
   opmerkingen: '',
-};
+});
 
 export default function HsbWandPage() {
   const params = useParams();
@@ -37,7 +37,7 @@ export default function HsbWandPage() {
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [walls, setWalls] = useState<Wall[]>([defaultWallState]);
+  const [walls, setWalls] = useState<Wall[]>([createNewWall()]);
 
   useEffect(() => {
     async function fetchQuote() {
@@ -51,18 +51,19 @@ export default function HsbWandPage() {
   }, [quoteId]);
   
   const handleAddWall = () => {
-    setWalls([...walls, { ...defaultWallState }]);
+    setWalls(prevWalls => [...prevWalls, createNewWall()]);
   };
   
-  const handleRemoveWall = (index: number) => {
-    const newWalls = walls.filter((_, i) => i !== index);
-    setWalls(newWalls);
+  const handleRemoveWall = (id: string) => {
+    setWalls(prevWalls => prevWalls.filter(wall => wall.id !== id));
   };
 
-  const handleWallChange = <K extends keyof Wall>(index: number, field: K, value: Wall[K]) => {
-    const newWalls = [...walls];
-    newWalls[index][field] = value;
-    setWalls(newWalls);
+  const handleWallChange = <K extends keyof Omit<Wall, 'id'>>(id: string, field: K, value: Wall[K]) => {
+    setWalls(prevWalls => 
+        prevWalls.map(wall => 
+            wall.id === id ? { ...wall, [field]: value } : wall
+        )
+    );
   };
   
   const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -114,7 +115,7 @@ export default function HsbWandPage() {
             <form>
                 <div className="space-y-6">
                     {walls.map((wall, index) => (
-                       <Card key={index}>
+                       <Card key={wall.id}>
                            <CardHeader className="flex flex-row items-center justify-between">
                                <div>
                                    <CardTitle>Wand {index + 1}</CardTitle>
@@ -122,8 +123,8 @@ export default function HsbWandPage() {
                                        Specificeer de afmetingen en details voor deze wand.
                                    </CardDescription>
                                </div>
-                                {index > 0 && (
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
+                                {walls.length > 1 && (
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(wall.id)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
                                         <Trash2 className="h-4 w-4" />
                                         <span className="sr-only">Verwijder wand</span>
                                     </Button>
@@ -132,24 +133,24 @@ export default function HsbWandPage() {
                            <CardContent className="space-y-6">
                                <div className="grid grid-cols-2 gap-4">
                                    <div className="space-y-2">
-                                     <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                     <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} />
+                                     <Label htmlFor={`lengte-${wall.id}`}>Lengte (mm) *</Label>
+                                     <Input id={`lengte-${wall.id}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(wall.id, 'lengte', e.target.value)} />
                                    </div>
                                    <div className="space-y-2">
-                                     <Label htmlFor={`hoogte-${index}`}>Hoogte (mm) *</Label>
-                                     <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
+                                     <Label htmlFor={`hoogte-${wall.id}`}>Hoogte (mm) *</Label>
+                                     <Input id={`hoogte-${wall.id}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(wall.id, 'hoogte', e.target.value)} />
                                    </div>
                                </div>
                                <div className="space-y-2">
-                                   <Label htmlFor={`balkafstand-${index}`}>Balkafstand (h.o.h.)</Label>
-                                   <Input id={`balkafstand-${index}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} />
+                                   <Label htmlFor={`balkafstand-${wall.id}`}>Balkafstand (h.o.h.)</Label>
+                                   <Input id={`balkafstand-${wall.id}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(wall.id, 'balkafstand', e.target.value)} />
                                    <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
                                </div>
 
                                <div className="space-y-2 pt-2">
-                                  <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
+                                  <Label htmlFor={`opmerkingen-${wall.id}`}>Extra opmerkingen (optioneel)</Label>
                                    <p className="text-xs text-muted-foreground">Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.</p>
-                                  <Textarea id={`opmerkingen-${index}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
+                                  <Textarea id={`opmerkingen-${wall.id}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(wall.id, 'opmerkingen', e.target.value)} />
                                 </div>
                            </CardContent>
                        </Card>
