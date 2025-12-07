@@ -75,10 +75,7 @@ export default function VlonderPage() {
     
     localStorage.setItem(`quote-${quoteId}-vlonder`, JSON.stringify(vlonders));
     
-    toast({
-        title: 'Volgende stap niet geïmplementeerd',
-        description: 'De materialenpagina voor dit klustype bestaat nog niet.',
-    });
+    router.push(`/offertes/${quoteId}/klus/vloeren/vlonder/materialen`);
   };
   
   const isNextDisabled = vlonders.some(p => !p.lengte || !p.breedte);
