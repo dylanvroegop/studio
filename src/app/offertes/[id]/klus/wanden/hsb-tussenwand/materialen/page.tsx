@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -239,8 +238,8 @@ export default function HsbTussenwandMaterialenPage() {
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
-  
-  const [onvolledigeSecties, setOnvolledigeSecties] = useState<Set<SectieKey>>(new Set());
+
+  const isVolgendeIngeschakeld = true;
 
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
@@ -416,24 +415,9 @@ export default function HsbTussenwandMaterialenPage() {
     }
   };
 
-  const isVolgendeIngeschakeld = useMemo(() => {
-    const onvolledig = new Set<SectieKey>();
-    for (const key of sectieSleutels) {
-        const isGekozen = !!gekozenMaterialen[key];
-        const isCollapsed = !!collapsedSections[key];
-        if (!isGekozen && !isCollapsed) {
-            onvolledig.add(key);
-        }
-    }
-    setOnvolledigeSecties(onvolledig);
-    return onvolledig.size === 0;
-  }, [gekozenMaterialen, collapsedSections]);
-
-
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
-    const isIncompleet = onvolledigeSecties.has(sectieSleutel);
 
     if (isCollapsed) {
         return (
@@ -445,7 +429,7 @@ export default function HsbTussenwandMaterialenPage() {
     }
     
     return (
-        <Card className={cn(isIncompleet && !isVolgendeIngeschakeld && "border-destructive/50 ring-2 ring-destructive/20")}>
+        <Card>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-base">{titel}</CardTitle>
@@ -587,11 +571,6 @@ export default function HsbTussenwandMaterialenPage() {
                     </Button>
                    </div>
               </div>
-                {!isVolgendeIngeschakeld && (
-                    <p className="text-xs text-destructive text-right mt-2">
-                        Vul de gemarkeerde keuzes in of markeer ze als ‘Niet van toepassing’.
-                    </p>
-                )}
           </div>
         </div>
       </main>
