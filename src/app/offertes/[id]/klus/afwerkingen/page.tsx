@@ -37,7 +37,8 @@ export default function AfwerkingenPage() {
   }, [quoteId]);
 
   const subcategories: Subcategory[] = [
-    { name: 'Afwerkingen', description: 'Vensterbanken & dagkanten', icon: 'finishing' },
+    { name: 'Afwerkingen', description: 'Vensterbanken', icon: 'finishing' },
+    { name: 'Afwerkingen', description: 'Dagkanten', icon: 'finishing' },
     { name: 'Afwerkingen', description: 'Plinten en afwerklatten', icon: 'finishing' },
     { name: 'Afwerkingen', description: 'Afwerking stucnaden', icon: 'wall' },
     { name: 'Afwerkingen', description: 'Aftimmering van trappen', icon: 'finishing' },
