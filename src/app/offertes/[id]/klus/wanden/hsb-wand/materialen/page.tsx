@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -620,19 +620,31 @@ export default function HsbWandMaterialenPage() {
                   </p>
               </div>
 
-               <div className="mb-8">
+              <div className="mb-8 space-y-2">
                 <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
-                <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
-                    <SelectTrigger id='preset-select'>
-                        <SelectValue placeholder="Kies een voorinstelling..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="default">Standaard (leeg)</SelectItem>
-                        {presets.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                    <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                        <SelectTrigger id='preset-select'>
+                            <SelectValue placeholder="Kies een voorinstelling..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="default">Standaard (leeg)</SelectItem>
+                            {presets.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setGekozenPresetId('default')}
+                        disabled={gekozenPresetId === 'default'}
+                        className="flex items-center gap-2 text-muted-foreground"
+                    >
+                       <RotateCcw className="h-4 w-4" />
+                        Reset
+                    </Button>
+                </div>
               </div>
 
               <div className="space-y-4">
