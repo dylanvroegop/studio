@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 
 type Wall = {
-  id: string;
   lengte: string;
   hoogte: string;
   balkafstand: string;
@@ -22,7 +21,6 @@ type Wall = {
 };
 
 const createNewWall = (): Wall => ({
-  id: crypto.randomUUID(),
   lengte: '',
   hoogte: '',
   balkafstand: '600',
@@ -38,6 +36,7 @@ export default function HsbWandPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
   const [walls, setWalls] = useState<Wall[]>([createNewWall()]);
+  const baseId = useId();
 
   useEffect(() => {
     async function fetchQuote() {
@@ -54,14 +53,14 @@ export default function HsbWandPage() {
     setWalls(prevWalls => [...prevWalls, createNewWall()]);
   };
   
-  const handleRemoveWall = (id: string) => {
-    setWalls(prevWalls => prevWalls.filter(wall => wall.id !== id));
+  const handleRemoveWall = (index: number) => {
+    setWalls(prevWalls => prevWalls.filter((_, i) => i !== index));
   };
 
-  const handleWallChange = <K extends keyof Omit<Wall, 'id'>>(id: string, field: K, value: Wall[K]) => {
+  const handleWallChange = (index: number, field: keyof Wall, value: string) => {
     setWalls(prevWalls => 
-        prevWalls.map(wall => 
-            wall.id === id ? { ...wall, [field]: value } : wall
+        prevWalls.map((wall, i) => 
+            i === index ? { ...wall, [field]: value } : wall
         )
     );
   };
@@ -114,8 +113,10 @@ export default function HsbWandPage() {
             </div>
             <form>
                 <div className="space-y-6">
-                    {walls.map((wall, index) => (
-                       <Card key={wall.id}>
+                    {walls.map((wall, index) => {
+                       const wallId = `${baseId}-${index}`;
+                       return (
+                       <Card key={wallId}>
                            <CardHeader className="flex flex-row items-center justify-between">
                                <div>
                                    <CardTitle>Wand {index + 1}</CardTitle>
@@ -124,7 +125,7 @@ export default function HsbWandPage() {
                                    </CardDescription>
                                </div>
                                 {walls.length > 1 && (
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(wall.id)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
                                         <Trash2 className="h-4 w-4" />
                                         <span className="sr-only">Verwijder wand</span>
                                     </Button>
@@ -133,28 +134,28 @@ export default function HsbWandPage() {
                            <CardContent className="space-y-6">
                                <div className="grid grid-cols-2 gap-4">
                                    <div className="space-y-2">
-                                     <Label htmlFor={`lengte-${wall.id}`}>Lengte (mm) *</Label>
-                                     <Input id={`lengte-${wall.id}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(wall.id, 'lengte', e.target.value)} />
+                                     <Label htmlFor={`lengte-${wallId}`}>Lengte (mm) *</Label>
+                                     <Input id={`lengte-${wallId}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} />
                                    </div>
                                    <div className="space-y-2">
-                                     <Label htmlFor={`hoogte-${wall.id}`}>Hoogte (mm) *</Label>
-                                     <Input id={`hoogte-${wall.id}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(wall.id, 'hoogte', e.target.value)} />
+                                     <Label htmlFor={`hoogte-${wallId}`}>Hoogte (mm) *</Label>
+                                     <Input id={`hoogte-${wallId}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
                                    </div>
                                </div>
                                <div className="space-y-2">
-                                   <Label htmlFor={`balkafstand-${wall.id}`}>Balkafstand (h.o.h.)</Label>
-                                   <Input id={`balkafstand-${wall.id}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(wall.id, 'balkafstand', e.target.value)} />
+                                   <Label htmlFor={`balkafstand-${wallId}`}>Balkafstand (h.o.h.)</Label>
+                                   <Input id={`balkafstand-${wallId}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} />
                                    <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
                                </div>
 
                                <div className="space-y-2 pt-2">
-                                  <Label htmlFor={`opmerkingen-${wall.id}`}>Extra opmerkingen (optioneel)</Label>
+                                  <Label htmlFor={`opmerkingen-${wallId}`}>Extra opmerkingen (optioneel)</Label>
                                    <p className="text-xs text-muted-foreground">Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.</p>
-                                  <Textarea id={`opmerkingen-${wall.id}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(wall.id, 'opmerkingen', e.target.value)} />
+                                  <Textarea id={`opmerkingen-${wallId}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
                                 </div>
                            </CardContent>
                        </Card>
-                    ))}
+                    )})}
                 </div>
                  <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddWall}>
                     <PlusCircle className="mr-2 h-4 w-4" />
