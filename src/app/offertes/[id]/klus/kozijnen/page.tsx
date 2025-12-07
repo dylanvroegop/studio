@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils';
 import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
 type Subcategory = {
   name: JobCategory;
@@ -38,7 +37,7 @@ export default function KozijnenPage() {
 
   const subcategories: Subcategory[] = [
     { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-hout` },
-    { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Staal', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-staal` },
+    { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Staal', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-staal/materialen` },
     { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-hout/materialen` },
     { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Kunststof', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-kunststof/materialen` },
     { name: 'Kozijnen', description: 'Zelfgemaakte Kozijnen', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/zelfgemaakte-kozijnen/materialen` },
