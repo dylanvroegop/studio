@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +61,7 @@ export default function HellendDakVervangenPage() {
     setDakvlakken(newDakvlakken);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (dakvlakken.some(p => !p.lengte || !p.breedte)) {
@@ -74,9 +73,9 @@ export default function HellendDakVervangenPage() {
         return;
     }
 
-    const description = `Hellend Dak Vervangen (${dakvlakken.length} dakvlakken)`;
+    localStorage.setItem(`quote-${quoteId}-hellend-dak-vervangen`, JSON.stringify(dakvlakken));
     
-    await createJobAction(quoteId, 'Dakrenovatie', description);
+    router.push(`/offertes/${quoteId}/klus/dakrenovatie/hellend-dak-vervangen/materialen`);
   };
   
   const isNextDisabled = dakvlakken.some(p => !p.lengte || !p.breedte);
@@ -109,7 +108,7 @@ export default function HellendDakVervangenPage() {
                     Vul hieronder de afmetingen in. Voor elk apart dakvlak, voeg een nieuw veld toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
               <div className="space-y-6">
                 {dakvlakken.map((dakvlak, index) => (
                    <Card key={index}>
@@ -154,7 +153,7 @@ export default function HellendDakVervangenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/dakrenovatie`}>Terug</Link>
                   </Button>
-                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                       Volgende
                   </Button>
               </div>
