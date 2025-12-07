@@ -37,7 +37,7 @@ export default function AfwerkingenPage() {
   }, [quoteId]);
 
   const subcategories: Subcategory[] = [
-    { name: 'Afwerkingen', description: 'Vensterbanken', icon: 'finishing' },
+    { name: 'Afwerkingen', description: 'Vensterbanken', icon: 'finishing', href: `/offertes/${quoteId}/klus/afwerkingen/vensterbanken` },
     { name: 'Afwerkingen', description: 'Dagkanten', icon: 'finishing' },
     { name: 'Afwerkingen', description: 'Plinten en afwerklatten', icon: 'finishing' },
     { name: 'Afwerkingen', description: 'Afwerking stucnaden', icon: 'wall' },
