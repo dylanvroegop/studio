@@ -620,30 +620,6 @@ export default function HsbWandMaterialenPage() {
               </div>
 
               <div className="space-y-4">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Voorinstellingen</CardTitle>
-                        <CardDescription>Laad een opgeslagen configuratie of sla de huidige op.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-2">
-                        <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Kies een voorinstelling..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">Standaard (leeg)</SelectItem>
-                                {presets.map(p => (
-                                    <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full sm:w-auto">
-                            <Save className="mr-2 h-4 w-4" />
-                            Opslaan als voorinstelling
-                        </Button>
-                    </CardContent>
-                </Card>
-
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
@@ -757,6 +733,30 @@ export default function HsbWandMaterialenPage() {
                             </div>
                         </CardContent>
                     )}
+                </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Voorinstellingen</CardTitle>
+                        <CardDescription>Laad een opgeslagen configuratie of sla de huidige op.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col sm:flex-row gap-2">
+                        <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Kies een voorinstelling..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="default">Standaard (leeg)</SelectItem>
+                                {presets.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full sm:w-auto">
+                            <Save className="mr-2 h-4 w-4" />
+                            Opslaan als voorinstelling
+                        </Button>
+                    </CardContent>
                 </Card>
 
               </div>
