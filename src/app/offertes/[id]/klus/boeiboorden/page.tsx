@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -60,7 +59,7 @@ export default function BoeiboordenPage() {
     setBoeiboorden(newBoeiboorden);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (boeiboorden.some(p => !p.lengte)) {
@@ -72,9 +71,9 @@ export default function BoeiboordenPage() {
         return;
     }
 
-    const description = `Boeiboorden vervangen/bekleden (${boeiboorden.length} delen)`;
+    localStorage.setItem(`quote-${quoteId}-boeiboorden`, JSON.stringify(boeiboorden));
     
-    await createJobAction(quoteId, 'Boeiboorden', description);
+    router.push(`/offertes/${quoteId}/klus/boeiboorden/materialen`);
   };
   
   const isNextDisabled = boeiboorden.some(p => !p.lengte);
@@ -107,7 +106,7 @@ export default function BoeiboordenPage() {
                     Vul hieronder de afmetingen in. Voor elk apart deel, voeg een nieuw veld toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
               <div className="space-y-6">
                 {boeiboorden.map((boeiboord, index) => (
                    <Card key={index}>
@@ -148,7 +147,7 @@ export default function BoeiboordenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
                   </Button>
-                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                       Volgende
                   </Button>
               </div>
