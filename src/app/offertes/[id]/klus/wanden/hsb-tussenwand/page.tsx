@@ -49,7 +49,7 @@ export default function HsbTussenwandPage() {
   }, [quoteId]);
   
   const handleAddWall = () => {
-    setWalls(prev => [...prev, { ...defaultWallState }]);
+    setWalls(prev => [...prev, { lengte: '', hoogte: '', balkafstand: '600', opmerkingen: '' }]);
   };
   
   const handleRemoveWall = (index: number) => {
