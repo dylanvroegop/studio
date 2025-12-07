@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +61,7 @@ export default function GlasZettenPage() {
     setGlassPanes(newPanes);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (glassPanes.some(p => !p.breedte || !p.hoogte)) {
@@ -74,9 +73,9 @@ export default function GlasZettenPage() {
         return;
     }
 
-    const description = `Glas zetten (${glassPanes.length} ruiten)`;
+    localStorage.setItem(`quote-${quoteId}-glas-zetten`, JSON.stringify(glassPanes));
     
-    await createJobAction(quoteId, 'Glas zetten', description);
+    router.push(`/offertes/${quoteId}/klus/glas-zetten/materialen`);
   };
   
   const isNextDisabled = glassPanes.some(p => !p.breedte || !p.hoogte);
@@ -109,7 +108,7 @@ export default function GlasZettenPage() {
                     Vul hieronder de afmetingen in. Voor elke aparte ruit, voeg een nieuw veld toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
               <div className="space-y-6">
                 {glassPanes.map((pane, index) => (
                    <Card key={index}>
@@ -154,7 +153,7 @@ export default function GlasZettenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
                   </Button>
-                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                       Volgende
                   </Button>
               </div>
