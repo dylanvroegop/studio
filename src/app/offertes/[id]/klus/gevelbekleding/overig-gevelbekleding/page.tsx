@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +61,7 @@ export default function OverigGevelbekledingPage() {
     setGevelvlakken(newGevelvlakken);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (gevelvlakken.some(p => !p.lengte || !p.breedte)) {
@@ -74,9 +73,8 @@ export default function OverigGevelbekledingPage() {
         return;
     }
 
-    const description = `Overig Gevelbekleding (${gevelvlakken.length} gevelvlakken)`;
-    
-    await createJobAction(quoteId, 'Gevelbekleding', description);
+    localStorage.setItem(`quote-${quoteId}-overig-gevelbekleding`, JSON.stringify(gevelvlakken));
+    router.push(`/offertes/${quoteId}/klus/gevelbekleding/overig-gevelbekleding/materialen`);
   };
   
   const isNextDisabled = gevelvlakken.some(p => !p.lengte || !p.breedte);
@@ -109,7 +107,7 @@ export default function OverigGevelbekledingPage() {
                     Vul hieronder de afmetingen in. Voor elk apart gevelvlak, voeg een nieuw veld toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
               <div className="space-y-6">
                 {gevelvlakken.map((gevelvlak, index) => (
                    <Card key={index}>
@@ -154,7 +152,7 @@ export default function OverigGevelbekledingPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/gevelbekleding`}>Terug</Link>
                   </Button>
-                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                       Volgende
                   </Button>
               </div>
