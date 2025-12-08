@@ -49,15 +49,15 @@ export default function OverigPlafondsPage() {
   const handleAddPlafond = () => {
     setPlafonds([...plafonds, { ...defaultPlafondState }]);
   };
+  
+  const handleRemovePlafond = (index: number) => {
+    const newPlafonds = plafonds.filter((_, i) => i !== index);
+    setPlafonds(newPlafonds);
+  };
 
   const handlePlafondChange = <K extends keyof Plafond>(index: number, field: K, value: Plafond[K]) => {
     const newPlafonds = [...plafonds];
     newPlafonds[index][field] = value;
-    setPlafonds(newPlafonds);
-  };
-  
-    const handleRemovePlafond = (index: number) => {
-    const newPlafonds = plafonds.filter((_, i) => i !== index);
     setPlafonds(newPlafonds);
   };
   

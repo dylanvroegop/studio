@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, MoreVertical, Edit, GripVertical, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -18,6 +18,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore } from '@/firebase';
@@ -38,8 +44,14 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
+type CustomSection = {
+  id: string;
+  title: string;
+  order: number;
+};
+
 const sectieSleutels = ['extra'] as const;
-type SectieKey = typeof sectieSleutels[number];
+type SectieKey = typeof sectieSleutels[number] | string; // Allow string for custom sections
 
 
 // ==================================
@@ -178,6 +190,53 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
+type SectionModalProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (name: string) => void;
+  initialName?: string;
+};
+
+function SectionModal({ open, onOpenChange, onSave, initialName = '' }: SectionModalProps) {
+  const [name, setName] = useState(initialName);
+
+  useEffect(() => {
+    if (open) {
+      setName(initialName);
+    }
+  }, [open, initialName]);
+
+  const handleSave = () => {
+    if (name.trim()) {
+      onSave(name.trim());
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{initialName ? 'Sectienaam wijzigen' : 'Nieuwe sectie toevoegen'}</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <Label htmlFor="section-name">Sectienaam</Label>
+          <Input 
+            id="section-name" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+            placeholder="Bijv. Lichtkoof, Balklaag..."
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+          <Button onClick={handleSave} disabled={!name.trim()}>Opslaan</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 // ==================================
 // Pagina Component
@@ -198,7 +257,6 @@ export default function OverigPlafondsMaterialenPage() {
   // State voor materialen
   const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
   const [isMaterialenLaden, setMaterialenLaden] = useState(true);
-  const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
   
   // State voor presets
   const [presets, setPresets] = useState<PresetType[]>([]);
@@ -206,18 +264,18 @@ export default function OverigPlafondsMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
-  const [gipsLagen, setGipsLagen] = useState(1);
-  const [tempGipsLagen, setTempGipsLagen] = useState(1);
+
+  // State for custom sections
+  const [customSections, setCustomSections] = useState<CustomSection[]>([]);
+  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<CustomSection | null>(null);
   
   // State for collapsible cards / hidden slots
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
-  const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
-
-  const isVolgendeIngeschakeld = true;
 
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
@@ -268,16 +326,11 @@ export default function OverigPlafondsMaterialenPage() {
   // Gekozen preset toepassen
   useEffect(() => {
     if (gekozenPresetId === 'default') {
-      // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
-      setGipsLagen(1);
       return;
     }
     
-    // Wacht tot materialen geladen zijn
-    if (alleMaterialen.length === 0) return;
-
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
 
@@ -291,17 +344,15 @@ export default function OverigPlafondsMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
-    setGipsLagen(preset.gipsLagen || 1);
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay to prevent flash of loading state
+  // Set loading to false after a short delay
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
-        }, 50); // Small delay
+        }, 50);
         return () => clearTimeout(timer);
     }, []);
-
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
     setActieveSectie(sectieSleutel);
@@ -311,16 +362,6 @@ export default function OverigPlafondsMaterialenPage() {
     setActieveSectie(null);
   };
   
-  const openLagenKiezer = () => {
-    setTempGipsLagen(gipsLagen);
-    setLagenModalOpen(true);
-  }
-
-  const handleLagenOpslaan = () => {
-    setGipsLagen(tempGipsLagen);
-    setLagenModalOpen(false);
-  }
-
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
   };
@@ -344,14 +385,13 @@ export default function OverigPlafondsMaterialenPage() {
         }
     }
     
-    const newPresetData: Omit<PresetType, 'id'> = {
+    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
         userId: user.uid,
         jobType: JOB_TYPE,
         name: presetName,
         isDefault: isDefault,
         slots: slots,
         collapsedSections: collapsedSections,
-        gipsLagen: gipsLagen,
         createdAt: serverTimestamp() as any,
     };
     
@@ -384,14 +424,40 @@ export default function OverigPlafondsMaterialenPage() {
     }
   };
 
-  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
+  const handleSectionSave = (name: string) => {
+    if (editingSection) {
+      // Edit
+      setCustomSections(prev => prev.map(s => s.id === editingSection.id ? { ...s, title: name } : s));
+    } else {
+      // Add
+      const newSection: CustomSection = {
+        id: `custom_${Date.now()}`,
+        title: name,
+        order: customSections.length,
+      };
+      setCustomSections(prev => [...prev, newSection]);
+    }
+    setEditingSection(null);
+  };
+
+  const handleSectionDelete = (id: string) => {
+    setCustomSections(prev => prev.filter(s => s.id !== id));
+    // Also remove any chosen material for this section
+    setGekozenMaterialen(prev => {
+      const newState = {...prev};
+      delete newState[id];
+      return newState;
+    })
+  };
+
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string, isCustom = false) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
 
     if (isCollapsed) {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Verborgen</span></p>
                 <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
@@ -404,17 +470,40 @@ export default function OverigPlafondsMaterialenPage() {
                     <CardTitle className="text-base">{titel}</CardTitle>
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
-                   <X className="h-4 w-4" />
-                   <span className="sr-only">Verberg sectie</span>
-                </Button>
+                <div className="flex items-center gap-1">
+                  {isCustom && (
+                     <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                          const section = customSections.find(s => s.id === sectieSleutel);
+                          if(section) {
+                            setEditingSection(section);
+                            setIsSectionModalOpen(true);
+                          }
+                        }}>
+                          <Edit className="mr-2 h-4 w-4"/> Naam wijzigen
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleSectionDelete(sectieSleutel)} className="text-destructive">
+                           <Trash2 className="mr-2 h-4 w-4"/> Verwijderen
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
+                     <X className="h-4 w-4" />
+                     <span className="sr-only">Verberg sectie</span>
+                  </Button>
+                </div>
             </CardHeader>
             <CardContent className="p-4 pt-0">
                  <div className="border-t pt-4">
                     {isMaterialenLaden ? (
                          <div className="h-10 bg-muted/50 rounded animate-pulse" />
-                    ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
                     ) : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
@@ -437,14 +526,6 @@ export default function OverigPlafondsMaterialenPage() {
                         </div>
                     )}
                 </div>
-                {(sectieSleutel === 'gips_fermacell') && gekozenMateriaal && !isMaterialenLaden && (
-                    <div className="mt-2 pl-1">
-                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                            <Settings className="w-3 h-3"/>
-                            Lagen: {gipsLagen} (aanpassen)
-                        </button>
-                    </div>
-                )}
             </CardContent>
         </Card>
     );
@@ -477,7 +558,7 @@ export default function OverigPlafondsMaterialenPage() {
               <div className="text-center mb-8">
                    <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Overig Plafonds</h1>
                   <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor dit plafond gebruikt. U kunt deze keuzes als voorinstelling opslaan.
+                      Voeg zelf secties en materialen toe die nodig zijn voor deze maatwerk klus.
                   </p>
               </div>
               
@@ -508,9 +589,23 @@ export default function OverigPlafondsMaterialenPage() {
                   </div>
               </div>
 
-
               <div className="space-y-4">
-                {renderSelectieRij('extra', 'Extra materiaal', 'Voeg hier zelf de benodigde materialen voor deze maatwerk klus toe.')}
+                 <Card>
+                    <CardHeader>
+                      <CardTitle>Eigen secties</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Button variant="outline" className="w-full" onClick={() => { setEditingSection(null); setIsSectionModalOpen(true); }}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Sectie toevoegen
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                {customSections.sort((a,b) => a.order - b.order).map(section => (
+                  renderSelectieRij(section.id, section.title, `Aangepaste sectie`, true)
+                ))}
+
+                {renderSelectieRij('extra', 'Extra materiaal', 'Optionele losse materialen voor dit project.')}
               </div>
               
               <div className="mt-8">
@@ -520,13 +615,12 @@ export default function OverigPlafondsMaterialenPage() {
                 </Button>
               </div>
 
-
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/plafonds/overig-plafonds`}>Terug</Link>
                   </Button>
                   <div>
-                    <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
                         Volgende
                     </Button>
                    </div>
@@ -541,6 +635,13 @@ export default function OverigPlafondsMaterialenPage() {
          onSave={handleSavePreset}
        />
 
+       <SectionModal 
+        open={isSectionModalOpen}
+        onOpenChange={setIsSectionModalOpen}
+        onSave={handleSectionSave}
+        initialName={editingSection?.title}
+       />
+
        {actieveSectie && <MateriaalKiezerModal
           open={!!actieveSectie}
           sectieSleutel={actieveSectie}
@@ -548,46 +649,6 @@ export default function OverigPlafondsMaterialenPage() {
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
       />}
-      
-       <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Aantal lagen gips</DialogTitle>
-                    <DialogDescription>
-                        Standaard gebruiken we 1 laag. Pas dit alleen aan bij speciale situaties.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    <div className="flex items-center justify-center gap-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.max(1, prev - 1))}
-                        >
-                            <Minus className="h-6 w-6" />
-                        </Button>
-                        <div className="flex h-12 w-24 items-center justify-center rounded-md border border-input bg-background text-2xl font-bold">
-                            {tempGipsLagen}
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.min(4, prev + 1))}
-                        >
-                            <Plus className="h-6 w-6" />
-                        </Button>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setLagenModalOpen(false)}>Annuleren</Button>
-                    <Button type="button" onClick={handleLagenOpslaan}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     </>
   );
 }
