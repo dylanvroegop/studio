@@ -16,6 +16,7 @@ const categories: { name: JobCategory; description: string; icon: IconName }[] =
     { name: "Plafonds", description: "Verlaagde en afgewerkte plafonds", icon: "ceiling" },
     { name: "Vloeren", description: "Houten vloeren en ondervloeren", icon: "floor" },
     { name: "Dakrenovatie", description: "Complete dakvernieuwing", icon: "roof" },
+    { name: "Isolatiewerken", description: "Isoleren van wanden, daken, vloeren", icon: "wall" },
     { name: "Boeiboorden", description: "Vervangen en bekleden", icon: "fascia" },
     { name: "Kozijnen", description: "Plaatsen en vervangen", icon: "frame" },
     { name: "Deuren", description: "Afhangen van binnen- en buitendeuren", icon: "door" },

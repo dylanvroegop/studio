@@ -63,6 +63,7 @@ export type JobCategory =
   | "Dakramen"
   | "Schutting / Tuinafscheiding"
   | "Overkapping / Pergola"
+  | "Isolatiewerken"
   | "Overig / Maatwerk";
 
 
