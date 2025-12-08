@@ -36,7 +36,7 @@ export default function IsolatiewerkenPage() {
   }, [quoteId]);
 
   const subcategories: Subcategory[] = [
-    { name: 'Isolatiewerken', description: 'Dak isoleren', icon: 'roof' },
+    { name: 'Isolatiewerken', description: 'Dak isoleren', icon: 'roof', href: `/offertes/${quoteId}/klus/isolatiewerken/dak-isoleren` },
     { name: 'Isolatiewerken', description: 'Wand isoleren', icon: 'wall' },
     { name: 'Isolatiewerken', description: 'Vloer isoleren', icon: 'floor' },
     { name: 'Isolatiewerken', description: 'Overig Isolatiewerk', icon: 'plus' },
