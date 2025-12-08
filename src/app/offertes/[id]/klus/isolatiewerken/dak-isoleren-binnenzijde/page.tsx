@@ -75,13 +75,7 @@ export default function DakIsolerenBinnenzijdePage() {
 
     localStorage.setItem(`quote-${quoteId}-dak-isoleren-binnenzijde`, JSON.stringify(dakvlakken));
     
-    // Redirect to the next step (materials page)
-    // The materials page for this is not yet created. For now, we can redirect back or to a placeholder.
-    // router.push(`/offertes/${quoteId}/klus/isolatiewerken/dak-isoleren-binnenzijde/materialen`);
-    toast({
-        title: "Opgeslagen!",
-        description: "De afmetingen zijn opgeslagen. Volgende stap is nog niet beschikbaar.",
-    });
+    router.push(`/offertes/${quoteId}/klus/isolatiewerken/dak-isoleren-binnenzijde/materialen`);
   };
   
   const isNextDisabled = dakvlakken.some(p => !p.lengte || !p.breedte);
