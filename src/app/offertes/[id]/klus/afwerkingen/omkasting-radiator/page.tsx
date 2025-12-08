@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -64,7 +63,7 @@ export default function OmkastingRadiatorPage() {
     setOmkastingen(newOmkastingen);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (omkastingen.some(p => !p.lengte || !p.hoogte || !p.diepte)) {
@@ -76,9 +75,9 @@ export default function OmkastingRadiatorPage() {
         return;
     }
 
-    const description = `Radiator omkasting maken (${omkastingen.length} stuks)`;
+    localStorage.setItem(`quote-${quoteId}-omkasting-radiator`, JSON.stringify(omkastingen));
     
-    await createJobAction(quoteId, 'Afwerkingen', description);
+    router.push(`/offertes/${quoteId}/klus/afwerkingen/omkasting-radiator/materialen`);
   };
   
   const isNextDisabled = omkastingen.some(p => !p.lengte || !p.hoogte || !p.diepte);
@@ -111,7 +110,7 @@ export default function OmkastingRadiatorPage() {
                     Vul hieronder de afmetingen in. Voor elke aparte omkasting, voeg een nieuw veld toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
               <div className="space-y-6">
                 {omkastingen.map((omkasting, index) => (
                    <Card key={index}>
@@ -160,7 +159,7 @@ export default function OmkastingRadiatorPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/afwerkingen`}>Terug</Link>
                   </Button>
-                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                       Volgende
                   </Button>
               </div>
