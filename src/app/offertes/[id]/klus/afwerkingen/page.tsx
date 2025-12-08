@@ -40,7 +40,6 @@ export default function AfwerkingenPage() {
     { name: 'Afwerkingen', description: 'Vensterbanken', icon: 'finishing', href: `/offertes/${quoteId}/klus/afwerkingen/vensterbanken` },
     { name: 'Afwerkingen', description: 'Dagkanten', icon: 'finishing', href: `/offertes/${quoteId}/klus/afwerkingen/dagkanten` },
     { name: 'Afwerkingen', description: 'Plinten en afwerklatten', icon: 'finishing' },
-    { name: 'Afwerkingen', description: 'Afwerking stucnaden', icon: 'wall' },
     { name: 'Afwerkingen', description: 'Aftimmering van trappen', icon: 'finishing' },
     { name: 'Afwerkingen', description: 'Omkastingen en koven', icon: 'siding', href: `/offertes/${quoteId}/klus/afwerkingen/omkastingen-en-koven` },
     { name: 'Afwerkingen', description: 'Omkastingen voor radiatoren', icon: 'siding', href: `/offertes/${quoteId}/klus/afwerkingen/omkasting-radiator` },
