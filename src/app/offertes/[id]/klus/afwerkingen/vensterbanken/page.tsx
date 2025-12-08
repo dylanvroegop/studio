@@ -12,7 +12,6 @@ import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
-import { createJobAction } from '@/lib/actions';
 
 type Vensterbank = {
   lengte: string;
@@ -62,7 +61,7 @@ export default function VensterbankenPage() {
     setVensterbanken(newVensterbanken);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (vensterbanken.some(p => !p.lengte || !p.breedte)) {
@@ -74,9 +73,9 @@ export default function VensterbankenPage() {
         return;
     }
 
-    const description = `Vensterbanken plaatsen (${vensterbanken.length} stuks)`;
+    localStorage.setItem(`quote-${quoteId}-vensterbanken`, JSON.stringify(vensterbanken));
     
-    await createJobAction(quoteId, 'Afwerkingen', description);
+    router.push(`/offertes/${quoteId}/klus/afwerkingen/vensterbanken/materialen`);
   };
   
   const isNextDisabled = vensterbanken.some(p => !p.lengte || !p.breedte);
@@ -109,7 +108,7 @@ export default function VensterbankenPage() {
                     Vul hieronder de afmetingen in. Voor elke aparte vensterbank, voeg een nieuw veld toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
               <div className="space-y-6">
                 {vensterbanken.map((vensterbank, index) => (
                    <Card key={index}>
@@ -154,7 +153,7 @@ export default function VensterbankenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/afwerkingen`}>Terug</Link>
                   </Button>
-                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                       Volgende
                   </Button>
               </div>
