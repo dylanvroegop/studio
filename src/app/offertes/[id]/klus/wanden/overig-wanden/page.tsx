@@ -8,14 +8,21 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
 
 type Wall = {
   lengte: string;
   hoogte: string;
+  opmerkingen: string;
+};
+
+const defaultWallState: Wall = {
+  lengte: '',
+  hoogte: '',
+  opmerkingen: '',
 };
 
 export default function OverigWandenPage() {
@@ -26,7 +33,7 @@ export default function OverigWandenPage() {
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [walls, setWalls] = useState<Wall[]>([{ lengte: '', hoogte: '' }]);
+  const [walls, setWalls] = useState<Wall[]>([defaultWallState]);
 
   useEffect(() => {
     async function fetchQuote() {
@@ -40,7 +47,7 @@ export default function OverigWandenPage() {
   }, [quoteId]);
   
   const handleAddWall = () => {
-    setWalls([...walls, { lengte: '', hoogte: '' }]);
+    setWalls([...walls, { ...defaultWallState }]);
   };
   
   const handleRemoveWall = (index: number) => {
@@ -48,13 +55,13 @@ export default function OverigWandenPage() {
     setWalls(newWalls);
   };
 
-  const handleWallChange = (index: number, field: keyof Wall, value: string) => {
+  const handleWallChange = <K extends keyof Wall>(index: number, field: K, value: Wall[K]) => {
     const newWalls = [...walls];
     newWalls[index][field] = value;
     setWalls(newWalls);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (walls.some(wall => !wall.lengte || !wall.hoogte)) {
@@ -66,9 +73,8 @@ export default function OverigWandenPage() {
         return;
     }
 
-    const description = `Overig Wanden (${walls.length} stuks)`;
-    
-    await createJobAction(quoteId, 'Wanden', description);
+    localStorage.setItem(`quote-${quoteId}-overig-wanden`, JSON.stringify(walls));
+    router.push(`/offertes/${quoteId}/klus/wanden/overig-wanden/materialen`);
   };
   
   const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
@@ -96,72 +102,60 @@ export default function OverigWandenPage() {
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-2xl mx-auto w-full">
             <div className="text-center mb-8">
-                <p className="text-muted-foreground">
-                    Vul hieronder de gevraagde gegevens in. Deze informatie gebruiken wij om jouw offerte nauwkeurig voor je uit te werken.
+                 <h2 className="font-semibold text-2xl">Overig Wanden</h2>
+                <p className="text-muted-foreground mt-2">
+                    Vul hieronder de afmetingen in. Voor elke aparte ruimte of oppervlakte, voeg een nieuw veld toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Afmetingen – Overig Wanden</CardTitle>
-                        <CardDescription>
-                            Totaal aantal wanden: {walls.length}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {walls.map((wall, index) => (
-                           <div key={index} className="space-y-4 pt-4 border-t border-dashed first:border-t-0 first:pt-0">
-                             <div className="flex justify-between items-center">
-                                <h3 className="font-medium">Wand {index + 1}</h3>
-                                {index > 0 && (
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Verwijder wand</span>
-                                    </Button>
-                                )}
-                             </div>
-                             <div className="grid grid-cols-2 gap-4">
-                               <div className="space-y-2">
-                                 <Label htmlFor={`lengte-${index}`}>Lengte (mm)</Label>
-                                 <Input 
-                                    id={`lengte-${index}`} 
-                                    name={`lengte-${index}`} 
-                                    type="number" 
-                                    placeholder="Bijv. 5000" 
-                                    required 
-                                    value={wall.lengte}
-                                    onChange={(e) => handleWallChange(index, 'lengte', e.target.value)}
-                                 />
-                               </div>
-                               <div className="space-y-2">
-                                 <Label htmlFor={`hoogte-${index}`}>Hoogte / Breedte (mm)</Label>
-                                 <Input 
-                                    id={`hoogte-${index}`} 
-                                    name={`hoogte-${index}`} 
-                                    type="number" 
-                                    placeholder="Bijv. 2600" 
-                                    required
-                                    value={wall.hoogte}
-                                    onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)}
-                                 />
-                               </div>
-                             </div>
+            <form>
+              <div className="space-y-6">
+                {walls.map((wall, index) => (
+                   <Card key={index}>
+                       <CardHeader className="flex flex-row items-center justify-between">
+                           <div>
+                               <CardTitle>Wand {index + 1}</CardTitle>
+                               <CardDescription>
+                                   Specificeer de afmetingen voor deze wand.
+                               </CardDescription>
                            </div>
-                        ))}
-                         <Button type="button" variant="outline" className="w-full" onClick={handleAddWall}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Wand toevoegen
-                        </Button>
-                    </CardContent>
-                </Card>
-                <div className="mt-6 flex justify-between items-center">
-                    <Button variant="outline" asChild>
-                        <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
-                    </Button>
-                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                        Volgende
-                    </Button>
-                </div>
+                            {index > 0 && (
+                                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Verwijder wand</span>
+                                </Button>
+                            )}
+                       </CardHeader>
+                       <CardContent className="space-y-6">
+                           <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                 <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} />
+                               </div>
+                               <div className="space-y-2">
+                                 <Label htmlFor={`hoogte-${index}`}>Hoogte / Breedte (mm) *</Label>
+                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
+                               </div>
+                           </div>
+                            <div className="space-y-2 pt-2">
+                                <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
+                                <Textarea id={`opmerkingen-${index}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
+                            </div>
+                       </CardContent>
+                   </Card>
+                ))}
+              </div>
+              <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddWall}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Wand toevoegen
+              </Button>
+              <div className="mt-6 flex justify-between items-center">
+                  <Button variant="outline" asChild>
+                      <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
+                  </Button>
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                      Volgende
+                  </Button>
+              </div>
             </form>
         </div>
       </div>
