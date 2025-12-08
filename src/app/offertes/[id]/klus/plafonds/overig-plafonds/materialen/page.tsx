@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, MoreVertical, Edit, GripVertical, PlusCircle } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2, MoreVertical, Edit, GripVertical, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -30,7 +30,6 @@ import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2 } from 'lucide-react';
 
 
 // ==================================
@@ -602,7 +601,9 @@ export default function OverigPlafondsMaterialenPage() {
                   </Card>
 
                 {customSections.sort((a,b) => a.order - b.order).map(section => (
-                  renderSelectieRij(section.id, section.title, `Aangepaste sectie`, true)
+                  <div key={section.id}>
+                    {renderSelectieRij(section.id, section.title, `Aangepaste sectie`, true)}
+                  </div>
                 ))}
 
                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele losse materialen voor dit project.')}
@@ -652,3 +653,5 @@ export default function OverigPlafondsMaterialenPage() {
     </>
   );
 }
+
+    
