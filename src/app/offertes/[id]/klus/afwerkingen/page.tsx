@@ -42,7 +42,7 @@ export default function AfwerkingenPage() {
     { name: 'Afwerkingen', description: 'Plinten en afwerklatten', icon: 'finishing', href: `/offertes/${quoteId}/klus/afwerkingen/plinten-en-afwerklatten` },
     { name: 'Afwerkingen', description: 'Omkastingen en koven', icon: 'siding', href: `/offertes/${quoteId}/klus/afwerkingen/omkastingen-en-koven` },
     { name: 'Afwerkingen', description: 'Omkastingen voor radiatoren', icon: 'siding', href: `/offertes/${quoteId}/klus/afwerkingen/omkasting-radiator` },
-    { name: 'Afwerkingen', description: 'Specifiek aftimmerwerk', icon: 'plus' },
+    { name: 'Afwerkingen', description: 'Specifiek aftimmerwerk', icon: 'plus', href: `/offertes/${quoteId}/klus/afwerkingen/specifiek-aftimmerwerk` },
   ];
 
   const handleSelect = (description: string) => {
