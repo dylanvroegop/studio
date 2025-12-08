@@ -13,7 +13,7 @@ import { useParams } from 'next/navigation';
 
 const categories: { name: JobCategory; description: string; icon: IconName }[] = [
     { name: "Wanden", description: "Binnen- en buitenwanden", icon: "wall" },
-    { name: "Plafonds", description: "Verlaagde en afgewerkte plafonds", icon: "ceiling" },
+    { name: "Plafonds", description: "Plafonds met een houten of metalstud frame", icon: "ceiling" },
     { name: "Vloeren", description: "Houten vloeren en ondervloeren", icon: "floor" },
     { name: "Dakrenovatie", description: "Complete dakvernieuwing", icon: "roof" },
     { name: "Isolatiewerken", description: "Isoleren van wanden, daken, vloeren", icon: "wall" },
