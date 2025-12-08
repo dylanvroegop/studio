@@ -38,7 +38,7 @@ export default function IsolatiewerkenPage() {
   const subcategories: Subcategory[] = [
     { name: 'Isolatiewerken', description: 'Dak isoleren (buitenzijde)', icon: 'roof', href: `/offertes/${quoteId}/klus/isolatiewerken/dak-isoleren` },
     { name: 'Isolatiewerken', description: 'Dak isoleren (binnenzijde)', icon: 'roof', href: `/offertes/${quoteId}/klus/isolatiewerken/dak-isoleren-binnenzijde` },
-    { name: 'Isolatiewerken', description: 'Wand isoleren (buitenzijde)', icon: 'wall' },
+    { name: 'Isolatiewerken', description: 'Wand isoleren (buitenzijde)', icon: 'wall', href: `/offertes/${quoteId}/klus/isolatiewerken/wand-isoleren-buitenzijde` },
     { name: 'Isolatiewerken', description: 'Wand isoleren (binnenzijde)', icon: 'wall' },
     { name: 'Isolatiewerken', description: 'Vloer isoleren', icon: 'floor' },
     { name: 'Isolatiewerken', description: 'Overig Isolatiewerk', icon: 'plus' },
