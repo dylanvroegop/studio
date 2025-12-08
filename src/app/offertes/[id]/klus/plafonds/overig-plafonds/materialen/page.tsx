@@ -38,7 +38,7 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
-const sectieSleutels = ['profielen', 'isolatie', 'folie', 'gips_fermacell', 'naden_vullen', 'extra'] as const;
+const sectieSleutels = ['extra'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -329,9 +329,6 @@ export default function OverigPlafondsMaterialenPage() {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
         delete newState[sectieSleutel];
-        if (sectieSleutel === 'gips_fermacell') {
-            setGipsLagen(1);
-        }
         return newState;
     });
   };
@@ -513,12 +510,7 @@ export default function OverigPlafondsMaterialenPage() {
 
 
               <div className="space-y-4">
-                {renderSelectieRij('profielen', 'Profielen')}
-                {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('folie', 'Folie')}
-                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
-                {renderSelectieRij('naden_vullen', 'Naden vullen')}
-                {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+                {renderSelectieRij('extra', 'Extra materiaal', 'Voeg hier zelf de benodigde materialen voor deze maatwerk klus toe.')}
               </div>
               
               <div className="mt-8">
