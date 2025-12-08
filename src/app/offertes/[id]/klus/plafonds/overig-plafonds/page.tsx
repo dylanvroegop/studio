@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +61,7 @@ export default function OverigPlafondsPage() {
     setPlafonds(newPlafonds);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (plafonds.some(p => !p.lengte || !p.breedte)) {
@@ -74,9 +73,8 @@ export default function OverigPlafondsPage() {
         return;
     }
 
-    const description = `Overig Plafonds (${plafonds.length} stuks)`;
-    
-    await createJobAction(quoteId, 'Plafonds', description);
+    localStorage.setItem(`quote-${quoteId}-overig-plafonds`, JSON.stringify(plafonds));
+    router.push(`/offertes/${quoteId}/klus/plafonds/overig-plafonds/materialen`);
   };
   
   const isNextDisabled = plafonds.some(p => !p.lengte || !p.breedte);
@@ -109,7 +107,7 @@ export default function OverigPlafondsPage() {
                     Vul hieronder de afmetingen in. Voor elke aparte ruimte of oppervlakte, voeg een nieuw plafond toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
               <div className="space-y-6">
                 {plafonds.map((plafond, index) => (
                    <Card key={index}>
@@ -154,7 +152,7 @@ export default function OverigPlafondsPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/plafonds`}>Terug</Link>
                   </Button>
-                  <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                       Volgende
                   </Button>
               </div>
