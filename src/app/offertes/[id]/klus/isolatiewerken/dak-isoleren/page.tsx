@@ -75,13 +75,7 @@ export default function DakIsolerenPage() {
 
     localStorage.setItem(`quote-${quoteId}-dak-isoleren`, JSON.stringify(dakvlakken));
     
-    // Redirect to the next step (materials page)
-    // The materials page for this is not yet created. For now, we can redirect back or to a placeholder.
-    // router.push(`/offertes/${quoteId}/klus/isolatiewerken/dak-isoleren/materialen`);
-    toast({
-        title: "Opgeslagen!",
-        description: "De afmetingen zijn opgeslagen. Volgende stap is nog niet beschikbaar.",
-    });
+    router.push(`/offertes/${quoteId}/klus/isolatiewerken/dak-isoleren/materialen`);
   };
   
   const isNextDisabled = dakvlakken.some(p => !p.lengte || !p.breedte);
@@ -109,7 +103,7 @@ export default function DakIsolerenPage() {
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-2xl mx-auto w-full">
             <div className="text-center mb-8">
-                 <h2 className="font-semibold text-2xl">Dak isoleren</h2>
+                 <h2 className="font-semibold text-2xl">Dak isoleren (buitenzijde)</h2>
                 <p className="text-muted-foreground mt-2">
                     Vul hieronder de afmetingen in van de te isoleren dakvlakken.
                 </p>
