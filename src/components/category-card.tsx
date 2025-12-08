@@ -109,6 +109,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/isolatiewerken`);
       return;
     }
+    if (category.name === 'Overig / Maatwerk') {
+        e.preventDefault();
+        setIsSelected(true);
+        router.push(`/offertes/${quoteId}/klus/overig-maatwerk`);
+        return;
+    }
     setIsSelected(true);
   }
 
