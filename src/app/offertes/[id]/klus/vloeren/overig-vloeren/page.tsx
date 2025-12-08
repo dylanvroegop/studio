@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createJobAction } from '@/lib/actions';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +61,7 @@ export default function OverigVloerenPage() {
     setVloeren(newVloeren);
   };
   
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     
     if (vloeren.some(p => !p.lengte || !p.breedte)) {
@@ -74,9 +73,8 @@ export default function OverigVloerenPage() {
         return;
     }
 
-    const description = `Overig Vloeren (${vloeren.length} stuks)`;
-    
-    await createJobAction(quoteId, 'Vloeren', description);
+    localStorage.setItem(`quote-${quoteId}-overig-vloeren`, JSON.stringify(vloeren));
+    router.push(`/offertes/${quoteId}/klus/vloeren/overig-vloeren/materialen`);
   };
   
   const isNextDisabled = vloeren.some(p => !p.lengte || !p.breedte);
@@ -109,7 +107,7 @@ export default function OverigVloerenPage() {
                     Vul hieronder de afmetingen in. Voor elke aparte ruimte of oppervlakte, voeg een nieuwe vloer toe.
                 </p>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form>
                 <div className="space-y-6">
                     {vloeren.map((vloer, index) => (
                        <Card key={index}>
@@ -117,7 +115,7 @@ export default function OverigVloerenPage() {
                                <div>
                                    <CardTitle>Vloer {index + 1}</CardTitle>
                                    <CardDescription>
-                                       Specificeer de afmetingen en details voor dit vloerdeel.
+                                       Specificeer de afmetingen voor dit vloerdeel.
                                    </CardDescription>
                                </div>
                                 {index > 0 && (
@@ -154,7 +152,7 @@ export default function OverigVloerenPage() {
                     <Button variant="outline" asChild>
                         <Link href={`/offertes/${quoteId}/klus/vloeren`}>Terug</Link>
                     </Button>
-                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                    <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                         Volgende
                     </Button>
                 </div>
