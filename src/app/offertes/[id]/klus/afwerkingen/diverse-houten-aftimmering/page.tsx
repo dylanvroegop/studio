@@ -69,14 +69,8 @@ export default function DiverseHoutenAftimmeringPage() {
     event.preventDefault();
     
     // For now, just a placeholder action. You'll likely want to do something with the `items` state.
-    toast({
-        title: "Opmerking",
-        description: "De materialenpagina voor deze klus is nog niet geïmplementeerd.",
-    });
-
-    // Example of saving to local storage and routing
-    // localStorage.setItem(`quote-${quoteId}-diverse-houten-aftimmering`, JSON.stringify(items));
-    // router.push(`/offertes/${quoteId}/klus/afwerkingen/diverse-houten-aftimmering/materialen`);
+    localStorage.setItem(`quote-${quoteId}-diverse-houten-aftimmering`, JSON.stringify(items));
+    router.push(`/offertes/${quoteId}/klus/afwerkingen/diverse-houten-aftimmering/materialen`);
   };
   
   return (
