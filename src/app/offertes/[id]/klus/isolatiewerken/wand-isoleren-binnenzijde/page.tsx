@@ -75,10 +75,7 @@ export default function WandIsolerenBinnenzijdePage() {
 
     localStorage.setItem(`quote-${quoteId}-wand-isoleren-binnenzijde`, JSON.stringify(wandvlakken));
     
-    toast({
-        title: "Opgeslagen!",
-        description: "De afmetingen zijn opgeslagen. Volgende stap is nog niet beschikbaar.",
-    });
+    router.push(`/offertes/${quoteId}/klus/isolatiewerken/wand-isoleren-binnenzijde/materialen`);
   };
   
   const isNextDisabled = wandvlakken.some(p => !p.lengte || !p.hoogte);
