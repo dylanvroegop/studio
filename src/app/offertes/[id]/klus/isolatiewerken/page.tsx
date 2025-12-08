@@ -41,7 +41,7 @@ export default function IsolatiewerkenPage() {
     { name: 'Isolatiewerken', description: 'Wand isoleren (buitenzijde)', icon: 'wall', href: `/offertes/${quoteId}/klus/isolatiewerken/wand-isoleren-buitenzijde` },
     { name: 'Isolatiewerken', description: 'Wand isoleren (binnenzijde)', icon: 'wall', href: `/offertes/${quoteId}/klus/isolatiewerken/wand-isoleren-binnenzijde` },
     { name: 'Isolatiewerken', description: 'Vloer isoleren', icon: 'floor', href: `/offertes/${quoteId}/klus/isolatiewerken/vloer-isoleren` },
-    { name: 'Isolatiewerken', description: 'Overig Isolatiewerk', icon: 'plus' },
+    { name: 'Isolatiewerken', description: 'Overig Isolatiewerk', icon: 'plus', href: `/offertes/${quoteId}/klus/isolatiewerken/overig-isolatiewerk` },
   ];
 
   const handleSelect = (description: string) => {
