@@ -429,13 +429,13 @@ export default function DakramenMaterialenPage() {
         <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-              <Link href={`/offertes/${quoteId}/klus/nieuw`}>
+              <Link href={`/offertes/${quoteId}/klus/dakramen`}>
                 <ArrowLeft className="h-4 w-4" />
                 <span className="sr-only">Terug</span>
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 3 van 6</h1>
+          <h1 className="text-center font-semibold text-lg">Materialen: stap 4 van 6</h1>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
@@ -499,7 +499,7 @@ export default function DakramenMaterialenPage() {
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
-                      <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
+                      <Link href={`/offertes/${quoteId}/klus/dakramen`}>Terug</Link>
                   </Button>
                   <div>
                     <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">

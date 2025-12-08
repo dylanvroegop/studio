@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { createJobAction } from '@/lib/actions';
-import type { JobCategory } from '@/lib/types';
+import type { JobCategory, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { JobIcon, type IconName } from '@/components/icons';
 import { useState } from 'react';
@@ -94,7 +94,7 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
     if (category.name === 'Dakramen / Lichtkoepel') {
       e.preventDefault();
       setIsSelected(true);
-      router.push(`/offertes/${quoteId}/klus/dakramen/materialen`);
+      router.push(`/offertes/${quoteId}/klus/dakramen`);
       return;
     }
     if (category.name === 'Schutting / Tuinafscheiding') {
