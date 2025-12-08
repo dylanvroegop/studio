@@ -50,6 +50,7 @@ export default function WandenPage() {
   const subcategories: Subcategory[] = [
     { name: 'Wanden', description: 'HSB Wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
     { name: 'Wanden', description: 'HSB Tussenwand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
+    { name: 'Wanden', description: 'HSB Buitenwand (gevel)', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-buitenwand` },
     { name: 'Wanden', description: 'Metalstud Wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
     { name: 'Wanden', description: 'Metalstud Tussenwand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
     { name: 'Wanden', description: 'Overig Wanden', icon: 'plus', href: `/offertes/${quoteId}/klus/wanden/overig-wanden` },
