@@ -75,10 +75,7 @@ export default function VloerIsolerenPage() {
 
     localStorage.setItem(`quote-${quoteId}-vloer-isoleren`, JSON.stringify(vloervlakken));
     
-    toast({
-        title: "Opgeslagen!",
-        description: "De afmetingen zijn opgeslagen. Volgende stap is nog niet beschikbaar.",
-    });
+    router.push(`/offertes/${quoteId}/klus/isolatiewerken/vloer-isoleren/materialen`);
   };
   
   const isNextDisabled = vloervlakken.some(p => !p.lengte || !p.breedte);
