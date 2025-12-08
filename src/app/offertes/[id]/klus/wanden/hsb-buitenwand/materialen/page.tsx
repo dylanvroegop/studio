@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -59,7 +59,6 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
     setIsSaving(true);
     await onSave(name, isDefault);
     setIsSaving(false);
-    onOpenChange(false);
     setTimeout(() => {
         setName('');
         setIsDefault(false);
@@ -291,7 +290,7 @@ export default function HsbBuitenwandMaterialenPage() {
         if (materiaal) slots[key] = materiaal.id;
     }
     
-    const newPresetData: Omit<PresetType, 'id'> = {
+    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
         slots: slots, collapsedSections: collapsedSections, createdAt: serverTimestamp() as any,
     };
@@ -324,10 +323,8 @@ export default function HsbBuitenwandMaterialenPage() {
     if (isCollapsed) {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className="text-sm font-medium">{titel}</p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 flex items-center gap-2">
-                    <Eye className="w-4 h-4" /> Toon weer
-                </Button>
+                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -339,8 +336,8 @@ export default function HsbBuitenwandMaterialenPage() {
                     <CardTitle className="text-base">{titel}</CardTitle>
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground flex items-center gap-2">
-                   <EyeOff className="h-4 w-4" />
+                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
+                   <X className="h-4 w-4" />
                    <span className="sr-only">Verberg sectie</span>
                 </Button>
             </CardHeader>
