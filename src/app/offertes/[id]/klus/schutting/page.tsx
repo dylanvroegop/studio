@@ -1,88 +1,71 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import type { JobCategory, Quote } from '@/lib/types';
+import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
-import type { Quote } from '@/lib/types';
-import { useToast } from '@/hooks/use-toast';
-import { Textarea } from '@/components/ui/textarea';
 
-type SchuttingDeel = {
-  lengte: string;
-  opmerkingen: string;
-};
-
-const defaultSchuttingDeelState: SchuttingDeel = {
-  lengte: '',
-  opmerkingen: '',
+type Subcategory = {
+  name: JobCategory;
+  description: string;
+  icon: IconName;
+  href?: string;
 };
 
 export default function SchuttingPage() {
   const params = useParams();
-  const router = useRouter();
-  const { toast } = useToast();
   const quoteId = params.id as string;
-  
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [schuttingDelen, setSchuttingDelen] = useState<SchuttingDeel[]>([defaultSchuttingDeelState]);
+
+  const subcategories: Subcategory[] = [
+    { name: 'Schutting / Tuinafscheiding', description: 'Houten Schutting', icon: 'fence', href: `/offertes/${quoteId}/klus/schutting/houten-schutting` },
+    { name: 'Schutting / Tuinafscheiding', description: 'Composiet Schutting', icon: 'fence' /* TODO: href */ },
+    { name: 'Schutting / Tuinafscheiding', description: 'Poort / Tuindeur', icon: 'door' /* TODO: href */ },
+    { name: 'Schutting / Tuinafscheiding', description: 'Overig Schuttingwerk', icon: 'plus' /* TODO: href */ },
+  ];
 
   useEffect(() => {
     async function fetchQuote() {
-      if (!quoteId) return;
-      setLoading(true);
-      const quoteData = await getQuoteById(quoteId);
-      setQuote(quoteData || null);
-      setLoading(false);
+        if (!quoteId) return;
+        setLoading(true);
+        const quoteData = await getQuoteById(quoteId);
+        setQuote(quoteData || null);
+        setLoading(false);
     }
     fetchQuote();
   }, [quoteId]);
   
-  const handleAddSchuttingDeel = () => {
-    setSchuttingDelen([...schuttingDelen, { ...defaultSchuttingDeelState }]);
-  };
-  
-  const handleRemoveSchuttingDeel = (index: number) => {
-    const newSchuttingDelen = schuttingDelen.filter((_, i) => i !== index);
-    setSchuttingDelen(newSchuttingDelen);
-  };
-
-  const handleSchuttingDeelChange = <K extends keyof SchuttingDeel>(index: number, field: K, value: SchuttingDeel[K]) => {
-    const newSchuttingDelen = [...schuttingDelen];
-    newSchuttingDelen[index][field] = value;
-    setSchuttingDelen(newSchuttingDelen);
-  };
-  
-  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    
-    if (schuttingDelen.some(p => !p.lengte)) {
-        toast({
-            variant: "destructive",
-            title: "Ontbrekende gegevens",
-            description: "Vul a.u.b. de lengte voor alle schuttingdelen in.",
-        });
-        return;
-    }
-
-    localStorage.setItem(`quote-${quoteId}-schutting`, JSON.stringify(schuttingDelen));
-    
-    router.push(`/offertes/${quoteId}/klus/schutting/materialen`);
-  };
-  
-  const isNextDisabled = schuttingDelen.some(p => !p.lengte);
+  const renderCardContent = (item: Subcategory) => (
+      <div
+        className={cn(
+          "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
+          !item.href && "opacity-50 cursor-not-allowed hover:scale-100",
+          "border-[rgba(255,0,0,0.2)]",
+          "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+        )}
+      >
+        <div className="w-full h-full text-left p-0">
+            <div className="p-4 flex items-center gap-4 h-full">
+                <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
+                <div className="flex flex-col">
+                <h3 className="font-semibold text-base text-white">{item.description}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+  );
 
   return (
     <main className="flex flex-1 flex-col">
       <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
         <div className="flex items-center justify-start">
-          <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+          <Button asChild variant="outline" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/nieuw`}>
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Terug</span>
@@ -91,67 +74,38 @@ export default function SchuttingPage() {
         </div>
         <h1 className="text-center font-semibold text-lg">Schutting: stap 3 van 6</h1>
         <div className="flex items-center justify-end">
-          {loading ? (
-            <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-          ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
-          ) : null}
+            {loading ? (
+                <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+            ) : quote ? (
+                <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
+            ) : null}
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-2xl mx-auto w-full">
-            <div className="text-center mb-8">
-                 <h2 className="font-semibold text-2xl">Schutting / Tuinafscheiding</h2>
-                <p className="text-muted-foreground mt-2">
-                    Vul hieronder de afmetingen in. Voor elk apart deel, voeg een nieuw veld toe.
-                </p>
-            </div>
-            <form>
-              <div className="space-y-6">
-                {schuttingDelen.map((deel, index) => (
-                   <Card key={index}>
-                       <CardHeader className="flex flex-row items-center justify-between">
-                           <div>
-                               <CardTitle>Schuttingdeel {index + 1}</CardTitle>
-                               <CardDescription>
-                                   Specificeer de lengte en details voor dit deel.
-                               </CardDescription>
-                           </div>
-                            {index > 0 && (
-                                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveSchuttingDeel(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Verwijder schuttingdeel</span>
-                                </Button>
-                            )}
-                       </CardHeader>
-                       <CardContent className="space-y-6">
-                           <div className="grid grid-cols-1 gap-4">
-                               <div className="space-y-2">
-                                 <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 10000" required value={deel.lengte} onChange={(e) => handleSchuttingDeelChange(index, 'lengte', e.target.value)} />
-                               </div>
-                           </div>
-                           <div className="space-y-2 pt-2">
-                              <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
-                              <Textarea id={`opmerkingen-${index}`} placeholder="Bijzondere details, alleen indien nodig…" value={deel.opmerkingen} onChange={(e) => handleSchuttingDeelChange(index, 'opmerkingen', e.target.value)} />
-                            </div>
-                       </CardContent>
-                   </Card>
-                ))}
-              </div>
-              <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddSchuttingDeel}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Schuttingdeel toevoegen
-              </Button>
-              <div className="mt-6 flex justify-between items-center">
-                  <Button variant="outline" asChild>
-                      <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
-                  </Button>
-                  <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                      Volgende
-                  </Button>
-              </div>
-            </form>
+        <div className="max-w-4xl mx-auto w-full">
+          <div className="text-center mb-8">
+            <p className="text-muted-foreground">
+              Kies het type schuttingwerk.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+            {subcategories.map((item) => {
+              if (item.href) {
+                return (
+                  <Link key={item.description} href={item.href} className="h-full">
+                    {renderCardContent(item)}
+                  </Link>
+                );
+              }
+              return (
+                <div key={item.description} className="h-full">
+                  {renderCardContent(item)}
+                </div>
+              );
+            })}
+          </div>
+
         </div>
       </div>
     </main>
