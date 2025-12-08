@@ -103,6 +103,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
         router.push(`/offertes/${quoteId}/klus/schutting`);
         return;
     }
+    if (category.name === 'Isolatiewerken') {
+      e.preventDefault();
+      setIsSelected(true);
+      router.push(`/offertes/${quoteId}/klus/isolatiewerken`);
+      return;
+    }
     setIsSelected(true);
   }
 
