@@ -115,6 +115,12 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
         router.push(`/offertes/${quoteId}/klus/overig-maatwerk`);
         return;
     }
+    if (category.name === 'Overkapping / Pergola') {
+        e.preventDefault();
+        setIsSelected(true);
+        router.push(`/offertes/${quoteId}/klus/overkapping-pergola`);
+        return;
+    }
     setIsSelected(true);
   }
 
