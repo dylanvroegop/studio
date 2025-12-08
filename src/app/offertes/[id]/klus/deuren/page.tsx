@@ -39,7 +39,7 @@ export default function DeurenPage() {
   const subcategories: Subcategory[] = [
     { name: 'Deuren', description: 'Nieuwe Deur Afhangen – Binnendeuren', icon: 'door', href: `/offertes/${quoteId}/klus/deuren/nieuwe-deur-afhangen-binnendeuren/materialen` },
     { name: 'Deuren', description: 'Nieuwe Deur Afhangen – Buitendeur', icon: 'door', href: `/offertes/${quoteId}/klus/deuren/nieuwe-deur-afhangen-buitendeur/materialen` },
-    { name: 'Deuren', description: 'Overig Deuren', icon: 'plus' },
+    { name: 'Deuren', description: 'Overig Deuren', icon: 'plus', href: `/offertes/${quoteId}/klus/deuren/overig-deuren` },
   ];
 
   const handleSelect = (description: string) => {
