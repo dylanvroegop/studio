@@ -60,7 +60,7 @@ export type JobCategory =
   | "Gevelbekleding"
   | "Glas zetten"
   | "Afwerkingen"
-  | "Dakramen"
+  | "Dakramen / Lichtkoepel"
   | "Schutting / Tuinafscheiding"
   | "Overkapping / Pergola"
   | "Isolatiewerken"

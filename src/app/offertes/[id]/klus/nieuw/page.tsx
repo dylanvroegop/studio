@@ -47,6 +47,13 @@ export default function NewJobPage() {
         fetchQuote();
     }, [quoteId]);
 
+    const updatedCategories = categories.map(category => {
+        if (category.name === "Dakramen") {
+            return { ...category, name: "Dakramen / Lichtkoepel" as JobCategory };
+        }
+        return category;
+    });
+
     return (
         <main className="flex flex-1 flex-col">
             <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
@@ -75,7 +82,7 @@ export default function NewJobPage() {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                        {categories.map(category => {
+                        {updatedCategories.map(category => {
                             const cardCategory = {name: category.name, description: category.description, iconName: category.icon};
                             return (
                                 <CategoryCard key={category.name} quoteId={quoteId} category={cardCategory} />
