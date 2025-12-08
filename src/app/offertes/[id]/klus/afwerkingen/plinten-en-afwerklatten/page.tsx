@@ -73,12 +73,7 @@ export default function PlintenEnAfwerklattenPage() {
 
     localStorage.setItem(`quote-${quoteId}-plinten`, JSON.stringify(plinten));
     
-    // Redirect to material page (to be created)
-    // router.push(`/offertes/${quoteId}/klus/afwerkingen/plinten-en-afwerklatten/materialen`);
-     toast({
-        title: "Opmerking",
-        description: "De materialenpagina voor plinten is nog niet beschikbaar.",
-    });
+    router.push(`/offertes/${quoteId}/klus/afwerkingen/plinten-en-afwerklatten/materialen`);
   };
   
   const isNextDisabled = plinten.some(p => !p.lengte);
