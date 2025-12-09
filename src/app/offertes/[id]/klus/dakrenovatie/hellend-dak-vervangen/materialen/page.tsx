@@ -59,7 +59,6 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
     setIsSaving(true);
     await onSave(name, isDefault);
     setIsSaving(false);
-    onOpenChange(false);
     // Reset state after closing
     setTimeout(() => {
         setName('');

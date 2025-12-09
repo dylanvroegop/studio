@@ -493,9 +493,8 @@ export default function OverigPlafondsMaterialenPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
-                     <X className="h-4 w-4" />
-                     <span className="sr-only">Verberg sectie</span>
+                  <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
+                     Verberg
                   </Button>
                 </div>
             </CardHeader>
@@ -600,7 +599,7 @@ export default function OverigPlafondsMaterialenPage() {
                     </CardContent>
                   </Card>
 
-                {customSections.sort((a,b) => a.order - b.order).map(section => (
+                {customSections.sort((a,b) => a.order - b.order).map((section) => (
                   <div key={section.id}>
                     {renderSelectieRij(section.id, section.title, `Aangepaste sectie`, true)}
                   </div>
@@ -653,5 +652,3 @@ export default function OverigPlafondsMaterialenPage() {
     </>
   );
 }
-
-    

@@ -54,7 +54,7 @@ type ExtraMateriaal = {
   prijsPerEenheid: number;
 }
 
-const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'buitenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -304,33 +304,34 @@ export default function HsbTussenwandMaterialenPage() {
 
     const fetchPresets = async () => {
       setPresetsLaden(true);
-      try {
-        const presetsRef = collection(firestore, 'presets');
-        const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
-        const querySnapshot = await getDocs(q);
+      const presetsRef = collection(firestore, 'presets');
+      const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
+      
+      getDocs(q).then(querySnapshot => {
         const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
         setPresets(fetchedPresets);
-
         const defaultPreset = fetchedPresets.find(p => p.isDefault);
         if (defaultPreset) {
           setGekozenPresetId(defaultPreset.id);
-        } else {
-          setGekozenPresetId('default');
         }
-      } catch (error) {
-        console.error("Fout bij ophalen presets:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon presets niet laden.' });
-      } finally {
         setPresetsLaden(false);
-      }
+      }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: presetsRef.path,
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setFoutMaterialen('Kon presets niet laden vanwege permissieproblemen.');
+        setPresetsLaden(false);
+      });
     };
 
     fetchPresets();
-  }, [user, firestore, toast, JOB_TYPE]);
+  }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
   useEffect(() => {
-    if (gekozenPresetId === 'default') {
+    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
@@ -338,10 +339,6 @@ export default function HsbTussenwandMaterialenPage() {
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
-    
-    // Wacht tot materialen geladen zijn
-    if (alleMaterialen.length === 0) return;
-
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
 
@@ -409,54 +406,49 @@ export default function HsbTussenwandMaterialenPage() {
 
   const handleSavePreset = async (presetName: string, isDefault: boolean) => {
     if (!user || !firestore) return;
-
     const slots: Record<string, string> = {};
     for (const key in gekozenMaterialen) {
         const materiaal = gekozenMaterialen[key];
-        if (materiaal) {
-            slots[key] = materiaal.id;
-        }
+        if (materiaal) slots[key] = materiaal.id;
     }
     
     const newPresetData: Omit<PresetType, 'id'> = {
-        userId: user.uid,
-        jobType: JOB_TYPE,
-        name: presetName,
-        isDefault: isDefault,
-        slots: slots,
-        collapsedSections: collapsedSections,
-        gipsLagen: gipsLagen,
-        kleinMateriaalConfig: kleinMateriaalConfig,
-        createdAt: serverTimestamp() as any,
+        userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
+        slots: slots, collapsedSections: collapsedSections, gipsLagen, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
-    try {
-        const batch = writeBatch(firestore);
+    const batch = writeBatch(firestore);
 
-        if (isDefault) {
-            const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
-            const querySnapshot = await getDocs(q);
-            querySnapshot.forEach(doc => {
-                batch.update(doc.ref, { isDefault: false });
+    if (isDefault) {
+        const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
+        getDocs(q).then(querySnapshot => {
+            querySnapshot.forEach(doc => batch.update(doc.ref, { isDefault: false }));
+        }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+              path: `presets`, // Simplified path for batch update context
+              operation: 'list', // The initial operation that failed
             });
-        }
-        
-        const newDocRef = doc(collection(firestore, 'presets'));
-        batch.set(newDocRef, newPresetData);
+            errorEmitter.emit('permission-error', permissionError);
+        });
+    }
+    
+    const newDocRef = doc(collection(firestore, 'presets'));
+    batch.set(newDocRef, newPresetData);
 
-        await batch.commit();
-
-        toast({ title: 'Voorinstelling opgeslagen', description: `"${presetName}" is succesvol opgeslagen.` });
+    batch.commit().then(() => {
+        toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
-        
         const newPreset = { id: newDocRef.id, ...newPresetData } as PresetType;
         setPresets(prev => [...prev.map(p => ({...p, isDefault: isDefault ? false : p.isDefault })), newPreset]);
         setGekozenPresetId(newDocRef.id);
-
-    } catch (error) {
-        console.error("Fout bij opslaan preset:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
-    }
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: newDocRef.path,
+          operation: 'create',
+          requestResourceData: newPresetData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
@@ -485,18 +477,10 @@ export default function HsbTussenwandMaterialenPage() {
             </CardHeader>
             <CardContent className="p-4 pt-0">
                  <div className="border-t pt-4">
-                    {isMaterialenLaden ? (
-                         <div className="h-10 bg-muted/50 rounded animate-pulse" />
-                    ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
-                    ) : (
+                    {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? (
-                                <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
-                                ) : (
-                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
-                                )}
+                                {gekozenMateriaal ? <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -511,7 +495,7 @@ export default function HsbTussenwandMaterialenPage() {
                         </div>
                     )}
                 </div>
-                {(sectieSleutel === 'gips_fermacell' || sectieSleutel === 'binnenbekleding' || sectieSleutel === 'buitenbekleding') && gekozenMateriaal && !isMaterialenLaden && (
+                {(sectieSleutel === 'gips_fermacell' || sectieSleutel === 'binnenbekleding') && gekozenMateriaal && !isMaterialenLaden && (
                     <div className="mt-2 pl-1">
                         <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
                             <Settings className="w-3 h-3"/>
@@ -523,7 +507,7 @@ export default function HsbTussenwandMaterialenPage() {
         </Card>
     );
   };
-
+  
   const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
@@ -646,69 +630,65 @@ export default function HsbTussenwandMaterialenPage() {
               <div className="text-center mb-8">
                    <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Tussenwand</h1>
                   <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan.
+                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan voor volgende offertes.
                   </p>
               </div>
-              
-              <div className="mb-8">
-                  <Label htmlFor='preset-select' className='text-xs text-muted-foreground'>Voorinstellingen</Label>
-                  <div className="flex items-center gap-2">
-                      <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
-                          <SelectTrigger id='preset-select' className="h-9">
-                              <SelectValue placeholder="Kies een voorinstelling..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="default">Standaard (leeg)</SelectItem>
-                              {presets.map(p => (
-                                  <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                              ))}
-                          </SelectContent>
-                      </Select>
-                      <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setGekozenPresetId('default')}
-                          disabled={gekozenPresetId === 'default'}
-                          className="text-muted-foreground"
-                      >
-                         <RotateCcw className="h-3.5 w-3.5 mr-2"/>
-                          Reset
-                      </Button>
-                  </div>
-              </div>
 
+              <div className="mb-8 space-y-2">
+                <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
+                <div className="flex items-center gap-2">
+                    <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
+                        <SelectTrigger id='preset-select'>
+                            <SelectValue placeholder="Kies een voorinstelling..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="default">Standaard (leeg)</SelectItem>
+                            {presets.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setGekozenPresetId('default')}
+                        disabled={gekozenPresetId === 'default'}
+                        className="flex items-center gap-2 text-muted-foreground"
+                    >
+                       <RotateCcw className="h-4 w-4" />
+                        Reset
+                    </Button>
+                </div>
+              </div>
 
               <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('folie', 'Folie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
-                {renderSelectieRij('buitenbekleding', 'Gips / Fermacell')}
+                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell', 'Kies de binnenafwerking van de wand.')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('plinten', 'Plinten')}
-                {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+                
+                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+
                  {renderKleinMateriaalSectie()}
               </div>
-              
+
               <div className="mt-8">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
-                    <Save className="mr-2 h-4 w-4" />
-                    Huidige keuzes opslaan voor volgende keer
+                    <Save className="mr-2 h-4 w-4" /> Huidige keuzes opslaan voor volgende keer
                 </Button>
               </div>
-
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/wanden/hsb-tussenwand`}>Terug</Link>
                   </Button>
-                  <div>
-                    <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                        Volgende
-                    </Button>
-                   </div>
+                  <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                      Volgende
+                  </Button>
               </div>
           </div>
         </div>
