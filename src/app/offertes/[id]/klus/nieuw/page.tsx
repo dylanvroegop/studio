@@ -23,7 +23,7 @@ const categories: { name: JobCategory; description: string; icon: IconName }[] =
     { name: "Gevelbekleding", description: "Hout, kunststof of composiet", icon: "siding" },
     { name: "Glas zetten", description: "Enkel, dubbel of triple glas", icon: "glass" },
     { name: "Afwerkingen", description: "Plinten, architraven en aftimmering", icon: "finishing" },
-    { name: "Dakramen", description: "Plaatsen van Velux of andere merken", icon: "window" },
+    { name: "Dakramen / Lichtkoepel", description: "Plaatsen van Velux of andere merken", icon: "window" },
     { name: "Schutting / Tuinafscheiding", description: "Houten of composiet schuttingen", icon: "fence" },
     { name: "Overkapping / Pergola", description: "Houtconstructies voor in de tuin", icon: "pergola" },
     { name: "Overig / Maatwerk", description: "Specifiek timmerwerk", icon: "plus" },
@@ -59,7 +59,7 @@ export default function NewJobPage() {
             <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
                 <div className="flex items-center justify-start">
                     <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                        <Link href={`/offertes/${quoteId}`}>
+                        <Link href={`/offertes/${quoteId}/edit`}>
                             <ArrowLeft className="h-4 w-4" />
                             <span className="sr-only">Terug</span>
                         </Link>
