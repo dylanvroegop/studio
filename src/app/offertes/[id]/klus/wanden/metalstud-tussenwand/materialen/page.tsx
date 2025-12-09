@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -668,9 +669,9 @@ export default function MetalstudTussenwandMaterialenPage() {
                 {renderSelectieRij('profielen', 'Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('osb_1', 'Constructieplaat (zijde 1)')}
-                {renderGipsSelectieRij('gips_1', 'Afwerking (zijde 1)')}
+                {renderGipsSelectieRij('gips_1', 'Gips / Fermacell (zijde 1)')}
                 {renderSelectieRij('osb_2', 'Constructieplaat (zijde 2)')}
-                {renderGipsSelectieRij('gips_2', 'Afwerking (zijde 2)')}
+                {renderGipsSelectieRij('gips_2', 'Gips / Fermacell (zijde 2)')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
