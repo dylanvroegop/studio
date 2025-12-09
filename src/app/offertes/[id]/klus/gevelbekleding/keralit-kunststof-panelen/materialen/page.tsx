@@ -385,9 +385,8 @@ export default function KeralitKunststofPanelenMaterialenPage() {
                     <CardTitle className="text-base">{titel}</CardTitle>
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
-                   <X className="h-4 w-4" />
-                   <span className="sr-only">Verberg sectie</span>
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
+                   verberg
                 </Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">

@@ -36,7 +36,7 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
-const sectieSleutels = ['onderconstructie', 'isolatie', 'folie', 'afwerking', 'extra'] as const;
+const sectieSleutels = ['deur', 'beslag', 'montage', 'extra'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 // ==================================
@@ -73,17 +73,17 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
         <DialogHeader>
           <DialogTitle>Voorinstelling opslaan</DialogTitle>
           <DialogDescription>
-            Sla de huidige materiaalconfiguratie op voor later gebruik bij Wand isoleren (buitenzijde).
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij Binnendeuren.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
             <div className="space-y-2">
                 <Label htmlFor="preset-name">Naam voorinstelling *</Label>
-                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard gevelisolatie" />
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard binnendeur" />
             </div>
             <div className="flex items-center space-x-2">
                 <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
-                <Label htmlFor="default-preset">Maak dit mijn standaard voor Wand isoleren (buitenzijde)</Label>
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor Binnendeuren</Label>
             </div>
         </div>
         <DialogFooter>
@@ -180,14 +180,14 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
 // Pagina Component
 // ==================================
 
-export default function WandIsolerenBuitenzijdeMaterialenPage() {
+export default function NieuweDeurAfhangenBinnendeurenMaterialenPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
-  const JOB_TYPE = "wand-isoleren-buitenzijde";
+  const JOB_TYPE = "nieuwe-deur-afhangen-binnendeuren";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -428,13 +428,13 @@ export default function WandIsolerenBuitenzijdeMaterialenPage() {
         <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-              <Link href={`/offertes/${quoteId}/klus/isolatiewerken/wand-isoleren-buitenzijde`}>
+              <Link href={`/offertes/${quoteId}/klus/deuren`}>
                 <ArrowLeft className="h-4 w-4" />
                 <span className="sr-only">Terug</span>
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
+          <h1 className="text-center font-semibold text-lg">Materialen: stap 4 van 6</h1>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
@@ -447,7 +447,7 @@ export default function WandIsolerenBuitenzijdeMaterialenPage() {
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
               <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Wand isoleren (buitenzijde)</h1>
+                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Nieuwe Deur Afhangen – Binnendeuren</h1>
                   <p className="text-muted-foreground mt-2">
                       Kies de materialen die u voor deze klus gebruikt. U kunt deze keuzes als voorinstelling opslaan.
                   </p>
@@ -482,10 +482,9 @@ export default function WandIsolerenBuitenzijdeMaterialenPage() {
 
 
               <div className="space-y-4">
-                {renderSelectieRij('onderconstructie', 'Onderconstructie (regelwerk)')}
-                {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('folie', 'Folie')}
-                {renderSelectieRij('afwerking', 'Afwerking Buitenzijde (gevelbekleding)')}
+                {renderSelectieRij('deur', 'Deur')}
+                {renderSelectieRij('beslag', 'Deurbeslag & Scharnieren')}
+                {renderSelectieRij('montage', 'Montagemateriaal')}
                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
               </div>
               
@@ -499,7 +498,7 @@ export default function WandIsolerenBuitenzijdeMaterialenPage() {
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
-                      <Link href={`/offertes/${quoteId}/klus/isolatiewerken/wand-isoleren-buitenzijde`}>Terug</Link>
+                      <Link href={`/offertes/${quoteId}/klus/deuren`}>Terug</Link>
                   </Button>
                   <div>
                     <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
