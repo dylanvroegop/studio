@@ -457,7 +457,7 @@ export default function OverigVloerenMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Verborgen</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
             </div>
         );
     }
@@ -493,9 +493,8 @@ export default function OverigVloerenMaterialenPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
-                     <X className="h-4 w-4" />
-                     <span className="sr-only">Verberg sectie</span>
+                  <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
+                     Verberg
                   </Button>
                 </div>
             </CardHeader>
@@ -600,7 +599,7 @@ export default function OverigVloerenMaterialenPage() {
                     </CardContent>
                   </Card>
 
-                {customSections.sort((a,b) => a.order - b.order).map(section => (
+                {customSections.sort((a,b) => a.order - b.order).map((section) => (
                   <div key={section.id}>
                     {renderSelectieRij(section.id, section.title, `Aangepaste sectie`, true)}
                   </div>
