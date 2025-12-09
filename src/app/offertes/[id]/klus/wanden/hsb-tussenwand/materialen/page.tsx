@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -93,7 +92,7 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
         <DialogHeader>
           <DialogTitle>Voorinstelling opslaan</DialogTitle>
           <DialogDescription>
-            Sla de huidige materiaalconfiguratie op voor later gebruik bij HSB tussenwanden.
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij HSB scheidingswanden.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -103,7 +102,7 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
             </div>
             <div className="flex items-center space-x-2">
                 <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
-                <Label htmlFor="default-preset">Maak dit mijn standaard voor HSB tussenwanden</Label>
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor HSB scheidingswanden</Label>
             </div>
         </div>
         <DialogFooter>
@@ -269,7 +268,6 @@ export default function HsbTussenwandMaterialenPage() {
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [gipsLagen, setGipsLagen] = useState(1);
-  const [tempGipsLagen, setTempGipsLagen] = useState(1);
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
@@ -381,12 +379,10 @@ export default function HsbTussenwandMaterialenPage() {
   };
   
   const openLagenKiezer = () => {
-    setTempGipsLagen(gipsLagen);
     setLagenModalOpen(true);
   }
 
   const handleLagenOpslaan = () => {
-    setGipsLagen(tempGipsLagen);
     setLagenModalOpen(false);
   }
 
@@ -470,7 +466,6 @@ export default function HsbTussenwandMaterialenPage() {
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">{titel}</CardTitle>
-                    {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
                    Verberg
@@ -496,14 +491,6 @@ export default function HsbTussenwandMaterialenPage() {
                         </div>
                     )}
                 </div>
-                {(sectieSleutel === 'gips_fermacell' || sectieSleutel === 'binnenbekleding') && gekozenMateriaal && !isMaterialenLaden && (
-                    <div className="mt-2 pl-1">
-                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                            <Settings className="w-3 h-3"/>
-                            Lagen: {gipsLagen} (aanpassen)
-                        </button>
-                    </div>
-                )}
             </CardContent>
         </Card>
     );
@@ -724,46 +711,6 @@ export default function HsbTussenwandMaterialenPage() {
             setAlleMaterialen(newOrder); // Optimistically update UI
         }}
        />
-      
-       <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Aantal lagen gips</DialogTitle>
-                    <DialogDescription>
-                        Standaard gebruiken we 1 laag. Pas dit alleen aan bij speciale situaties.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    <div className="flex items-center justify-center gap-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.max(1, prev - 1))}
-                        >
-                            <Minus className="h-6 w-6" />
-                        </Button>
-                        <div className="flex h-12 w-24 items-center justify-center rounded-md border border-input bg-background text-2xl font-bold">
-                            {tempGipsLagen}
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.min(4, prev + 1))}
-                        >
-                            <Plus className="h-6 w-6" />
-                        </Button>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setLagenModalOpen(false)}>Annuleren</Button>
-                    <Button type="button" onClick={handleLagenOpslaan}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     </>
   );
 }

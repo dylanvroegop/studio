@@ -235,8 +235,6 @@ export default function HsbBuitenwandMaterialenPage() {
         const defaultPreset = fetchedPresets.find(p => p.isDefault);
         if (defaultPreset) {
           setGekozenPresetId(defaultPreset.id);
-        } else {
-          setGekozenPresetId('default');
         }
       } catch (error) {
         console.error("Fout bij ophalen presets:", error);
@@ -299,7 +297,7 @@ export default function HsbBuitenwandMaterialenPage() {
         if (materiaal) slots[key] = materiaal.id;
     }
     
-    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
+    const newPresetData: Omit<PresetType, 'id'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
@@ -333,7 +331,7 @@ export default function HsbBuitenwandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
             </div>
         );
     }
@@ -342,8 +340,7 @@ export default function HsbBuitenwandMaterialenPage() {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
-                    <CardTitle className="text-base">{titel}</CardTitle>
-                    {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
+                    <CardTitle className="text-lg">{titel}</CardTitle>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
                    Verberg

@@ -55,7 +55,7 @@ type ExtraMateriaal = {
   prijsPerEenheid: number;
 }
 
-const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -93,17 +93,17 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
         <DialogHeader>
           <DialogTitle>Voorinstelling opslaan</DialogTitle>
           <DialogDescription>
-            Sla de huidige materiaalconfiguratie op voor later gebruik bij HSB tussenwanden.
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij HSB wanden.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
             <div className="space-y-2">
                 <Label htmlFor="preset-name">Naam voorinstelling *</Label>
-                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard tussenwand" />
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard HSB wand" />
             </div>
             <div className="flex items-center space-x-2">
                 <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
-                <Label htmlFor="default-preset">Maak dit mijn standaard voor HSB tussenwanden</Label>
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor HSB wanden</Label>
             </div>
         </div>
         <DialogFooter>
@@ -268,8 +268,6 @@ export default function HsbWandMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
-  const [gipsLagen, setGipsLagen] = useState(1);
-  const [tempGipsLagen, setTempGipsLagen] = useState(1);
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
@@ -278,7 +276,6 @@ export default function HsbWandMaterialenPage() {
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
-  const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const isVolgendeIngeschakeld = true;
@@ -336,7 +333,6 @@ export default function HsbWandMaterialenPage() {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
-      setGipsLagen(1);
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
@@ -353,7 +349,6 @@ export default function HsbWandMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
-    setGipsLagen(preset.gipsLagen || 1);
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
@@ -379,16 +374,6 @@ export default function HsbWandMaterialenPage() {
   const sluitMateriaalKiezer = () => {
     setActieveSectie(null);
   };
-  
-  const openLagenKiezer = () => {
-    setTempGipsLagen(gipsLagen);
-    setLagenModalOpen(true);
-  }
-
-  const handleLagenOpslaan = () => {
-    setGipsLagen(tempGipsLagen);
-    setLagenModalOpen(false);
-  }
 
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
@@ -398,9 +383,6 @@ export default function HsbWandMaterialenPage() {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
         delete newState[sectieSleutel];
-        if (sectieSleutel === 'gips_fermacell') {
-            setGipsLagen(1);
-        }
         return newState;
     });
   };
@@ -415,7 +397,7 @@ export default function HsbWandMaterialenPage() {
     
     const newPresetData: Omit<PresetType, 'id'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
-        slots: slots, collapsedSections: collapsedSections, gipsLagen, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
+        slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
     const batch = writeBatch(firestore);
@@ -470,7 +452,6 @@ export default function HsbWandMaterialenPage() {
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">{titel}</CardTitle>
-                    {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
                    Verberg
@@ -496,14 +477,6 @@ export default function HsbWandMaterialenPage() {
                         </div>
                     )}
                 </div>
-                {(sectieSleutel === 'gips_fermacell') && gekozenMateriaal && !isMaterialenLaden && (
-                    <div className="mt-2 pl-1">
-                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                            <Settings className="w-3 h-3"/>
-                            Lagen: {gipsLagen} (aanpassen)
-                        </button>
-                    </div>
-                )}
             </CardContent>
         </Card>
     );
@@ -603,7 +576,7 @@ export default function HsbWandMaterialenPage() {
         </Card>
     );
   };
-
+  
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -718,48 +691,6 @@ export default function HsbWandMaterialenPage() {
             setAlleMaterialen(newOrder); // Optimistically update UI
         }}
        />
-      
-       <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Aantal lagen gips</DialogTitle>
-                    <DialogDescription>
-                        Standaard gebruiken we 1 laag. Pas dit alleen aan bij speciale situaties.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    <div className="flex items-center justify-center gap-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.max(1, prev - 1))}
-                        >
-                            <Minus className="h-6 w-6" />
-                        </Button>
-                        <div className="flex h-12 w-24 items-center justify-center rounded-md border border-input bg-background text-2xl font-bold">
-                            {tempGipsLagen}
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.min(4, prev + 1))}
-                        >
-                            <Plus className="h-6 w-6" />
-                        </Button>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setLagenModalOpen(false)}>Annuleren</Button>
-                    <Button type="button" onClick={handleLagenOpslaan}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     </>
   );
 }
-
-
