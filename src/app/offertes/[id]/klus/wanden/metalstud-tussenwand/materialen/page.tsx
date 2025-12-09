@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -410,7 +409,7 @@ export default function MetalstudTussenwandMaterialenPage() {
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
-                   verberg
+                   Verberg
                 </Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
@@ -467,7 +466,7 @@ export default function MetalstudTussenwandMaterialenPage() {
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
-                   verberg
+                   Verberg
                 </Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
