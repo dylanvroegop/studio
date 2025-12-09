@@ -665,33 +665,18 @@ export default function MetalstudTussenwandMaterialenPage() {
 
 
               <div className="space-y-4">
-                <div className="space-y-2">
-                    <h4 className="font-medium text-sm text-muted-foreground">Wandopbouw</h4>
-                    {renderSelectieRij('profielen', 'Profielen')}
-                    {renderSelectieRij('isolatie', 'Isolatie')}
-                </div>
-
-                <div className="space-y-2 pt-4">
-                    <h4 className="font-medium text-sm text-muted-foreground">Zijde 1</h4>
-                    {renderSelectieRij('osb_1', 'Constructieplaat')}
-                    {renderGipsSelectieRij('gips_1', 'Afwerking')}
-                </div>
-                
-                <div className="space-y-2 pt-4">
-                    <h4 className="font-medium text-sm text-muted-foreground">Zijde 2</h4>
-                    {renderSelectieRij('osb_2', 'Constructieplaat')}
-                    {renderGipsSelectieRij('gips_2', 'Afwerking')}
-                </div>
-
-                <div className="space-y-2 pt-4">
-                    <h4 className="font-medium text-sm text-muted-foreground">Overig</h4>
-                    {renderSelectieRij('kozijnen', 'Kozijnen')}
-                    {renderSelectieRij('deuren', 'Deuren')}
-                    {renderSelectieRij('naden_vullen', 'Naden vullen')}
-                    {renderSelectieRij('plinten', 'Plinten')}
-                    {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
-                    {renderKleinMateriaalSectie()}
-                </div>
+                {renderSelectieRij('profielen', 'Profielen')}
+                {renderSelectieRij('isolatie', 'Isolatie')}
+                {renderSelectieRij('osb_1', 'Constructieplaat (zijde 1)')}
+                {renderGipsSelectieRij('gips_1', 'Afwerking (zijde 1)')}
+                {renderSelectieRij('osb_2', 'Constructieplaat (zijde 2)')}
+                {renderGipsSelectieRij('gips_2', 'Afwerking (zijde 2)')}
+                {renderSelectieRij('kozijnen', 'Kozijnen')}
+                {renderSelectieRij('deuren', 'Deuren')}
+                {renderSelectieRij('naden_vullen', 'Naden vullen')}
+                {renderSelectieRij('plinten', 'Plinten')}
+                {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+                {renderKleinMateriaalSectie()}
               </div>
               
               <div className="mt-8">
