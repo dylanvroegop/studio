@@ -5,11 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType } from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Dialog,
   DialogContent,
@@ -198,93 +199,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
-const defaultExtraMateriaal: Omit<ExtraMateriaal, 'id'> = {
-    naam: '',
-    eenheid: 'stuk',
-    lengteMm: undefined,
-    breedteMm: undefined,
-    hoogteMm: undefined,
-    prijsPerEenheid: 0,
-};
-
-type ExtraMateriaalModalProps = {
-    open: boolean;
-    mode: 'add' | 'edit';
-    onSluiten: () => void;
-    onOpslaan: (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => void;
-    existingRecord?: ExtraMateriaal;
-}
-
-function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord }: ExtraMateriaalModalProps) {
-    const [item, setItem] = useState<Omit<ExtraMateriaal, 'id'> | ExtraMateriaal>(defaultExtraMateriaal);
-
-    useEffect(() => {
-      if (open) {
-        if (mode === 'edit' && existingRecord) {
-            setItem(existingRecord)
-        } else {
-            setItem(defaultExtraMateriaal);
-        }
-      }
-    }, [open, mode, existingRecord]);
-
-    const handleFieldChange = (field: keyof Omit<ExtraMateriaal, 'id'>, value: any) => {
-        setItem(prev => ({...prev, [field]: value}));
-    };
-
-    const handleOpslaan = () => {
-        onOpslaan(item);
-        onSluiten();
-    };
-
-    const isEenheidDimensie = ['m¹', 'm²', 'm³'].includes(item.eenheid);
-    
-    const prijsLabelMap: Record<string, string> = {
-      'stuk': 'Prijs per stuk (€)',
-      'm¹': 'Prijs per meter (€)',
-      'm²': 'Prijs per m² (géén plaatprijs!)',
-      'm³': 'Prijs per m³ (€)',
-    };
-    
-    const prijsHelperTextMap: Record<string, string> = {
-      'stuk': 'Gebruik ‘stuk’ alleen voor losse artikelen, zoals beslag of haken. Koop je dit normaal in een doos of pak? Reken dan eerst de prijs per stuk uit, anders klopt de offerte niet.',
-      'm¹': 'Let op: dit is prijs per strekkende meter. Niet per balk, niet per bundel. Krijg je een prijs per stuk? Reken die eerst om naar prijs per meter.',
-      'm²': 'Geen plaatprijs! Krijg je een prijs per plaat? Deel die eerst door het aantal m² per plaat. Fout ingevulde plaatprijzen zorgen voor verkeerde offertes.',
-      'm³': 'Let op: gebruik m³ alleen als het materiaal echt per kubieke meter wordt verkocht (bijv. isolatie in bulk). Krijg je een prijs per plaat of balk? Gebruik dan m² of m¹ in plaats van m³.',
-    };
-
-    const dynamischPrijsLabel = prijsLabelMap[item.eenheid] || 'Materiaalkosten per eenheid (€)';
-    const dynamischPrijsHelperText = prijsHelperTextMap[item.eenheid];
-    
-    return (
-        <Dialog open={open} onOpenChange={onSluiten}>
-            <DialogContent className="sm:max-w-2xl">
-                 <DialogHeader>
-                    <DialogTitle>{mode === 'edit' ? 'Materiaal Bewerken' : 'Extra Materiaal Toevoegen'}</DialogTitle>
-                     <DialogDescription>
-                         Gebruik dit voor uitzonderlijke materialen die niet in de vaste lijst staan.
-                         <span className="block mt-1 text-xs text-muted-foreground">Voer altijd de prijs per gekozen eenheid in. Verkeerde prijzen geven verkeerde offertes.</span>
-                     </DialogDescription>
-                 </DialogHeader>
-
-                <div className="grid gap-6 py-4">
-                   <div className="space-y-2"><Label htmlFor="extra-naam">Materiaalnaam *</Label><Input id="extra-naam" value={item.naam} onChange={e => handleFieldChange('naam', e.target.value)} placeholder="Bijv. multiplex plaat, staalprofiel, …" /></div>
-                    <div className="grid grid-cols-1"><div className="space-y-2"><Label htmlFor="extra-eenheid">Eenheid *</Label><Select value={item.eenheid} onValueChange={value => handleFieldChange('eenheid', value as ExtraMateriaal['eenheid'])}><SelectTrigger id="extra-eenheid"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="stuk">stuk</SelectItem><SelectItem value="m¹">m¹</SelectItem><SelectItem value="m²">m²</SelectItem><SelectItem value="m³">m³</SelectItem></SelectContent></Select></div></div>
-                    {isEenheidDimensie && (<div className="p-4 border rounded-md space-y-4"><p className="text-sm font-medium">Maatvoering (alleen indien relevant)</p><div className="grid grid-cols-3 gap-4">{['m¹', 'm²', 'm³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-lengte">Lengte (mm)</Label><Input id="extra-lengte" type="number" value={item.lengteMm || ''} onChange={e => handleFieldChange('lengteMm', e.target.value)} placeholder="Bijv. 3000"/></div>)}{['m²', 'm³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-breedte">Breedte (mm)</Label><Input id="extra-breedte" type="number" value={item.breedteMm || ''} onChange={e => handleFieldChange('breedteMm', e.target.value)} placeholder="Bijv. 600"/></div>)}{['m³'].includes(item.eenheid) && (<div className="space-y-2"><Label htmlFor="extra-hoogte">Hoogte / dikte (mm)</Label><Input id="extra-hoogte" type="number" value={item.hoogteMm || ''} onChange={e => handleFieldChange('hoogteMm', e.target.value)} placeholder="Bijv. 50"/></div>)}</div><p className="text-xs text-muted-foreground">Gebruik alleen lengte/breedte/hoogte als de prijs per m¹/m²/m³ wordt berekend.</p></div>)}
-                    <div className="grid grid-cols-1 gap-4"><div className="space-y-2"><Label htmlFor="extra-prijs" className="text-red-300">{dynamischPrijsLabel} *</Label><Input id="extra-prijs" type="number" value={item.prijsPerEenheid || ''} onChange={e => handleFieldChange('prijsPerEenheid', Number(e.target.value))} placeholder="Bijv. 3,25"/>{dynamischPrijsHelperText && (<div className="mt-2 flex items-start gap-2 rounded-md border border-red-800 bg-red-950/40 p-2 text-sm text-red-300"><AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" /><p>{dynamischPrijsHelperText}</p></div>)}</div></div>
-                </div>
-
-                <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onSluiten}>Annuleren</Button>
-                    <Button type="button" onClick={handleOpslaan} disabled={!item.naam || !item.prijsPerEenheid}>
-                        { mode === 'edit' ? 'Wijziging Opslaan' : 'Toevoegen' }
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 function ReorderModal({ open, onSluiten, materialen, onOpslaan }: {
   open: boolean;
   onSluiten: () => void;
@@ -360,9 +274,9 @@ export default function HsbWandMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
-  const [extraMaterialen, setExtraMaterialen] = useState<ExtraMateriaal[]>([]);
   const [gipsLagen, setGipsLagen] = useState(1);
   const [tempGipsLagen, setTempGipsLagen] = useState(1);
+  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'auto', fixedAmount: null });
   
   // State for collapsible cards / hidden slots
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -370,12 +284,10 @@ export default function HsbWandMaterialenPage() {
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
-  const [extraMateriaalModalOpen, setExtraMateriaalModalOpen] = useState(false);
-  const [extraMateriaalModalMode, setExtraMateriaalModalMode] = useState<'add' | 'edit'>('add');
-  const [editingExtraMateriaal, setEditingExtraMateriaal] = useState<ExtraMateriaal | undefined>(undefined);
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
-  
+
+  const isVolgendeIngeschakeld = true;
 
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
@@ -428,6 +340,7 @@ export default function HsbWandMaterialenPage() {
       setGekozenMaterialen({});
       setCollapsedSections({});
       setGipsLagen(1);
+      setKleinMateriaalConfig({ mode: 'auto', fixedAmount: null });
       return;
     }
     const preset = presets.find(p => p.id === gekozenPresetId);
@@ -444,6 +357,7 @@ export default function HsbWandMaterialenPage() {
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
     setGipsLagen(preset.gipsLagen || 1);
+    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'auto', fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Set loading to false after a short delay to prevent flash of loading state
@@ -469,12 +383,6 @@ export default function HsbWandMaterialenPage() {
     setActieveSectie(null);
   };
   
-  const openExtraMateriaalModal = (mode: 'add' | 'edit', item?: ExtraMateriaal) => {
-    setExtraMateriaalModalMode(mode);
-    setEditingExtraMateriaal(item);
-    setExtraMateriaalModalOpen(true);
-  };
-
   const openLagenKiezer = () => {
     setTempGipsLagen(gipsLagen);
     setLagenModalOpen(true);
@@ -487,15 +395,6 @@ export default function HsbWandMaterialenPage() {
 
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
-  };
-  
-  const handleExtraMateriaalOpslaan = (materiaal: Omit<ExtraMateriaal, 'id'> | ExtraMateriaal) => {
-    if ('id' in materiaal && materiaal.id) {
-      setExtraMaterialen(prev => prev.map(m => m.id === materiaal.id ? materiaal : m));
-    } else {
-      const nieuwMateriaal = { ...materiaal, id: new Date().toISOString() };
-      setExtraMaterialen(prev => [...prev, nieuwMateriaal]);
-    }
   };
 
   const handleMateriaalVerwijderen = (sectieSleutel: SectieKey) => {
@@ -519,7 +418,7 @@ export default function HsbWandMaterialenPage() {
     
     const newPresetData: Omit<PresetType, 'id'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
-        slots: slots, collapsedSections: collapsedSections, createdAt: serverTimestamp() as any,
+        slots: slots, collapsedSections: collapsedSections, gipsLagen, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
     try {
@@ -547,8 +446,6 @@ export default function HsbWandMaterialenPage() {
         toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
     }
   };
-
-  const isVolgendeIngeschakeld = true;
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
@@ -597,18 +494,6 @@ export default function HsbWandMaterialenPage() {
             </CardContent>
         </Card>
     );
-  };
-  
-  const formatExtraMateriaalRow = (item: ExtraMateriaal) => {
-    let details = [];
-    if (item.eenheid === 'm²' && item.lengteMm && item.breedteMm) {
-      details.push(`m²`, `${item.lengteMm} × ${item.breedteMm} mm`);
-    } else if (item.eenheid === 'm¹' && item.lengteMm) {
-      details.push(`m¹`, `lengte ${item.lengteMm} mm`);
-    } else {
-        details.push(item.eenheid);
-    }
-    return `${item.naam} – ${details.join(' – ')}`;
   };
   
   return (
@@ -679,8 +564,49 @@ export default function HsbWandMaterialenPage() {
                  {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
 
               </div>
+
+                <Card className="mt-4">
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-lg">Klein materiaal (automatisch)</CardTitle>
+                        <CardDescription>
+                            OfferteHulp berekent automatisch de benodigde schroeven, tape, kit en andere kleine materialen voor deze klus.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <RadioGroup 
+                            value={kleinMateriaalConfig.mode} 
+                            onValueChange={(value: "auto" | "fixed") => setKleinMateriaalConfig({ ...kleinMateriaalConfig, mode: value })}
+                            className="space-y-2"
+                        >
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="auto" id="km-auto" />
+                                <Label htmlFor="km-auto">Automatisch (aanbevolen)</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="fixed" id="km-fixed" />
+                                <Label htmlFor="km-fixed">Vast bedrag</Label>
+                            </div>
+                        </RadioGroup>
+                        {kleinMateriaalConfig.mode === 'fixed' && (
+                            <div className="mt-4 pl-6">
+                                <Label htmlFor="fixedAmount">Bedrag klein materiaal</Label>
+                                <div className="relative">
+                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
+                                    <Input 
+                                        id="fixedAmount" 
+                                        type="number"
+                                        className="pl-7"
+                                        placeholder="Bijv. 50"
+                                        value={kleinMateriaalConfig.fixedAmount || ''}
+                                        onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
               
-              <div className="mt-8 mb-4">
+              <div className="mt-8">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
                     <Save className="mr-2 h-4 w-4" />
                     Huidige keuzes opslaan voor volgende keer
@@ -719,14 +645,6 @@ export default function HsbWandMaterialenPage() {
           }}
       />}
       
-      <ExtraMateriaalModal
-          open={extraMateriaalModalOpen}
-          mode={extraMateriaalModalMode}
-          onSluiten={() => setExtraMateriaalModalOpen(false)}
-          onOpslaan={handleExtraMateriaalOpslaan}
-          existingRecord={editingExtraMateriaal}
-      />
-
       {actieveSectie && <ReorderModal 
         open={reorderModalOpen}
         onSluiten={() => {

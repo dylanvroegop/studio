@@ -106,6 +106,11 @@ export type Material = {
     updatedAt: Timestamp;
 };
 
+export type KleinMateriaalConfig = {
+  mode: 'auto' | 'fixed';
+  fixedAmount: number | null;
+};
+
 export type Preset = {
   id: string;
   userId: string;
@@ -115,5 +120,6 @@ export type Preset = {
   slots: Record<string, string>;
   collapsedSections: Record<string, boolean>;
   gipsLagen?: number;
+  kleinMateriaalConfig?: KleinMateriaalConfig;
   createdAt: Timestamp;
 };
