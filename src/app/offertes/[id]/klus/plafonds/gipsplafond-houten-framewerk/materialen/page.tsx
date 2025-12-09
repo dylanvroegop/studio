@@ -21,7 +21,8 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore } from '@/firebase';
+import { Reorder } from 'framer-motion';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -31,15 +32,30 @@ import { Loader2 } from 'lucide-react';
 // ==================================
 // Definities en Data
 // ==================================
-type MateriaalKeuze = {
+type Materiaal = {
+  row_id: string;
   id: string;
   materiaalnaam: string;
   categorie: string | null;
   eenheid: string;
-  prijs: number;
+  prijs: number | string | null;
+  sort_order: number | null;
+  user_id: string;
 };
 
-const sectieSleutels = ['rachelwerk', 'isolatie', 'folie', 'gips_fermacell', 'naden_vullen', 'extra', 'klein_materiaal'] as const;
+type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
+
+type ExtraMateriaal = {
+  id: string;
+  naam: string;
+  eenheid: 'stuk' | 'm¹' | 'm²' | 'm³';
+  lengteMm?: number;
+  breedteMm?: number;
+  hoogteMm?: number;
+  prijsPerEenheid: number;
+}
+
+const sectieSleutels = ['balktype', 'rachelwerk', 'isolatie', 'folie', 'gips_fermacell', 'naden_vullen', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -108,11 +124,12 @@ type MateriaalKiezerModalProps = {
   geselecteerdMateriaalId?: string;
   onSluiten: () => void;
   onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
+  openReorderModal: () => void;
+  materialen: MateriaalKeuze[];
 };
 
-function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
-  const [materialen, setMaterialen] = useState<MateriaalKeuze[]>([]);
   
   const gefilterdeMaterialen = useMemo(() => {
     return materialen.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
@@ -142,6 +159,9 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                 value={zoekterm}
                 onChange={(e) => setZoekterm(e.target.value)}
             />
+            <button onClick={openReorderModal} className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-3">
+              Lijst opnieuw ordenen
+            </button>
         </div>
         
         <div className="overflow-y-auto flex-1">
@@ -179,6 +199,47 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
+function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean, onOpenChange: (open:boolean) => void, materials: MateriaalKeuze[], onSave: (materials: MateriaalKeuze[]) => void }) {
+    const [orderedMaterials, setOrderedMaterials] = useState(materials);
+
+    useEffect(() => {
+        setOrderedMaterials(materials);
+    }, [materials]);
+
+    const handleSave = async () => {
+        // Implement save logic here, this will likely involve updating the sort_order in your database
+        onSave(orderedMaterials);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Materiaal Volgorde</DialogTitle>
+                    <DialogDescription>
+                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-[60vh] overflow-y-auto">
+                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
+                        {orderedMaterials.map(item => (
+                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-muted-foreground"><path d="M7 10l-3 3 3 3M17 10l3 3-3 3M12 4v16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                {item.materiaalnaam}
+                            </Reorder.Item>
+                        ))}
+                    </Reorder.Group>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+                    <Button onClick={handleSave}>Opslaan</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 
 // ==================================
 // Pagina Component
@@ -214,6 +275,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const isVolgendeIngeschakeld = true;
@@ -240,29 +302,30 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
 
     const fetchPresets = async () => {
       setPresetsLaden(true);
-      try {
-        const presetsRef = collection(firestore, 'presets');
-        const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
-        const querySnapshot = await getDocs(q);
+      const presetsRef = collection(firestore, 'presets');
+      const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
+      
+      getDocs(q).then(querySnapshot => {
         const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
         setPresets(fetchedPresets);
-
         const defaultPreset = fetchedPresets.find(p => p.isDefault);
         if (defaultPreset) {
           setGekozenPresetId(defaultPreset.id);
-        } else {
-          setGekozenPresetId('default');
         }
-      } catch (error) {
-        console.error("Fout bij ophalen presets:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon presets niet laden.' });
-      } finally {
         setPresetsLaden(false);
-      }
+      }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: presetsRef.path,
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setFoutMaterialen('Kon presets niet laden vanwege permissieproblemen.');
+        setPresetsLaden(false);
+      });
     };
 
     fetchPresets();
-  }, [user, firestore, toast, JOB_TYPE]);
+  }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -302,6 +365,12 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
     }, []);
 
 
+  const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
+      // Always return empty array as per user request
+      return [];
+  }, []);
+
+
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
     setActieveSectie(sectieSleutel);
   };
@@ -324,53 +393,49 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
 
   const handleSavePreset = async (presetName: string, isDefault: boolean) => {
     if (!user || !firestore) return;
-
     const slots: Record<string, string> = {};
     for (const key in gekozenMaterialen) {
         const materiaal = gekozenMaterialen[key];
-        if (materiaal) {
-            slots[key] = materiaal.id;
-        }
+        if (materiaal) slots[key] = materiaal.id;
     }
     
     const newPresetData: Omit<PresetType, 'id'> = {
-        userId: user.uid,
-        jobType: JOB_TYPE,
-        name: presetName,
-        isDefault: isDefault,
-        slots: slots,
-        collapsedSections: collapsedSections,
-        kleinMateriaalConfig,
-        createdAt: serverTimestamp() as any,
+        userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
+        slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
-    try {
-        const batch = writeBatch(firestore);
+    const batch = writeBatch(firestore);
 
-        if (isDefault) {
-            const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
-            const querySnapshot = await getDocs(q);
-            querySnapshot.forEach(doc => {
-                batch.update(doc.ref, { isDefault: false });
+    if (isDefault) {
+        const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
+        getDocs(q).then(querySnapshot => {
+            querySnapshot.forEach(doc => batch.update(doc.ref, { isDefault: false }));
+        }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+              path: `presets`, // Simplified path for batch update context
+              operation: 'list', // The initial operation that failed
             });
-        }
-        
-        const newDocRef = doc(collection(firestore, 'presets'));
-        batch.set(newDocRef, newPresetData);
+            errorEmitter.emit('permission-error', permissionError);
+        });
+    }
+    
+    const newDocRef = doc(collection(firestore, 'presets'));
+    batch.set(newDocRef, newPresetData);
 
-        await batch.commit();
-
-        toast({ title: 'Voorinstelling opgeslagen', description: `"${presetName}" is succesvol opgeslagen.` });
+    batch.commit().then(() => {
+        toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
-        
         const newPreset = { id: newDocRef.id, ...newPresetData } as PresetType;
         setPresets(prev => [...prev.map(p => ({...p, isDefault: isDefault ? false : p.isDefault })), newPreset]);
         setGekozenPresetId(newDocRef.id);
-
-    } catch (error) {
-        console.error("Fout bij opslaan preset:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
-    }
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: newDocRef.path,
+          operation: 'create',
+          requestResourceData: newPresetData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
@@ -390,27 +455,18 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
-                    <CardTitle className="text-base">{titel}</CardTitle>
-                    {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
+                    <CardTitle className="text-lg">{titel}</CardTitle>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
                    Verberg
                 </Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
                  <div className="border-t pt-4">
-                    {isMaterialenLaden ? (
-                         <div className="h-10 bg-muted/50 rounded animate-pulse" />
-                    ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
-                    ) : (
+                    {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? (
-                                <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
-                                ) : (
-                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
-                                )}
+                                {gekozenMateriaal ? <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -585,6 +641,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
 
 
               <div className="space-y-4">
+                {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('rachelwerk', 'Rachelwerk')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
@@ -628,9 +685,23 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
           geselecteerdMateriaalId={actieveSectie ? gekozenMaterialen[actieveSectie]?.id : undefined}
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
+          openReorderModal={() => {
+            sluitMateriaalKiezer();
+            setReorderModalOpen(true);
+          }}
+          materialen={filterMaterialenVoorSectie(actieveSectie)}
       />}
+
+      <ReorderModal
+        open={reorderModalOpen}
+        onOpenChange={setReorderModalOpen}
+        materials={alleMaterialen}
+        onSave={(newOrder) => {
+            // Here you would ideally update the sort_order in your backend
+            console.log("New order:", newOrder.map(m => m.id));
+            setAlleMaterialen(newOrder); // Optimistically update UI
+        }}
+       />
     </>
   );
 }
-
-    
