@@ -369,7 +369,7 @@ export default function HsbBuitenwandMaterialenPage() {
     );
   };
   
-    const renderKleinMateriaalSectie = () => {
+  const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
