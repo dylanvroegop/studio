@@ -21,7 +21,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -304,23 +304,26 @@ export default function HsbWandMaterialenPage() {
 
     const fetchPresets = async () => {
       setPresetsLaden(true);
-      try {
-        const presetsRef = collection(firestore, 'presets');
-        const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
-        const querySnapshot = await getDocs(q);
+      const presetsRef = collection(firestore, 'presets');
+      const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
+      
+      getDocs(q).then(querySnapshot => {
         const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
         setPresets(fetchedPresets);
-
         const defaultPreset = fetchedPresets.find(p => p.isDefault);
         if (defaultPreset) {
           setGekozenPresetId(defaultPreset.id);
         }
-      } catch (error) {
-        console.error("Fout bij ophalen presets:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon presets niet laden.' });
-      } finally {
         setPresetsLaden(false);
-      }
+      }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: presetsRef.path,
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setFoutMaterialen('Kon presets niet laden vanwege permissieproblemen.');
+        setPresetsLaden(false);
+      });
     };
 
     fetchPresets();
@@ -414,30 +417,38 @@ export default function HsbWandMaterialenPage() {
         slots: slots, collapsedSections: collapsedSections, gipsLagen, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
-    try {
-        const batch = writeBatch(firestore);
-        if (isDefault) {
-            const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
-            const querySnapshot = await getDocs(q);
+    const batch = writeBatch(firestore);
+
+    if (isDefault) {
+        const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
+        getDocs(q).then(querySnapshot => {
             querySnapshot.forEach(doc => batch.update(doc.ref, { isDefault: false }));
-        }
-        const newDocRef = doc(collection(firestore, 'presets'));
-        batch.set(newDocRef, newPresetData);
-        await batch.commit();
+        }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+              path: `presets`, // Simplified path for batch update context
+              operation: 'list', // The initial operation that failed
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+    }
+    
+    const newDocRef = doc(collection(firestore, 'presets'));
+    batch.set(newDocRef, newPresetData);
+
+    batch.commit().then(() => {
         toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
-        // Herlaad presets
-        const presetsRef = collection(firestore, 'presets');
-        const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
-        const querySnapshot = await getDocs(q);
-        const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
-        setPresets(fetchedPresets);
-        setGekozenPresetId(newDocRef.id); // set current preset to the one just created
-
-    } catch (error) {
-        console.error("Fout bij opslaan preset:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
-    }
+        const newPreset = { id: newDocRef.id, ...newPresetData } as PresetType;
+        setPresets(prev => [...prev.map(p => ({...p, isDefault: isDefault ? false : p.isDefault })), newPreset]);
+        setGekozenPresetId(newDocRef.id);
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: newDocRef.path,
+          operation: 'create',
+          requestResourceData: newPresetData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
@@ -448,7 +459,7 @@ export default function HsbWandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -744,3 +755,4 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
