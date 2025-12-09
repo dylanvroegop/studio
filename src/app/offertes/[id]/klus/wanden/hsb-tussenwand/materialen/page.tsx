@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -628,7 +629,7 @@ export default function HsbTussenwandMaterialenPage() {
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
               <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Tussenwand</h1>
+                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Scheidingswand</h1>
                   <p className="text-muted-foreground mt-2">
                       Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan voor volgende offertes.
                   </p>
@@ -766,3 +767,4 @@ export default function HsbTussenwandMaterialenPage() {
     </>
   );
 }
+
