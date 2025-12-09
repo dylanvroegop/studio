@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, PlusCircle, Edit, GripVertical, Loader2, Save, RotateCcw } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -25,6 +25,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2 } from 'lucide-react';
 
 
 // ==================================
@@ -191,53 +192,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
 
         <DialogFooter className="p-6 pt-4 border-t">
             <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ReorderModal({ open, onSluiten, materialen, onOpslaan }: {
-  open: boolean;
-  onSluiten: () => void;
-  materialen: MateriaalKeuze[];
-  onOpslaan: (reorderedMaterialen: MateriaalKeuze[]) => void;
-}) {
-  const [items, setItems] = useState(materialen);
-
-  useEffect(() => {
-    setItems(materialen);
-  }, [materialen]);
-
-  const handleSaveOrder = () => {
-    onOpslaan(items);
-    onSluiten();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onSluiten}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Materiaalvolgorde aanpassen</DialogTitle>
-          <DialogDescription>
-            Sleep de materialen in de gewenste volgorde voor in de keuzelijst.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4 max-h-[60vh] overflow-y-auto">
-          <Reorder.Group axis="y" values={items} onReorder={setItems} className="space-y-2">
-            {items.map((item) => (
-              <Reorder.Item key={item.id} value={item}>
-                <div className="flex items-center gap-2 rounded-md border bg-card p-3 cursor-grab active:cursor-grabbing">
-                  <GripVertical className="h-5 w-5 text-muted-foreground" />
-                  <span>{item.materiaalnaam}</span>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onSluiten}>Annuleren</Button>
-          <Button onClick={handleSaveOrder}>Volgorde Opslaan</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -604,9 +558,9 @@ export default function HsbWandMaterialenPage() {
                                       step="0.1"
                                       className="pr-8"
                                       value={kleinMateriaalConfig.percentage ?? ''}
-                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? 5 : parseFloat(e.target.value) })}
+                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
                                       onBlur={(e) => {
-                                        if (e.target.value === '') {
+                                        if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
                                            setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
                                         }
                                       }}
@@ -672,16 +626,6 @@ export default function HsbWandMaterialenPage() {
             sluitMateriaalKiezer();
             setReorderModalOpen(true);
           }}
-      />}
-      
-      {actieveSectie && <ReorderModal 
-        open={reorderModalOpen}
-        onSluiten={() => {
-            setReorderModalOpen(false);
-            openMateriaalKiezer(actieveSectie);
-        }}
-        materialen={filterMaterialenVoorSectie(actieveSectie)}
-        onOpslaan={() => {}}
       />}
       
        <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
