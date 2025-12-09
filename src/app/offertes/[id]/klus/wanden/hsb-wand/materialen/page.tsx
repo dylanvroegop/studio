@@ -285,6 +285,54 @@ function ExtraMateriaalModal({ open, mode, onSluiten, onOpslaan, existingRecord 
     );
 }
 
+function ReorderModal({ open, onSluiten, materialen, onOpslaan }: {
+  open: boolean;
+  onSluiten: () => void;
+  materialen: MateriaalKeuze[];
+  onOpslaan: (reorderedMaterialen: MateriaalKeuze[]) => void;
+}) {
+  const [items, setItems] = useState(materialen);
+
+  useEffect(() => {
+    setItems(materialen);
+  }, [materialen]);
+
+  const handleSaveOrder = () => {
+    onOpslaan(items);
+    onSluiten();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onSluiten}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Materiaalvolgorde aanpassen</DialogTitle>
+          <DialogDescription>
+            Sleep de materialen in de gewenste volgorde voor in de keuzelijst.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 max-h-[60vh] overflow-y-auto">
+          <Reorder.Group axis="y" values={items} onReorder={setItems} className="space-y-2">
+            {items.map((item) => (
+              <Reorder.Item key={item.id} value={item}>
+                <div className="flex items-center gap-2 rounded-md border bg-card p-3 cursor-grab active:cursor-grabbing">
+                  <GripVertical className="h-5 w-5 text-muted-foreground" />
+                  <span>{item.materiaalnaam}</span>
+                </div>
+              </Reorder.Item>
+            ))}
+          </Reorder.Group>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onSluiten}>Annuleren</Button>
+          <Button onClick={handleSaveOrder}>Volgorde Opslaan</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 // ==================================
 // Pagina Component
 // ==================================
@@ -510,7 +558,7 @@ export default function HsbWandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)}>Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
             </div>
         );
     }
@@ -522,8 +570,8 @@ export default function HsbWandMaterialenPage() {
                     <CardTitle className="text-lg">{titel}</CardTitle>
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
-                   verberg
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
+                   Verberg
                 </Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
