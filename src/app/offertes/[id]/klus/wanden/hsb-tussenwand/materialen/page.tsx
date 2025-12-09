@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -267,7 +268,6 @@ export default function HsbTussenwandMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
-  const [gipsLagen, setGipsLagen] = useState(1);
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
@@ -276,7 +276,6 @@ export default function HsbTussenwandMaterialenPage() {
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
-  const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const isVolgendeIngeschakeld = true;
@@ -334,7 +333,6 @@ export default function HsbTussenwandMaterialenPage() {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
-      setGipsLagen(1);
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
@@ -351,7 +349,6 @@ export default function HsbTussenwandMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
-    setGipsLagen(preset.gipsLagen || 1);
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
@@ -378,14 +375,6 @@ export default function HsbTussenwandMaterialenPage() {
     setActieveSectie(null);
   };
   
-  const openLagenKiezer = () => {
-    setLagenModalOpen(true);
-  }
-
-  const handleLagenOpslaan = () => {
-    setLagenModalOpen(false);
-  }
-
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
   };
@@ -394,9 +383,6 @@ export default function HsbTussenwandMaterialenPage() {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
         delete newState[sectieSleutel];
-        if (sectieSleutel === 'gips_fermacell') {
-            setGipsLagen(1);
-        }
         return newState;
     });
   };
@@ -411,7 +397,7 @@ export default function HsbTussenwandMaterialenPage() {
     
     const newPresetData: Omit<PresetType, 'id'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
-        slots: slots, collapsedSections: collapsedSections, gipsLagen, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
+        slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
     const batch = writeBatch(firestore);
@@ -714,3 +700,5 @@ export default function HsbTussenwandMaterialenPage() {
     </>
   );
 }
+
+    

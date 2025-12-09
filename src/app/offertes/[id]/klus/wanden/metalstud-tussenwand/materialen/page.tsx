@@ -207,8 +207,6 @@ export default function MetalstudTussenwandMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
-  const [gipsLagen, setGipsLagen] = useState(1);
-  const [tempGipsLagen, setTempGipsLagen] = useState(1);
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
@@ -216,7 +214,6 @@ export default function MetalstudTussenwandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
-  const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const toggleSection = (sectieSleutel: SectieKey) => {
@@ -271,7 +268,7 @@ export default function MetalstudTussenwandMaterialenPage() {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
-      setGipsLagen(1);
+      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
     
@@ -291,10 +288,10 @@ export default function MetalstudTussenwandMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
-    setGipsLagen(preset.gipsLagen || 1);
+    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay to prevent flash of loading state
+  // Set loading to false after a short delay
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
@@ -311,16 +308,6 @@ export default function MetalstudTussenwandMaterialenPage() {
     setActieveSectie(null);
   };
   
-  const openLagenKiezer = () => {
-    setTempGipsLagen(gipsLagen);
-    setLagenModalOpen(true);
-  }
-
-  const handleLagenOpslaan = () => {
-    setGipsLagen(tempGipsLagen);
-    setLagenModalOpen(false);
-  }
-
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
   };
@@ -329,9 +316,6 @@ export default function MetalstudTussenwandMaterialenPage() {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
         delete newState[sectieSleutel];
-        if (sectieSleutel === 'gips_1' || sectieSleutel === 'gips_2') {
-            setGipsLagen(1);
-        }
         return newState;
     });
   };
@@ -354,7 +338,6 @@ export default function MetalstudTussenwandMaterialenPage() {
         isDefault: isDefault,
         slots: slots,
         collapsedSections: collapsedSections,
-        gipsLagen: gipsLagen,
         createdAt: serverTimestamp() as any,
     };
     
@@ -445,73 +428,8 @@ export default function MetalstudTussenwandMaterialenPage() {
         </Card>
     );
   };
-
-  const renderGipsSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
-    const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
-    const isCollapsed = collapsedSections[sectieSleutel];
-
-    if (isCollapsed) {
-        return (
-            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
-            </div>
-        );
-    }
-    
-    return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between p-4">
-                <div className="space-y-1.5">
-                    <CardTitle className="text-base">{titel}</CardTitle>
-                    {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
-                   Verberg
-                </Button>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-                 <div className="border-t pt-4">
-                    {isMaterialenLaden ? (
-                         <div className="h-10 bg-muted/50 rounded animate-pulse" />
-                    ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
-                    ) : (
-                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div>
-                                {gekozenMateriaal ? (
-                                <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
-                                ) : (
-                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {gekozenMateriaal && (
-                                <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                                )}
-                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer(sectieSleutel)}>
-                                {gekozenMateriaal ? 'Wijzigen' : 'Kiezen'}
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                {gekozenMateriaal && !isMaterialenLaden && (
-                    <div className="mt-2 pl-1">
-                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                            <Settings className="w-3 h-3"/>
-                            Lagen: {gipsLagen} (aanpassen)
-                        </button>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-  };
-
-  const renderKleinMateriaalSectie = () => {
+  
+    const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -605,7 +523,7 @@ export default function MetalstudTussenwandMaterialenPage() {
         </Card>
     );
   };
-  
+
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -669,9 +587,9 @@ export default function MetalstudTussenwandMaterialenPage() {
                 {renderSelectieRij('profielen', 'Metalstud Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('osb_1', 'Constructieplaat (zijde 1)')}
-                {renderGipsSelectieRij('gips_1', 'Gips / Fermacell (zijde 1)')}
+                {renderSelectieRij('gips_1', 'Gips / Fermacell (zijde 1)')}
                 {renderSelectieRij('osb_2', 'Constructieplaat (zijde 2)')}
-                {renderGipsSelectieRij('gips_2', 'Gips / Fermacell (zijde 2)')}
+                {renderSelectieRij('gips_2', 'Gips / Fermacell (zijde 2)')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
@@ -715,46 +633,8 @@ export default function MetalstudTussenwandMaterialenPage() {
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
       />}
-      
-       <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Aantal lagen gips</DialogTitle>
-                    <DialogDescription>
-                        Standaard gebruiken we 1 laag. Pas dit alleen aan bij speciale situaties.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    <div className="flex items-center justify-center gap-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.max(1, prev - 1))}
-                        >
-                            <Minus className="h-6 w-6" />
-                        </Button>
-                        <div className="flex h-12 w-24 items-center justify-center rounded-md border border-input bg-background text-2xl font-bold">
-                            {tempGipsLagen}
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.min(4, prev + 1))}
-                        >
-                            <Plus className="h-6 w-6" />
-                        </Button>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setLagenModalOpen(false)}>Annuleren</Button>
-                    <Button type="button" onClick={handleLagenOpslaan}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     </>
   );
 }
+
+    

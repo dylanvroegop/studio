@@ -505,8 +505,8 @@ export default function HsbBuitenwandMaterialenPage() {
                               {presets.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>))}
                           </SelectContent>
                       </Select>
-                      <Button variant="ghost" size="sm" onClick={() => setGekozenPresetId('default')} disabled={gekozenPresetId === 'default'} className="text-muted-foreground">
-                         <RotateCcw className="h-3.5 w-3.5 mr-2"/> Reset
+                      <Button variant="ghost" size="sm" onClick={() => setGekozenPresetId('default')} disabled={gekozenPresetId === 'default'} className="flex items-center gap-2 text-muted-foreground">
+                         <RotateCcw className="h-4 w-4" /> Reset
                       </Button>
                   </div>
               </div>
@@ -515,9 +515,9 @@ export default function HsbBuitenwandMaterialenPage() {
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie_buitenzijde', 'Folie (buitenzijde)')}
-                {renderSelectieRij('binnenbekleding', 'Binnenbekleding (OSB)', 'OSB of andere constructieplaat')}
+                {renderSelectieRij('binnenbekleding', 'Binnenbekleding (OSB)')}
                 {renderSelectieRij('gips_fermacell', 'Afwerking binnen (Gips/Fermacell)')}
-                {renderSelectieRij('buitenbekleding', 'Buitenbekleding (gevel)', 'De uiteindelijke afwerking aan de buitenkant.')}
+                {renderSelectieRij('buitenbekleding', 'Buitenbekleding (gevel)')}
                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
                 {renderKleinMateriaalSectie()}
               </div>
@@ -556,3 +556,5 @@ export default function HsbBuitenwandMaterialenPage() {
     </>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -30,18 +31,13 @@ import { Loader2 } from 'lucide-react';
 // ==================================
 // Definities en Data
 // ==================================
-type Materiaal = {
-  row_id: string;
+type MateriaalKeuze = {
   id: string;
   materiaalnaam: string;
   categorie: string | null;
   eenheid: string;
-  prijs: number | string | null;
-  sort_order: number | null;
-  user_id: string;
+  prijs: number;
 };
-
-type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
 
 const sectieSleutels = ['rachelwerk', 'isolatie', 'folie', 'gips_fermacell', 'naden_vullen', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -211,8 +207,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
-  const [gipsLagen, setGipsLagen] = useState(1);
-  const [tempGipsLagen, setTempGipsLagen] = useState(1);
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
@@ -220,7 +214,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
-  const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const isVolgendeIngeschakeld = true;
@@ -269,7 +262,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, JOB_TYPE]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -277,7 +270,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
-      setGipsLagen(1);
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
@@ -298,7 +290,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
-    setGipsLagen(preset.gipsLagen || 1);
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
@@ -319,16 +310,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
     setActieveSectie(null);
   };
   
-  const openLagenKiezer = () => {
-    setTempGipsLagen(gipsLagen);
-    setLagenModalOpen(true);
-  }
-
-  const handleLagenOpslaan = () => {
-    setGipsLagen(tempGipsLagen);
-    setLagenModalOpen(false);
-  }
-
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     setGekozenMaterialen(prev => ({ ...prev, [sectieSleutel]: materiaal }));
   };
@@ -337,9 +318,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
     setGekozenMaterialen(prev => {
         const newState = { ...prev };
         delete newState[sectieSleutel];
-        if (sectieSleutel === 'gips_fermacell') {
-            setGipsLagen(1);
-        }
         return newState;
     });
   };
@@ -362,7 +340,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
         isDefault: isDefault,
         slots: slots,
         collapsedSections: collapsedSections,
-        gipsLagen: gipsLagen,
         kleinMateriaalConfig,
         createdAt: serverTimestamp() as any,
     };
@@ -404,7 +381,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -448,14 +425,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
                         </div>
                     )}
                 </div>
-                {(sectieSleutel === 'gips_fermacell') && gekozenMateriaal && !isMaterialenLaden && (
-                    <div className="mt-2 pl-1">
-                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                            <Settings className="w-3 h-3"/>
-                            Lagen: {gipsLagen} (aanpassen)
-                        </button>
-                    </div>
-                )}
             </CardContent>
         </Card>
     );
@@ -555,7 +524,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
         </Card>
     );
   };
-
+  
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -660,46 +629,8 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
       />}
-      
-       <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Aantal lagen gips</DialogTitle>
-                    <DialogDescription>
-                        Standaard gebruiken we 1 laag. Pas dit alleen aan bij speciale situaties.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    <div className="flex items-center justify-center gap-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.max(1, prev - 1))}
-                        >
-                            <Minus className="h-6 w-6" />
-                        </Button>
-                        <div className="flex h-12 w-24 items-center justify-center rounded-md border border-input bg-background text-2xl font-bold">
-                            {tempGipsLagen}
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12"
-                            onClick={() => setTempGipsLagen(prev => Math.min(4, prev + 1))}
-                        >
-                            <Plus className="h-6 w-6" />
-                        </Button>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setLagenModalOpen(false)}>Annuleren</Button>
-                    <Button type="button" onClick={handleLagenOpslaan}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     </>
   );
 }
+
+    
