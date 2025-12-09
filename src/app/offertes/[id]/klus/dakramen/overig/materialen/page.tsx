@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2, MoreVertical, Edit, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -18,12 +18,19 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+
 
 // ==================================
 // Definities en Data
@@ -36,8 +43,15 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
-const sectieSleutels = ['dakramen', 'installatiepakket', 'afwerking', 'extra', 'klein_materiaal'] as const;
-type SectieKey = typeof sectieSleutels[number];
+type CustomSection = {
+  id: string;
+  title: string;
+  order: number;
+};
+
+const sectieSleutels = ['extra', 'klein_materiaal'] as const;
+type SectieKey = typeof sectieSleutels[number] | string; // Allow string for custom sections
+
 
 // ==================================
 // Modal Components
@@ -73,17 +87,17 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
         <DialogHeader>
           <DialogTitle>Voorinstelling opslaan</DialogTitle>
           <DialogDescription>
-            Sla de huidige materiaalconfiguratie op voor later gebruik bij Dakramen.
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij Overige Dakramen.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
             <div className="space-y-2">
                 <Label htmlFor="preset-name">Naam voorinstelling *</Label>
-                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard Velux" />
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard overig dakwerk" />
             </div>
             <div className="flex items-center space-x-2">
                 <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
-                <Label htmlFor="default-preset">Maak dit mijn standaard voor Dakramen</Label>
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor Overige Dakramen</Label>
             </div>
         </div>
         <DialogFooter>
@@ -175,19 +189,66 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
+type SectionModalProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (name: string) => void;
+  initialName?: string;
+};
+
+function SectionModal({ open, onOpenChange, onSave, initialName = '' }: SectionModalProps) {
+  const [name, setName] = useState(initialName);
+
+  useEffect(() => {
+    if (open) {
+      setName(initialName);
+    }
+  }, [open, initialName]);
+
+  const handleSave = () => {
+    if (name.trim()) {
+      onSave(name.trim());
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{initialName ? 'Sectienaam wijzigen' : 'Nieuwe sectie toevoegen'}</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <Label htmlFor="section-name">Sectienaam</Label>
+          <Input 
+            id="section-name" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+            placeholder="Bijv. Daktrim, Loodslab..."
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+          <Button onClick={handleSave} disabled={!name.trim()}>Opslaan</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 // ==================================
 // Pagina Component
 // ==================================
 
-export default function DakramenMaterialenPage() {
+export default function OverigDakramenMaterialenPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
-  const JOB_TYPE = "dakramen";
+  const JOB_TYPE = "overig-dakramen";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -195,7 +256,6 @@ export default function DakramenMaterialenPage() {
   // State voor materialen
   const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
   const [isMaterialenLaden, setMaterialenLaden] = useState(true);
-  const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
   
   // State voor presets
   const [presets, setPresets] = useState<PresetType[]>([]);
@@ -204,6 +264,11 @@ export default function DakramenMaterialenPage() {
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
+
+  // State for custom sections
+  const [customSections, setCustomSections] = useState<CustomSection[]>([]);
+  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<CustomSection | null>(null);
   
   // State for collapsible cards / hidden slots
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -211,8 +276,6 @@ export default function DakramenMaterialenPage() {
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
-
-  const isVolgendeIngeschakeld = true;
 
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
@@ -263,16 +326,12 @@ export default function DakramenMaterialenPage() {
   // Gekozen preset toepassen
   useEffect(() => {
     if (gekozenPresetId === 'default') {
-      // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
     
-    // Wacht tot materialen geladen zijn
-    if (alleMaterialen.length === 0) return;
-
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
 
@@ -289,14 +348,13 @@ export default function DakramenMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay to prevent flash of loading state
+  // Set loading to false after a short delay
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
-        }, 50); // Small delay
+        }, 50);
         return () => clearTimeout(timer);
     }, []);
-
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
     setActieveSectie(sectieSleutel);
@@ -312,7 +370,7 @@ export default function DakramenMaterialenPage() {
 
   const handleMateriaalVerwijderen = (sectieSleutel: SectieKey) => {
     setGekozenMaterialen(prev => {
-        const newState = { ...prev };
+        const newState = {...prev};
         delete newState[sectieSleutel];
         return newState;
     });
@@ -369,15 +427,41 @@ export default function DakramenMaterialenPage() {
     }
   };
 
-  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
+  const handleSectionSave = (name: string) => {
+    if (editingSection) {
+      // Edit
+      setCustomSections(prev => prev.map(s => s.id === editingSection.id ? { ...s, title: name } : s));
+    } else {
+      // Add
+      const newSection: CustomSection = {
+        id: `custom_${Date.now()}`,
+        title: name,
+        order: customSections.length,
+      };
+      setCustomSections(prev => [...prev, newSection]);
+    }
+    setEditingSection(null);
+  };
+
+  const handleSectionDelete = (id: string) => {
+    setCustomSections(prev => prev.filter(s => s.id !== id));
+    // Also remove any chosen material for this section
+    setGekozenMaterialen(prev => {
+      const newState = {...prev};
+      delete newState[id];
+      return newState;
+    })
+  };
+
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string, isCustom = false) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
 
     if (isCollapsed) {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Verborgen</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -389,16 +473,39 @@ export default function DakramenMaterialenPage() {
                     <CardTitle className="text-base">{titel}</CardTitle>
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
-                   Verberg
-                </Button>
+                <div className="flex items-center gap-1">
+                  {isCustom && (
+                     <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                          const section = customSections.find(s => s.id === sectieSleutel);
+                          if(section) {
+                            setEditingSection(section);
+                            setIsSectionModalOpen(true);
+                          }
+                        }}>
+                          <Edit className="mr-2 h-4 w-4"/> Naam wijzigen
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleSectionDelete(sectieSleutel)} className="text-destructive">
+                           <Trash2 className="mr-2 h-4 w-4"/> Verwijderen
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
+                     verberg
+                  </Button>
+                </div>
             </CardHeader>
             <CardContent className="p-4 pt-0">
                  <div className="border-t pt-4">
                     {isMaterialenLaden ? (
                          <div className="h-10 bg-muted/50 rounded animate-pulse" />
-                    ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
                     ) : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
@@ -425,7 +532,7 @@ export default function DakramenMaterialenPage() {
         </Card>
     );
   };
-
+  
   const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
@@ -527,13 +634,13 @@ export default function DakramenMaterialenPage() {
         <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-              <Link href={`/offertes/${quoteId}/klus/dakramen`}>
+              <Link href={`/offertes/${quoteId}/klus/dakramen/overig`}>
                 <ArrowLeft className="h-4 w-4" />
                 <span className="sr-only">Terug</span>
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 4 van 6</h1>
+          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
@@ -546,9 +653,9 @@ export default function DakramenMaterialenPage() {
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
               <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Dakramen</h1>
+                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Overig</h1>
                   <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor deze klus gebruikt. U kunt deze keuzes als voorinstelling opslaan.
+                      Voeg zelf secties en materialen toe die nodig zijn voor deze maatwerk klus.
                   </p>
               </div>
               
@@ -579,12 +686,25 @@ export default function DakramenMaterialenPage() {
                   </div>
               </div>
 
-
               <div className="space-y-4">
-                {renderSelectieRij('dakramen', 'Dakramen')}
-                {renderSelectieRij('installatiepakket', 'Installatiepakket')}
-                {renderSelectieRij('afwerking', 'Afwerking Binnenzijde')}
-                {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+                 <Card>
+                    <CardHeader>
+                      <CardTitle>Eigen secties</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Button variant="outline" className="w-full" onClick={() => { setEditingSection(null); setIsSectionModalOpen(true); }}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Sectie toevoegen
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                {customSections.sort((a,b) => a.order - b.order).map((section) => (
+                  <div key={section.id}>
+                    {renderSelectieRij(section.id, section.title, `Aangepaste sectie`, true)}
+                  </div>
+                ))}
+
+                {renderSelectieRij('extra', 'Extra materiaal', 'Optionele losse materialen voor dit project.')}
                 {renderKleinMateriaalSectie()}
               </div>
               
@@ -595,13 +715,12 @@ export default function DakramenMaterialenPage() {
                 </Button>
               </div>
 
-
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
-                      <Link href={`/offertes/${quoteId}/klus/dakramen`}>Terug</Link>
+                      <Link href={`/offertes/${quoteId}/klus/dakramen/overig`}>Terug</Link>
                   </Button>
                   <div>
-                    <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
                         Volgende
                     </Button>
                    </div>
@@ -614,6 +733,13 @@ export default function DakramenMaterialenPage() {
          open={savePresetModalOpen}
          onOpenChange={setSavePresetModalOpen}
          onSave={handleSavePreset}
+       />
+
+       <SectionModal 
+        open={isSectionModalOpen}
+        onOpenChange={setIsSectionModalOpen}
+        onSave={handleSectionSave}
+        initialName={editingSection?.title}
        />
 
        {actieveSectie && <MateriaalKiezerModal

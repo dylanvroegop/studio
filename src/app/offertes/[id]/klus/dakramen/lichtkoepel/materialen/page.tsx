@@ -36,7 +36,7 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
-const sectieSleutels = ['dakramen', 'installatiepakket', 'afwerking', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['lichtkoepel', 'installatiepakket', 'afwerking', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 // ==================================
@@ -73,17 +73,17 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
         <DialogHeader>
           <DialogTitle>Voorinstelling opslaan</DialogTitle>
           <DialogDescription>
-            Sla de huidige materiaalconfiguratie op voor later gebruik bij Dakramen.
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij Lichtkoepels.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
             <div className="space-y-2">
                 <Label htmlFor="preset-name">Naam voorinstelling *</Label>
-                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard Velux" />
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard lichtkoepel" />
             </div>
             <div className="flex items-center space-x-2">
                 <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
-                <Label htmlFor="default-preset">Maak dit mijn standaard voor Dakramen</Label>
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor Lichtkoepels</Label>
             </div>
         </div>
         <DialogFooter>
@@ -180,14 +180,14 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
 // Pagina Component
 // ==================================
 
-export default function DakramenMaterialenPage() {
+export default function LichtkoepelMaterialenPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
-  const JOB_TYPE = "dakramen";
+  const JOB_TYPE = "lichtkoepel";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -425,8 +425,8 @@ export default function DakramenMaterialenPage() {
         </Card>
     );
   };
-
-  const renderKleinMateriaalSectie = () => {
+  
+    const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -527,13 +527,13 @@ export default function DakramenMaterialenPage() {
         <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-              <Link href={`/offertes/${quoteId}/klus/dakramen`}>
+              <Link href={`/offertes/${quoteId}/klus/dakramen/lichtkoepel`}>
                 <ArrowLeft className="h-4 w-4" />
                 <span className="sr-only">Terug</span>
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 4 van 6</h1>
+          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
@@ -546,7 +546,7 @@ export default function DakramenMaterialenPage() {
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
               <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Dakramen</h1>
+                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Lichtkoepels</h1>
                   <p className="text-muted-foreground mt-2">
                       Kies de materialen die u voor deze klus gebruikt. U kunt deze keuzes als voorinstelling opslaan.
                   </p>
@@ -581,7 +581,7 @@ export default function DakramenMaterialenPage() {
 
 
               <div className="space-y-4">
-                {renderSelectieRij('dakramen', 'Dakramen')}
+                {renderSelectieRij('lichtkoepel', 'Lichtkoepel')}
                 {renderSelectieRij('installatiepakket', 'Installatiepakket')}
                 {renderSelectieRij('afwerking', 'Afwerking Binnenzijde')}
                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
@@ -598,7 +598,7 @@ export default function DakramenMaterialenPage() {
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
-                      <Link href={`/offertes/${quoteId}/klus/dakramen`}>Terug</Link>
+                      <Link href={`/offertes/${quoteId}/klus/dakramen/lichtkoepel`}>Terug</Link>
                   </Button>
                   <div>
                     <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">

@@ -24,8 +24,8 @@ export default function DakramenPage() {
   const [loading, setLoading] = useState(true);
 
   const subcategories: Subcategory[] = [
-    { name: 'Dakramen / Lichtkoepel', description: 'Dakraam', icon: 'window', href: `/offertes/${quoteId}/klus/dakramen/dakraam/materialen` },
-    { name: 'Dakramen / Lichtkoepel', description: 'Lichtkoepel', icon: 'window', href: `/offertes/${quoteId}/klus/dakramen/lichtkoepel/materialen` },
+    { name: 'Dakramen / Lichtkoepel', description: 'Dakraam', icon: 'window', href: `/offertes/${quoteId}/klus/dakramen/dakraam` },
+    { name: 'Dakramen / Lichtkoepel', description: 'Lichtkoepel', icon: 'window', href: `/offertes/${quoteId}/klus/dakramen/lichtkoepel` },
     { name: 'Dakramen / Lichtkoepel', description: 'Overig', icon: 'plus', href: `/offertes/${quoteId}/klus/dakramen/overig` },
   ];
 
@@ -109,5 +109,3 @@ export default function DakramenPage() {
     </main>
   );
 }
-
-    
