@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -234,7 +234,6 @@ export default function MetalstudWandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
-  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [lagenModalOpen, setLagenModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
@@ -282,7 +281,7 @@ export default function MetalstudWandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, JOB_TYPE]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -317,7 +316,7 @@ export default function MetalstudWandMaterialenPage() {
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
-        }, 50); // Small delay
+        }, 50);
         return () => clearTimeout(timer);
     }, []);
 
@@ -434,8 +433,8 @@ export default function MetalstudWandMaterialenPage() {
                     <CardTitle className="text-base">{titel}</CardTitle>
                     {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
-                   verberg
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
+                   Verberg
                 </Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
@@ -634,7 +633,7 @@ export default function MetalstudWandMaterialenPage() {
 
 
               <div className="space-y-4">
-                {renderSelectieRij('balktype', 'Profielen')}
+                {renderSelectieRij('balktype', 'Metalstud Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
