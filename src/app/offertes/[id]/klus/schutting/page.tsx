@@ -25,9 +25,9 @@ export default function SchuttingPage() {
 
   const subcategories: Subcategory[] = [
     { name: 'Schutting / Tuinafscheiding', description: 'Houten Schutting', icon: 'fence', href: `/offertes/${quoteId}/klus/schutting/houten-schutting` },
-    { name: 'Schutting / Tuinafscheiding', description: 'Composiet Schutting', icon: 'fence' /* TODO: href */ },
-    { name: 'Schutting / Tuinafscheiding', description: 'Poort / Tuindeur', icon: 'door' /* TODO: href */ },
-    { name: 'Schutting / Tuinafscheiding', description: 'Overig Schuttingwerk', icon: 'plus' /* TODO: href */ },
+    { name: 'Schutting / Tuinafscheiding', description: 'Composiet Schutting', icon: 'fence', href: `/offertes/${quoteId}/klus/schutting/composiet-schutting` },
+    { name: 'Schutting / Tuinafscheiding', description: 'Poort / Tuindeur', icon: 'door', href: `/offertes/${quoteId}/klus/schutting/poort-tuindeur` },
+    { name: 'Schutting / Tuinafscheiding', description: 'Overig Schuttingwerk', icon: 'plus', href: `/offertes/${quoteId}/klus/schutting/overig-schuttingwerk` },
   ];
 
   useEffect(() => {
