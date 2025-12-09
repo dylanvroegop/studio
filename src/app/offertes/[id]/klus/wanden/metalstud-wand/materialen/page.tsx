@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -30,28 +31,13 @@ import { Loader2 } from 'lucide-react';
 // ==================================
 // Definities en Data
 // ==================================
-type Materiaal = {
-  row_id: string;
+type MateriaalKeuze = {
   id: string;
   materiaalnaam: string;
   categorie: string | null;
   eenheid: string;
-  prijs: number | string | null;
-  sort_order: number | null;
-  user_id: string;
+  prijs: number;
 };
-
-type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
-
-type ExtraMateriaal = {
-  id: string;
-  naam: string;
-  eenheid: 'stuk' | 'm¹' | 'm²' | 'm³';
-  lengteMm?: number;
-  breedteMm?: number;
-  hoogteMm?: number;
-  prijsPerEenheid: number;
-}
 
 const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -226,7 +212,7 @@ export default function MetalstudWandMaterialenPage() {
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [gipsLagen, setGipsLagen] = useState(1);
-  const [tempGipsLagen, setTempGipsLagen] = useState(1);
+  const [tempGipsLaden, setTempGipsLagen] = useState(1);
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
@@ -312,7 +298,7 @@ export default function MetalstudWandMaterialenPage() {
     setGipsLagen(preset.gipsLagen || 1);
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay to prevent flash of loading state
+  // Set loading to false after a short delay
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
@@ -637,7 +623,7 @@ export default function MetalstudWandMaterialenPage() {
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie', 'Folie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
-                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell', 'Kies de binnenafwerking van de wand.')}
+                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}

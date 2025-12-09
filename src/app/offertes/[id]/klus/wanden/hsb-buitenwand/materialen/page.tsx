@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -59,6 +60,8 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
     setIsSaving(true);
     await onSave(name, isDefault);
     setIsSaving(false);
+    onOpenChange(false);
+    // Reset state after closing
     setTimeout(() => {
         setName('');
         setIsDefault(false);
@@ -128,6 +131,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
             <DialogTitle>Kies materiaal</DialogTitle>
             <DialogDescription>Zoek op naam of kies uit de lijst.</DialogDescription>
         </DialogHeader>
+
         <div className="px-6 pb-4 border-b">
             <Input 
                 type="text"
@@ -136,6 +140,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                 onChange={(e) => setZoekterm(e.target.value)}
             />
         </div>
+        
         <div className="overflow-y-auto flex-1">
             <ul className="divide-y divide-border">
                 {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
@@ -162,6 +167,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                 )}
             </ul>
         </div>
+
         <DialogFooter className="p-6 pt-4 border-t">
             <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
         </DialogFooter>
@@ -513,7 +519,7 @@ export default function HsbBuitenwandMaterialenPage() {
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie_buitenzijde', 'Folie (buitenzijde)')}
                 {renderSelectieRij('binnenbekleding', 'Binnenbekleding (OSB)', 'OSB of andere constructieplaat')}
-                {renderSelectieRij('gips_fermacell', 'Afwerking binnen (Gips/Fermacell)', 'De uiteindelijke afwerking aan de binnenkant.')}
+                {renderSelectieRij('gips_fermacell', 'Afwerking binnen (Gips/Fermacell)')}
                 {renderSelectieRij('buitenbekleding', 'Buitenbekleding (gevel)', 'De uiteindelijke afwerking aan de buitenkant.')}
                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
                 {renderKleinMateriaalSectie()}

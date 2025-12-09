@@ -298,7 +298,7 @@ export default function MetalstudTussenwandMaterialenPage() {
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
-        }, 50); // Small delay
+        }, 50);
         return () => clearTimeout(timer);
     }, []);
 

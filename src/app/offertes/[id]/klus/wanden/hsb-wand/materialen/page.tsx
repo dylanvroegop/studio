@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -495,6 +496,14 @@ export default function HsbWandMaterialenPage() {
                         </div>
                     )}
                 </div>
+                {(sectieSleutel === 'gips_fermacell') && gekozenMateriaal && !isMaterialenLaden && (
+                    <div className="mt-2 pl-1">
+                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
+                            <Settings className="w-3 h-3"/>
+                            Lagen: {gipsLagen} (aanpassen)
+                        </button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
@@ -652,11 +661,8 @@ export default function HsbWandMaterialenPage() {
               <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('folie', 'Folie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
-                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell', 'Kies de binnenafwerking van de wand.')}
-                {renderSelectieRij('kozijnen', 'Kozijnen')}
-                {renderSelectieRij('deuren', 'Deuren')}
+                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('plinten', 'Plinten')}
                 
@@ -755,4 +761,5 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
 

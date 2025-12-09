@@ -666,7 +666,7 @@ export default function HsbTussenwandMaterialenPage() {
                 {renderSelectieRij('balktype', 'Balktype')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
-                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell', 'Kies de binnenafwerking van de wand.')}
+                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
@@ -767,4 +767,3 @@ export default function HsbTussenwandMaterialenPage() {
     </>
   );
 }
-
