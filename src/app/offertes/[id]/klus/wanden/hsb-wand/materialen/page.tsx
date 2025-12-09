@@ -54,7 +54,7 @@ type ExtraMateriaal = {
   prijsPerEenheid: number;
 }
 
-const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra'] as const;
+const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -196,6 +196,47 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
       </DialogContent>
     </Dialog>
   );
+}
+
+function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean, onOpenChange: (open:boolean) => void, materials: MateriaalKeuze[], onSave: (materials: MateriaalKeuze[]) => void }) {
+    const [orderedMaterials, setOrderedMaterials] = useState(materials);
+
+    useEffect(() => {
+        setOrderedMaterials(materials);
+    }, [materials]);
+
+    const handleSave = async () => {
+        // Implement save logic here, this will likely involve updating the sort_order in your database
+        onSave(orderedMaterials);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Materiaal Volgorde</DialogTitle>
+                    <DialogDescription>
+                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-[60vh] overflow-y-auto">
+                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
+                        {orderedMaterials.map(item => (
+                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-muted-foreground"><path d="M7 10l-3 3 3 3M17 10l3 3-3 3M12 4v16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                {item.materiaalnaam}
+                            </Reorder.Item>
+                        ))}
+                    </Reorder.Group>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+                    <Button onClick={handleSave}>Opslaan</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 
@@ -448,6 +489,101 @@ export default function HsbWandMaterialenPage() {
     );
   };
   
+  const renderKleinMateriaalSectie = () => {
+    const sectieSleutel: SectieKey = 'klein_materiaal';
+    const isCollapsed = collapsedSections[sectieSleutel];
+
+    if (isCollapsed) {
+        return (
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
+                <p className="text-sm font-medium">Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between p-4">
+                <div className="space-y-1.5">
+                    <CardTitle className="text-lg">Klein materiaal</CardTitle>
+                    <CardDescription>
+                        Kies of je dit wilt berekenen via een percentage of een vast bedrag.
+                    </CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
+                    Verberg
+                </Button>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+                <div className="border-t pt-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div
+                            className={cn(
+                                "p-4 rounded-lg border cursor-pointer",
+                                kleinMateriaalConfig.mode === 'percentage' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                            )}
+                            onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
+                        >
+                            <h4 className="font-semibold">Percentage (%)</h4>
+                            <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
+                        </div>
+                        <div
+                            className={cn(
+                                "p-4 rounded-lg border cursor-pointer",
+                                kleinMateriaalConfig.mode === 'fixed' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                            )}
+                            onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
+                        >
+                            <h4 className="font-semibold">Vast bedrag (€)</h4>
+                            <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
+                        </div>
+                    </div>
+
+                    {kleinMateriaalConfig.mode === 'percentage' && (
+                        <div className="pt-2">
+                            <Label htmlFor="percentage">Percentage</Label>
+                            <div className="relative">
+                                <Input
+                                    id="percentage"
+                                    type="number"
+                                    step="0.1"
+                                    className="pr-8"
+                                    value={kleinMateriaalConfig.percentage ?? ''}
+                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                    onBlur={(e) => {
+                                      if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
+                                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
+                                      }
+                                    }}
+                                />
+                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {kleinMateriaalConfig.mode === 'fixed' && (
+                        <div className="pt-2">
+                            <Label htmlFor="fixedAmount">Bedrag</Label>
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
+                                <Input
+                                    id="fixedAmount"
+                                    type="number"
+                                    className="pl-7"
+                                    placeholder="Bijv. 50"
+                                    value={kleinMateriaalConfig.fixedAmount || ''}
+                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+  };
+
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -514,88 +650,15 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('plinten', 'Plinten')}
                 
                  {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+
+                 {renderKleinMateriaalSectie()}
               </div>
 
-              <Card className="mt-4">
-                  <CardHeader className="pb-4">
-                      <CardTitle className="text-lg">Klein materiaal</CardTitle>
-                      <CardDescription>
-                          Kleine materialen zoals schroeven, tape, kit, hoekankers en bevestigingsmateriaal.
-                          Kies of je dit wilt berekenen via een percentage of een vast bedrag.
-                      </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div 
-                              className={cn(
-                                  "p-4 rounded-lg border cursor-pointer",
-                                  kleinMateriaalConfig.mode === 'percentage' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
-                              )}
-                              onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
-                          >
-                              <h4 className="font-semibold">Percentage (%)</h4>
-                              <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
-                          </div>
-                          <div 
-                              className={cn(
-                                  "p-4 rounded-lg border cursor-pointer",
-                                  kleinMateriaalConfig.mode === 'fixed' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
-                              )}
-                              onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
-                          >
-                              <h4 className="font-semibold">Vast bedrag (€)</h4>
-                              <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
-                          </div>
-                      </div>
-
-                      {kleinMateriaalConfig.mode === 'percentage' && (
-                          <div className="pt-2">
-                              <Label htmlFor="percentage">Percentage</Label>
-                              <div className="relative">
-                                  <Input 
-                                      id="percentage" 
-                                      type="number"
-                                      step="0.1"
-                                      className="pr-8"
-                                      value={kleinMateriaalConfig.percentage ?? ''}
-                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
-                                      onBlur={(e) => {
-                                        if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
-                                           setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
-                                        }
-                                      }}
-                                  />
-                                  <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
-                              </div>
-                          </div>
-                      )}
-
-                      {kleinMateriaalConfig.mode === 'fixed' && (
-                          <div className="pt-2">
-                              <Label htmlFor="fixedAmount">Bedrag</Label>
-                              <div className="relative">
-                                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
-                                  <Input 
-                                      id="fixedAmount" 
-                                      type="number"
-                                      className="pl-7"
-                                      placeholder="Bijv. 50"
-                                      value={kleinMateriaalConfig.fixedAmount || ''}
-                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
-                                  />
-                              </div>
-                          </div>
-                      )}
-                  </CardContent>
-              </Card>
-              
               <div className="mt-8">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
-                    <Save className="mr-2 h-4 w-4" />
-                    Huidige keuzes opslaan voor volgende keer
+                    <Save className="mr-2 h-4 w-4" /> Huidige keuzes opslaan voor volgende keer
                 </Button>
               </div>
-
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
@@ -627,6 +690,17 @@ export default function HsbWandMaterialenPage() {
             setReorderModalOpen(true);
           }}
       />}
+
+      <ReorderModal
+        open={reorderModalOpen}
+        onOpenChange={setReorderModalOpen}
+        materials={alleMaterialen}
+        onSave={(newOrder) => {
+            // Here you would ideally update the sort_order in your backend
+            console.log("New order:", newOrder.map(m => m.id));
+            setAlleMaterialen(newOrder); // Optimistically update UI
+        }}
+       />
       
        <Dialog open={lagenModalOpen} onOpenChange={setLagenModalOpen}>
             <DialogContent className="sm:max-w-[425px]">
