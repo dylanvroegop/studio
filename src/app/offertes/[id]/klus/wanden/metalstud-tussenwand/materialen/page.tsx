@@ -76,17 +76,17 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
         <DialogHeader>
           <DialogTitle>Voorinstelling opslaan</DialogTitle>
           <DialogDescription>
-            Sla de huidige materiaalconfiguratie op voor later gebruik bij Gipsplafonds met metalstud.
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij Metalstud Tussenwanden.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
             <div className="space-y-2">
                 <Label htmlFor="preset-name">Naam voorinstelling *</Label>
-                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard metalstud plafond" />
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard metalstud wand" />
             </div>
             <div className="flex items-center space-x-2">
                 <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
-                <Label htmlFor="default-preset">Maak dit mijn standaard voor Gipsplafonds met metalstud</Label>
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor Metalstud Tussenwanden</Label>
             </div>
         </div>
         <DialogFooter>
@@ -274,6 +274,9 @@ export default function MetalstudTussenwandMaterialenPage() {
       return;
     }
     
+    // Wacht tot materialen geladen zijn
+    if (alleMaterialen.length === 0) return;
+
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
 
@@ -608,7 +611,7 @@ export default function MetalstudTussenwandMaterialenPage() {
         <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-              <Link href={`/offertes/${quoteId}/klus/plafonds/gipsplafond-metalstud`}>
+              <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-tussenwand`}>
                 <ArrowLeft className="h-4 w-4" />
                 <span className="sr-only">Terug</span>
               </Link>
@@ -627,9 +630,9 @@ export default function MetalstudTussenwandMaterialenPage() {
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
               <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Gipsplafond – Metalstud</h1>
+                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Metalstud Tussenwand</h1>
                   <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor dit plafond gebruikt. U kunt deze keuzes als voorinstelling opslaan.
+                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan.
                   </p>
               </div>
               
