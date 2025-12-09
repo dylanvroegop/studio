@@ -108,7 +108,7 @@ export type Material = {
 
 export type KleinMateriaalConfig = {
   mode: 'percentage' | 'fixed';
-  percentage: number;
+  percentage: number | null;
   fixedAmount: number | null;
 };
 

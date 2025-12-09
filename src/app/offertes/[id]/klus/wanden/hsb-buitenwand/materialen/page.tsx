@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType } from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -36,7 +36,7 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
-const sectieSleutels = ['balktype', 'isolatie', 'folie_buitenzijde', 'binnenbekleding', 'gips_fermacell', 'buitenbekleding', 'extra'] as const;
+const sectieSleutels = ['balktype', 'isolatie', 'folie_buitenzijde', 'binnenbekleding', 'gips_fermacell', 'buitenbekleding', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 // ==================================
@@ -195,6 +195,7 @@ export default function HsbBuitenwandMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
+  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -245,6 +246,7 @@ export default function HsbBuitenwandMaterialenPage() {
     if (gekozenPresetId === 'default') {
       setGekozenMaterialen({});
       setCollapsedSections({});
+      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
     if (alleMaterialen.length === 0) return;
@@ -260,6 +262,7 @@ export default function HsbBuitenwandMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
+    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   useEffect(() => {
@@ -292,7 +295,7 @@ export default function HsbBuitenwandMaterialenPage() {
     
     const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
-        slots: slots, collapsedSections: collapsedSections, createdAt: serverTimestamp() as any,
+        slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
     try {
@@ -366,6 +369,101 @@ export default function HsbBuitenwandMaterialenPage() {
     );
   };
   
+    const renderKleinMateriaalSectie = () => {
+    const sectieSleutel: SectieKey = 'klein_materiaal';
+    const isCollapsed = collapsedSections[sectieSleutel];
+
+    if (isCollapsed) {
+        return (
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
+                <p className="text-sm font-medium">Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between p-4">
+                <div className="space-y-1.5">
+                    <CardTitle className="text-lg">Klein materiaal</CardTitle>
+                    <CardDescription>
+                        Kies of je dit wilt berekenen via een percentage of een vast bedrag.
+                    </CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
+                    Verberg
+                </Button>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+                <div className="border-t pt-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div
+                            className={cn(
+                                "p-4 rounded-lg border cursor-pointer",
+                                kleinMateriaalConfig.mode === 'percentage' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                            )}
+                            onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
+                        >
+                            <h4 className="font-semibold">Percentage (%)</h4>
+                            <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
+                        </div>
+                        <div
+                            className={cn(
+                                "p-4 rounded-lg border cursor-pointer",
+                                kleinMateriaalConfig.mode === 'fixed' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                            )}
+                            onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
+                        >
+                            <h4 className="font-semibold">Vast bedrag (€)</h4>
+                            <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
+                        </div>
+                    </div>
+
+                    {kleinMateriaalConfig.mode === 'percentage' && (
+                        <div className="pt-2">
+                            <Label htmlFor="percentage">Percentage</Label>
+                            <div className="relative">
+                                <Input
+                                    id="percentage"
+                                    type="number"
+                                    step="0.1"
+                                    className="pr-8"
+                                    value={kleinMateriaalConfig.percentage ?? ''}
+                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                    onBlur={(e) => {
+                                      if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
+                                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
+                                      }
+                                    }}
+                                />
+                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {kleinMateriaalConfig.mode === 'fixed' && (
+                        <div className="pt-2">
+                            <Label htmlFor="fixedAmount">Bedrag</Label>
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
+                                <Input
+                                    id="fixedAmount"
+                                    type="number"
+                                    className="pl-7"
+                                    placeholder="Bijv. 50"
+                                    value={kleinMateriaalConfig.fixedAmount || ''}
+                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+  };
+
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -419,6 +517,7 @@ export default function HsbBuitenwandMaterialenPage() {
                 {renderSelectieRij('gips_fermacell', 'Afwerking binnen (Gips/Fermacell)', 'De uiteindelijke afwerking aan de binnenkant.')}
                 {renderSelectieRij('buitenbekleding', 'Buitenbekleding (gevel)', 'De uiteindelijke afwerking aan de buitenkant.')}
                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+                {renderKleinMateriaalSectie()}
               </div>
               
               <div className="mt-8">
