@@ -62,53 +62,60 @@ type SectieKey = typeof sectieSleutels[number];
 // Modal Components
 // ==================================
 
-type ReorderModalProps = {
+type SavePresetDialogProps = {
   open: boolean;
-  onSluiten: () => void;
-  materialen: MateriaalKeuze[];
-  onOpslaan: (opgeslagenMaterialen: MateriaalKeuze[]) => void;
-}
+  onOpenChange: (open: boolean) => void;
+  onSave: (presetName: string, isDefault: boolean) => void;
+};
 
-function ReorderModal({ open, onSluiten, materialen, onOpslaan }: ReorderModalProps) {
-  const [items, setItems] = useState(materialen);
+function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps) {
+  const [name, setName] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    setItems(materialen);
-  }, [materialen]);
-
-  const handleSave = () => {
-    const opgeslagenMaterialen = items.map((item, index) => ({...item, sort_order: index}));
-    onOpslaan(opgeslagenMaterialen);
-    onSluiten();
-  }
-
+  const handleSave = async () => {
+    if (!name) return;
+    setIsSaving(true);
+    await onSave(name, isDefault);
+    setIsSaving(false);
+    onOpenChange(false);
+    // Reset state after closing
+    setTimeout(() => {
+        setName('');
+        setIsDefault(false);
+    }, 200);
+  };
+  
   return (
-    <Dialog open={open} onOpenChange={onSluiten}>
-      <DialogContent className="max-w-md max-h-[80vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle>Materiaal volgorde aanpassen</DialogTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Voorinstelling opslaan</DialogTitle>
+          <DialogDescription>
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij HSB tussenwanden.
+          </DialogDescription>
         </DialogHeader>
-        <div className="overflow-y-auto flex-1 px-6">
-          <Reorder.Group axis="y" values={items} onReorder={setItems} className="space-y-2">
-            {items.map(item => (
-              <Reorder.Item key={item.id} value={item}>
-                <div className="flex items-center gap-4 p-2 rounded-md bg-muted/50 cursor-grab active:cursor-grabbing">
-                  <GripVertical className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">{item.materiaalnaam}</span>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
+        <div className="space-y-4 py-4">
+            <div className="space-y-2">
+                <Label htmlFor="preset-name">Naam voorinstelling *</Label>
+                <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard tussenwand" />
+            </div>
+            <div className="flex items-center space-x-2">
+                <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} />
+                <Label htmlFor="default-preset">Maak dit mijn standaard voor HSB tussenwanden</Label>
+            </div>
         </div>
-        <DialogFooter className="p-6 pt-4 border-t">
-          <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
-          <Button onClick={handleSave}>Opslaan</Button>
+        <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+            <Button onClick={handleSave} disabled={!name || isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSaving ? 'Opslaan...' : 'Opslaan'}
+            </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
-
 
 type MateriaalKiezerModalProps = {
   open: boolean;
@@ -456,43 +463,27 @@ export default function HsbWandMaterialenPage() {
 
   const handleSavePreset = async (presetName: string, isDefault: boolean) => {
     if (!user || !firestore) return;
-
     const slots: Record<string, string> = {};
     for (const key in gekozenMaterialen) {
         const materiaal = gekozenMaterialen[key];
-        if (materiaal) {
-            slots[key] = materiaal.id;
-        }
+        if (materiaal) slots[key] = materiaal.id;
     }
     
     const newPresetData: Omit<PresetType, 'id'> = {
-        userId: user.uid,
-        jobType: JOB_TYPE,
-        name: presetName,
-        isDefault: isDefault,
-        slots: slots,
-        collapsedSections: collapsedSections,
-        gipsLagen: gipsLagen,
-        createdAt: serverTimestamp() as any,
+        userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
+        slots: slots, collapsedSections: collapsedSections, createdAt: serverTimestamp() as any,
     };
     
     try {
         const batch = writeBatch(firestore);
-
-        // Als dit de nieuwe default wordt, zet alle andere defaults uit
         if (isDefault) {
             const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
             const querySnapshot = await getDocs(q);
-            querySnapshot.forEach(doc => {
-                batch.update(doc.ref, { isDefault: false });
-            });
+            querySnapshot.forEach(doc => batch.update(doc.ref, { isDefault: false }));
         }
-        
         const newDocRef = doc(collection(firestore, 'presets'));
         batch.set(newDocRef, newPresetData);
-
         await batch.commit();
-
         toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
         // Herlaad presets
@@ -511,7 +502,7 @@ export default function HsbWandMaterialenPage() {
 
   const isVolgendeIngeschakeld = true;
 
-  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, description?: string) => {
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -529,27 +520,18 @@ export default function HsbWandMaterialenPage() {
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">{titel}</CardTitle>
-                    {description && <CardDescription>{description}</CardDescription>}
+                    {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => toggleSection(sectieSleutel)} className="h-8 w-8 text-muted-foreground">
-                   <X className="h-4 w-4" />
-                   <span className="sr-only">Verberg sectie</span>
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
+                   verberg
                 </Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
                  <div className="border-t pt-4">
-                    {isMaterialenLaden ? (
-                         <div className="h-10 bg-muted/50 rounded animate-pulse" />
-                    ) : foutMaterialen ? (
-                         <p className="text-sm text-destructive">Laden van materialen mislukt.</p>
-                    ) : (
+                    {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? (
-                                <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p>
-                                ) : (
-                                <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>
-                                )}
+                                {gekozenMateriaal ? <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -564,14 +546,6 @@ export default function HsbWandMaterialenPage() {
                         </div>
                     )}
                 </div>
-                {sectieSleutel === 'gips_fermacell' && gekozenMateriaal && !isMaterialenLaden && (
-                    <div className="mt-2 pl-1">
-                        <button onClick={openLagenKiezer} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground transition-colors">
-                            <Settings className="w-3 h-3"/>
-                            Lagen: {gipsLagen} (aanpassen)
-                        </button>
-                    </div>
-                )}
             </CardContent>
         </Card>
     );
@@ -603,11 +577,7 @@ export default function HsbWandMaterialenPage() {
           </div>
           <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? (
-              <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
-            ) : null}
+            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p> : null}
           </div>
         </header>
         
