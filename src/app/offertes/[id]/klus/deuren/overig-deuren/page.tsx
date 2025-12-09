@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,6 +77,12 @@ export default function OverigDeurenPage() {
     localStorage.setItem(`quote-${quoteId}-overig-deuren`, JSON.stringify(deuren));
     router.push(`/offertes/${quoteId}/klus/deuren/overig-deuren/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = deuren.some(p => !p.lengte || !p.hoogte);
 
@@ -129,11 +136,11 @@ export default function OverigDeurenPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte / Breedte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 930" required value={deur.lengte} onChange={(e) => handleDeurChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 930" required value={deur.lengte} onChange={(e) => handleDeurChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`hoogte-${index}`}>Hoogte (mm) *</Label>
-                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2115" required value={deur.hoogte} onChange={(e) => handleDeurChange(index, 'hoogte', e.target.value)} />
+                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2115" required value={deur.hoogte} onChange={(e) => handleDeurChange(index, 'hoogte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

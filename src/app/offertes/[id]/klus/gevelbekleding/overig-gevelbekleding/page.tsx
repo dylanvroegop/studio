@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,6 +77,12 @@ export default function OverigGevelbekledingPage() {
     localStorage.setItem(`quote-${quoteId}-overig-gevelbekleding`, JSON.stringify(gevelvlakken));
     router.push(`/offertes/${quoteId}/klus/gevelbekleding/overig-gevelbekleding/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = gevelvlakken.some(p => !p.lengte || !p.breedte);
 
@@ -129,11 +136,11 @@ export default function OverigGevelbekledingPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 8000" required value={gevelvlak.lengte} onChange={(e) => handleGevelvlakChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 8000" required value={gevelvlak.lengte} onChange={(e) => handleGevelvlakChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`breedte-${index}`}>Breedte / hoogte (mm) *</Label>
-                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 5000" required value={gevelvlak.breedte} onChange={(e) => handleGevelvlakChange(index, 'breedte', e.target.value)} />
+                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 5000" required value={gevelvlak.breedte} onChange={(e) => handleGevelvlakChange(index, 'breedte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

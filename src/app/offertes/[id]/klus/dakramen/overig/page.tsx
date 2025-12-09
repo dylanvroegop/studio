@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -75,6 +76,12 @@ export default function OverigDakramenPage() {
     
     router.push(`/offertes/${quoteId}/klus/dakramen/overig/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = items.some(p => !p.aantal || parseInt(p.aantal) <= 0);
 
@@ -128,7 +135,7 @@ export default function OverigDakramenPage() {
                            <div className="grid grid-cols-1 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`aantal-${index}`}>Aantal *</Label>
-                                 <Input id={`aantal-${index}`} type="number" placeholder="1" required value={item.aantal} onChange={(e) => handleItemChange(index, 'aantal', e.target.value)} />
+                                 <Input id={`aantal-${index}`} type="number" placeholder="1" required value={item.aantal} onChange={(e) => handleItemChange(index, 'aantal', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

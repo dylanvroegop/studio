@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -74,6 +75,12 @@ export default function OverigSchuttingwerkPage() {
     localStorage.setItem(`quote-${quoteId}-overig-schuttingwerk`, JSON.stringify(items));
     router.push(`/offertes/${quoteId}/klus/schutting/overig-schuttingwerk/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = items.some(p => !p.lengte);
 
@@ -127,7 +134,7 @@ export default function OverigSchuttingwerkPage() {
                            <div className="grid grid-cols-1 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 10000" required value={item.lengte} onChange={(e) => handleItemChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 10000" required value={item.lengte} onChange={(e) => handleItemChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,6 +77,12 @@ export default function OverigIsolatiewerkPage() {
     localStorage.setItem(`quote-${quoteId}-overig-isolatiewerk`, JSON.stringify(vlakken));
     router.push(`/offertes/${quoteId}/klus/isolatiewerken/overig-isolatiewerk/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = vlakken.some(p => !p.lengte || !p.breedte);
 
@@ -129,11 +136,11 @@ export default function OverigIsolatiewerkPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 8000" required value={vlak.lengte} onChange={(e) => handleVlakChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 8000" required value={vlak.lengte} onChange={(e) => handleVlakChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`breedte-${index}`}>Breedte / hoogte (mm) *</Label>
-                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 5000" required value={vlak.breedte} onChange={(e) => handleVlakChange(index, 'breedte', e.target.value)} />
+                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 5000" required value={vlak.breedte} onChange={(e) => handleVlakChange(index, 'breedte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

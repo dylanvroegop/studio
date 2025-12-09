@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useId } from 'react';
@@ -16,15 +17,11 @@ import { Textarea } from '@/components/ui/textarea';
 type Wall = {
   lengte: string;
   hoogte: string;
-  balkafstand: string;
-  opmerkingen: string;
 };
 
 const createNewWall = (): Wall => ({
   lengte: '',
   hoogte: '',
-  balkafstand: '600',
-  opmerkingen: '',
 });
 
 export default function HsbWandPage() {
@@ -65,7 +62,7 @@ export default function HsbWandPage() {
     );
   };
   
-  const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
     if (walls.some(wall => !wall.lengte || !wall.hoogte)) {
@@ -76,10 +73,18 @@ export default function HsbWandPage() {
         });
         return;
     }
+
+    const description = `HSB Wand (${walls.length} stuks)`;
     
+    // Using localStorage to pass data to the next step
     localStorage.setItem(`quote-${quoteId}-hsb-wanden`, JSON.stringify(walls));
-    
     router.push(`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
   };
   
   const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
@@ -95,7 +100,7 @@ export default function HsbWandPage() {
             </Link>
           </Button>
         </div>
-        <h1 className="text-center font-semibold text-lg">Wanden: stap 4 van 6</h1>
+        <h1 className="text-center font-semibold text-lg">Wanden: stap 3 van 4</h1>
         <div className="flex items-center justify-end">
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
@@ -105,59 +110,63 @@ export default function HsbWandPage() {
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-2xl mx-auto w-full">
+        <div className="max-w-xl mx-auto w-full">
             <div className="text-center mb-8">
                 <p className="text-muted-foreground">
                     Vul hieronder de gevraagde gegevens in. Deze informatie gebruiken wij om jouw offerte nauwkeurig voor je uit te werken.
                 </p>
             </div>
-            <form>
-                <div className="space-y-6">
-                    {walls.map((wall, index) => {
-                       const wallId = `${baseId}-${index}`;
-                       return (
-                       <Card key={wallId}>
-                           <CardHeader className="flex flex-row items-center justify-between">
-                               <div>
-                                   <CardTitle>Wand {index + 1}</CardTitle>
-                                   <CardDescription>
-                                       Specificeer de afmetingen en details voor deze wand.
-                                   </CardDescription>
-                               </div>
-                                {walls.length > 1 && (
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Verwijder wand</span>
-                                    </Button>
-                                )}
-                           </CardHeader>
-                           <CardContent className="space-y-6">
-                               <div className="grid grid-cols-2 gap-4">
-                                   <div className="space-y-2">
-                                     <Label htmlFor={`lengte-${wallId}`}>Lengte (mm) *</Label>
-                                     <Input id={`lengte-${wallId}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} />
-                                   </div>
-                                   <div className="space-y-2">
-                                     <Label htmlFor={`hoogte-${wallId}`}>Hoogte (mm) *</Label>
-                                     <Input id={`hoogte-${wallId}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
-                                   </div>
-                               </div>
-                               <div className="space-y-2">
-                                   <Label htmlFor={`balkafstand-${wallId}`}>Balkafstand (h.o.h.)</Label>
-                                   <Input id={`balkafstand-${wallId}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} />
-                                   <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
-                               </div>
-
-                               <div className="space-y-2 pt-2">
-                                  <Label htmlFor={`opmerkingen-${wallId}`}>Extra opmerkingen (optioneel)</Label>
-                                   <p className="text-xs text-muted-foreground">Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.</p>
-                                  <Textarea id={`opmerkingen-${wallId}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
-                                </div>
-                           </CardContent>
-                       </Card>
-                    )})}
-                </div>
-                 <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddWall}>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-6">
+                {walls.map((wall, index) => {
+                   const wallId = `${baseId}-${index}`;
+                   return (
+                   <Card key={wallId}>
+                       <CardHeader className="flex flex-row items-center justify-between">
+                           <div>
+                               <CardTitle>Wand {index + 1}</CardTitle>
+                           </div>
+                            {walls.length > 1 && (
+                                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Verwijder wand</span>
+                                </Button>
+                            )}
+                       </CardHeader>
+                       <CardContent className="space-y-6">
+                         <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <Label htmlFor={`lengte-${wallId}`}>Lengte (mm)</Label>
+                             <Input 
+                                id={`lengte-${wallId}`} 
+                                name={`lengte-${index}`} 
+                                type="number" 
+                                placeholder="Bijv. 5000" 
+                                required 
+                                value={wall.lengte}
+                                onChange={(e) => handleWallChange(index, 'lengte', e.target.value)}
+                                onKeyDown={handleKeyDown}
+                             />
+                           </div>
+                           <div className="space-y-2">
+                             <Label htmlFor={`hoogte-${wallId}`}>Hoogte / Breedte (mm)</Label>
+                             <Input 
+                                id={`hoogte-${wallId}`} 
+                                name={`hoogte-${index}`} 
+                                type="number" 
+                                placeholder="Bijv. 2600" 
+                                required
+                                value={wall.hoogte}
+                                onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)}
+                                onKeyDown={handleKeyDown}
+                             />
+                           </div>
+                         </div>
+                       </CardContent>
+                   </Card>
+                )})}
+              </div>
+                <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddWall}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Wand toevoegen
                 </Button>
@@ -165,7 +174,7 @@ export default function HsbWandPage() {
                     <Button variant="outline" asChild>
                         <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
                     </Button>
-                    <Button type="submit" disabled={isNextDisabled} onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                         Volgende
                     </Button>
                 </div>
@@ -175,3 +184,4 @@ export default function HsbWandPage() {
     </main>
   );
 }
+

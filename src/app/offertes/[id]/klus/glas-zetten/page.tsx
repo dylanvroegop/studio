@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -77,6 +78,12 @@ export default function GlasZettenPage() {
     
     router.push(`/offertes/${quoteId}/klus/glas-zetten/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = glassPanes.some(p => !p.breedte || !p.hoogte);
 
@@ -130,11 +137,11 @@ export default function GlasZettenPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`breedte-${index}`}>Breedte (mm) *</Label>
-                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 800" required value={pane.breedte} onChange={(e) => handlePaneChange(index, 'breedte', e.target.value)} />
+                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 800" required value={pane.breedte} onChange={(e) => handlePaneChange(index, 'breedte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`hoogte-${index}`}>Hoogte (mm) *</Label>
-                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 1200" required value={pane.hoogte} onChange={(e) => handlePaneChange(index, 'hoogte', e.target.value)} />
+                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 1200" required value={pane.hoogte} onChange={(e) => handlePaneChange(index, 'hoogte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

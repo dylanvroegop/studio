@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,6 +77,12 @@ export default function OverigKozijnenPage() {
     localStorage.setItem(`quote-${quoteId}-overig-kozijnen`, JSON.stringify(kozijnen));
     router.push(`/offertes/${quoteId}/klus/kozijnen/overig-kozijnen/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = kozijnen.some(p => !p.lengte || !p.hoogte);
 
@@ -129,11 +136,11 @@ export default function OverigKozijnenPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte / Breedte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 1200" required value={kozijn.lengte} onChange={(e) => handleKozijnChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 1200" required value={kozijn.lengte} onChange={(e) => handleKozijnChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`hoogte-${index}`}>Hoogte (mm) *</Label>
-                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2100" required value={kozijn.hoogte} onChange={(e) => handleKozijnChange(index, 'hoogte', e.target.value)} />
+                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2100" required value={kozijn.hoogte} onChange={(e) => handleKozijnChange(index, 'hoogte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

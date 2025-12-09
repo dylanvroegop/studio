@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,6 +77,12 @@ export default function OverigWandenPage() {
     localStorage.setItem(`quote-${quoteId}-overig-wanden`, JSON.stringify(walls));
     router.push(`/offertes/${quoteId}/klus/wanden/overig-wanden/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
 
@@ -129,11 +136,11 @@ export default function OverigWandenPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`hoogte-${index}`}>Hoogte / Breedte (mm) *</Label>
-                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
+                                 <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                             <div className="space-y-2 pt-2">

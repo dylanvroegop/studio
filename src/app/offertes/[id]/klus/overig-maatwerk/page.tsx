@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,6 +77,12 @@ export default function OverigMaatwerkPage() {
     localStorage.setItem(`quote-${quoteId}-overig-maatwerk`, JSON.stringify(items));
     router.push(`/offertes/${quoteId}/klus/overig-maatwerk/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = items.length === 0;
 
@@ -129,11 +136,11 @@ export default function OverigMaatwerkPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm)</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 1200" value={item.lengte} onChange={(e) => handleItemChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 1200" value={item.lengte} onChange={(e) => handleItemChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`breedte-${index}`}>Breedte / Diepte (mm)</Label>
-                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 250" value={item.breedte} onChange={(e) => handleItemChange(index, 'breedte', e.target.value)} />
+                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 250" value={item.breedte} onChange={(e) => handleItemChange(index, 'breedte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

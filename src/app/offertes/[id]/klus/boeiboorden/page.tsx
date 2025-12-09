@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -75,6 +76,12 @@ export default function BoeiboordenPage() {
     
     router.push(`/offertes/${quoteId}/klus/boeiboorden/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = boeiboorden.some(p => !p.lengte);
 
@@ -128,7 +135,7 @@ export default function BoeiboordenPage() {
                            <div className="grid grid-cols-1 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 8000" required value={boeiboord.lengte} onChange={(e) => handleBoeiboordChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 8000" required value={boeiboord.lengte} onChange={(e) => handleBoeiboordChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">

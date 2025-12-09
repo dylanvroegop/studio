@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -77,6 +78,12 @@ export default function VerandaPage() {
     
     router.push(`/offertes/${quoteId}/klus/overkapping-pergola/veranda/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
   const isNextDisabled = items.some(p => !p.lengte || !p.breedte);
 
@@ -130,11 +137,11 @@ export default function VerandaPage() {
                            <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 4000" required value={item.lengte} onChange={(e) => handleItemChange(index, 'lengte', e.target.value)} />
+                                 <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 4000" required value={item.lengte} onChange={(e) => handleItemChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                                <div className="space-y-2">
                                  <Label htmlFor={`breedte-${index}`}>Breedte / Diepte (mm) *</Label>
-                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 3000" required value={item.breedte} onChange={(e) => handleItemChange(index, 'breedte', e.target.value)} />
+                                 <Input id={`breedte-${index}`} type="number" placeholder="Bijv. 3000" required value={item.breedte} onChange={(e) => handleItemChange(index, 'breedte', e.target.value)} onKeyDown={handleKeyDown} />
                                </div>
                            </div>
                            <div className="space-y-2 pt-2">
