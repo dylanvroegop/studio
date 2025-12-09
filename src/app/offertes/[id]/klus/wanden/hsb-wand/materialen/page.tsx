@@ -10,7 +10,6 @@ import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Dialog,
   DialogContent,
@@ -22,7 +21,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -276,7 +274,7 @@ export default function HsbWandMaterialenPage() {
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [gipsLagen, setGipsLagen] = useState(1);
   const [tempGipsLagen, setTempGipsLagen] = useState(1);
-  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'auto', fixedAmount: null });
+  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -340,7 +338,7 @@ export default function HsbWandMaterialenPage() {
       setGekozenMaterialen({});
       setCollapsedSections({});
       setGipsLagen(1);
-      setKleinMateriaalConfig({ mode: 'auto', fixedAmount: null });
+      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
     const preset = presets.find(p => p.id === gekozenPresetId);
@@ -357,7 +355,7 @@ export default function HsbWandMaterialenPage() {
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
     setGipsLagen(preset.gipsLagen || 1);
-    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'auto', fixedAmount: null });
+    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Set loading to false after a short delay to prevent flash of loading state
@@ -562,49 +560,75 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('plinten', 'Plinten')}
                 
                  {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
-
               </div>
 
-                <Card className="mt-4">
-                    <CardHeader className="pb-4">
-                        <CardTitle className="text-lg">Klein materiaal (automatisch)</CardTitle>
-                        <CardDescription>
-                            OfferteHulp berekent automatisch de benodigde schroeven, tape, kit en andere kleine materialen voor deze klus.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <RadioGroup 
-                            value={kleinMateriaalConfig.mode} 
-                            onValueChange={(value: "auto" | "fixed") => setKleinMateriaalConfig({ ...kleinMateriaalConfig, mode: value })}
-                            className="space-y-2"
-                        >
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="auto" id="km-auto" />
-                                <Label htmlFor="km-auto">Automatisch (aanbevolen)</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="fixed" id="km-fixed" />
-                                <Label htmlFor="km-fixed">Vast bedrag</Label>
-                            </div>
-                        </RadioGroup>
-                        {kleinMateriaalConfig.mode === 'fixed' && (
-                            <div className="mt-4 pl-6">
-                                <Label htmlFor="fixedAmount">Bedrag klein materiaal</Label>
-                                <div className="relative">
-                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
-                                    <Input 
-                                        id="fixedAmount" 
-                                        type="number"
-                                        className="pl-7"
-                                        placeholder="Bijv. 50"
-                                        value={kleinMateriaalConfig.fixedAmount || ''}
-                                        onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+              <Card className="mt-4">
+                  <CardHeader className="pb-4">
+                      <CardTitle className="text-lg">Klein materiaal</CardTitle>
+                      <CardDescription>
+                          Kleine materialen zoals schroeven, tape, kit, hoekankers en bevestigingsmateriaal.
+                          Kies of je dit wilt berekenen via een percentage of een vast bedrag.
+                      </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div 
+                              className={cn(
+                                  "p-4 rounded-lg border cursor-pointer",
+                                  kleinMateriaalConfig.mode === 'percentage' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                              )}
+                              onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
+                          >
+                              <h4 className="font-semibold">Percentage (%)</h4>
+                              <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
+                          </div>
+                          <div 
+                              className={cn(
+                                  "p-4 rounded-lg border cursor-pointer",
+                                  kleinMateriaalConfig.mode === 'fixed' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                              )}
+                              onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
+                          >
+                              <h4 className="font-semibold">Vast bedrag (€)</h4>
+                              <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
+                          </div>
+                      </div>
+
+                      {kleinMateriaalConfig.mode === 'percentage' && (
+                          <div className="pt-2">
+                              <Label htmlFor="percentage">Percentage</Label>
+                              <div className="relative">
+                                  <Input 
+                                      id="percentage" 
+                                      type="number"
+                                      step="0.1"
+                                      className="pr-8"
+                                      value={kleinMateriaalConfig.percentage || 5}
+                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? parseFloat(e.target.value) : 5 })}
+                                  />
+                                  <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
+                              </div>
+                          </div>
+                      )}
+
+                      {kleinMateriaalConfig.mode === 'fixed' && (
+                          <div className="pt-2">
+                              <Label htmlFor="fixedAmount">Bedrag</Label>
+                              <div className="relative">
+                                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
+                                  <Input 
+                                      id="fixedAmount" 
+                                      type="number"
+                                      className="pl-7"
+                                      placeholder="Bijv. 50"
+                                      value={kleinMateriaalConfig.fixedAmount || ''}
+                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
+                                  />
+                              </div>
+                          </div>
+                      )}
+                  </CardContent>
+              </Card>
               
               <div className="mt-8">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
