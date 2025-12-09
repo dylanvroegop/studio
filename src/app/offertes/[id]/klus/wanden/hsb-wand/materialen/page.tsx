@@ -603,8 +603,13 @@ export default function HsbWandMaterialenPage() {
                                       type="number"
                                       step="0.1"
                                       className="pr-8"
-                                      value={kleinMateriaalConfig.percentage || 5}
-                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? parseFloat(e.target.value) : 5 })}
+                                      value={kleinMateriaalConfig.percentage ?? ''}
+                                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? 5 : parseFloat(e.target.value) })}
+                                      onBlur={(e) => {
+                                        if (e.target.value === '') {
+                                           setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
+                                        }
+                                      }}
                                   />
                                   <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
                               </div>
