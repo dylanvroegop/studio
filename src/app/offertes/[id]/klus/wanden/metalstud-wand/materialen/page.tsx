@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -108,12 +108,11 @@ type MateriaalKiezerModalProps = {
   geselecteerdMateriaalId?: string;
   onSluiten: () => void;
   onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
-  openReorderModal: () => void;
-  materialen: MateriaalKeuze[];
 };
 
-function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
+  const [materialen, setMaterialen] = useState<MateriaalKeuze[]>([]);
   
   const gefilterdeMaterialen = useMemo(() => {
     return materialen.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
@@ -143,9 +142,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                 value={zoekterm}
                 onChange={(e) => setZoekterm(e.target.value)}
             />
-            <button onClick={openReorderModal} className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-3">
-              Lijst opnieuw ordenen
-            </button>
         </div>
         
         <div className="overflow-y-auto flex-1">
@@ -219,8 +215,6 @@ export default function MetalstudWandMaterialenPage() {
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
-
-  const isVolgendeIngeschakeld = true;
 
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
@@ -435,7 +429,7 @@ export default function MetalstudWandMaterialenPage() {
     );
   };
   
-  const renderKleinMateriaalSectie = () => {
+    const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -637,13 +631,7 @@ export default function MetalstudWandMaterialenPage() {
           geselecteerdMateriaalId={actieveSectie ? gekozenMaterialen[actieveSectie]?.id : undefined}
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
-          materialen={filterMaterialenVoorSectie(actieveSectie)}
-          openReorderModal={() => {
-            sluitMateriaalKiezer();
-          }}
       />}
     </>
   );
 }
-
-    
