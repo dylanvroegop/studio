@@ -260,7 +260,7 @@ export default function MetalstudTussenwandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore, toast, JOB_TYPE]);
+  }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -535,7 +535,7 @@ export default function MetalstudTussenwandMaterialenPage() {
               </Button>
             </div>
             <div className="flex flex-col items-center text-center">
-              <h1 className="font-semibold text-lg">Materialen - Metalstud Tussenwand</h1>
+              <h1 className="font-semibold text-lg">Metalstud Tussenwand</h1>
               <p className="text-xs text-muted-foreground">stap 5 van 6</p>
             </div>
             <div className="flex items-center justify-end">
