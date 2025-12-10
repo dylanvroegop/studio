@@ -27,7 +27,7 @@ export default function NewQuotePage() {
 
   return (
     <main className="flex flex-1 flex-col">
-       <header className="sticky top-0 z-10 flex h-auto items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
+       <header className="flex h-auto items-center justify-between border-b bg-background px-4 py-3 sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="outline" size="icon" className="h-8 w-8">
             <Link href="/">
@@ -36,7 +36,7 @@ export default function NewQuotePage() {
             </Link>
           </Button>
         </div>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+        <div className="text-center">
             <h1 className="font-semibold text-lg">Nieuwe Offerte</h1>
             <p className="text-xs text-muted-foreground">stap 1 van 6</p>
         </div>
