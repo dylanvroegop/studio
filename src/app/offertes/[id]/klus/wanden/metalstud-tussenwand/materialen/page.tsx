@@ -260,7 +260,7 @@ export default function MetalstudTussenwandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, JOB_TYPE]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -378,7 +378,7 @@ export default function MetalstudTussenwandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
             </div>
         );
     }
@@ -534,21 +534,24 @@ export default function MetalstudTussenwandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <div className="col-start-2 flex flex-col items-center text-center">
-            <h1 className="font-semibold text-lg">Metalstud Tussenwand</h1>
-            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
-          </div>
+          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
+              <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
             ) : null}
           </div>
         </header>
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
+              <div className="text-center mb-8">
+                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Gipsplafond – Metalstud</h1>
+                  <p className="text-muted-foreground mt-2">
+                      Kies de materialen die u voor dit plafond gebruikt. U kunt deze keuzes als voorinstelling opslaan.
+                  </p>
+              </div>
               
               <div className="mb-8">
                   <Label htmlFor='preset-select' className='text-xs text-muted-foreground'>Voorinstellingen</Label>
@@ -633,4 +636,5 @@ export default function MetalstudTussenwandMaterialenPage() {
 }
 
     
+
 
