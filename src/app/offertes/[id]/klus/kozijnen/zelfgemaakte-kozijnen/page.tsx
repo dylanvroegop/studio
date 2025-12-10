@@ -26,7 +26,7 @@ const defaultKozijnState: Kozijn = {
   opmerkingen: '',
 };
 
-export default function OverigKozijnenPage() {
+export default function ZelfgemaakteKozijnenPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -74,8 +74,9 @@ export default function OverigKozijnenPage() {
         return;
     }
 
-    localStorage.setItem(`quote-${quoteId}-overig-kozijnen`, JSON.stringify(kozijnen));
-    router.push(`/offertes/${quoteId}/klus/kozijnen/overig-kozijnen/materialen`);
+    localStorage.setItem(`quote-${quoteId}-zelfgemaakte-kozijnen`, JSON.stringify(kozijnen));
+    
+    router.push(`/offertes/${quoteId}/klus/kozijnen/zelfgemaakte-kozijnen/materialen`);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
