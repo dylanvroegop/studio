@@ -89,7 +89,7 @@ export default function OverigPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="grid w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6 py-3">
+      <header className="grid w-full grid-cols-3 items-center border-b bg-background px-4 py-3 sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/overkapping-pergola`}>
@@ -106,7 +106,7 @@ export default function OverigPage() {
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
           ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
+            <p className="text-sm text-muted-foreground truncate"></p>
           ) : null}
         </div>
       </header>
