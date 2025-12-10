@@ -482,7 +482,7 @@ export default function HsbTussenwandMaterialenPage() {
     );
   };
   
-  const renderKleinMateriaalSectie = () => {
+    const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -603,9 +603,6 @@ export default function HsbTussenwandMaterialenPage() {
           <div className="max-w-2xl mx-auto w-full">
               <div className="text-center mb-8">
                    <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Scheidingswand</h1>
-                  <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan voor volgende offertes.
-                  </p>
               </div>
 
               <div className="mb-8 space-y-2">
@@ -700,5 +697,3 @@ export default function HsbTussenwandMaterialenPage() {
     </>
   );
 }
-
-    
