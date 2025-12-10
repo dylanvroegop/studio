@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -457,7 +458,7 @@ export default function OverigMaatwerkMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Verborgen</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -494,7 +495,7 @@ export default function OverigMaatwerkMaterialenPage() {
                     </DropdownMenu>
                   )}
                   <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
-                     Verberg
+                     verberg
                   </Button>
                 </div>
             </CardHeader>
@@ -532,7 +533,7 @@ export default function OverigMaatwerkMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/overig-maatwerk`}>
@@ -541,7 +542,9 @@ export default function OverigMaatwerkMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 4 van 6</h1>
+          <div className="col-start-2 flex flex-col items-center text-center">
+            <h1 className="font-semibold text-lg">Materialen: stap 4 van 6</h1>
+          </div>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
@@ -652,3 +655,4 @@ export default function OverigMaatwerkMaterialenPage() {
     </>
   );
 }
+

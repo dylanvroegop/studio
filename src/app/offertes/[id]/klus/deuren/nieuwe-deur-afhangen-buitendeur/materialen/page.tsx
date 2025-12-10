@@ -524,7 +524,7 @@ export default function NieuweDeurAfhangenBuitendeurenMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/deuren`}>
@@ -533,7 +533,7 @@ export default function NieuweDeurAfhangenBuitendeurenMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <div className="text-center">
+          <div className="col-start-2 flex flex-col items-center text-center">
             <h1 className="font-semibold text-lg">Materialen - Buitendeur:</h1>
             <p className="text-xs text-muted-foreground">stap 4 van 6</p>
           </div>
@@ -623,3 +623,4 @@ export default function NieuweDeurAfhangenBuitendeurenMaterialenPage() {
     </>
   );
 }
+

@@ -525,26 +525,26 @@ export default function MetalstudTussenwandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-auto items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
-            <div className="flex items-center justify-start">
-              <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-                <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-wand`}>
-                  <ArrowLeft className="h-4 w-4" />
-                  <span className="sr-only">Terug</span>
-                </Link>
-              </Button>
-            </div>
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-              <h1 className="font-semibold text-lg">Metalstud Tussenwand</h1>
-              <p className="text-xs text-muted-foreground">stap 5 van 6</p>
-            </div>
-            <div className="flex items-center justify-end">
-              {isPaginaLaden ? (
-                <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-              ) : quote ? (
-                <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
-              ) : null}
-            </div>
+        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
+          <div className="flex items-center justify-start">
+            <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+              <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-wand`}>
+                <ArrowLeft className="h-4 w-4" />
+                <span className="sr-only">Terug</span>
+              </Link>
+            </Button>
+          </div>
+          <div className="col-start-2 flex flex-col items-center text-center">
+            <h1 className="font-semibold text-lg">Metalstud Tussenwand</h1>
+            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
+          </div>
+          <div className="flex items-center justify-end">
+            {isPaginaLaden ? (
+              <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+            ) : quote ? (
+              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
+            ) : null}
+          </div>
         </header>
         
         <div className="flex-1 p-4 md:p-8">
@@ -631,3 +631,6 @@ export default function MetalstudTussenwandMaterialenPage() {
     </>
   );
 }
+
+    
+

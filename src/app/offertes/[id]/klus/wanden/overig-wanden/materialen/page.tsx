@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -328,6 +329,7 @@ export default function OverigWandenMaterialenPage() {
     if (gekozenPresetId === 'default') {
       setGekozenMaterialen({});
       setCollapsedSections({});
+      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
     
@@ -344,6 +346,7 @@ export default function OverigWandenMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
+    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Set loading to false after a short delay
@@ -392,6 +395,7 @@ export default function OverigWandenMaterialenPage() {
         isDefault: isDefault,
         slots: slots,
         collapsedSections: collapsedSections,
+        kleinMateriaalConfig,
         createdAt: serverTimestamp() as any,
     };
     
@@ -530,7 +534,7 @@ export default function OverigWandenMaterialenPage() {
     );
   };
   
-    const renderKleinMateriaalSectie = () => {
+  const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -628,7 +632,7 @@ export default function OverigWandenMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/wanden/overig-wanden`}>
@@ -637,24 +641,21 @@ export default function OverigWandenMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
+          <div className="col-start-2 flex flex-col items-center text-center">
+            <h1 className="font-semibold text-lg">Materialen - Overig</h1>
+            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
+          </div>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
+              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
             ) : null}
           </div>
         </header>
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
-              <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Overig Wanden</h1>
-                  <p className="text-muted-foreground mt-2">
-                      Voeg zelf secties en materialen toe die nodig zijn voor deze maatwerk klus.
-                  </p>
-              </div>
               
               <div className="mb-8">
                   <Label htmlFor='preset-select' className='text-xs text-muted-foreground'>Voorinstellingen</Label>
@@ -749,3 +750,4 @@ export default function OverigWandenMaterialenPage() {
     </>
   );
 }
+
