@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,17 +20,9 @@ type Subcategory = {
 
 export default function PlafondsPage() {
   const params = useParams();
-  const router = useRouter();
   const quoteId = params.id as string;
-  
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const subcategories: Subcategory[] = [
-    { name: 'Plafonds', description: 'Plafond – Houten Framewerk', icon: 'ceiling', href: `/offertes/${quoteId}/klus/plafonds/gipsplafond-houten-framewerk` },
-    { name: 'Plafonds', description: 'Plafond – Metalstud C/U', icon: 'ceiling', href: `/offertes/${quoteId}/klus/plafonds/gipsplafond-metalstud` },
-    { name: 'Plafonds', description: 'Overig Plafonds', icon: 'plus', href: `/offertes/${quoteId}/klus/plafonds/overig-plafonds` },
-  ];
 
   useEffect(() => {
     async function fetchQuote() {
@@ -41,7 +34,13 @@ export default function PlafondsPage() {
     }
     fetchQuote();
   }, [quoteId]);
-  
+
+  const subcategories: Subcategory[] = [
+    { name: 'Plafonds', description: 'Plafond – Houten Framewerk', icon: 'ceiling', href: `/offertes/${quoteId}/klus/plafonds/gipsplafond-houten-framewerk` },
+    { name: 'Plafonds', description: 'Plafond – Metalstud C/U', icon: 'ceiling', href: `/offertes/${quoteId}/klus/plafonds/gipsplafond-metalstud` },
+    { name: 'Plafonds', description: 'Overig Plafonds', icon: 'plus', href: `/offertes/${quoteId}/klus/plafonds/overig-plafonds` },
+  ];
+
   const renderCardContent = (item: Subcategory) => (
       <div
         className={cn(
@@ -81,7 +80,7 @@ export default function PlafondsPage() {
             {loading ? (
                 <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-                <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
+                <p className="text-sm text-muted-foreground truncate"></p>
             ) : null}
         </div>
       </header>

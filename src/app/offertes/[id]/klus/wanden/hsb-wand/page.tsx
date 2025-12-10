@@ -17,14 +17,12 @@ import { Textarea } from '@/components/ui/textarea';
 type Wall = {
   lengte: string;
   hoogte: string;
-  balkafstand: string;
   opmerkingen: string;
 };
 
 const defaultWallState: Wall = {
   lengte: '',
   hoogte: '',
-  balkafstand: '600',
   opmerkingen: '',
 };
 
@@ -84,7 +82,7 @@ export default function HsbWandPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="grid w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6 py-3">
+      <header className="grid w-full grid-cols-3 items-center border-b bg-background px-4 py-3 sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/wanden`}>
@@ -101,7 +99,7 @@ export default function HsbWandPage() {
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
           ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
+            <p className="text-sm text-muted-foreground truncate"></p>
           ) : null}
         </div>
       </header>
@@ -135,11 +133,6 @@ export default function HsbWandPage() {
                                      <Label htmlFor={`hoogte-${index}`}>Hoogte (mm) *</Label>
                                      <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
                                    </div>
-                               </div>
-                               <div className="space-y-2">
-                                   <Label htmlFor={`balkafstand-${index}`}>Balkafstand (h.o.h.)</Label>
-                                   <Input id={`balkafstand-${index}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} />
-                                   <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
                                </div>
 
                                <div className="space-y-2 pt-2">
