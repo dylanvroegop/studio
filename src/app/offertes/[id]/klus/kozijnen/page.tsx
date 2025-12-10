@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -81,7 +82,7 @@ export default function KozijnenPage() {
             {loading ? (
                 <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-                <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
+                <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
             ) : null}
         </div>
       </header>
