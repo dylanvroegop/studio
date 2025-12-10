@@ -329,13 +329,17 @@ export default function HsbWandMaterialenPage() {
   
   // Gekozen preset toepassen
   useEffect(() => {
-    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
+    if (gekozenPresetId === 'default') {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
+    
+    // Wacht tot materialen geladen zijn
+    if (alleMaterialen.length === 0) return;
+
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
 
@@ -590,7 +594,7 @@ export default function HsbWandMaterialenPage() {
             </Button>
           </div>
           <div className="col-start-2 flex flex-col items-center text-center">
-            <h1 className="font-semibold text-lg">HSB wand:</h1>
+            <h1 className="font-semibold text-lg">HSB wand</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
@@ -600,7 +604,6 @@ export default function HsbWandMaterialenPage() {
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
-
               <div className="mb-8 space-y-2">
                 <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
                 <div className="flex items-center gap-2">
@@ -691,4 +694,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
