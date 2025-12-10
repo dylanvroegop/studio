@@ -39,7 +39,7 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
-const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['profielen', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -527,7 +527,7 @@ export default function MetalstudWandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-wand`}>
@@ -536,8 +536,8 @@ export default function MetalstudWandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <div className="text-center">
-            <h1 className="font-semibold text-lg">Materialen - Metalstud Wand:</h1>
+          <div className="col-start-2 flex flex-col items-center text-center">
+            <h1 className="font-semibold text-lg">Materialen - Metalstud wand:</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
@@ -581,11 +581,12 @@ export default function MetalstudWandMaterialenPage() {
 
 
               <div className="space-y-4">
-                {renderSelectieRij('balktype', 'Metalstud Profielen')}
+                {renderSelectieRij('profielen', 'Metalstud Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('folie', 'Folie')}
-                {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
-                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
+                {renderSelectieRij('osb_1', 'Constructieplaat (zijde 1)')}
+                {renderSelectieRij('gips_1', 'Gips / Fermacell (zijde 1)')}
+                {renderSelectieRij('osb_2', 'Constructieplaat (zijde 2)')}
+                {renderSelectieRij('gips_2', 'Gips / Fermacell (zijde 2)')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
@@ -604,7 +605,7 @@ export default function MetalstudWandMaterialenPage() {
 
               <div className="mt-8 flex justify-between items-center">
                   <Button variant="outline" asChild>
-                      <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-wand`}>Terug</Link>
+                      <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-tussenwand`}>Terug</Link>
                   </Button>
                   <div>
                     <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
