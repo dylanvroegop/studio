@@ -55,7 +55,7 @@ type ExtraMateriaal = {
   prijsPerEenheid: number;
 }
 
-const sectieSleutels = ['balktype', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -589,21 +589,17 @@ export default function HsbTussenwandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
+          <div className="text-center">
+            <h1 className="font-semibold text-lg">Materialen - HSB Tussenwand:</h1>
+            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
+          </div>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? (
-              <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
-            ) : null}
+            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p> : null}
           </div>
         </header>
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
-              <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Scheidingswand</h1>
-              </div>
 
               <div className="mb-8 space-y-2">
                 <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
@@ -697,3 +693,5 @@ export default function HsbTussenwandMaterialenPage() {
     </>
   );
 }
+
+    
