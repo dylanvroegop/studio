@@ -525,16 +525,16 @@ export default function MetalstudTussenwandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
+        <header className="sticky top-0 z-10 flex h-auto items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
             <div className="flex items-center justify-start">
               <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-                <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-tussenwand`}>
+                <Link href={`/offertes/${quoteId}/klus/wanden/metalstud-wand`}>
                   <ArrowLeft className="h-4 w-4" />
                   <span className="sr-only">Terug</span>
                 </Link>
               </Button>
             </div>
-            <div className="flex flex-col items-center text-center">
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
               <h1 className="font-semibold text-lg">Metalstud Tussenwand</h1>
               <p className="text-xs text-muted-foreground">stap 5 van 6</p>
             </div>
