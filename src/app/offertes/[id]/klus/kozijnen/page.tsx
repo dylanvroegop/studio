@@ -20,7 +20,6 @@ type Subcategory = {
 export default function KozijnenPage() {
   const params = useParams();
   const quoteId = params.id as string;
-  const [selected, setSelected] = useState<string[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,27 +35,19 @@ export default function KozijnenPage() {
   }, [quoteId]);
 
   const subcategories: Subcategory[] = [
-    { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-hout/materialen` },
-    { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Staal', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-staal/materialen` },
-    { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-hout/materialen` },
-    { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Kunststof', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-kunststof/materialen` },
-    { name: 'Kozijnen', description: 'Zelfgemaakte Kozijnen', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/zelfgemaakte-kozijnen/materialen` },
+    { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-hout` },
+    { name: 'Kozijnen', description: 'Compleet nieuw binnen kozijn – Staal', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-binnen-kozijn-staal` },
+    { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Hout', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-hout` },
+    { name: 'Kozijnen', description: 'Compleet nieuw buiten kozijn – Kunststof', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/compleet-nieuw-buiten-kozijn-kunststof` },
+    { name: 'Kozijnen', description: 'Zelfgemaakte Kozijnen', icon: 'frame', href: `/offertes/${quoteId}/klus/kozijnen/zelfgemaakte-kozijnen` },
     { name: 'Kozijnen', description: 'Overig Kozijnen', icon: 'plus', href: `/offertes/${quoteId}/klus/kozijnen/overig-kozijnen` },
   ];
 
-  const handleSelect = (description: string) => {
-    setSelected((prev) =>
-      prev.includes(description)
-        ? prev.filter((item) => item !== description)
-        : [...prev, description]
-    );
-  };
-  
-    const renderCardContent = (item: Subcategory) => (
+  const renderCardContent = (item: Subcategory) => (
       <div
         className={cn(
           "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
-          selected.includes(item.description) ? "border-primary/80 bg-[#1c1c1c]" : "border-[rgba(255,0,0,0.2)]",
+          "border-[rgba(255,0,0,0.2)]",
           "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
         )}
       >
@@ -82,23 +73,20 @@ export default function KozijnenPage() {
             </Link>
           </Button>
         </div>
-        <h1 className="text-center font-semibold text-lg">Kozijnen: stap 3 van 6</h1>
+        <div className="text-center">
+            <h1 className="font-semibold text-lg">Kozijnen:</h1>
+            <p className="text-xs text-muted-foreground">stap 3 van 6</p>
+        </div>
         <div className="flex items-center justify-end">
             {loading ? (
                 <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-                <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
+                <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
             ) : null}
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-4xl mx-auto w-full">
-          <div className="text-center mb-8">
-            <p className="text-muted-foreground">
-              Kies een klus om toe te voegen aan deze offerte. U kunt later extra klussen toevoegen.
-            </p>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
             {subcategories.map((item) => {
               if (item.href) {
@@ -109,7 +97,7 @@ export default function KozijnenPage() {
                 );
               }
               return (
-                     <div key={item.description} onClick={() => handleSelect(item.description)} className="h-full">
+                     <div key={item.description} className="h-full">
                         {renderCardContent(item)}
                     </div>
               )
