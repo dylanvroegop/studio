@@ -44,6 +44,11 @@ export default function HsbWandPage() {
     setWalls([...walls, { lengte: '', hoogte: '' }]);
   };
 
+  const handleRemoveWall = (index: number) => {
+    const newWalls = walls.filter((_, i) => i !== index);
+    setWalls(newWalls);
+  };
+
   const handleWallChange = (index: number, field: keyof Wall, value: string) => {
     const newWalls = [...walls];
     newWalls[index][field] = value;
@@ -63,12 +68,12 @@ export default function HsbWandPage() {
         return;
     }
 
-    const description = `HSB Wand (${walls.length} stuks)`;
-    
     // Using localStorage to pass data to the next step
     localStorage.setItem(`quote-${quoteId}-hsb-wand`, JSON.stringify(walls));
     router.push(`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`);
   };
+  
+    const isNextDisabled = walls.some(p => !p.lengte || !p.hoogte);
 
   return (
     <main className="flex flex-1 flex-col">
@@ -94,19 +99,21 @@ export default function HsbWandPage() {
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-xl mx-auto w-full">
+        <div className="max-w-2xl mx-auto w-full">
             <form onSubmit={handleSubmit}>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Afmetingen – HSB Wand</CardTitle>
-                        <CardDescription>
-                            Totaal aantal wanden: {walls.length}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {walls.map((wall, index) => (
-                           <div key={index} className="space-y-4 pt-4 border-t border-dashed first:border-t-0 first:pt-0">
-                             <h3 className="font-medium">Wand {index + 1}</h3>
+                <div className="space-y-6">
+                    {walls.map((wall, index) => (
+                       <Card key={index}>
+                           <CardHeader className="flex flex-row items-center justify-between">
+                               <CardTitle>Wand {index + 1}</CardTitle>
+                                {index > 0 && (
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">Verwijder wand</span>
+                                    </Button>
+                                )}
+                           </CardHeader>
+                           <CardContent className="space-y-6">
                              <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
                                  <Label htmlFor={`lengte-${index}`}>Lengte (mm)</Label>
@@ -133,19 +140,19 @@ export default function HsbWandPage() {
                                  />
                                </div>
                              </div>
-                           </div>
-                        ))}
-                         <Button type="button" variant="outline" className="w-full" onClick={handleAddWall}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Wand toevoegen
-                        </Button>
-                    </CardContent>
-                </Card>
+                           </CardContent>
+                       </Card>
+                    ))}
+                </div>
+                <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddWall}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Wand toevoegen
+                </Button>
                 <div className="mt-6 flex justify-between items-center">
                     <Button variant="outline" asChild>
                         <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
                     </Button>
-                    <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
                         Volgende
                     </Button>
                 </div>
