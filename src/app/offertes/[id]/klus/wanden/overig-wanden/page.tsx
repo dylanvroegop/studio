@@ -97,23 +97,20 @@ export default function OverigWandenPage() {
             </Link>
           </Button>
         </div>
-        <h1 className="text-center font-semibold text-lg">Wanden: stap 4 van 6</h1>
+        <div className="text-center">
+            <h1 className="font-semibold text-lg">Wanden:</h1>
+            <p className="text-xs text-muted-foreground">stap 4 van 6</p>
+        </div>
         <div className="flex items-center justify-end">
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
           ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
+            <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
           ) : null}
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-2xl mx-auto w-full">
-            <div className="text-center mb-8">
-                 <h2 className="font-semibold text-2xl">Overig Wanden</h2>
-                <p className="text-muted-foreground mt-2">
-                    Vul hieronder de afmetingen in. Voor elke aparte ruimte of oppervlakte, voeg een nieuw veld toe.
-                </p>
-            </div>
             <form>
               <div className="space-y-6">
                 {walls.map((wall, index) => (

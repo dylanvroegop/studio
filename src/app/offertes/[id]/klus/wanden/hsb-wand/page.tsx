@@ -17,15 +17,6 @@ import { createJobAction } from '@/lib/actions';
 type Wall = {
   lengte: string;
   hoogte: string;
-  balkafstand: string;
-  opmerkingen: string;
-};
-
-const defaultWallState: Wall = {
-  lengte: '',
-  hoogte: '',
-  balkafstand: '600',
-  opmerkingen: '',
 };
 
 export default function HsbWandPage() {
@@ -36,7 +27,7 @@ export default function HsbWandPage() {
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [walls, setWalls] = useState<Wall[]>([defaultWallState]);
+  const [walls, setWalls] = useState<Wall[]>([{ lengte: '', hoogte: '' }]);
 
   useEffect(() => {
     async function fetchQuote() {
@@ -50,23 +41,19 @@ export default function HsbWandPage() {
   }, [quoteId]);
   
   const handleAddWall = () => {
-    setWalls([...walls, { ...defaultWallState }]);
-  };
-  
-  const handleRemoveWall = (index: number) => {
-    const newWalls = walls.filter((_, i) => i !== index);
-    setWalls(newWalls);
+    setWalls([...walls, { lengte: '', hoogte: '' }]);
   };
 
-  const handleWallChange = <K extends keyof Wall>(index: number, field: K, value: Wall[K]) => {
+  const handleWallChange = (index: number, field: keyof Wall, value: string) => {
     const newWalls = [...walls];
     newWalls[index][field] = value;
     setWalls(newWalls);
   };
   
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
+    // Validate that all fields are filled
     if (walls.some(wall => !wall.lengte || !wall.hoogte)) {
         toast({
             variant: "destructive",
@@ -78,17 +65,10 @@ export default function HsbWandPage() {
 
     const description = `HSB Wand (${walls.length} stuks)`;
     
-    localStorage.setItem(`quote-${quoteId}-hsb-wanden`, JSON.stringify(walls));
-    router.push(`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`);
+    // Assuming createJobAction is updated to handle multiple walls or just a general description
+    // For now, we pass a general description and the action handles the redirect.
+    await createJobAction(quoteId, 'Wanden', description);
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'e' || e.key === 'E') {
-      e.preventDefault();
-    }
-  };
-  
-  const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
 
   return (
     <main className="flex flex-1 flex-col">
@@ -101,76 +81,71 @@ export default function HsbWandPage() {
             </Link>
           </Button>
         </div>
-        <h1 className="text-center font-semibold text-lg">Wanden: stap 4 van 6</h1>
+         <div className="text-center">
+            <h1 className="font-semibold text-lg">Wanden:</h1>
+            <p className="text-xs text-muted-foreground">stap 4 van 6</p>
+        </div>
         <div className="flex items-center justify-end">
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
           ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
+            <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
           ) : null}
         </div>
       </header>
       <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-2xl mx-auto w-full">
-            <div className="text-center mb-8">
-                 <h2 className="font-semibold text-2xl">HSB Wand</h2>
-                <p className="text-muted-foreground mt-2">
-                    Vul hieronder de gevraagde gegevens in. Deze informatie gebruiken wij om jouw offerte nauwkeurig voor je uit te werken.
-                </p>
-            </div>
+        <div className="max-w-xl mx-auto w-full">
             <form onSubmit={handleSubmit}>
-                <div className="space-y-6">
-                    {walls.map((wall, index) => (
-                       <Card key={index}>
-                           <CardHeader className="flex flex-row items-center justify-between">
-                               <div>
-                                   <CardTitle>Wand {index + 1}</CardTitle>
-                                   <CardDescription>
-                                       Specificeer de afmetingen en details voor deze wand.
-                                   </CardDescription>
-                               </div>
-                                {index > 0 && (
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveWall(index)} className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2">
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Verwijder wand</span>
-                                    </Button>
-                                )}
-                           </CardHeader>
-                           <CardContent className="space-y-6">
-                               <div className="grid grid-cols-2 gap-4">
-                                   <div className="space-y-2">
-                                     <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                     <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown}/>
-                                   </div>
-                                   <div className="space-y-2">
-                                     <Label htmlFor={`hoogte-${index}`}>Hoogte / Breedte (mm) *</Label>
-                                     <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} onKeyDown={handleKeyDown}/>
-                                   </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Afmetingen – HSB Wand</CardTitle>
+                        <CardDescription>
+                            Totaal aantal wanden: {walls.length}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {walls.map((wall, index) => (
+                           <div key={index} className="space-y-4 pt-4 border-t border-dashed first:border-t-0 first:pt-0">
+                             <h3 className="font-medium">Wand {index + 1}</h3>
+                             <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                 <Label htmlFor={`lengte-${index}`}>Lengte (mm)</Label>
+                                 <Input 
+                                    id={`lengte-${index}`} 
+                                    name={`lengte-${index}`} 
+                                    type="number" 
+                                    placeholder="Bijv. 5000" 
+                                    required 
+                                    value={wall.lengte}
+                                    onChange={(e) => handleWallChange(index, 'lengte', e.target.value)}
+                                 />
                                </div>
                                <div className="space-y-2">
-                                   <Label htmlFor={`balkafstand-${index}`}>Balkafstand (h.o.h.)</Label>
-                                   <Input id={`balkafstand-${index}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} onKeyDown={handleKeyDown}/>
-                                   <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
+                                 <Label htmlFor={`hoogte-${index}`}>Hoogte / Breedte (mm)</Label>
+                                 <Input 
+                                    id={`hoogte-${index}`} 
+                                    name={`hoogte-${index}`} 
+                                    type="number" 
+                                    placeholder="Bijv. 2600" 
+                                    required
+                                    value={wall.hoogte}
+                                    onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)}
+                                 />
                                </div>
-
-                               <div className="space-y-2 pt-2">
-                                  <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
-                                   <p className="text-xs text-muted-foreground">Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.</p>
-                                  <Textarea id={`opmerkingen-${index}`} placeholder="Bijzondere details, alleen indien nodig…" value={wall.opmerkingen} onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)} />
-                                </div>
-                           </CardContent>
-                       </Card>
-                    ))}
-                </div>
-                 <Button type="button" variant="outline" className="w-full mt-6" onClick={handleAddWall}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Wand toevoegen
-                </Button>
+                             </div>
+                           </div>
+                        ))}
+                         <Button type="button" variant="outline" className="w-full" onClick={handleAddWall}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Wand toevoegen
+                        </Button>
+                    </CardContent>
+                </Card>
                 <div className="mt-6 flex justify-between items-center">
                     <Button variant="outline" asChild>
                         <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
                     </Button>
-                    <Button type="submit" disabled={isNextDisabled} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                    <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
                         Volgende
                     </Button>
                 </div>
