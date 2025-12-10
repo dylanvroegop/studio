@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -26,7 +27,7 @@ export default function NewQuotePage() {
 
   return (
     <main className="flex flex-1 flex-col">
-       <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+       <header className="sticky top-0 z-10 flex h-auto items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="outline" size="icon" className="h-8 w-8">
             <Link href="/">
@@ -35,7 +36,10 @@ export default function NewQuotePage() {
             </Link>
           </Button>
         </div>
-        <h1 className="text-center font-semibold text-lg">Nieuwe Offerte: Stap 1 van 6</h1>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+            <h1 className="font-semibold text-lg">Nieuwe Offerte</h1>
+            <p className="text-xs text-muted-foreground">stap 1 van 6</p>
+        </div>
         <div className="flex items-center justify-end"></div>
       </header>
       <div className="flex-1 p-4 md:p-8">
