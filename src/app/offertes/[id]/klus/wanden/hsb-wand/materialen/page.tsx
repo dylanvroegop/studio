@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -21,22 +21,39 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { Reorder } from 'framer-motion';
 import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2 } from 'lucide-react';
 
 
 // ==================================
 // Definities en Data
 // ==================================
-type MateriaalKeuze = {
+type Materiaal = {
+  row_id: string;
   id: string;
   materiaalnaam: string;
   categorie: string | null;
   eenheid: string;
-  prijs: number;
+  prijs: number | string | null;
+  sort_order: number | null;
+  user_id: string;
 };
+
+type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
+
+type ExtraMateriaal = {
+  id: string;
+  naam: string;
+  eenheid: 'stuk' | 'm¹' | 'm²' | 'm³';
+  lengteMm?: number;
+  breedteMm?: number;
+  hoogteMm?: number;
+  prijsPerEenheid: number;
+}
 
 const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -107,11 +124,12 @@ type MateriaalKiezerModalProps = {
   geselecteerdMateriaalId?: string;
   onSluiten: () => void;
   onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
+  openReorderModal: () => void;
+  materialen: MateriaalKeuze[];
 };
 
-function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
-  const [materialen, setMaterialen] = useState<MateriaalKeuze[]>([]);
   
   const gefilterdeMaterialen = useMemo(() => {
     return materialen.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
@@ -141,6 +159,9 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                 value={zoekterm}
                 onChange={(e) => setZoekterm(e.target.value)}
             />
+            <button onClick={openReorderModal} className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-3">
+              Lijst opnieuw ordenen
+            </button>
         </div>
         
         <div className="overflow-y-auto flex-1">
@@ -178,6 +199,47 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
+function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean, onOpenChange: (open:boolean) => void, materials: MateriaalKeuze[], onSave: (materials: MateriaalKeuze[]) => void }) {
+    const [orderedMaterials, setOrderedMaterials] = useState(materials);
+
+    useEffect(() => {
+        setOrderedMaterials(materials);
+    }, [materials]);
+
+    const handleSave = async () => {
+        // Implement save logic here, this will likely involve updating the sort_order in your database
+        onSave(orderedMaterials);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Materiaal Volgorde</DialogTitle>
+                    <DialogDescription>
+                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-[60vh] overflow-y-auto">
+                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
+                        {orderedMaterials.map(item => (
+                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-muted-foreground"><path d="M7 10l-3 3 3 3M17 10l3 3-3 3M12 4v16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                {item.materiaalnaam}
+                            </Reorder.Item>
+                        ))}
+                    </Reorder.Group>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+                    <Button onClick={handleSave}>Opslaan</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 
 // ==================================
 // Pagina Component
@@ -213,6 +275,7 @@ export default function HsbWandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const isVolgendeIngeschakeld = true;
@@ -418,8 +481,8 @@ export default function HsbWandMaterialenPage() {
         </Card>
     );
   };
-
-  const renderKleinMateriaalSectie = () => {
+  
+    const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -536,9 +599,6 @@ export default function HsbWandMaterialenPage() {
           <div className="max-w-2xl mx-auto w-full">
               <div className="text-center mb-8">
                    <h1 className="font-semibold text-2xl md:text-3xl">Materialen – HSB Wand</h1>
-                  <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan voor volgende offertes.
-                  </p>
               </div>
 
               <div className="mb-8 space-y-2">
