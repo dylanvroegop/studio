@@ -329,13 +329,17 @@ export default function HsbWandMaterialenPage() {
   
   // Gekozen preset toepassen
   useEffect(() => {
-    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
+    if (gekozenPresetId === 'default') {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
+    
+    // Wacht tot materialen geladen zijn
+    if (alleMaterialen.length === 0) return;
+
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
 
@@ -482,7 +486,7 @@ export default function HsbWandMaterialenPage() {
     );
   };
   
-  const renderKleinMateriaalSectie = () => {
+    const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -589,7 +593,10 @@ export default function HsbWandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">materialen - HSB wand: stap 5 van 6</h1>
+          <div className="text-center">
+            <h1 className="font-semibold text-lg">Materialen - HSB wand:</h1>
+            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
+          </div>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p> : null}
           </div>
