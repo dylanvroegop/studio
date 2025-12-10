@@ -329,17 +329,13 @@ export default function HsbWandMaterialenPage() {
   
   // Gekozen preset toepassen
   useEffect(() => {
-    if (gekozenPresetId === 'default') {
+    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
-    
-    // Wacht tot materialen geladen zijn
-    if (alleMaterialen.length === 0) return;
-
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
 
@@ -584,7 +580,7 @@ export default function HsbWandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
+        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/wanden/hsb-wand`}>
