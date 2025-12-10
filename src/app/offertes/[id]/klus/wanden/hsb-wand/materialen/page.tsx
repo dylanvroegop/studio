@@ -580,7 +580,7 @@ export default function HsbWandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="sticky top-0 z-10 grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/wanden/hsb-wand`}>
@@ -589,7 +589,7 @@ export default function HsbWandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <div className="text-center">
+          <div className="col-start-2 flex flex-col items-center text-center">
             <h1 className="font-semibold text-lg">Materialen - HSB wand:</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
@@ -600,7 +600,7 @@ export default function HsbWandMaterialenPage() {
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
-              
+
               <div className="mb-8 space-y-2">
                 <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
                 <div className="flex items-center gap-2">
