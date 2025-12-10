@@ -65,9 +65,9 @@ export default function HsbWandPage() {
 
     const description = `HSB Wand (${walls.length} stuks)`;
     
-    // Assuming createJobAction is updated to handle multiple walls or just a general description
-    // For now, we pass a general description and the action handles the redirect.
-    await createJobAction(quoteId, 'Wanden', description);
+    // Using localStorage to pass data to the next step
+    localStorage.setItem(`quote-${quoteId}-hsb-wand`, JSON.stringify(walls));
+    router.push(`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`);
   };
 
   return (
@@ -89,7 +89,7 @@ export default function HsbWandPage() {
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
           ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
+            <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
           ) : null}
         </div>
       </header>
