@@ -26,7 +26,7 @@ const defaultDeurState: Deur = {
   opmerkingen: '',
 };
 
-export default function OverigDeurenPage() {
+export default function NieuweDeurAfhangenBuitendeurPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -74,8 +74,9 @@ export default function OverigDeurenPage() {
         return;
     }
 
-    localStorage.setItem(`quote-${quoteId}-overig-deuren`, JSON.stringify(deuren));
-    router.push(`/offertes/${quoteId}/klus/deuren/overig-deuren/materialen`);
+    localStorage.setItem(`quote-${quoteId}-buitendeuren`, JSON.stringify(deuren));
+    
+    router.push(`/offertes/${quoteId}/klus/deuren/nieuwe-deur-afhangen-buitendeur/materialen`);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
