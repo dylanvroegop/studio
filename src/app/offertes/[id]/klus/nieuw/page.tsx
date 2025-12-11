@@ -67,7 +67,7 @@ export default function NewJobPage() {
                     </Button>
                 </div>
                 <div className="text-center">
-                    <h1 className="font-semibold text-lg">Kies een klus:</h1>
+                    <h1 className="font-semibold text-lg">Kies een klus</h1>
                     <p className="text-xs text-muted-foreground">stap 2 van 6</p>
                 </div>
                 <div className="flex items-center justify-end">
