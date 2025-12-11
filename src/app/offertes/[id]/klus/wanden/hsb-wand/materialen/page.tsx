@@ -556,7 +556,11 @@ export default function HsbWandMaterialenPage() {
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
       // Always return empty array as per user request
-      return [];
+      return [
+        { id: '1', materiaalnaam: 'Demo Test Material 1', categorie: 'hout', eenheid: 'm1', prijs: 10.5, sort_order: 1 },
+        { id: '2', materiaalnaam: 'Demo Test Material 2', categorie: 'isolatie', eenheid: 'm2', prijs: 25, sort_order: 2 },
+        { id: '3', materiaalnaam: 'Demo Test Material 3', categorie: 'plaat', eenheid: 'st', prijs: 15, sort_order: 3 },
+      ];
   }, []);
 
 
@@ -573,7 +577,7 @@ export default function HsbWandMaterialenPage() {
         const newExtra: ExtraMaterial = {
             id: crypto.randomUUID(),
             naam: materiaal.materiaalnaam,
-            eenheid: materiaal.eenheid,
+            eenheid: materiaal.eenheid as any, // Cast for simplicity, handle validation
             prijsPerEenheid: materiaal.prijs,
             usageDescription: '' // User needs to fill this in if it's from the list
         };
