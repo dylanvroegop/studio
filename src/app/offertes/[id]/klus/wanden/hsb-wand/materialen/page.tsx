@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -46,15 +46,6 @@ type Materiaal = {
 };
 
 type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
-
-type ExtraMaterial = {
-  id: string;
-  naam: string;
-  eenheid: string;
-  prijsPerEenheid: number;
-  aantal?: number;
-  usageDescription: string;
-};
 
 const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -152,9 +143,16 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   const [eigenPrijs, setEigenPrijs] = useState('');
   const [usageDescription, setUsageDescription] = useState('');
   const [aantal, setAantal] = useState<number | undefined>();
+  const [lengte, setLengte] = useState('');
+  const [breedte, setBreedte] = useState('');
+  const [hoogte, setHoogte] = useState('');
+
 
   const [formErrors, setFormErrors] = useState({ naam: '', eenheid: '', prijs: '', usageDescription: '' });
+  
   const showWarning = !!(eigenNaam || eigenEenheid || eigenPrijs || aantal);
+  const requiresDescription = ['stuk', 'doos', 'set', 'uur', 'anders'].includes(eigenEenheid);
+
 
   const gefilterdeMaterialen = useMemo(() => {
     return materialen.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
@@ -167,6 +165,9 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
         setEigenPrijs('');
         setUsageDescription('');
         setAantal(undefined);
+        setLengte('');
+        setBreedte('');
+        setHoogte('');
         setFormErrors({ naam: '', eenheid: '', prijs: '', usageDescription: '' });
         setZoekterm('');
         setActiveTab('eigen');
@@ -199,7 +200,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
         errors.prijs = 'Geldige prijs is verplicht';
         hasError = true;
     }
-    const requiresDescription = ['stuk', 'doos', 'set', 'uur', 'anders'].includes(eigenEenheid);
     if (requiresDescription && !usageDescription.trim()) {
         errors.usageDescription = 'Beschrijf kort waar dit materiaal voor gebruikt wordt.';
         hasError = true;
@@ -278,19 +278,19 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                             {formErrors.prijs && <p className="text-sm text-destructive">{formErrors.prijs}</p>}
                         </div>
                     </div>
-                    {['stuk', 'doos', 'set', 'uur', 'anders'].includes(eigenEenheid) && (
-                        <div className="space-y-2">
-                            <Label htmlFor="aantal">Aantal</Label>
-                            <Input id="aantal" type="number" value={aantal ?? ''} onChange={e => setAantal(parseInt(e.target.value, 10))} />
-                        </div>
-                    )}
-                    <div className="space-y-2">
-                        <Label htmlFor="usage-description">
-                            Beschrijving (gebruik) {['stuk', 'doos', 'set', 'uur', 'anders'].includes(eigenEenheid) && '*'}
-                        </Label>
+                    
+                    {eigenEenheid === 'm1' && <div className="space-y-2"><Label>Lengte (m)</Label><Input type="number" value={lengte} onChange={e => setLengte(e.target.value)} /></div>}
+                    {eigenEenheid === 'm2' && <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Lengte (m)</Label><Input type="number" value={lengte} onChange={e => setLengte(e.target.value)} /></div><div className="space-y-2"><Label>Breedte (m)</Label><Input type="number" value={breedte} onChange={e => setBreedte(e.target.value)} /></div></div>}
+                    {eigenEenheid === 'm3' && <div className="grid grid-cols-3 gap-4"><div className="space-y-2"><Label>Lengte (m)</Label><Input type="number" value={lengte} onChange={e => setLengte(e.target.value)} /></div><div className="space-y-2"><Label>Breedte (m)</Label><Input type="number" value={breedte} onChange={e => setBreedte(e.target.value)} /></div><div className="space-y-2"><Label>Hoogte (m)</Label><Input type="number" value={hoogte} onChange={e => setHoogte(e.target.value)} /></div></div>}
+                    {requiresDescription && <div className="space-y-2"><Label>Aantal</Label><Input type="number" value={aantal ?? ''} onChange={e => setAantal(parseInt(e.target.value, 10))} /></div>}
+
+                    {requiresDescription && (
+                      <div className="space-y-2">
+                        <Label htmlFor="usage-description">Beschrijving (gebruik) *</Label>
                         <Textarea id="usage-description" value={usageDescription} onChange={(e) => setUsageDescription(e.target.value)} placeholder="Waar wordt dit materiaal voor gebruikt? Dit helpt bij een correcte offerteberekening."/>
                         {formErrors.usageDescription && <p className="text-sm text-destructive">{formErrors.usageDescription}</p>}
-                    </div>
+                      </div>
+                    )}
                     
                     {showWarning && (
                         <div className="mt-2 text-xs text-amber-400 p-3 bg-amber-950/80 border border-amber-900 rounded-md flex items-start gap-2">
@@ -652,7 +652,7 @@ export default function HsbWandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Verberg</Button>
             </div>
         );
     }
@@ -804,7 +804,7 @@ export default function HsbWandMaterialenPage() {
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate"></p> : null}
+            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : null}
           </div>
         </header>
         
@@ -901,4 +901,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
