@@ -135,9 +135,15 @@ type MateriaalKiezerModalProps = {
   materialen: MateriaalKeuze[];
 };
 
-function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen, onAddExtra }: MateriaalKiezerModalProps) {
+function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen: initialMaterials, onAddExtra }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
   const [activeTab, setActiveTab] = useState("eigen");
+  const [orderedMaterials, setOrderedMaterials] = useState(initialMaterials);
+  
+  useEffect(() => {
+    setOrderedMaterials(initialMaterials);
+  }, [initialMaterials]);
+
 
   const [eigenNaam, setEigenNaam] = useState('');
   const [eigenEenheid, setEigenEenheid] = useState<string>('');
@@ -156,8 +162,8 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
 
 
   const gefilterdeMaterialen = useMemo(() => {
-    return materialen.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
-  }, [zoekterm, materialen]);
+    return orderedMaterials.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
+  }, [zoekterm, orderedMaterials]);
 
   useEffect(() => {
     if (open) {
@@ -350,30 +356,29 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                     />
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
-                    <ul className="divide-y divide-border">
+                    <Reorder.Group as="ul" axis="y" values={gefilterdeMaterialen} onReorder={setOrderedMaterials} className="divide-y divide-border">
                         {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
-                            <li 
+                            <Reorder.Item 
                                 key={materiaal.id}
-                                onClick={() => handleSelect(materiaal)}
-                                className={cn("p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
+                                value={materiaal}
+                                className={cn("p-4 -mx-4 cursor-grab active:cursor-grabbing bg-background flex items-center justify-between", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
                             >
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <p className="font-medium">{materiaal.materiaalnaam}</p>
-                                        <p className="text-sm text-muted-foreground">{materiaal.categorie}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
-                                        <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
-                                    </div>
+                                <div onClick={() => handleSelect(materiaal)} className="flex-grow">
+                                    <p className="font-medium">{materiaal.materiaalnaam}</p>
+                                    <p className="text-sm text-muted-foreground">{materiaal.categorie}</p>
                                 </div>
-                            </li>
+                                <div onClick={() => handleSelect(materiaal)} className="text-right pr-4">
+                                    <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
+                                    <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
+                                </div>
+                                <GripVertical className="h-5 w-5 text-muted-foreground" />
+                            </Reorder.Item>
                         )) : (
                             <div className="p-8 text-center text-muted-foreground">
                                 <p>Geen materialen gevonden die voldoen aan de criteria.</p>
                             </div>
                         )}
-                    </ul>
+                    </Reorder.Group>
                 </div>
             </div>
         )}
@@ -541,7 +546,7 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay
+  // Set loading to false after a short delay to prevent flash of loading state
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
@@ -551,14 +556,12 @@ export default function HsbWandMaterialenPage() {
 
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-    if (sectieKey === 'balktype') {
+      // Always return empty array as per user request
       return [
-          { id: 'mat-1', materiaalnaam: 'Vuren SLS 38x140mm C18', categorie: 'hout', eenheid: 'm1', prijs: 12.5, sort_order: 1 },
-          { id: 'mat-2', materiaalnaam: 'Vuren Geschaafd 44x70mm', categorie: 'hout', eenheid: 'm1', prijs: 8.2, sort_order: 2 },
+        { id: 'mat-1', materiaalnaam: 'Demo Test Material 1', categorie: 'hout', eenheid: 'm1', prijs: 12.5, sort_order: 1 },
+        { id: 'mat-2', materiaalnaam: 'Demo Test Material 2', categorie: 'hout', eenheid: 'm1', prijs: 8.2, sort_order: 2 },
       ];
-    }
-    return [];
-}, []);
+  }, []);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
@@ -679,7 +682,7 @@ export default function HsbWandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
                 <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="link" size="sm" onClick={()={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
     }
@@ -699,11 +702,11 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm text-primary">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? <p className="text-sm font-semibold">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
-                                <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                <Button variant="ghost" size="icon" onClick={()={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                                 )}
@@ -929,3 +932,5 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
