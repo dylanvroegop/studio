@@ -442,7 +442,7 @@ export default function HsbTussenwandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
             </div>
         );
     }
@@ -594,7 +594,7 @@ export default function HsbTussenwandMaterialenPage() {
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p> : null}
+            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate"></p> : null}
           </div>
         </header>
         
@@ -693,6 +693,8 @@ export default function HsbTussenwandMaterialenPage() {
     </>
   );
 }
+
+    
 
     
 
