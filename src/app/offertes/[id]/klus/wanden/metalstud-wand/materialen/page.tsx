@@ -536,7 +536,10 @@ export default function MetalstudWandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
+          <div className="text-center">
+            <h1 className="font-semibold text-lg">Materialen</h1>
+            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
+          </div>
           <div className="flex items-center justify-end">
             
           </div>
@@ -544,6 +547,12 @@ export default function MetalstudWandMaterialenPage() {
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
+              <div className="text-center mb-8">
+                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Metalstud Wand</h1>
+                  <p className="text-muted-foreground mt-2">
+                      Kies de materialen die u voor deze wand gebruikt. U kunt deze keuzes als voorinstelling opslaan.
+                  </p>
+              </div>
               
               <div className="mb-8">
                   <Label htmlFor='preset-select' className='text-xs text-muted-foreground'>Voorinstellingen</Label>
@@ -626,3 +635,9 @@ export default function MetalstudWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+
+
+
