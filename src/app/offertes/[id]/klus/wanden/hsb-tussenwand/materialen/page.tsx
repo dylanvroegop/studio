@@ -590,7 +590,7 @@ export default function HsbTussenwandMaterialenPage() {
             </Button>
           </div>
           <div className="col-start-2 flex flex-col items-center text-center">
-            <h1 className="font-semibold text-lg">Materialen - HSB Tussenwand:</h1>
+            <h1 className="font-semibold text-lg">HSB Tussenwand</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
@@ -693,6 +693,8 @@ export default function HsbTussenwandMaterialenPage() {
     </>
   );
 }
+
+    
 
     
 
