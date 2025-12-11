@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -26,6 +26,7 @@ import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -58,6 +59,7 @@ const lijktPlaatmateriaal = (naam: string) => {
     "underlayment",
     "plaat",
     "multiplex",
+    "vezelplaat",
     "vezelplaat",
   ];
   return keywords.some((kw) => lower.includes(kw));
@@ -169,9 +171,9 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
         setHoogte('');
         setFormErrors({ naam: '', eenheid: '', prijs: '', usageDescription: '' });
         setZoekterm('');
-        setActiveTab('eigen');
+        setActiveTab(sectieSleutel === 'extra' ? 'eigen' : 'lijst');
     }
-  }, [open]);
+  }, [open, sectieSleutel]);
 
   if (!open) {
     return null;
@@ -646,7 +648,7 @@ export default function HsbWandMaterialenPage() {
     });
   };
 
-  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -730,98 +732,98 @@ export default function HsbWandMaterialenPage() {
     );
   };
   
-  const renderKleinMateriaalSectie = () => {
+    const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
-  
+
     if (isCollapsed) {
-      return (
-        <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-          <p className="text-sm font-medium">Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-          <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
-        </div>
-      );
+        return (
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
+                <p className="text-sm font-medium">Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+            </div>
+        );
     }
     
     return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between p-4">
-          <div className="space-y-1.5">
-            <CardTitle className="text-lg">Klein materiaal</CardTitle>
-            <CardDescription>
-              Kies of je dit wilt berekenen via een percentage of een vast bedrag.
-            </CardDescription>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
-            Verberg
-          </Button>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          <div className="border-t pt-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div
-                className={cn(
-                  "p-4 rounded-lg border cursor-pointer",
-                  kleinMateriaalConfig.mode === 'percentage' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
-                )}
-                onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
-              >
-                <h4 className="font-semibold">Percentage (%)</h4>
-                <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
-              </div>
-              <div
-                className={cn(
-                  "p-4 rounded-lg border cursor-pointer",
-                  kleinMateriaalConfig.mode === 'fixed' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
-                )}
-                onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
-              >
-                <h4 className="font-semibold">Vast bedrag (€)</h4>
-                <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
-              </div>
-            </div>
-  
-            {kleinMateriaalConfig.mode === 'percentage' && (
-              <div className="pt-2">
-                <Label htmlFor="percentage">Percentage</Label>
-                <div className="relative">
-                  <Input
-                    id="percentage"
-                    type="number"
-                    step="0.1"
-                    className="w-full pr-8"
-                    value={kleinMateriaalConfig.percentage ?? ''}
-                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
-                    onBlur={(e) => {
-                      if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
-                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
-                      }
-                    }}
-                  />
-                  <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between p-4">
+                <div className="space-y-1.5">
+                    <CardTitle className="text-lg">Klein materiaal</CardTitle>
+                    <CardDescription>
+                        Kies of je dit wilt berekenen via een percentage of een vast bedrag.
+                    </CardDescription>
                 </div>
-              </div>
-            )}
-  
-            {kleinMateriaalConfig.mode === 'fixed' && (
-              <div className="pt-2">
-                <Label htmlFor="fixedAmount">Bedrag</Label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
-                  <Input
-                    id="fixedAmount"
-                    type="number"
-                    className="w-full pl-7"
-                    placeholder="Bijv. 50"
-                    value={kleinMateriaalConfig.fixedAmount || ''}
-                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
-                  />
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
+                    Verberg
+                </Button>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+                <div className="border-t pt-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div
+                            className={cn(
+                                "p-4 rounded-lg border cursor-pointer",
+                                kleinMateriaalConfig.mode === 'percentage' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                            )}
+                            onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
+                        >
+                            <h4 className="font-semibold">Percentage (%)</h4>
+                            <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
+                        </div>
+                        <div
+                            className={cn(
+                                "p-4 rounded-lg border cursor-pointer",
+                                kleinMateriaalConfig.mode === 'fixed' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
+                            )}
+                            onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
+                        >
+                            <h4 className="font-semibold">Vast bedrag (€)</h4>
+                            <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
+                        </div>
+                    </div>
+
+                    {kleinMateriaalConfig.mode === 'percentage' && (
+                        <div className="pt-2">
+                            <Label htmlFor="percentage">Percentage</Label>
+                            <div className="relative">
+                                <Input
+                                    id="percentage"
+                                    type="number"
+                                    step="0.1"
+                                    className="w-24 pr-8"
+                                    value={kleinMateriaalConfig.percentage ?? ''}
+                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                    onBlur={(e) => {
+                                      if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
+                                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
+                                      }
+                                    }}
+                                />
+                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {kleinMateriaalConfig.mode === 'fixed' && (
+                        <div className="pt-2">
+                            <Label htmlFor="fixedAmount">Bedrag</Label>
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
+                                <Input
+                                    id="fixedAmount"
+                                    type="number"
+                                    className="w-32 pl-7"
+                                    placeholder="Bijv. 50"
+                                    value={kleinMateriaalConfig.fixedAmount || ''}
+                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+        </Card>
     );
   };
   
@@ -940,3 +942,5 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
