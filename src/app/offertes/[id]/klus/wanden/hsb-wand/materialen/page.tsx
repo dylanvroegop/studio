@@ -139,7 +139,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   const [activeTab, setActiveTab] = useState("eigen");
 
   const [eigenNaam, setEigenNaam] = useState('');
-  const [eigenEenheid, setEigenEenheid] = useState('');
+  const [eigenEenheid, setEigenEenheid] = useState<string>('');
   const [eigenPrijs, setEigenPrijs] = useState('');
   const [usageDescription, setUsageDescription] = useState('');
   const [aantal, setAantal] = useState<number | undefined>();
@@ -196,7 +196,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
         hasError = true;
     }
     const prijsNum = parseFloat(eigenPrijs);
-    if (!eigenPrijs || isNaN(prijsNum) || prijsNum <= 0) {
+    if (!eigenPrijs || isNaN(prijsNum) || prijsNum < 0) {
         errors.prijs = 'Geldige prijs is verplicht';
         hasError = true;
     }
@@ -232,20 +232,22 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
       anders: "Prijs per eenheid (€)",
     };
 
+  const isExtraMateriaal = sectieSleutel === 'extra';
+
   return (
     <Dialog open={open} onOpenChange={onSluiten}>
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-0">
-            <DialogTitle>Kies materiaal voor: Extra Materiaal</DialogTitle>
+            <DialogTitle>Kies materiaal voor: {isExtraMateriaal ? "Extra Materiaal" : "de geselecteerde categorie"}</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="p-6 pt-2">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
-                <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
-            </TabsList>
-            <TabsContent value="eigen" className="pt-4">
-                <div className="space-y-4">
+        {isExtraMateriaal ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="p-6 pt-2 flex-1 flex flex-col min-h-0">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
+                    <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
+                </TabsList>
+                <TabsContent value="eigen" className="pt-4 flex-1 overflow-y-auto pr-2 -mr-2 space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
                         <Input id="eigen-naam" value={eigenNaam} onChange={(e) => setEigenNaam(e.target.value)} />
@@ -283,7 +285,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                     {eigenEenheid === 'm2' && <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Lengte (m)</Label><Input type="number" value={lengte} onChange={e => setLengte(e.target.value)} /></div><div className="space-y-2"><Label>Breedte (m)</Label><Input type="number" value={breedte} onChange={e => setBreedte(e.target.value)} /></div></div>}
                     {eigenEenheid === 'm3' && <div className="grid grid-cols-3 gap-4"><div className="space-y-2"><Label>Lengte (m)</Label><Input type="number" value={lengte} onChange={e => setLengte(e.target.value)} /></div><div className="space-y-2"><Label>Breedte (m)</Label><Input type="number" value={breedte} onChange={e => setBreedte(e.target.value)} /></div><div className="space-y-2"><Label>Hoogte (m)</Label><Input type="number" value={hoogte} onChange={e => setHoogte(e.target.value)} /></div></div>}
                     {requiresDescription && <div className="space-y-2"><Label>Aantal</Label><Input type="number" value={aantal ?? ''} onChange={e => setAantal(parseInt(e.target.value, 10))} /></div>}
-
+                    
                     {requiresDescription && (
                       <div className="space-y-2">
                         <Label htmlFor="usage-description">Beschrijving (gebruik) *</Label>
@@ -301,10 +303,47 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                             </div>
                         </div>
                     )}
-                </div>
-            </TabsContent>
-            <TabsContent value="lijst" className="pt-4">
-                 <div className="border-b pb-4">
+                </TabsContent>
+                <TabsContent value="lijst" className="pt-4 flex-1 flex flex-col min-h-0">
+                     <div className="border-b pb-4">
+                        <Input 
+                            type="text"
+                            placeholder={"Zoek op materiaalnaam..."}
+                            value={zoekterm}
+                            onChange={(e) => setZoekterm(e.target.value)}
+                        />
+                    </div>
+                    <div className="overflow-y-auto flex-1 mt-4 max-h-[40vh]">
+                        <ul className="divide-y divide-border">
+                            {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
+                                <li 
+                                    key={materiaal.id}
+                                    onClick={() => handleSelect(materiaal)}
+                                    className="p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium">{materiaal.materiaalnaam}</p>
+                                            <p className="text-sm text-muted-foreground">{materiaal.categorie}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
+                                            <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
+                                        </div>
+                                    </div>
+                                </li>
+                            )) : (
+                                <div className="p-8 text-center text-muted-foreground">
+                                    <p>Geen materialen gevonden die voldoen aan de criteria.</p>
+                                </div>
+                            )}
+                        </ul>
+                    </div>
+                </TabsContent>
+            </Tabs>
+        ) : (
+            <div className="p-6 pt-2 flex-1 flex flex-col min-h-0">
+                <div className="border-b pb-4">
                     <Input 
                         type="text"
                         placeholder={"Zoek op materiaalnaam..."}
@@ -312,13 +351,13 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                         onChange={(e) => setZoekterm(e.target.value)}
                     />
                 </div>
-                <div className="overflow-y-auto flex-1 mt-4 max-h-[40vh]">
+                <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
                     <ul className="divide-y divide-border">
                         {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
                             <li 
                                 key={materiaal.id}
                                 onClick={() => handleSelect(materiaal)}
-                                className="p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                                className={cn("p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
                             >
                                 <div className="flex justify-between items-center">
                                     <div>
@@ -338,12 +377,12 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                         )}
                     </ul>
                 </div>
-            </TabsContent>
-        </Tabs>
+            </div>
+        )}
         
-        <DialogFooter className="p-6 pt-0">
+        <DialogFooter className="p-6 pt-0 mt-auto border-t">
             <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
-            {activeTab === 'eigen' && (
+            {isExtraMateriaal && activeTab === 'eigen' && (
                  <Button onClick={handleAddEigenMateriaal}>Materiaal toevoegen</Button>
             )}
         </DialogFooter>
@@ -608,7 +647,7 @@ export default function HsbWandMaterialenPage() {
     });
   };
 
-  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
+  const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
 
@@ -632,7 +671,7 @@ export default function HsbWandMaterialenPage() {
                                 {extraMaterials.map(mat => (
                                     <li key={mat.id} className="flex items-start justify-between text-sm">
                                         <div>
-                                            <p className="font-medium">{mat.naam} – € {mat.prijsPerEenheid.toFixed(2)} / {mat.eenheid}</p>
+                                            <p className="font-medium">{mat.naam} – €{mat.prijsPerEenheid.toFixed(2)} / {mat.eenheid}</p>
                                             {mat.usageDescription && <p className="text-xs text-muted-foreground">{mat.usageDescription}</p>}
                                         </div>
                                         <Button variant="ghost" size="icon" onClick={() => handleRemoveExtraMaterial(mat.id)} className="h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0">
@@ -652,7 +691,7 @@ export default function HsbWandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Verberg</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -810,6 +849,7 @@ export default function HsbWandMaterialenPage() {
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
+
               <div className="mb-8 space-y-2">
                 <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
                 <div className="flex items-center gap-2">
