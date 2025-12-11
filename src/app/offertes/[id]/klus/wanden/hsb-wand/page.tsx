@@ -13,16 +13,19 @@ import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
+import { createJobAction } from '@/lib/actions';
 
 type Wall = {
   lengte: string;
   hoogte: string;
+  balkafstand: string;
   opmerkingen: string;
 };
 
 const defaultWallState: Wall = {
   lengte: '',
   hoogte: '',
+  balkafstand: '600',
   opmerkingen: '',
 };
 
@@ -77,12 +80,18 @@ export default function HsbWandPage() {
     localStorage.setItem(`quote-${quoteId}-hsb-wand`, JSON.stringify(walls));
     router.push(`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
   
-  const isNextDisabled = walls.some(p => !p.lengte || !p.hoogte);
+  const isNextDisabled = walls.some(wall => !wall.lengte || !wall.hoogte);
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="grid w-full grid-cols-3 items-center border-b bg-background px-4 py-3 sm:px-6">
+      <header className="grid w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6 py-3">
         <div className="flex items-center justify-start">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/wanden`}>
@@ -127,12 +136,17 @@ export default function HsbWandPage() {
                                <div className="grid grid-cols-2 gap-4">
                                    <div className="space-y-2">
                                      <Label htmlFor={`lengte-${index}`}>Lengte (mm) *</Label>
-                                     <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} />
+                                     <Input id={`lengte-${index}`} type="number" placeholder="Bijv. 5000" required value={wall.lengte} onChange={(e) => handleWallChange(index, 'lengte', e.target.value)} onKeyDown={handleKeyDown} />
                                    </div>
                                    <div className="space-y-2">
                                      <Label htmlFor={`hoogte-${index}`}>Hoogte (mm) *</Label>
-                                     <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} />
+                                     <Input id={`hoogte-${index}`} type="number" placeholder="Bijv. 2600" required value={wall.hoogte} onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)} onKeyDown={handleKeyDown} />
                                    </div>
+                               </div>
+                               <div className="space-y-2">
+                                   <Label htmlFor={`balkafstand-${index}`}>Balkafstand (h.o.h.)</Label>
+                                   <Input id={`balkafstand-${index}`} type="number" placeholder="Bijv. 600" value={wall.balkafstand} onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)} onKeyDown={handleKeyDown} />
+                                   <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
                                </div>
 
                                <div className="space-y-2 pt-2">
