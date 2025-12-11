@@ -39,7 +39,7 @@ type MateriaalKeuze = {
   prijs: number;
 };
 
-const sectieSleutels = ['profielen', 'isolatie', 'folie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['profielen', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -537,7 +537,7 @@ export default function MetalstudWandMaterialenPage() {
             </Button>
           </div>
           <div className="text-center">
-            <h1 className="font-semibold text-lg">Metalstud wand</h1>
+            <h1 className="font-semibold text-lg">Metalstud Wand</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
@@ -579,10 +579,8 @@ export default function MetalstudWandMaterialenPage() {
               <div className="space-y-4">
                 {renderSelectieRij('profielen', 'Metalstud Profielen')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('osb_1', 'Constructieplaat (zijde 1)')}
-                {renderSelectieRij('gips_1', 'Gips / Fermacell (zijde 1)')}
-                {renderSelectieRij('osb_2', 'Constructieplaat (zijde 2)')}
-                {renderSelectieRij('gips_2', 'Gips / Fermacell (zijde 2)')}
+                {renderSelectieRij('binnenbekleding', 'Constructieplaat (OSB)')}
+                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('kozijnen', 'Kozijnen')}
                 {renderSelectieRij('deuren', 'Deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
@@ -631,6 +629,7 @@ export default function MetalstudWandMaterialenPage() {
 }
 
     
+
 
 
 
