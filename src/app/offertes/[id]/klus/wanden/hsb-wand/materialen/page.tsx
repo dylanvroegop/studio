@@ -47,10 +47,9 @@ type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs:
 
 type ExtraMaterial = {
   id: string;
-  name: string;
-  supplier: string;
-  unit: string;
-  pricePerUnit: number;
+  naam: string;
+  eenheid: string;
+  prijsPerEenheid: number;
 };
 
 const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
@@ -129,13 +128,19 @@ type MateriaalKiezerModalProps = {
 
 function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen, onAddExtra }: MateriaalKiezerModalProps) {
   const [zoekterm, setZoekterm] = useState('');
-  const [activeTab, setActiveTab] = useState("lijst");
+  const [activeTab, setActiveTab] = useState("eigen");
 
   const [eigenNaam, setEigenNaam] = useState('');
-  const [eigenLeverancier, setEigenLeverancier] = useState('');
-  const [eigenEenheid, setEigenEenheid] = useState('stuk');
+  const [eigenEenheid, setEigenEenheid] = useState('');
   const [eigenPrijs, setEigenPrijs] = useState('');
-  
+  const [dimensieAantal, setDimensieAantal] = useState('');
+  const [dimensieLengte, setDimensieLengte] = useState('');
+  const [dimensieBreedte, setDimensieBreedte] = useState('');
+  const [dimensieHoogte, setDimensieHoogte] = useState('');
+
+  const [formErrors, setFormErrors] = useState({ naam: '', eenheid: '', prijs: '' });
+  const showWarning = !!(eigenNaam || eigenEenheid || eigenPrijs || dimensieAantal || dimensieLengte || dimensieBreedte || dimensieHoogte);
+
   const gefilterdeMaterialen = useMemo(() => {
     return materialen.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
   }, [zoekterm, materialen]);
@@ -143,11 +148,15 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   useEffect(() => {
     if (open) {
         setEigenNaam('');
-        setEigenLeverancier('');
-        setEigenEenheid('stuk');
+        setEigenEenheid('');
         setEigenPrijs('');
+        setDimensieAantal('');
+        setDimensieLengte('');
+        setDimensieBreedte('');
+        setDimensieHoogte('');
+        setFormErrors({ naam: '', eenheid: '', prijs: '' });
         setZoekterm('');
-        setActiveTab('lijst');
+        setActiveTab('eigen');
     }
   }, [open]);
 
@@ -161,24 +170,46 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   }
 
   const handleAddEigenMateriaal = () => {
-    if (!eigenNaam || !eigenPrijs || parseFloat(eigenPrijs) < 0) {
-        toast({
-            variant: "destructive",
-            title: "Ontbrekende gegevens",
-            description: "Materiaalnaam en een geldige prijs zijn verplicht."
-        });
-        return;
+    const errors = { naam: '', eenheid: '', prijs: '' };
+    let hasError = false;
+    if (!eigenNaam) {
+        errors.naam = 'Naam is verplicht';
+        hasError = true;
     }
+    if (!eigenEenheid) {
+        errors.eenheid = 'Eenheid is verplicht';
+        hasError = true;
+    }
+    const prijsNum = parseFloat(eigenPrijs);
+    if (!eigenPrijs || isNaN(prijsNum) || prijsNum <= 0) {
+        errors.prijs = 'Geldige prijs is verplicht';
+        hasError = true;
+    }
+
+    setFormErrors(errors);
+
+    if (hasError) return;
+
     const nieuwItem: ExtraMaterial = {
         id: crypto.randomUUID(),
-        name: eigenNaam,
-        supplier: eigenLeverancier,
-        unit: eigenEenheid,
-        pricePerUnit: parseFloat(eigenPrijs)
+        naam: eigenNaam,
+        eenheid: eigenEenheid,
+        prijsPerEenheid: prijsNum
     };
     onAddExtra(nieuwItem);
     onSluiten();
   };
+  
+    const eenheidLabel: Record<string, string> = {
+      m1: "Prijs per meter (€)",
+      m2: "Prijs per m² (€)",
+      m3: "Prijs per m³ (€)",
+      stuk: "Prijs per stuk (€)",
+      doos: "Prijs per doos (€)",
+      set: "Prijs per set (€)",
+      uur: "Prijs per uur (€)",
+      anders: "Prijs per eenheid (€)",
+    };
 
   return (
     <Dialog open={open} onOpenChange={onSluiten}>
@@ -189,9 +220,96 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="p-6 pt-2">
             <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
                 <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
+                <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
             </TabsList>
+            <TabsContent value="eigen" className="pt-4">
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
+                        <Input id="eigen-naam" value={eigenNaam} onChange={(e) => setEigenNaam(e.target.value)} />
+                        {formErrors.naam && <p className="text-sm text-destructive">{formErrors.naam}</p>}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="eigen-eenheid">Eenheid *</Label>
+                            <Select value={eigenEenheid} onValueChange={setEigenEenheid}>
+                                <SelectTrigger id="eigen-eenheid">
+                                    <SelectValue placeholder="Kies eenheid"/>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="m1">m¹</SelectItem>
+                                    <SelectItem value="m2">m²</SelectItem>
+                                    <SelectItem value="m3">m³</SelectItem>
+                                    <SelectItem value="stuk">stuk</SelectItem>
+                                    <SelectItem value="doos">doos</SelectItem>
+                                    <SelectItem value="set">set</SelectItem>
+                                    <SelectItem value="uur">uur</SelectItem>
+                                    <SelectItem value="anders">anders</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {formErrors.eenheid && <p className="text-sm text-destructive">{formErrors.eenheid}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="eigen-prijs">{eenheidLabel[eigenEenheid] || 'Prijs per eenheid (€)'} *</Label>
+                            <Input id="eigen-prijs" type="number" min="0" step="0.01" value={eigenPrijs} onChange={(e) => setEigenPrijs(e.target.value)} />
+                            {formErrors.prijs && <p className="text-sm text-destructive">{formErrors.prijs}</p>}
+                        </div>
+                    </div>
+                    {/* Dynamic dimension fields */}
+                    {eigenEenheid === 'm1' && (
+                        <div className="space-y-2">
+                            <Label htmlFor="dim-lengte">Lengte (m)</Label>
+                            <Input id="dim-lengte" type="number" value={dimensieLengte} onChange={e => setDimensieLengte(e.target.value)} />
+                        </div>
+                    )}
+                     {eigenEenheid === 'm2' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="dim-lengte">Lengte (m)</Label>
+                                <Input id="dim-lengte" type="number" value={dimensieLengte} onChange={e => setDimensieLengte(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="dim-breedte">Hoogte of breedte (m)</Label>
+                                <Input id="dim-breedte" type="number" value={dimensieBreedte} onChange={e => setDimensieBreedte(e.target.value)} />
+                            </div>
+                        </div>
+                    )}
+                    {eigenEenheid === 'm3' && (
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="dim-lengte">Lengte (m)</Label>
+                                <Input id="dim-lengte" type="number" value={dimensieLengte} onChange={e => setDimensieLengte(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="dim-breedte">Breedte (m)</Label>
+                                <Input id="dim-breedte" type="number" value={dimensieBreedte} onChange={e => setDimensieBreedte(e.target.value)} />
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="dim-hoogte">Hoogte (m)</Label>
+                                <Input id="dim-hoogte" type="number" value={dimensieHoogte} onChange={e => setDimensieHoogte(e.target.value)} />
+                            </div>
+                        </div>
+                    )}
+                    {['stuk', 'doos', 'set', 'uur', 'anders'].includes(eigenEenheid) && (
+                         <div className="space-y-2">
+                            <Label htmlFor="dim-aantal">Aantal</Label>
+                            <Input id="dim-aantal" type="number" value={dimensieAantal} onChange={e => setDimensieAantal(e.target.value)} />
+                        </div>
+                    )}
+                    
+                    {showWarning && (
+                        <div className="mt-2 text-xs text-amber-400 p-3 bg-amber-950/80 border border-amber-900 rounded-md flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <span className="font-semibold">Controleer uw invoer.</span><br/>
+                                Een verkeerde eenheid (bv. m² i.p.v. stuk) kan leiden tot een foutieve offerte.
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </TabsContent>
             <TabsContent value="lijst" className="pt-4">
                  <div className="border-b pb-4">
                     <Input 
@@ -206,7 +324,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                         {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
                             <li 
                                 key={materiaal.id}
-                                onClick={() => handleSelect(sectieSleutel, materiaal)}
+                                onClick={() => handleSelect(materiaal)}
                                 className="p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors"
                             >
                                 <div className="flex justify-between items-center">
@@ -228,48 +346,12 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                     </ul>
                 </div>
             </TabsContent>
-            <TabsContent value="eigen" className="pt-4">
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
-                        <Input id="eigen-naam" value={eigenNaam} onChange={(e) => setEigenNaam(e.target.value)} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="eigen-leverancier">Leverancier</Label>
-                        <Input id="eigen-leverancier" value={eigenLeverancier} onChange={(e) => setEigenLeverancier(e.target.value)} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="eigen-eenheid">Eenheid *</Label>
-                            <Select value={eigenEenheid} onValueChange={setEigenEenheid}>
-                                <SelectTrigger id="eigen-eenheid">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="stuk">stuk</SelectItem>
-                                    <SelectItem value="m1">m¹</SelectItem>
-                                    <SelectItem value="m2">m²</SelectItem>
-                                    <SelectItem value="m3">m³</SelectItem>
-                                    <SelectItem value="doos">doos</SelectItem>
-                                    <SelectItem value="set">set</SelectItem>
-                                    <SelectItem value="uur">uur</SelectItem>
-                                    <SelectItem value="anders">anders</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="eigen-prijs">Prijs per eenheid (€) *</Label>
-                            <Input id="eigen-prijs" type="number" min="0" step="0.01" value={eigenPrijs} onChange={(e) => setEigenPrijs(e.target.value)} />
-                        </div>
-                    </div>
-                </div>
-            </TabsContent>
         </Tabs>
         
         <DialogFooter className="p-6 pt-0">
             <Button variant="outline" onClick={onSluiten}>Annuleren</Button>
             {activeTab === 'eigen' && (
-                 <Button onClick={handleAddEigenMateriaal} disabled={!eigenNaam || !eigenPrijs}>Materiaal toevoegen</Button>
+                 <Button onClick={handleAddEigenMateriaal}>Materiaal toevoegen</Button>
             )}
         </DialogFooter>
       </DialogContent>
@@ -457,10 +539,9 @@ export default function HsbWandMaterialenPage() {
     if (sectieSleutel === 'extra') {
         const newExtra: ExtraMaterial = {
             id: crypto.randomUUID(),
-            name: materiaal.materiaalnaam,
-            supplier: '', // Supplier not available in `MateriaalKeuze`
-            unit: materiaal.eenheid,
-            pricePerUnit: materiaal.prijs,
+            naam: materiaal.materiaalnaam,
+            eenheid: materiaal.eenheid,
+            prijsPerEenheid: materiaal.prijs,
         };
         setExtraMaterials(prev => [...prev, newExtra]);
     } else {
@@ -542,7 +623,6 @@ export default function HsbWandMaterialenPage() {
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5">
                         <CardTitle className="text-lg">{titel}</CardTitle>
-                        {beschrijving && <CardDescription>{beschrijving}</CardDescription>}
                     </div>
                      <Button variant="ghost" size="sm" onClick={() => openMateriaalKiezer('extra')} className="text-primary hover:text-primary/80">
                        <Plus className="mr-2 h-4 w-4" /> Toevoegen
@@ -557,11 +637,11 @@ export default function HsbWandMaterialenPage() {
                                 {extraMaterials.map(mat => (
                                     <li key={mat.id} className="flex items-center justify-between text-sm">
                                         <span>
-                                            {mat.name} {mat.supplier && `– ${mat.supplier}`}
+                                            {mat.naam}
                                         </span>
                                         <div className="flex items-center gap-2">
                                              <span className="text-muted-foreground">
-                                                € {mat.pricePerUnit.toFixed(2)} / {mat.unit}
+                                                € {mat.prijsPerEenheid.toFixed(2)} / {mat.eenheid}
                                             </span>
                                             <Button variant="ghost" size="icon" onClick={() => handleRemoveExtraMaterial(mat.id)} className="h-7 w-7 text-muted-foreground hover:text-destructive">
                                                 <Trash2 className="h-4 w-4" />
@@ -774,7 +854,7 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('plinten', 'Plinten')}
                 
-                 {renderSelectieRij('extra', 'Extra materiaal', 'Optionele extra materialen voor dit project.')}
+                 {renderSelectieRij('extra', 'Extra materiaal')}
 
                  {renderKleinMateriaalSectie()}
               </div>
@@ -830,11 +910,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
