@@ -102,7 +102,7 @@ export default function HsbBuitenwandPage() {
           {loading ? (
             <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
           ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
+            <p className="text-sm text-muted-foreground truncate"></p>
           ) : null}
         </div>
       </header>
