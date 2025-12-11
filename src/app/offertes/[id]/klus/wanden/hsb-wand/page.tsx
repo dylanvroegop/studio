@@ -48,6 +48,20 @@ export default function HsbWandPage() {
     }
     fetchQuote();
   }, [quoteId]);
+
+  useEffect(() => {
+    const savedWalls = localStorage.getItem(`quote-${quoteId}-hsb-wand`);
+    if (savedWalls) {
+      try {
+        const parsedWalls = JSON.parse(savedWalls);
+        if (Array.isArray(parsedWalls) && parsedWalls.length > 0) {
+          setWalls(parsedWalls);
+        }
+      } catch (e) {
+        console.error("Failed to parse walls from localStorage", e);
+      }
+    }
+  }, [quoteId]);
   
   const handleAddWall = () => {
     setWalls((prev) => {
@@ -63,6 +77,14 @@ export default function HsbWandPage() {
   };
   
   const handleRemoveWall = (index: number) => {
+    if (walls.length <= 1) {
+        toast({
+            variant: "destructive",
+            title: "Kan niet verwijderen",
+            description: "Er moet minimaal één wand overblijven.",
+        });
+        return;
+    }
     const newWalls = walls.filter((_, i) => i !== index);
     setWalls(newWalls);
   };
