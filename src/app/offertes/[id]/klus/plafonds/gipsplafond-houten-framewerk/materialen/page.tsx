@@ -598,7 +598,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p> : null}
+            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate"></p> : null}
           </div>
         </header>
         
@@ -695,3 +695,6 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
 
     
 
+    
+
+    
