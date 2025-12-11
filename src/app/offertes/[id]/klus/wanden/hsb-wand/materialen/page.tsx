@@ -551,9 +551,14 @@ export default function HsbWandMaterialenPage() {
 
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-      // Always return empty array as per user request
-      return [];
-  }, []);
+    if (sectieKey === 'balktype') {
+      return [
+          { id: 'mat-1', materiaalnaam: 'Vuren SLS 38x140mm C18', categorie: 'hout', eenheid: 'm1', prijs: 12.5, sort_order: 1 },
+          { id: 'mat-2', materiaalnaam: 'Vuren Geschaafd 44x70mm', categorie: 'hout', eenheid: 'm1', prijs: 8.2, sort_order: 2 },
+      ];
+    }
+    return [];
+}, []);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
@@ -924,13 +929,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
-
-    
