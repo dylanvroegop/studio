@@ -750,4 +750,3 @@ export default function OverigWandenMaterialenPage() {
     </>
   );
 }
-

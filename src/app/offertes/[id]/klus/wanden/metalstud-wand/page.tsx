@@ -85,7 +85,7 @@ export default function MetalstudWandPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="grid w-full grid-cols-3 items-center border-b bg-background px-4 py-3 sm:px-6">
+      <header className="grid w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6 py-3">
         <div className="flex items-center justify-start">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/wanden`}>
@@ -95,7 +95,7 @@ export default function MetalstudWandPage() {
           </Button>
         </div>
         <div className="text-center">
-            <h1 className="font-semibold text-lg">Wanden:</h1>
+            <h1 className="font-semibold text-lg">Metalstud Wand</h1>
             <p className="text-xs text-muted-foreground">stap 4 van 6</p>
         </div>
         <div className="flex items-center justify-end">
