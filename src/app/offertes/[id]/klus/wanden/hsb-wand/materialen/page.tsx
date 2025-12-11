@@ -213,7 +213,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
     const nieuwItem: ExtraMaterial = {
         id: crypto.randomUUID(),
         naam: eigenNaam,
-        eenheid: eigenEenheid,
+        eenheid: eigenEenheid as any,
         prijsPerEenheid: prijsNum,
         aantal,
         usageDescription: usageDescription.trim()
@@ -749,6 +749,9 @@ export default function HsbWandMaterialenPage() {
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">Klein materiaal</CardTitle>
+                    <CardDescription>
+                        Kies of je dit wilt berekenen via een percentage of een vast bedrag.
+                    </CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
                     Verberg
@@ -765,6 +768,7 @@ export default function HsbWandMaterialenPage() {
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
                         >
                             <h4 className="font-semibold">Percentage (%)</h4>
+                            <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
                         </div>
                         <div
                             className={cn(
@@ -774,13 +778,14 @@ export default function HsbWandMaterialenPage() {
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
                         >
                             <h4 className="font-semibold">Vast bedrag (€)</h4>
+                            <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
                         </div>
                     </div>
 
                     {kleinMateriaalConfig.mode === 'percentage' && (
                         <div className="pt-4">
                             <Label htmlFor="percentage">Percentage</Label>
-                            <div className="flex items-center">
+                            <div className="relative flex items-center">
                                 <Input
                                     id="percentage"
                                     type="number"
@@ -944,3 +949,4 @@ export default function HsbWandMaterialenPage() {
     
 
     
+
