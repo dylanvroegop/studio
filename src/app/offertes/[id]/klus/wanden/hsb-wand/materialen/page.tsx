@@ -691,7 +691,7 @@ export default function HsbWandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
             </div>
         );
     }
@@ -749,9 +749,6 @@ export default function HsbWandMaterialenPage() {
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">Klein materiaal</CardTitle>
-                    <CardDescription>
-                        Kies of je dit wilt berekenen via een percentage of een vast bedrag.
-                    </CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
                     Verberg
@@ -768,7 +765,6 @@ export default function HsbWandMaterialenPage() {
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
                         >
                             <h4 className="font-semibold">Percentage (%)</h4>
-                            <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
                         </div>
                         <div
                             className={cn(
@@ -778,7 +774,6 @@ export default function HsbWandMaterialenPage() {
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
                         >
                             <h4 className="font-semibold">Vast bedrag (€)</h4>
-                            <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
                         </div>
                     </div>
 
