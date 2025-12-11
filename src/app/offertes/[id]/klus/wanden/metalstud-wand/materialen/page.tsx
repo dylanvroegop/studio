@@ -536,16 +536,9 @@ export default function MetalstudWandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <div className="col-start-2 flex flex-col items-center text-center">
-            <h1 className="font-semibold text-lg">Materialen - Metalstud wand:</h1>
-            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
-          </div>
+          <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? (
-              <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
-            ) : null}
+            
           </div>
         </header>
         
@@ -633,5 +626,3 @@ export default function MetalstudWandMaterialenPage() {
     </>
   );
 }
-
-    
