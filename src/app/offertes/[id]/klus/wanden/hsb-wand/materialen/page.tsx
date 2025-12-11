@@ -617,38 +617,25 @@ export default function HsbWandMaterialenPage() {
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
-    const batch = writeBatch(firestore);
-
-    if (isDefault) {
-        const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
-        getDocs(q).then(querySnapshot => {
+    try {
+        const batch = writeBatch(firestore);
+        if (isDefault) {
+            const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
+            const querySnapshot = await getDocs(q);
             querySnapshot.forEach(doc => batch.update(doc.ref, { isDefault: false }));
-        }).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-              path: `presets`, // Simplified path for batch update context
-              operation: 'list', // The initial operation that failed
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-    }
-    
-    const newDocRef = doc(collection(firestore, 'presets'));
-    batch.set(newDocRef, newPresetData);
-
-    batch.commit().then(() => {
-        toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
+        }
+        const newDocRef = doc(collection(firestore, 'presets'));
+        batch.set(newDocRef, newPresetData);
+        await batch.commit();
+        toast({ title: 'Voorinstelling opgeslagen', description: `"${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
         const newPreset = { id: newDocRef.id, ...newPresetData } as PresetType;
         setPresets(prev => [...prev.map(p => ({...p, isDefault: isDefault ? false : p.isDefault })), newPreset]);
         setGekozenPresetId(newDocRef.id);
-    }).catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-          path: newDocRef.path,
-          operation: 'create',
-          requestResourceData: newPresetData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+    } catch (error) {
+        console.error("Fout bij opslaan preset:", error);
+        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
+    }
   };
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
@@ -693,15 +680,15 @@ export default function HsbWandMaterialenPage() {
     
     if (isCollapsed) {
         return (
-            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className={cn("text-sm font-medium", isCollapsed && "text-muted-foreground")}>{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
+                <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
                 <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
     }
     
     return (
-        <Card className={cn(!isCollapsed && "border-l-2 border-l-primary/50")}>
+        <Card className={cn("border-l-2 border-l-primary/50")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">{titel}</CardTitle>
@@ -715,7 +702,7 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm text-primary">Gekozen: {gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? <p className="text-sm text-primary">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -741,8 +728,8 @@ export default function HsbWandMaterialenPage() {
 
     if (isCollapsed) {
         return (
-            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className={cn("text-sm font-medium", isCollapsed && "text-muted-foreground")}>Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
+                <p className={cn("text-sm font-medium text-muted-foreground")}>Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
                 <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
@@ -945,3 +932,11 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
+
+    
