@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -354,6 +353,9 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                         value={zoekterm}
                         onChange={(e) => setZoekterm(e.target.value)}
                     />
+                    <button onClick={openReorderModal} className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-3">
+                      Lijst opnieuw ordenen
+                    </button>
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
                     <Reorder.Group as="ul" axis="y" values={gefilterdeMaterialen} onReorder={setOrderedMaterials} className="divide-y divide-border">
@@ -402,7 +404,6 @@ function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean
     }, [materials]);
 
     const handleSave = async () => {
-        // Implement save logic here, this will likely involve updating the sort_order in your database
         onSave(orderedMaterials);
         onOpenChange(false);
     };
@@ -933,3 +934,11 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
+
+    
