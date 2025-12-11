@@ -213,6 +213,8 @@ export default function HsbBuitenwandMaterialenPage() {
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
+  const isVolgendeIngeschakeld = true;
+
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
   };
@@ -335,8 +337,6 @@ export default function HsbBuitenwandMaterialenPage() {
         toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
     }
   };
-
-  const isVolgendeIngeschakeld = true;
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
@@ -480,11 +480,11 @@ export default function HsbBuitenwandMaterialenPage() {
         </Card>
     );
   };
-
+  
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/wanden/hsb-buitenwand`}>
@@ -494,14 +494,14 @@ export default function HsbBuitenwandMaterialenPage() {
             </Button>
           </div>
            <div className="text-center">
-            <h1 className="font-semibold text-lg">Materialen - HSB Buitenwand:</h1>
+            <h1 className="font-semibold text-lg">HSB Buitenwand</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate"></p>
+              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
             ) : null}
           </div>
         </header>
@@ -572,7 +572,3 @@ export default function HsbBuitenwandMaterialenPage() {
     </>
   );
 }
-
-    
-
-
