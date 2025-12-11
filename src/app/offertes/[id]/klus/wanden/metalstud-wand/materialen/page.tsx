@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, Save, RotateCcw } from 'lucide-react';
@@ -537,7 +537,7 @@ export default function MetalstudWandMaterialenPage() {
             </Button>
           </div>
           <div className="text-center">
-            <h1 className="font-semibold text-lg">Metalstud-Scheidingswand</h1>
+            <h1 className="font-semibold text-lg">Metalstud wand</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
@@ -631,7 +631,6 @@ export default function MetalstudWandMaterialenPage() {
 }
 
     
-
 
 
 
