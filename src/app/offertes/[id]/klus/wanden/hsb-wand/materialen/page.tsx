@@ -1,11 +1,10 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -249,7 +248,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                     <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
                     <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
                 </TabsList>
-                <TabsContent value="eigen" className="pt-4 flex-1 space-y-4">
+                <TabsContent value="eigen" className="pt-4 flex-1 space-y-4 overflow-y-auto pr-2">
                     <div className="space-y-2">
                         <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
                         <Input id="eigen-naam" value={eigenNaam} onChange={(e) => setEigenNaam(e.target.value)} />
@@ -398,7 +397,6 @@ function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean
     }, [materials]);
 
     const handleSave = async () => {
-        // Implement save logic here, this will likely involve updating the sort_order in your database
         onSave(orderedMaterials);
         onOpenChange(false);
     };
@@ -416,7 +414,7 @@ function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean
                     <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
                         {orderedMaterials.map(item => (
                             <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-muted-foreground"><path d="M7 10l-3 3 3 3M17 10l3 3-3 3M12 4v16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab" />
                                 {item.materiaalnaam}
                             </Reorder.Item>
                         ))}
@@ -543,7 +541,7 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay to prevent flash of loading state
+  // Set loading to false after a short delay
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
@@ -554,11 +552,7 @@ export default function HsbWandMaterialenPage() {
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
       // Always return empty array as per user request
-      return [
-        { id: '1', materiaalnaam: 'Demo Test Material 1', categorie: 'hout', eenheid: 'm1', prijs: 10.5, sort_order: 1 },
-        { id: '2', materiaalnaam: 'Demo Test Material 2', categorie: 'isolatie', eenheid: 'm2', prijs: 25, sort_order: 2 },
-        { id: '3', materiaalnaam: 'Demo Test Material 3', categorie: 'plaat', eenheid: 'st', prijs: 15, sort_order: 3 },
-      ];
+      return [];
   }, []);
 
 
@@ -939,3 +933,4 @@ export default function HsbWandMaterialenPage() {
 
     
 
+    
