@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -257,14 +257,13 @@ export default function HsbBuitenwandMaterialenPage() {
   
   // Gekozen preset toepassen
   useEffect(() => {
-    if (gekozenPresetId === 'default') {
+    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
-    if (alleMaterialen.length === 0) return;
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
     const nieuweGekozenMaterialen: Record<string, MateriaalKeuze | undefined> = {};
@@ -500,8 +499,6 @@ export default function HsbBuitenwandMaterialenPage() {
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
             ) : null}
           </div>
         </header>
