@@ -51,7 +51,11 @@ export default function HsbWandPage() {
   }, [quoteId]);
   
   const handleAddWall = () => {
-    setWalls([...walls, { ...defaultWallState }]);
+    const lastWall = walls[walls.length - 1];
+    setWalls([
+      ...walls,
+      { ...defaultWallState, balkafstand: lastWall?.balkafstand || '600' },
+    ]);
   };
   
   const handleRemoveWall = (index: number) => {
