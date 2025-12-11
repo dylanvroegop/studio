@@ -402,6 +402,7 @@ function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean
     }, [materials]);
 
     const handleSave = async () => {
+        // Implement save logic here, this will likely involve updating the sort_order in your database
         onSave(orderedMaterials);
         onOpenChange(false);
     };
@@ -680,9 +681,9 @@ export default function HsbWandMaterialenPage() {
     
     if (isCollapsed) {
         return (
-            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
+             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
                 <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={()={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
     }
@@ -706,7 +707,7 @@ export default function HsbWandMaterialenPage() {
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
-                                <Button variant="ghost" size="icon" onClick={()={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
+                                <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Verwijder materiaal">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                                 )}
@@ -932,5 +933,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
