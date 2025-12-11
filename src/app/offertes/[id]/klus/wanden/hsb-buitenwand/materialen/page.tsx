@@ -193,9 +193,12 @@ export default function HsbBuitenwandMaterialenPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
   
+  // State voor materialen
   const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
   const [isMaterialenLaden, setMaterialenLaden] = useState(true);
+  const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
   
+  // State voor presets
   const [presets, setPresets] = useState<PresetType[]>([]);
   const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
   const [isPresetsLaden, setPresetsLaden] = useState(true);
@@ -203,8 +206,10 @@ export default function HsbBuitenwandMaterialenPage() {
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
+  // State for collapsible cards / hidden slots
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
+  // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
@@ -212,6 +217,7 @@ export default function HsbBuitenwandMaterialenPage() {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
   };
 
+  // Quote data ophalen
   useEffect(() => {
     async function fetchQuote() {
       if (!quoteId) return;
@@ -223,6 +229,7 @@ export default function HsbBuitenwandMaterialenPage() {
     fetchQuote();
   }, [quoteId]);
 
+  // Presets ophalen
   useEffect(() => {
     if (!user || !firestore) return;
     const fetchPresets = async () => {
@@ -246,8 +253,10 @@ export default function HsbBuitenwandMaterialenPage() {
     fetchPresets();
   }, [user, firestore, toast]);
   
+  // Gekozen preset toepassen
   useEffect(() => {
     if (gekozenPresetId === 'default') {
+      // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
       setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
@@ -269,10 +278,14 @@ export default function HsbBuitenwandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setMaterialenLaden(false), 50);
-    return () => clearTimeout(timer);
-  }, []);
+  // Set loading to false after a short delay
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setMaterialenLaden(false);
+        }, 50); // Small delay
+        return () => clearTimeout(timer);
+    }, []);
+
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => setActieveSectie(sectieSleutel);
   const sluitMateriaalKiezer = () => setActieveSectie(null);
@@ -488,7 +501,7 @@ export default function HsbBuitenwandMaterialenPage() {
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
             ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName.split(' ').map(name => name.charAt(0).toUpperCase() + name.slice(1)).join(' ')}</p>
+              <p className="text-sm text-muted-foreground truncate"></p>
             ) : null}
           </div>
         </header>
@@ -561,4 +574,5 @@ export default function HsbBuitenwandMaterialenPage() {
 }
 
     
+
 
