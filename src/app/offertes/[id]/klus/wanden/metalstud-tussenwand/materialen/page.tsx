@@ -543,8 +543,6 @@ export default function MetalstudWandMaterialenPage() {
           <div className="flex items-center justify-end">
             {isPaginaLaden ? (
               <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte: {quote.clientName}</p>
             ) : null}
           </div>
         </header>
@@ -635,6 +633,7 @@ export default function MetalstudWandMaterialenPage() {
 }
 
     
+
 
 
 
