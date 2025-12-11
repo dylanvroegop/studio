@@ -184,14 +184,14 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
 // Pagina Component
 // ==================================
 
-export default function MetalstudTussenwandMaterialenPage() {
+export default function MetalstudWandMaterialenPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
-  const JOB_TYPE = "metalstud-tussenwand";
+  const JOB_TYPE = "metalstud-wand";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -268,6 +268,7 @@ export default function MetalstudTussenwandMaterialenPage() {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
+      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
     
@@ -287,6 +288,7 @@ export default function MetalstudTussenwandMaterialenPage() {
     }
     setGekozenMaterialen(nieuweGekozenMaterialen);
     setCollapsedSections(preset.collapsedSections || {});
+    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Set loading to false after a short delay
@@ -378,7 +380,7 @@ export default function MetalstudTussenwandMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -536,22 +538,12 @@ export default function MetalstudTussenwandMaterialenPage() {
           </div>
           <h1 className="text-center font-semibold text-lg">Materialen: stap 5 van 6</h1>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? (
-              <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : quote ? (
-              <p className="text-sm text-muted-foreground truncate">Offerte voor: {quote.clientName}</p>
-            ) : null}
+            
           </div>
         </header>
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
-              <div className="text-center mb-8">
-                   <h1 className="font-semibold text-2xl md:text-3xl">Materialen – Gipsplafond – Metalstud</h1>
-                  <p className="text-muted-foreground mt-2">
-                      Kies de materialen die u voor dit plafond gebruikt. U kunt deze keuzes als voorinstelling opslaan.
-                  </p>
-              </div>
               
               <div className="mb-8">
                   <Label htmlFor='preset-select' className='text-xs text-muted-foreground'>Voorinstellingen</Label>
@@ -636,5 +628,6 @@ export default function MetalstudTussenwandMaterialenPage() {
 }
 
     
+
 
 
