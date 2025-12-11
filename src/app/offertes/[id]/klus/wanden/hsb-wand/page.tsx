@@ -13,7 +13,6 @@ import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
-import { createJobAction } from '@/lib/actions';
 
 type Wall = {
   lengte: string;
@@ -51,11 +50,16 @@ export default function HsbWandPage() {
   }, [quoteId]);
   
   const handleAddWall = () => {
-    const lastWall = walls[walls.length - 1];
-    setWalls([
-      ...walls,
-      { ...defaultWallState, balkafstand: lastWall?.balkafstand || '600' },
-    ]);
+    setWalls((prev) => {
+        const last = prev[prev.length - 1];
+        const newWall: Wall = {
+            lengte: '',
+            hoogte: '',
+            balkafstand: last ? last.balkafstand : '600',
+            opmerkingen: '',
+        };
+        return [...prev, newWall];
+    });
   };
   
   const handleRemoveWall = (index: number) => {
@@ -63,10 +67,16 @@ export default function HsbWandPage() {
     setWalls(newWalls);
   };
 
-  const handleWallChange = <K extends keyof Wall>(index: number, field: K, value: Wall[K]) => {
-    const newWalls = [...walls];
-    newWalls[index][field] = value;
-    setWalls(newWalls);
+  const handleWallChange = (
+    index: number,
+    field: keyof Wall,
+    value: string
+  ) => {
+    setWalls((prev) =>
+      prev.map((wall, i) =>
+        i === index ? { ...wall, [field]: value } : wall
+      )
+    );
   };
   
   const handleSubmit = (event: React.MouseEvent<HTMLButtonElement>) => {
