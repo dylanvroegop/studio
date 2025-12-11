@@ -532,7 +532,6 @@ export default function HsbWandMaterialenPage() {
     }
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
-
     const nieuweGekozenMaterialen: Record<string, MateriaalKeuze | undefined> = {};
     for (const slot in preset.slots) {
       const materiaalId = preset.slots[slot];
@@ -750,9 +749,6 @@ export default function HsbWandMaterialenPage() {
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">Klein materiaal</CardTitle>
-                    <CardDescription>
-                        Kies of je dit wilt berekenen via een percentage of een vast bedrag.
-                    </CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
                     Verberg
@@ -769,7 +765,6 @@ export default function HsbWandMaterialenPage() {
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
                         >
                             <h4 className="font-semibold">Percentage (%)</h4>
-                            <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
                         </div>
                         <div
                             className={cn(
@@ -779,19 +774,18 @@ export default function HsbWandMaterialenPage() {
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
                         >
                             <h4 className="font-semibold">Vast bedrag (€)</h4>
-                            <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
                         </div>
                     </div>
 
                     {kleinMateriaalConfig.mode === 'percentage' && (
-                        <div className="pt-2">
+                        <div className="pt-4">
                             <Label htmlFor="percentage">Percentage</Label>
-                            <div className="relative">
+                            <div className="flex items-center">
                                 <Input
                                     id="percentage"
                                     type="number"
                                     step="0.1"
-                                    className="w-24 pr-8"
+                                    className="w-24"
                                     value={kleinMateriaalConfig.percentage ?? ''}
                                     onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
                                     onBlur={(e) => {
@@ -800,13 +794,13 @@ export default function HsbWandMaterialenPage() {
                                       }
                                     }}
                                 />
-                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
+                                <span className="ml-2 text-muted-foreground">%</span>
                             </div>
                         </div>
                     )}
 
                     {kleinMateriaalConfig.mode === 'fixed' && (
-                        <div className="pt-2">
+                        <div className="pt-4">
                             <Label htmlFor="fixedAmount">Bedrag</Label>
                             <div className="relative">
                                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
@@ -942,5 +936,11 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
 
     
