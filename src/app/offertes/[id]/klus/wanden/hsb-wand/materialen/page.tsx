@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -237,7 +238,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
 
   return (
     <Dialog open={open} onOpenChange={onSluiten}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-0">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-0">
             <DialogTitle>Kies materiaal voor: {isExtraMateriaal ? "Extra Materiaal" : "de geselecteerde categorie"}</DialogTitle>
         </DialogHeader>
@@ -248,7 +249,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                     <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
                     <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
                 </TabsList>
-                <TabsContent value="eigen" className="pt-4 flex-1 overflow-y-auto pr-2 -mr-2 space-y-4">
+                <TabsContent value="eigen" className="pt-4 flex-1 space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
                         <Input id="eigen-naam" value={eigenNaam} onChange={(e) => setEigenNaam(e.target.value)} />
@@ -281,6 +282,13 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                             {formErrors.prijs && <p className="text-sm text-destructive">{formErrors.prijs}</p>}
                         </div>
                     </div>
+                     <div className="mt-2 text-xs text-amber-400 p-3 bg-amber-950/80 border border-amber-900 rounded-md flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <span className="font-semibold">Controleer uw invoer.</span><br/>
+                            Een verkeerde eenheid (bv. m² i.p.v. stuk) kan leiden tot een foutieve offerte.
+                        </div>
+                    </div>
                     
                     {eigenEenheid === 'm1' && <div className="space-y-2"><Label>Lengte (m)</Label><Input type="number" value={lengte} onChange={e => setLengte(e.target.value)} /></div>}
                     {eigenEenheid === 'm2' && <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Lengte (m)</Label><Input type="number" value={lengte} onChange={e => setLengte(e.target.value)} /></div><div className="space-y-2"><Label>Breedte (m)</Label><Input type="number" value={breedte} onChange={e => setBreedte(e.target.value)} /></div></div>}
@@ -293,16 +301,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                         <Textarea id="usage-description" value={usageDescription} onChange={(e) => setUsageDescription(e.target.value)} placeholder="Waar wordt dit materiaal voor gebruikt? Dit helpt bij een correcte offerteberekening."/>
                         {formErrors.usageDescription && <p className="text-sm text-destructive">{formErrors.usageDescription}</p>}
                       </div>
-                    )}
-                    
-                    {showWarning && (
-                        <div className="mt-2 text-xs text-amber-400 p-3 bg-amber-950/80 border border-amber-900 rounded-md flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <div>
-                                <span className="font-semibold">Controleer uw invoer.</span><br/>
-                                Een verkeerde eenheid (bv. m² i.p.v. stuk) kan leiden tot een foutieve offerte.
-                            </div>
-                        </div>
                     )}
                 </TabsContent>
                 <TabsContent value="lijst" className="pt-4 flex-1 flex flex-col min-h-0">
@@ -681,7 +679,7 @@ export default function HsbWandMaterialenPage() {
     if (isCollapsed) {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
-                <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
                 <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
@@ -796,7 +794,7 @@ export default function HsbWandMaterialenPage() {
                     )}
 
                     {kleinMateriaalConfig.mode === 'fixed' && (
-                        <div className="pt-4">
+                        <div className="pt-2">
                             <Label htmlFor="fixedAmount">Bedrag</Label>
                             <div className="relative">
                                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
@@ -940,3 +938,4 @@ export default function HsbWandMaterialenPage() {
     
 
     
+
