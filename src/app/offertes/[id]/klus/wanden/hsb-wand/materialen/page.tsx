@@ -690,16 +690,14 @@ export default function HsbWandMaterialenPage() {
     if (isCollapsed) {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">
-                    Toon weer <ChevronRight className="h-4 w-4" />
-                </Button>
+                <p className={cn("text-sm font-medium", isCollapsed && "text-muted-foreground")}>{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
     }
     
     return (
-        <Card>
+        <Card className={cn(!isCollapsed && "border-l-2 border-l-primary/50")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">{titel}</CardTitle>
@@ -740,14 +738,14 @@ export default function HsbWandMaterialenPage() {
     if (isCollapsed) {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className="text-sm font-medium">Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <p className={cn("text-sm font-medium", isCollapsed && "text-muted-foreground")}>Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
                 <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
     }
     
     return (
-        <Card>
+        <Card className={cn(!isCollapsed && "border-l-2 border-l-primary/50")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">Klein materiaal</CardTitle>
