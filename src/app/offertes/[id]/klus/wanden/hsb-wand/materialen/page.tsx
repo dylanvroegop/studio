@@ -755,11 +755,20 @@ export default function HsbWandMaterialenPage() {
         const gekozenMateriaal1 = gekozenMaterialen['naden_vullen'];
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
 
+        if (isCollapsed) {
+          return (
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
+              <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
+              <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
+            </div>
+          )
+        }
+
         return (
             <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-primary/50")}>
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
-                    <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">Verberg</Button>
+                    <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground flex items-center gap-1">Verberg <ChevronUp className="h-4 w-4" /></Button>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
                     {/* First material */}
