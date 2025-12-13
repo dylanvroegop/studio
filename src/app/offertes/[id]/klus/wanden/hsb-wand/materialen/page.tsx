@@ -378,6 +378,47 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
+function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean, onOpenChange: (open:boolean) => void, materials: MateriaalKeuze[], onSave: (materials: MateriaalKeuze[]) => void }) {
+    const [orderedMaterials, setOrderedMaterials] = useState(materials);
+
+    useEffect(() => {
+        setOrderedMaterials(materials);
+    }, [materials]);
+
+    const handleSave = async () => {
+        onSave(orderedMaterials);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Materiaal Volgorde</DialogTitle>
+                    <DialogDescription>
+                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-[60vh] overflow-y-auto">
+                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
+                        {orderedMaterials.map(item => (
+                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                                <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                {item.materiaalnaam}
+                            </Reorder.Item>
+                        ))}
+                    </Reorder.Group>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+                    <Button onClick={handleSave}>Opslaan</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
 // ==================================
 // Pagina Component
 // ==================================
@@ -521,6 +562,7 @@ export default function HsbWandMaterialenPage() {
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
       if (!alleMaterialen) return [];
       const filterKey = sectieKey.toString().toLowerCase();
+
       if (filterKey === 'gips / fermacell') {
         return alleMaterialen.filter(m => 
              m.subsectie?.toLowerCase() === 'gips / fermacell'
@@ -905,9 +947,8 @@ export default function HsbWandMaterialenPage() {
         onOpenChange={setReorderModalOpen}
         materials={alleMaterialen}
         onSave={(newOrder) => {
-            // Here you would ideally update the sort_order in your backend
             console.log("New order:", newOrder.map(m => m.id));
-            setAlleMaterialen(newOrder); // Optimistically update UI
+            setAlleMaterialen(newOrder); 
         }}
        />
     </>
