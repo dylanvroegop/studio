@@ -378,48 +378,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
   );
 }
 
-function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean, onOpenChange: (open:boolean) => void, materials: MateriaalKeuze[], onSave: (materials: MateriaalKeuze[]) => void }) {
-    const [orderedMaterials, setOrderedMaterials] = useState(materials);
-
-    useEffect(() => {
-        setOrderedMaterials(materials);
-    }, [materials]);
-
-    const handleSave = async () => {
-        // Implement save logic here, this will likely involve updating the sort_order in your database
-        onSave(orderedMaterials);
-        onOpenChange(false);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Materiaal Volgorde</DialogTitle>
-                    <DialogDescription>
-                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 max-h-[60vh] overflow-y-auto">
-                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
-                        {orderedMaterials.map(item => (
-                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                                <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab" />
-                                {item.materiaalnaam}
-                            </Reorder.Item>
-                        ))}
-                    </Reorder.Group>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
-                    <Button onClick={handleSave}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-
 // ==================================
 // Pagina Component
 // ==================================
@@ -560,22 +518,16 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-    if (!alleMaterialen) return [];
-    
-    let filterKey = sectieKey.toString().toLowerCase();
-
-    if (filterKey === 'gips / fermacell') {
-       return alleMaterialen.filter(m => 
-            m.subsectie?.toLowerCase() === 'gips' || m.subsectie?.toLowerCase() === 'fermacell'
-        );
-    }
-    
-    return alleMaterialen.filter(m => 
-        m.subsectie?.toLowerCase() === filterKey
-    );
-}, [alleMaterialen]);
+      if (!alleMaterialen) return [];
+      const filterKey = sectieKey.toString().toLowerCase();
+      if (filterKey === 'gips / fermacell') {
+        return alleMaterialen.filter(m => 
+             m.subsectie?.toLowerCase() === 'gips / fermacell'
+         );
+     }
+      return alleMaterialen.filter(m => m.subsectie?.toLowerCase() === filterKey);
+  }, [alleMaterialen]);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
