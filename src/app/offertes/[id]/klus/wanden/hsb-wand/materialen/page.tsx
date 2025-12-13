@@ -1,6 +1,7 @@
 
 'use client';
 
+import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -1017,7 +1018,7 @@ export default function HsbWandMaterialenPage() {
               <div className="space-y-4">
                 {renderSelectieRij('balkhout', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
+                {renderSelectieRij('houten plaatmateriaal', 'OSB / Constructieplaat')}
                 {renderSelectieRij('gips / fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
                 {renderSelectieRij('binnen deuren', 'Binnen deuren')}
@@ -1066,3 +1067,11 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
+
+    
