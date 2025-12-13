@@ -517,7 +517,7 @@ export default function HsbWandMaterialenPage() {
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [extraMaterials, setExtraMaterials] = useState<ExtraMaterial[]>([]);
-  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
+  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: null, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -603,7 +603,7 @@ export default function HsbWandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore]);
+  }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -611,7 +611,7 @@ export default function HsbWandMaterialenPage() {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
-      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
+      setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
       return;
     }
     const preset = presets.find(p => p.id === gekozenPresetId);
@@ -708,7 +708,7 @@ export default function HsbWandMaterialenPage() {
         if (materiaal) slots[key] = materiaal.id;
     }
     
-    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
+    const newPresetData: Omit<PresetType, 'id'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
@@ -872,6 +872,7 @@ export default function HsbWandMaterialenPage() {
     const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
+    const isFilled = kleinMateriaalConfig.mode === 'fixed' ? kleinMateriaalConfig.fixedAmount !== null && kleinMateriaalConfig.fixedAmount > 0 : kleinMateriaalConfig.percentage !== null && kleinMateriaalConfig.percentage > 0;
 
     if (isCollapsed) {
         return (
@@ -883,7 +884,7 @@ export default function HsbWandMaterialenPage() {
     }
     
     return (
-        <Card className={cn(!isCollapsed && "border-l-2 border-l-primary/50")}>
+        <Card className={cn(isFilled ? "" : "border-l-2 border-l-primary/50")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">Klein materiaal</CardTitle>
@@ -929,13 +930,9 @@ export default function HsbWandMaterialenPage() {
                                     type="number"
                                     step="0.1"
                                     className="w-24"
+                                    placeholder="0"
                                     value={kleinMateriaalConfig.percentage ?? ''}
                                     onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
-                                    onBlur={(e) => {
-                                      if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
-                                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
-                                      }
-                                    }}
                                 />
                                 <span className="ml-2 text-muted-foreground">%</span>
                             </div>
@@ -1067,11 +1064,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
