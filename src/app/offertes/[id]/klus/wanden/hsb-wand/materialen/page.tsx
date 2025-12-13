@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -45,7 +46,7 @@ type Material = {
 
 type MateriaalKeuze = Omit<Material, 'prijs' | 'row_id'> & { prijs: number; id: string };
 
-const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips / fermacell', 'binnen kozijnen', 'binnen deuren', 'naden vullen', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips / fermacell', 'binnen kozijnen', 'binnen deuren', 'naden_vullen', 'naden_vullen_2', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -607,7 +608,8 @@ export default function HsbWandMaterialenPage() {
         'gips / fermacell': 'Gips / Fermacell',
         'binnen kozijnen': 'Binnen kozijnen',
         'binnen deuren': 'Binnen deuren',
-        'naden vullen': 'Naden vullen',
+        'naden_vullen': 'Naden vullen',
+        'naden_vullen_2': 'Naden vullen',
         'afwerkplinten': 'Afwerkplinten',
         'extra': '', 
         'klein_materiaal': ''
@@ -712,6 +714,44 @@ export default function HsbWandMaterialenPage() {
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
+    
+    if (sectieSleutel === 'naden_vullen') {
+        const gekozenMateriaal1 = gekozenMaterialen['naden_vullen'];
+        const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
+
+        return (
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between p-4">
+                    <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
+                    <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">Verberg</Button>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                    {/* First material */}
+                    <div className="border-t pt-4">
+                        <div className="flex items-center justify-between min-h-[40px]">
+                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : <span className="text-primary italic">Kies materiaal 1</span>}</p></div>
+                            <div className="flex items-center gap-2">
+                                {gekozenMateriaal1 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
+                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen')}>{gekozenMateriaal1 ? 'Wijzigen' : 'Kiezen'}</Button>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Second material */}
+                    <div className="border-t pt-4 mt-4">
+                        <div className="flex items-center justify-between min-h-[40px]">
+                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : <span className="text-primary italic">Kies materiaal 2 (optioneel)</span>}</p></div>
+                            <div className="flex items-center gap-2">
+                                {gekozenMateriaal2 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen_2')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
+                                <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen_2')}>{gekozenMateriaal2 ? 'Wijzigen' : 'Kiezen'}</Button>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+    
+    if (sectieSleutel === 'naden_vullen_2') return null; // Don't render this key on its own
 
     if (sectieSleutel === 'extra') {
         return (
@@ -748,7 +788,7 @@ export default function HsbWandMaterialenPage() {
             </Card>
         );
     }
-    
+
     if (isCollapsed) {
         return (
              <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
@@ -773,11 +813,7 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? (
-                                    <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p>
-                                ) : (
-                                    <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>
-                                )}
+                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -950,7 +986,7 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('gips / fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
                 {renderSelectieRij('binnen deuren', 'Binnen deuren')}
-                {renderSelectieRij('naden vullen', 'Naden vullen')}
+                {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
                 
                  {renderSelectieRij('extra', 'Extra materiaal')}
@@ -995,3 +1031,4 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
