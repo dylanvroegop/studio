@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Hammer, AlertTriangle, Loader2 } from 'lucide-react';
+import { OfferteHulpIcon } from '@/components/icons';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -153,7 +154,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">
-            <Hammer className="h-12 w-12 text-primary" />
+            <OfferteHulpIcon className="h-12 w-12 text-primary" />
           </div>
           <CardTitle className="text-2xl">Account aanmaken</CardTitle>
           <CardDescription>Maak een bedrijfsaccount om offertes te maken en beheren.</CardDescription>

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Hammer } from 'lucide-react';
+import { OfferteHulpIcon } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
@@ -78,7 +78,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="mx-auto mb-4">
-                <Hammer className="h-12 w-12 text-primary" />
+                <OfferteHulpIcon className="h-12 w-12 text-primary" />
             </div>
           <CardTitle className="text-2xl">OfferteHulp</CardTitle>
           <CardDescription>Log in om toegang te krijgen tot uw dashboard</CardDescription>
