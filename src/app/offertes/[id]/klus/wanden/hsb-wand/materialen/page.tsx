@@ -1,7 +1,6 @@
 
 'use client';
 
-import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -313,12 +312,12 @@ const MateriaalKiezerModal = React.forwardRef<
   const renderMaterialList = (materials: MateriaalKeuze[]) => {
       return materials.map(materiaal => (
         <li
-            key={materiaal.id}
-            onClick={() => handleSelect(materiaal)}
-            className={cn(
-              "flex w-full cursor-pointer items-start gap-3 p-4 text-left hover:bg-muted/50 transition-colors",
-              geselecteerdMateriaalId === materiaal.id && 'bg-muted'
-            )}
+          key={materiaal.id}
+          onClick={() => handleSelect(materiaal)}
+          className={cn(
+            "relative flex w-full cursor-pointer items-start gap-3 p-4 text-left hover:bg-muted/50 transition-colors",
+            geselecteerdMateriaalId === materiaal.id && 'bg-muted'
+          )}
         >
           <Button 
             variant="ghost" 
@@ -338,7 +337,7 @@ const MateriaalKiezerModal = React.forwardRef<
               <p className="text-xs text-muted-foreground mt-1">
                   €{materiaal.prijs.toFixed(2)} • {materiaal.eenheid}
               </p>
-              <p className="text-xs text-muted-foreground">{materiaal.subsectie}</p>
+              {materiaal.subsectie && <p className="text-xs text-muted-foreground">{materiaal.subsectie}</p>}
           </div>
         </li>
       ));
@@ -765,7 +764,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>{gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Kies materiaal 1'}</p></div>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>{gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}</p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal1 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                                 <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen')}>{gekozenMateriaal1 ? 'Wijzigen' : 'Kiezen'}</Button>
@@ -775,7 +774,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : <span className="italic">Kies materiaal 2 (optioneel)</span>}</p></div>
+                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : <span className="italic">Nog geen materiaal gekozen (optioneel)</span>}</p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal2 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen_2')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                                 <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen_2')}>{gekozenMateriaal2 ? 'Wijzigen' : 'Kiezen'}</Button>
@@ -1067,4 +1066,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
