@@ -1,10 +1,11 @@
 
 'use client';
 
+import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -407,7 +408,6 @@ function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean
                     <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
                         {orderedMaterials.map(item => (
                             <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                                <GripVertical className="h-5 w-5 text-muted-foreground" />
                                 {item.materiaalnaam}
                             </Reorder.Item>
                         ))}
@@ -566,6 +566,7 @@ export default function HsbWandMaterialenPage() {
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
       if (!alleMaterialen) return [];
       const filterKey = sectieKey.toString().toLowerCase();
+
        if (filterKey === 'gips / fermacell') {
          return alleMaterialen.filter(m => 
               m.subsectie?.toLowerCase() === 'gips' ||
@@ -947,7 +948,7 @@ export default function HsbWandMaterialenPage() {
           }}
       />}
 
-      <ReorderModal
+      {alleMaterialen.length > 0 && <ReorderModal
         open={reorderModalOpen}
         onOpenChange={setReorderModalOpen}
         materials={alleMaterialen}
@@ -956,16 +957,9 @@ export default function HsbWandMaterialenPage() {
             console.log("New order:", newOrder.map(m => m.id));
             setAlleMaterialen(newOrder); // Optimistically update UI
         }}
-       />
+       />}
     </>
   );
 }
 
     
-
-    
-
-    
-
-    
-
