@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -871,7 +872,7 @@ export default function HsbWandMaterialenPage() {
               </div>
 
               <div className="space-y-4">
-                {renderSelectieRij('balktype', 'Balktype')}
+                {renderSelectieRij('balktype', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
                 {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
@@ -942,3 +943,4 @@ export default function HsbWandMaterialenPage() {
     
 
     
+

@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -44,16 +44,6 @@ type Materiaal = {
 };
 
 type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
-
-type ExtraMateriaal = {
-  id: string;
-  naam: string;
-  eenheid: 'stuk' | 'm¹' | 'm²' | 'm³';
-  lengteMm?: number;
-  breedteMm?: number;
-  hoogteMm?: number;
-  prijsPerEenheid: number;
-}
 
 const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -338,7 +328,6 @@ export default function HsbTussenwandMaterialenPage() {
     }
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
-
     const nieuweGekozenMaterialen: Record<string, MateriaalKeuze | undefined> = {};
     for (const slot in preset.slots) {
       const materiaalId = preset.slots[slot];
@@ -629,7 +618,7 @@ export default function HsbTussenwandMaterialenPage() {
               </div>
 
               <div className="space-y-4">
-                {renderSelectieRij('balktype', 'Balktype')}
+                {renderSelectieRij('balktype', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
                 {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}

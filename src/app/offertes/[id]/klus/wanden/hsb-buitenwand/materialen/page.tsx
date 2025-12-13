@@ -525,7 +525,7 @@ export default function HsbBuitenwandMaterialenPage() {
               </div>
 
               <div className="space-y-4">
-                {renderSelectieRij('balktype', 'Balktype')}
+                {renderSelectieRij('balktype', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('folie_buitenzijde', 'Folie (buitenzijde)')}
                 {renderSelectieRij('binnenbekleding', 'Binnenbekleding (OSB)')}
@@ -569,3 +569,4 @@ export default function HsbBuitenwandMaterialenPage() {
     </>
   );
 }
+
