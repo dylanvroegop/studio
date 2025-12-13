@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -823,7 +823,7 @@ export default function HsbWandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
+        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/wanden/hsb-wand`}>
@@ -832,18 +832,20 @@ export default function HsbWandMaterialenPage() {
               </Link>
             </Button>
           </div>
-          <div className="col-start-2 flex flex-col items-center text-center">
+           <div className="text-center">
             <h1 className="font-semibold text-lg">HSB Wand</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : null}
+            {isPaginaLaden ? (
+              <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+            ) : null}
           </div>
         </header>
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
-
+              
               <div className="mb-8 space-y-2">
                 <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
                 <div className="flex items-center gap-2">
@@ -853,9 +855,7 @@ export default function HsbWandMaterialenPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="default">Standaard (leeg)</SelectItem>
-                            {presets.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                            ))}
+                            {presets.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>))}
                         </SelectContent>
                     </Select>
                     <Button 
@@ -874,7 +874,7 @@ export default function HsbWandMaterialenPage() {
               <div className="space-y-4">
                 {renderSelectieRij('balktype', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('binnenbekleding', 'OSB / Constructieplaat')}
+                {renderSelectieRij('binnenbekleding', 'Houten plaatmateriaal')}
                 {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('plinten', 'Plinten')}
