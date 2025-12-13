@@ -346,14 +346,14 @@ const MateriaalKiezerModal = React.forwardRef<
             key={materiaal.id}
             onClick={() => handleSelect(materiaal)}
             className={cn(
-              "relative flex w-full cursor-pointer items-start gap-3 p-4 text-left -mx-4 hover:bg-muted/50 transition-colors",
+              "flex w-full cursor-pointer items-start gap-3 p-4 text-left hover:bg-muted/50 transition-colors",
               geselecteerdMateriaalId === materiaal.id && 'bg-muted'
             )}
         >
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8 flex-shrink-0 rounded-full -ml-1" 
+            className="h-8 w-8 flex-shrink-0 rounded-full" 
             onClick={(e) => { e.stopPropagation(); toggleFavoriet(materiaal.id); }}
           >
               <Star className={cn("h-5 w-5", isFavoriet(materiaal.id) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/50 hover:text-muted-foreground')} />
@@ -366,7 +366,7 @@ const MateriaalKiezerModal = React.forwardRef<
                   {materiaal.materiaalnaam}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                  € {materiaal.prijs.toFixed(2)} &bull; {materiaal.eenheid}
+                  € {materiaal.prijs.toFixed(2)} • {materiaal.eenheid}
               </p>
               <p className="text-xs text-muted-foreground">{materiaal.subsectie}</p>
           </div>
@@ -451,7 +451,7 @@ const MateriaalKiezerModal = React.forwardRef<
                         />
                     </div>
                     <div className="overflow-y-auto flex-1 mt-4 max-h-[40vh]">
-                        <ul className="divide-y divide-border -mx-4">
+                        <ul className="divide-y divide-border">
                             {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
                         </ul>
                     </div>
@@ -468,7 +468,7 @@ const MateriaalKiezerModal = React.forwardRef<
                     />
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
-                    <ul className="divide-y divide-border -mx-4">
+                    <ul className="divide-y divide-border">
                         {gefilterdeMaterialen.favorieteResultaten.length > 0 && (
                           <>
                             <li className="px-4 py-2 bg-muted/50 font-semibold text-sm sticky top-0">Favorieten</li>
@@ -639,7 +639,7 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay to prevent flash of loading state
+  // Set loading to false after a short delay
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
@@ -1017,16 +1017,17 @@ export default function HsbWandMaterialenPage() {
          onSave={handleSavePreset}
        />
 
-       {actieveSectie && <MateriaalKiezerModal
+       <MateriaalKiezerModal
           ref={null}
           open={!!actieveSectie}
-          sectieSleutel={actieveSectie}
-          geselecteerdMateriaalId={actieveSectie !== 'extra' ? gekozenMaterialen[actieveSectie]?.id : undefined}
+          sectieSleutel={actieveSectie as SectieKey}
+          geselecteerdMateriaalId={actieveSectie && actieveSectie !== 'extra' ? gekozenMaterialen[actieveSectie]?.id : undefined}
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
           onAddExtra={handleAddExtraMateriaal}
-          materialen={filterMaterialenVoorSectie(actieveSectie)}
-      />}
+          materialen={actieveSectie ? filterMaterialenVoorSectie(actieveSectie) : []}
+      />
     </>
   );
 }
+
