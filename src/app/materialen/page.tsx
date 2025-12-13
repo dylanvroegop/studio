@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -117,7 +118,7 @@ export default function MaterialenPage() {
                 setError(null);
 
                 const { data, error } = await supabase
-                    .from('materialen_duplicate')
+                    .from('materialen')
                     .select('*')
                     .eq('user_id', user.uid)
                     .order('lijst_volgorde', { ascending: true });
