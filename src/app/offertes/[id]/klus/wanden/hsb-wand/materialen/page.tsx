@@ -836,7 +836,7 @@ export default function HsbWandMaterialenPage() {
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
                                 {gekozenMateriaal ? (
-                                  <p className="text-sm text-muted-foreground font-semibold">{gekozenMateriaal.materiaalnaam}</p>
+                                  <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p>
                                 ) : (
                                   <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>
                                 )}
