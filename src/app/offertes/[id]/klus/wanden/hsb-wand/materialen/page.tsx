@@ -47,7 +47,7 @@ type Materiaal = {
 
 type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
 
-const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 const lijktPlaatmateriaal = (naam: string) => {
@@ -405,6 +405,7 @@ function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean
     }, [materials]);
 
     const handleSave = async () => {
+        // Implement save logic here, this will likely involve updating the sort_order in your database
         onSave(orderedMaterials);
         onOpenChange(false);
     };
@@ -876,6 +877,7 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('binnenbekleding', 'Houten plaatmateriaal')}
                 {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
+                {renderSelectieRij('kozijnen', 'Binnen kozijnen')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('plinten', 'Afwerkplinten')}
                 
