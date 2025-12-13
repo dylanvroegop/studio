@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial, Material } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
-import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter, useCollection, WithId } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,36 +34,12 @@ import { Textarea } from '@/components/ui/textarea';
 // ==================================
 // Definities en Data
 // ==================================
-type Materiaal = {
-  row_id: string;
-  id: string;
-  materiaalnaam: string;
-  categorie: string | null;
-  eenheid: string;
-  prijs: number | string | null;
-  sort_order: number | null;
-  user_id: string;
-};
 
-type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
+type MateriaalKeuze = WithId<Material>;
 
-const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips / fermacell', 'kozijnen', 'deuren', 'naden vullen', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips / fermacell', 'binnen kozijnen', 'binnen deuren', 'naden vullen', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
-const lijktPlaatmateriaal = (naam: string) => {
-  const lower = naam.toLowerCase();
-  const keywords = [
-    "gips",
-    "gipsplaat",
-    "osb",
-    "underlayment",
-    "plaat",
-    "multiplex",
-    "vezelplaat",
-    "vezelplaat",
-  ];
-  return keywords.some((kw) => lower.includes(kw));
-};
 
 // ==================================
 // Modal Components
@@ -455,10 +431,12 @@ export default function HsbWandMaterialenPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
   
-  // State voor materialen
-  const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
-  const [isMaterialenLaden, setMaterialenLaden] = useState(true);
-  const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
+  const materialenQuery = useMemo(() => {
+    if (!user) return null;
+    return query(collection(firestore, 'materials'), where('userId', '==', user.uid));
+  }, [user, firestore]);
+
+  const { data: alleMaterialen, isLoading: isMaterialenLaden, error: foutMaterialen } = useCollection<Material>(materialenQuery);
   
   // State voor presets
   const [presets, setPresets] = useState<PresetType[]>([]);
@@ -518,7 +496,11 @@ export default function HsbWandMaterialenPage() {
           operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        setFoutMaterialen('Kon presets niet laden vanwege permissieproblemen.');
+        toast({
+            variant: "destructive",
+            title: "Fout bij laden van presets",
+            description: "U heeft mogelijk geen permissie om presets te lezen."
+        });
         setPresetsLaden(false);
       });
     };
@@ -528,7 +510,7 @@ export default function HsbWandMaterialenPage() {
   
   // Gekozen preset toepassen
   useEffect(() => {
-    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
+    if (gekozenPresetId === 'default' || !alleMaterialen || alleMaterialen.length === 0) {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
@@ -550,19 +532,10 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setMaterialenLaden(false);
-        }, 50); // Small delay
-        return () => clearTimeout(timer);
-    }, []);
-
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
     if (!alleMaterialen) return [];
     
-    // Exact match, case-insensitive
     const filterKey = sectieKey.toString().toLowerCase();
 
     return alleMaterialen.filter(m => 
@@ -934,7 +907,7 @@ export default function HsbWandMaterialenPage() {
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
           onAddExtra={handleAddExtraMateriaal}
-          materialen={filterMaterialenVoorSectie(actieveSectie)}
+          materialen={alleMaterialen || []}
           openReorderModal={() => {
             sluitMateriaalKiezer();
             setReorderModalOpen(true);
@@ -944,11 +917,11 @@ export default function HsbWandMaterialenPage() {
       <ReorderModal
         open={reorderModalOpen}
         onOpenChange={setReorderModalOpen}
-        materials={alleMaterialen}
+        materials={alleMaterialen || []}
         onSave={(newOrder) => {
             // Here you would ideally update the sort_order in your backend
             console.log("New order:", newOrder.map(m => m.id));
-            setAlleMaterialen(newOrder); // Optimistically update UI
+            // setAlleMaterialen(newOrder); // Optimistically update UI
         }}
        />
     </>
