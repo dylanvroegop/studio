@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial, Material } from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,20 +22,28 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
-import { useUser, useFirestore, FirestorePermissionError, errorEmitter, useCollection, WithId } from '@/firebase';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/lib/supabase';
 
 
 // ==================================
 // Definities en Data
 // ==================================
+type Material = {
+  row_id: string;
+  materiaalnaam: string;
+  subsectie: string | null;
+  eenheid: string;
+  prijs: number | string | null;
+};
 
-type MateriaalKeuze = WithId<Material>;
+type MateriaalKeuze = Omit<Material, 'prijs' | 'row_id'> & { prijs: number; id: string };
 
 const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips / fermacell', 'binnen kozijnen', 'binnen deuren', 'naden vullen', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -304,7 +312,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                                     <div className="flex justify-between items-center">
                                         <div>
                                             <p className="font-medium">{materiaal.materiaalnaam}</p>
-                                            <p className="text-sm text-muted-foreground">{materiaal.categorie}</p>
+                                            <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
@@ -344,7 +352,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                             >
                                 <div onClick={() => handleSelect(materiaal)} className="flex-grow">
                                     <p className="font-medium">{materiaal.materiaalnaam}</p>
-                                    <p className="text-sm text-muted-foreground">{materiaal.categorie}</p>
+                                    <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
                                 </div>
                                 <div onClick={() => handleSelect(materiaal)} className="text-right pr-4">
                                     <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
@@ -431,12 +439,10 @@ export default function HsbWandMaterialenPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
   
-  const materialenQuery = useMemo(() => {
-    if (!user) return null;
-    return query(collection(firestore, 'materials'), where('userId', '==', user.uid));
-  }, [user, firestore]);
-
-  const { data: alleMaterialen, isLoading: isMaterialenLaden, error: foutMaterialen } = useCollection<Material>(materialenQuery);
+  // State voor materialen
+  const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
+  const [isMaterialenLaden, setMaterialenLaden] = useState(true);
+  const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
   
   // State voor presets
   const [presets, setPresets] = useState<PresetType[]>([]);
@@ -473,6 +479,36 @@ export default function HsbWandMaterialenPage() {
     fetchQuote();
   }, [quoteId]);
 
+  // Materialen ophalen uit Supabase
+  useEffect(() => {
+    if (user?.uid) {
+        const fetchMaterials = async () => {
+            setMaterialenLaden(true);
+            const { data, error } = await supabase
+                .from('materialen')
+                .select('*')
+                .eq('gebruikerid', user.uid)
+                .order('volgorde', { ascending: true });
+
+            if (error) {
+                console.error('Fout bij ophalen Supabase materialen:', error);
+                setFoutMaterialen('Kon materialen niet laden.');
+                setAlleMaterialen([]);
+            } else {
+                const getCorrectPrice = (p: string | number | null) => {
+                    if (typeof p === 'number') return p;
+                    if (typeof p === 'string') return parseFloat(p.replace(',', '.')) || 0;
+                    return 0;
+                }
+                const materialenData = data.map(m => ({...m, id: m.row_id, prijs: getCorrectPrice(m.prijs)}));
+                setAlleMaterialen(materialenData);
+            }
+            setMaterialenLaden(false);
+        };
+        fetchMaterials();
+    }
+  }, [user]);
+
   // Presets ophalen
   useEffect(() => {
     if (!user || !firestore) return;
@@ -496,11 +532,7 @@ export default function HsbWandMaterialenPage() {
           operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        toast({
-            variant: "destructive",
-            title: "Fout bij laden van presets",
-            description: "U heeft mogelijk geen permissie om presets te lezen."
-        });
+        setFoutMaterialen('Kon presets niet laden vanwege permissieproblemen.');
         setPresetsLaden(false);
       });
     };
@@ -510,7 +542,7 @@ export default function HsbWandMaterialenPage() {
   
   // Gekozen preset toepassen
   useEffect(() => {
-    if (gekozenPresetId === 'default' || !alleMaterialen || alleMaterialen.length === 0) {
+    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
@@ -539,7 +571,7 @@ export default function HsbWandMaterialenPage() {
     const filterKey = sectieKey.toString().toLowerCase();
 
     return alleMaterialen.filter(m => 
-        m.categorie?.toLowerCase() === filterKey
+        m.subsectie?.toLowerCase() === filterKey
     );
 }, [alleMaterialen]);
 
@@ -927,3 +959,12 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
+
+    
+
