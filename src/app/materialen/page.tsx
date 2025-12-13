@@ -30,12 +30,12 @@ import { DashboardHeader } from '@/components/dashboard-header';
 
 type Material = {
   row_id: string;
-  categorie: string;
+  subsectie: string; // Changed from categorie
   materiaalnaam: string;
   prijs: number | string | null; // Allow for mixed types from DB
   eenheid: string;
   leverancier: string;
-  user_id: string;
+  gebruikerid: string; // Changed from user_id
 };
 
 function parsePriceToNumber(raw: unknown): number | null {
@@ -120,8 +120,8 @@ export default function MaterialenPage() {
                 const { data, error } = await supabase
                     .from('materialen')
                     .select('*')
-                    .eq('user_id', user.uid)
-                    .order('lijst_volgorde', { ascending: true });
+                    .eq('gebruikerid', user.uid) // Changed from user_id
+                    .order('volgorde', { ascending: true }); // Changed from lijst_volgorde
 
                 if (error) {
                     console.error('Fout bij het ophalen van Supabase:', error);
@@ -161,7 +161,7 @@ export default function MaterialenPage() {
         }
         
         if (categoryFilter !== 'all') {
-            result = result.filter(m => m.categorie === categoryFilter);
+            result = result.filter(m => m.subsectie === categoryFilter); // Changed from categorie
         }
 
         return result;
@@ -179,7 +179,7 @@ export default function MaterialenPage() {
     }, [materials]);
 
     const uniqueCategories = useMemo(() => {
-        return [...new Set(materials.map(m => m.categorie).filter(Boolean).sort())];
+        return [...new Set(materials.map(m => m.subsectie).filter(Boolean).sort())]; // Changed from categorie
     }, [materials]);
 
     if (isUserLoading || (!user && !error)) {
@@ -277,7 +277,7 @@ export default function MaterialenPage() {
                                                 <TableCell className="font-medium">{material.materiaalnaam}</TableCell>
                                                 <TableCell className="text-right">{prijsLabel}</TableCell>
                                                 <TableCell>{material.eenheid}</TableCell>
-                                                <TableCell>{material.categorie || '—'}</TableCell>
+                                                <TableCell>{material.subsectie || '—'}</TableCell>
                                                 <TableCell>{material.leverancier || '—'}</TableCell>
                                             </TableRow>
                                         )
