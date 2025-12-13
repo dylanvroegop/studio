@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -188,22 +189,10 @@ const MateriaalKiezerModal = React.forwardRef<
   useEffect(() => {
     setOrderedMaterials(initialMaterials);
   }, [initialMaterials]);
-
+  
   const gefilterdeMaterialen = useMemo(() => {
-    const filtered = orderedMaterials.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
-    
-    // Sort logic
-    return filtered.sort((a, b) => {
-      const aIsFav = isFavoriet(a.id);
-      const bIsFav = isFavoriet(b.id);
-
-      if (aIsFav && !bIsFav) return -1;
-      if (!aIsFav && bIsFav) return 1;
-      
-      // If both are fav or not fav, sort by name
-      return a.materiaalnaam.localeCompare(b.materiaalnaam);
-    });
-  }, [zoekterm, orderedMaterials, isFavoriet]);
+    return initialMaterials.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
+  }, [zoekterm, initialMaterials]);
 
   const { favorieteResultaten, overigeResultaten } = useMemo(() => {
     const favorieteResultaten = gefilterdeMaterialen.filter(m => isFavoriet(m.id));
@@ -307,17 +296,14 @@ const MateriaalKiezerModal = React.forwardRef<
         <li
             key={materiaal.id}
             onClick={() => handleSelect(materiaal)}
-            className={cn("p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors flex justify-between items-center", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
+            className={cn("p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors flex justify-between items-start", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
         >
-            <div>
+            <div className="flex-1">
                 <p className={cn("font-medium", geselecteerdMateriaalId === materiaal.id && 'text-primary')}>{materiaal.materiaalnaam}</p>
+                <p className="text-sm text-muted-foreground">€ {materiaal.prijs.toFixed(2)} • {materiaal.eenheid}</p>
                 <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
             </div>
-            <div className="flex items-center gap-2">
-                <div className="text-right">
-                    <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
-                    <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
-                </div>
+            <div className="flex items-center gap-2 pl-4">
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); toggleFavoriet(materiaal.id); }}>
                     <Star className={cn("h-5 w-5", isFavoriet(materiaal.id) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground')} />
                 </Button>
@@ -451,47 +437,6 @@ const MateriaalKiezerModal = React.forwardRef<
 });
 MateriaalKiezerModal.displayName = 'MateriaalKiezerModal';
 
-function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean, onOpenChange: (open:boolean) => void, materials: MateriaalKeuze[], onSave: (materials: MateriaalKeuze[]) => void }) {
-    const [orderedMaterials, setOrderedMaterials] = useState(materials);
-
-    useEffect(() => {
-        setOrderedMaterials(materials);
-    }, [materials]);
-
-    const handleSave = async () => {
-        // Implement save logic here, this will likely involve updating the sort_order in your database
-        onSave(orderedMaterials);
-        onOpenChange(false);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Materiaal Volgorde</DialogTitle>
-                    <DialogDescription>
-                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 max-h-[60vh] overflow-y-auto">
-                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
-                        {orderedMaterials.map(item => (
-                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                                {item.materiaalnaam}
-                            </Reorder.Item>
-                        ))}
-                    </Reorder.Group>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
-                    <Button onClick={handleSave}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-
 // ==================================
 // Pagina Component
 // ==================================
@@ -527,7 +472,6 @@ export default function HsbWandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
-  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const isVolgendeIngeschakeld = true;
@@ -1011,10 +955,6 @@ export default function HsbWandMaterialenPage() {
           onSelecteren={handleMateriaalSelectie}
           onAddExtra={handleAddExtraMateriaal}
           materialen={filterMaterialenVoorSectie(actieveSectie)}
-          openReorderModal={() => {
-            sluitMateriaalKiezer();
-            setReorderModalOpen(true);
-          }}
       />}
     </>
   );
