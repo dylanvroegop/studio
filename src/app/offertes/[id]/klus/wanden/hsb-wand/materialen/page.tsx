@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -107,52 +106,6 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
       </DialogContent>
     </Dialog>
   )
-}
-
-type ReorderModalProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  materials: MateriaalKeuze[];
-  onSave: (materials: MateriaalKeuze[]) => void;
-};
-
-function ReorderModal({ open, onOpenChange, materials, onSave }: ReorderModalProps) {
-    const [orderedMaterials, setOrderedMaterials] = useState(materials);
-
-    useEffect(() => {
-        setOrderedMaterials(materials);
-    }, [materials]);
-
-    const handleSave = async () => {
-        onSave(orderedMaterials);
-        onOpenChange(false);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Materiaal Volgorde</DialogTitle>
-                    <DialogDescription>
-                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 max-h-[60vh] overflow-y-auto">
-                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
-                        {orderedMaterials.map(item => (
-                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                                {item.materiaalnaam}
-                            </Reorder.Item>
-                        ))}
-                    </Reorder.Group>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
-                    <Button onClick={handleSave}>Opslaan</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
 }
 
 type MateriaalKiezerModalProps = {
@@ -366,7 +319,7 @@ const MateriaalKiezerModal = React.forwardRef<
                   {materiaal.materiaalnaam}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                  € {materiaal.prijs.toFixed(2)} • {materiaal.eenheid}
+                  €{materiaal.prijs.toFixed(2)} • {materiaal.eenheid}
               </p>
               <p className="text-xs text-muted-foreground">{materiaal.subsectie}</p>
           </div>
@@ -647,40 +600,25 @@ export default function HsbWandMaterialenPage() {
         return () => clearTimeout(timer);
     }, []);
 
+    const subsectieMapping: Record<SectieKey, string> = {
+        'balkhout': 'Balkhout',
+        'isolatie': 'Isolatie',
+        'houten plaatmateriaal': 'Houten plaatmateriaal',
+        'gips / fermacell': 'Gips / Fermacell',
+        'binnen kozijnen': 'Binnen kozijnen',
+        'binnen deuren': 'Binnen deuren',
+        'naden vullen': 'Naden vullen',
+        'afwerkplinten': 'Afwerkplinten',
+        'extra': '', 
+        'klein_materiaal': ''
+    };
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-    let filterWoorden: string[] = [];
-    switch (sectieKey) {
-        case 'balkhout':
-            filterWoorden = ['sls', 'cls', 'vuren', 'balk'];
-            break;
-        case 'isolatie':
-            filterWoorden = ['isolatie', 'glaswol', 'steenwol', 'pir'];
-            break;
-        case 'houten plaatmateriaal':
-            filterWoorden = ['osb', 'underlayment', 'multiplex'];
-            break;
-        case 'gips / fermacell':
-            return alleMaterialen.filter(m => m.subsectie?.toLowerCase().includes('gips / fermacell'));
-        case 'binnen kozijnen':
-             filterWoorden = ['kozijn'];
-             break;
-        case 'binnen deuren':
-            filterWoorden = ['deur'];
-            break;
-         case 'naden vullen':
-             filterWoorden = ['voeg', 'filler', 'gips'];
-             break;
-         case 'afwerkplinten':
-             filterWoorden = ['plint'];
-             break;
-        default:
-            return alleMaterialen;
+    const subsectieNaam = subsectieMapping[sectieKey];
+    if (!subsectieNaam) {
+        return alleMaterialen; // Voor 'extra' of als er geen mapping is
     }
-
-    return alleMaterialen.filter(m => 
-        filterWoorden.some(fw => m.materiaalnaam.toLowerCase().includes(fw))
-    );
+    return alleMaterialen.filter(m => m.subsectie?.toLowerCase() === subsectieNaam.toLowerCase());
 }, [alleMaterialen]);
 
 
@@ -836,9 +774,9 @@ export default function HsbWandMaterialenPage() {
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
                                 {gekozenMateriaal ? (
-                                  <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p>
+                                    <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p>
                                 ) : (
-                                  <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>
+                                    <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
