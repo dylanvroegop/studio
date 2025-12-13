@@ -206,9 +206,6 @@ export default function MaterialenPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Alle materialen</CardTitle>
-                        <CardDescription>
-                            Gedownload van uw Supabase database.
-                        </CardDescription>
                         <div className="mt-4 flex flex-col md:flex-row gap-2">
                              <Input 
                                 placeholder="Zoek op materiaalnaam..." 
