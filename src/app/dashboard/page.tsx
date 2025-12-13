@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { ArrowUpRight, HardHat, FilePen, Send, Clock, Copy, PlusCircle, CircleDollarSign, AlertTriangle, LayoutDashboard } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, HardHat, FilePen, Send, Clock, Copy, PlusCircle, CircleDollarSign, AlertTriangle, LayoutDashboard } from 'lucide-react';
 import { format, subDays, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -220,7 +220,15 @@ export default function Dashboard() {
       <DashboardHeader user={user} />
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         <div className="flex items-center justify-between">
-            <h1 className="font-semibold text-2xl md:text-3xl">Dashboard</h1>
+            <div className="flex items-center gap-4">
+                 <Button asChild variant="outline" size="icon">
+                  <Link href="/">
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="sr-only">Terug</span>
+                  </Link>
+                </Button>
+                <h1 className="font-semibold text-2xl md:text-3xl">Dashboard</h1>
+            </div>
             <div className="flex gap-2">
                 <Button asChild>
                     <Link href="/offertes/nieuw">
@@ -371,5 +379,7 @@ export default function Dashboard() {
     </TooltipProvider>
   );
 }
+
+    
 
     
