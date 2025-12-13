@@ -775,7 +775,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : <span className="italic">Nog geen materiaal gekozen (optioneel)</span>}</p></div>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}</p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal2 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen_2')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                                 <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen_2')}>{gekozenMateriaal2 ? 'Wijzigen' : 'Kiezen'}</Button>
