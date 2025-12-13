@@ -877,7 +877,7 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('binnenbekleding', 'Houten plaatmateriaal')}
                 {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
-                {renderSelectieRij('plinten', 'Plinten')}
+                {renderSelectieRij('plinten', 'Afwerkplinten')}
                 
                  {renderSelectieRij('extra', 'Extra materiaal')}
 
@@ -935,12 +935,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
-
