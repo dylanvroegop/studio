@@ -47,7 +47,7 @@ type Materiaal = {
 
 type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
 
-const sectieSleutels = ['balktype', 'isolatie', 'binnenbekleding', 'gips_fermacell', 'kozijnen', 'deuren', 'naden_vullen', 'plinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips / fermacell', 'kozijnen', 'deuren', 'naden vullen', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 const lijktPlaatmateriaal = (naam: string) => {
@@ -561,32 +561,13 @@ export default function HsbWandMaterialenPage() {
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
     if (!alleMaterialen) return [];
+    
+    // Exact match, case-insensitive
+    const filterKey = sectieKey.toString().toLowerCase();
 
-    const lowerCaseAndTrim = (str: string | null | undefined) => str?.toLowerCase().trim() ?? '';
-
-    switch (sectieKey) {
-        case 'balktype':
-            return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('balkhout'));
-        case 'isolatie':
-            return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('isolatie'));
-        case 'binnenbekleding':
-             return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('osb') || lowerCaseAndTrim(m.categorie).includes('underlayment'));
-        case 'gips_fermacell':
-            return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('gips') || lowerCaseAndTrim(m.categorie).includes('fermacell'));
-        case 'kozijnen':
-            return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('kozijn'));
-        case 'deuren':
-             return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('deur'));
-        case 'naden_vullen':
-             return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('afwerking'));
-        case 'plinten':
-             return alleMaterialen.filter(m => lowerCaseAndTrim(m.categorie).includes('plint'));
-        case 'extra':
-        case 'klein_materiaal':
-            return alleMaterialen;
-        default:
-            return alleMaterialen;
-    }
+    return alleMaterialen.filter(m => 
+        m.categorie?.toLowerCase() === filterKey
+    );
 }, [alleMaterialen]);
 
 
@@ -643,25 +624,38 @@ export default function HsbWandMaterialenPage() {
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
     
-    try {
-        const batch = writeBatch(firestore);
-        if (isDefault) {
-            const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
-            const querySnapshot = await getDocs(q);
+    const batch = writeBatch(firestore);
+
+    if (isDefault) {
+        const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE), where('isDefault', '==', true));
+        getDocs(q).then(querySnapshot => {
             querySnapshot.forEach(doc => batch.update(doc.ref, { isDefault: false }));
-        }
-        const newDocRef = doc(collection(firestore, 'presets'));
-        batch.set(newDocRef, newPresetData);
-        await batch.commit();
-        toast({ title: 'Voorinstelling opgeslagen', description: `"${presetName}" is succesvol opgeslagen.` });
+        }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+              path: `presets`, // Simplified path for batch update context
+              operation: 'list', // The initial operation that failed
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+    }
+    
+    const newDocRef = doc(collection(firestore, 'presets'));
+    batch.set(newDocRef, newPresetData);
+
+    batch.commit().then(() => {
+        toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
         const newPreset = { id: newDocRef.id, ...newPresetData } as PresetType;
         setPresets(prev => [...prev.map(p => ({...p, isDefault: isDefault ? false : p.isDefault })), newPreset]);
         setGekozenPresetId(newDocRef.id);
-    } catch (error) {
-        console.error("Fout bij opslaan preset:", error);
-        toast({ variant: 'destructive', title: 'Fout', description: 'Kon de voorinstelling niet opslaan.' });
-    }
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: newDocRef.path,
+          operation: 'create',
+          requestResourceData: newPresetData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
@@ -895,14 +889,14 @@ export default function HsbWandMaterialenPage() {
               </div>
 
               <div className="space-y-4">
-                {renderSelectieRij('balktype', 'Balkhout')}
+                {renderSelectieRij('balkhout', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('binnenbekleding', 'Houten plaatmateriaal')}
-                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
-                {renderSelectieRij('kozijnen', 'Binnen kozijnen')}
-                {renderSelectieRij('deuren', 'Binnen deuren')}
-                {renderSelectieRij('naden_vullen', 'Naden vullen')}
-                {renderSelectieRij('plinten', 'Afwerkplinten')}
+                {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
+                {renderSelectieRij('gips / fermacell', 'Gips / Fermacell')}
+                {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
+                {renderSelectieRij('binnen deuren', 'Binnen deuren')}
+                {renderSelectieRij('naden vullen', 'Naden vullen')}
+                {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
                 
                  {renderSelectieRij('extra', 'Extra materiaal')}
 
@@ -960,12 +954,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
-
