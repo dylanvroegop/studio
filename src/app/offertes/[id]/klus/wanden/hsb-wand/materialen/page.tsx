@@ -126,6 +126,7 @@ const MateriaalKiezerModal = React.forwardRef<
   const { user } = useUser();
   const { toast } = useToast();
   const [zoekterm, setZoekterm] = useState('');
+  const [subsectieFilter, setSubsectieFilter] = useState('all');
   const [activeTab, setActiveTab] = useState("eigen");
   const [orderedMaterials, setOrderedMaterials] = useState(initialMaterials);
   const [favorieten, setFavorieten] = useState<string[]>([]);
@@ -189,19 +190,34 @@ const MateriaalKiezerModal = React.forwardRef<
   useEffect(() => {
     setOrderedMaterials(initialMaterials);
   }, [initialMaterials]);
+
+  const uniekeSubsecties = useMemo(() => {
+      if (!initialMaterials) return [];
+      const subsecties = initialMaterials.map(m => m.subsectie).filter(Boolean);
+      // @ts-ignore
+      return [...new Set(subsecties)].sort();
+  }, [initialMaterials]);
   
   const gefilterdeMaterialen = useMemo(() => {
     if (!initialMaterials) return { favorieteResultaten: [], overigeResultaten: [] };
 
-    const filtered = initialMaterials.filter(m => 
-        m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase())
-    );
+    let filtered = initialMaterials;
+
+    if (zoekterm) {
+        filtered = filtered.filter(m => 
+            m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase())
+        );
+    }
+
+    if (subsectieFilter !== 'all') {
+        filtered = filtered.filter(m => m.subsectie === subsectieFilter);
+    }
 
     const favorieteResultaten = filtered.filter(m => isFavoriet(m.id));
     const overigeResultaten = filtered.filter(m => !isFavoriet(m.id));
     
     return { favorieteResultaten, overigeResultaten };
-  }, [zoekterm, initialMaterials, isFavoriet]);
+  }, [zoekterm, subsectieFilter, initialMaterials, isFavoriet]);
 
 
   const [eigenNaam, setEigenNaam] = useState('');
@@ -396,13 +412,23 @@ const MateriaalKiezerModal = React.forwardRef<
                     )}
                 </TabsContent>
                 <TabsContent value="lijst" className="pt-4 flex-1 flex flex-col min-h-0">
-                     <div className="border-b pb-4">
+                     <div className="flex gap-2 border-b pb-4">
                         <Input 
                             type="text"
                             placeholder={"Zoek op materiaalnaam..."}
                             value={zoekterm}
                             onChange={(e) => setZoekterm(e.target.value)}
+                            className="w-full"
                         />
+                         <Select value={subsectieFilter} onValueChange={setSubsectieFilter}>
+                            <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="Subsectie" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Alle subsecties</SelectItem>
+                                {uniekeSubsecties.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="overflow-y-auto flex-1 mt-4 max-h-[40vh]">
                         <ul className="divide-y divide-border">
@@ -413,13 +439,23 @@ const MateriaalKiezerModal = React.forwardRef<
             </Tabs>
         ) : (
             <div className="p-6 pt-2 flex-1 flex flex-col min-h-0">
-                <div className="border-b pb-4">
+                <div className="flex gap-2 border-b pb-4">
                     <Input 
                         type="text"
                         placeholder={"Zoek op materiaalnaam..."}
                         value={zoekterm}
                         onChange={(e) => setZoekterm(e.target.value)}
+                         className="w-full"
                     />
+                    <Select value={subsectieFilter} onValueChange={setSubsectieFilter}>
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Subsectie" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Alle subsecties</SelectItem>
+                            {uniekeSubsecties.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
                     <ul className="divide-y divide-border">
@@ -567,7 +603,7 @@ export default function HsbWandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore, toast]);
+  }, [user, firestore]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -672,7 +708,7 @@ export default function HsbWandMaterialenPage() {
         if (materiaal) slots[key] = materiaal.id;
     }
     
-    const newPresetData: Omit<PresetType, 'id'> = {
+    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
@@ -720,7 +756,7 @@ export default function HsbWandMaterialenPage() {
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
 
         return (
-            <Card>
+            <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-primary/50")}>
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
                     <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">Verberg</Button>
@@ -729,7 +765,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : <span className="text-primary italic">Kies materiaal 1</span>}</p></div>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>{gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Kies materiaal 1'}</p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal1 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                                 <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen')}>{gekozenMateriaal1 ? 'Wijzigen' : 'Kiezen'}</Button>
@@ -739,7 +775,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : <span className="text-primary italic">Kies materiaal 2 (optioneel)</span>}</p></div>
+                            <div><p className="text-sm text-muted-foreground">{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : <span className="italic">Kies materiaal 2 (optioneel)</span>}</p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal2 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen_2')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                                 <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen_2')}>{gekozenMateriaal2 ? 'Wijzigen' : 'Kiezen'}</Button>
