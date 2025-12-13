@@ -275,7 +275,7 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                         <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                         <div>
                             <span className="font-semibold">Controleer uw invoer.</span><br/>
-                            Een verkeerde eenheid (bv. m² i.p.v. stuk) kan leiden tot een foutieve offerte.
+                            Een verkeerde eenheid (bv. m² i.p.v. stuk) kan leiden tot een foutieve offerteberekening.
                         </div>
                     </div>
                     
@@ -723,7 +723,7 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm font-semibold">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? <p className="text-sm text-primary font-semibold">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -947,8 +947,9 @@ export default function HsbWandMaterialenPage() {
         onOpenChange={setReorderModalOpen}
         materials={alleMaterialen}
         onSave={(newOrder) => {
+            // Here you would ideally update the sort_order in your backend
             console.log("New order:", newOrder.map(m => m.id));
-            setAlleMaterialen(newOrder); 
+            setAlleMaterialen(newOrder); // Optimistically update UI
         }}
        />
     </>
