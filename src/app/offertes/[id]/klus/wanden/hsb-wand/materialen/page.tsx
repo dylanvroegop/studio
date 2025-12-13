@@ -296,18 +296,31 @@ const MateriaalKiezerModal = React.forwardRef<
         <li
             key={materiaal.id}
             onClick={() => handleSelect(materiaal)}
-            className={cn("p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors flex justify-between items-start", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
+            className={cn(
+              "relative w-full cursor-pointer p-4 text-left -mx-4 hover:bg-muted/50 transition-colors",
+              geselecteerdMateriaalId === materiaal.id && 'bg-muted'
+            )}
         >
-            <div className="flex-1">
-                <p className={cn("font-medium", geselecteerdMateriaalId === materiaal.id && 'text-primary')}>{materiaal.materiaalnaam}</p>
-                <p className="text-sm text-muted-foreground">€ {materiaal.prijs.toFixed(2)} • {materiaal.eenheid}</p>
-                <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
-            </div>
-            <div className="flex items-center gap-2 pl-4">
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); toggleFavoriet(materiaal.id); }}>
-                    <Star className={cn("h-5 w-5", isFavoriet(materiaal.id) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground')} />
-                </Button>
-            </div>
+          <div className="pr-10 min-w-0">
+             <p className={cn(
+                  "font-medium break-words leading-tight", 
+                  geselecteerdMateriaalId === materiaal.id && 'text-primary'
+              )}>
+                  {materiaal.materiaalnaam}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                  € {materiaal.prijs.toFixed(2)} &bull; {materiaal.eenheid}
+              </p>
+              <p className="text-xs text-muted-foreground">{materiaal.subsectie}</p>
+          </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute right-3 top-3 h-8 w-8 rounded-full" 
+              onClick={(e) => { e.stopPropagation(); toggleFavoriet(materiaal.id); }}
+            >
+                <Star className={cn("h-5 w-5", isFavoriet(materiaal.id) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/50 hover:text-muted-foreground')} />
+            </Button>
         </li>
       ));
   };
@@ -409,7 +422,7 @@ const MateriaalKiezerModal = React.forwardRef<
                     <ul className="divide-y divide-border -mx-4">
                         {favorieteResultaten.length > 0 && (
                           <>
-                            <li className="px-4 py-2 bg-muted/50 font-semibold text-sm">Favorieten</li>
+                            <li className="px-4 py-2 bg-muted/50 font-semibold text-sm sticky top-0">Favorieten</li>
                             {renderMaterialList(favorieteResultaten)}
                             {overigeResultaten.length > 0 && <li className="py-2"><Separator /></li>}
                           </>
