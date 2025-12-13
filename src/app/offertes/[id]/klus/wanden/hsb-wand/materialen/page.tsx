@@ -338,9 +338,6 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                         value={zoekterm}
                         onChange={(e) => setZoekterm(e.target.value)}
                     />
-                    <button onClick={openReorderModal} className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-3">
-                      Lijst opnieuw ordenen
-                    </button>
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
                     <Reorder.Group as="ul" axis="y" values={gefilterdeMaterialen} onReorder={setOrderedMaterials} className="divide-y divide-border">
@@ -487,8 +484,7 @@ export default function HsbWandMaterialenPage() {
             const { data, error } = await supabase
                 .from('materialen')
                 .select('*')
-                .eq('gebruikerid', user.uid)
-                .order('volgorde', { ascending: true });
+                .eq('gebruikerid', user.uid);
 
             if (error) {
                 console.error('Fout bij ophalen Supabase materialen:', error);
@@ -568,8 +564,14 @@ export default function HsbWandMaterialenPage() {
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
     if (!alleMaterialen) return [];
     
-    const filterKey = sectieKey.toString().toLowerCase();
+    let filterKey = sectieKey.toString().toLowerCase();
 
+    if (filterKey === 'gips / fermacell') {
+       return alleMaterialen.filter(m => 
+            m.subsectie?.toLowerCase() === 'gips' || m.subsectie?.toLowerCase() === 'fermacell'
+        );
+    }
+    
     return alleMaterialen.filter(m => 
         m.subsectie?.toLowerCase() === filterKey
     );
@@ -939,7 +941,7 @@ export default function HsbWandMaterialenPage() {
           onSluiten={sluitMateriaalKiezer}
           onSelecteren={handleMateriaalSelectie}
           onAddExtra={handleAddExtraMateriaal}
-          materialen={alleMaterialen || []}
+          materialen={filterMaterialenVoorSectie(actieveSectie)}
           openReorderModal={() => {
             sluitMateriaalKiezer();
             setReorderModalOpen(true);
@@ -949,22 +951,13 @@ export default function HsbWandMaterialenPage() {
       <ReorderModal
         open={reorderModalOpen}
         onOpenChange={setReorderModalOpen}
-        materials={alleMaterialen || []}
+        materials={alleMaterialen}
         onSave={(newOrder) => {
             // Here you would ideally update the sort_order in your backend
             console.log("New order:", newOrder.map(m => m.id));
-            // setAlleMaterialen(newOrder); // Optimistically update UI
+            setAlleMaterialen(newOrder); // Optimistically update UI
         }}
        />
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
-
