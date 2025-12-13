@@ -237,14 +237,17 @@ const MateriaalKiezerModal = React.forwardRef<
   }, [initialMaterials]);
   
   const gefilterdeMaterialen = useMemo(() => {
-    return initialMaterials.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
-  }, [zoekterm, initialMaterials]);
+    if (!initialMaterials) return { favorieteResultaten: [], overigeResultaten: [] };
 
-  const { favorieteResultaten, overigeResultaten } = useMemo(() => {
-    const favorieteResultaten = gefilterdeMaterialen.filter(m => isFavoriet(m.id));
-    const overigeResultaten = gefilterdeMaterialen.filter(m => !isFavoriet(m.id));
+    const filtered = initialMaterials.filter(m => 
+        m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase())
+    );
+
+    const favorieteResultaten = filtered.filter(m => isFavoriet(m.id));
+    const overigeResultaten = filtered.filter(m => !isFavoriet(m.id));
+    
     return { favorieteResultaten, overigeResultaten };
-  }, [gefilterdeMaterialen, isFavoriet]);
+  }, [zoekterm, initialMaterials, isFavoriet]);
 
 
   const [eigenNaam, setEigenNaam] = useState('');
@@ -449,7 +452,7 @@ const MateriaalKiezerModal = React.forwardRef<
                     </div>
                     <div className="overflow-y-auto flex-1 mt-4 max-h-[40vh]">
                         <ul className="divide-y divide-border -mx-4">
-                            {renderMaterialList(gefilterdeMaterialen)}
+                            {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
                         </ul>
                     </div>
                 </TabsContent>
@@ -466,15 +469,15 @@ const MateriaalKiezerModal = React.forwardRef<
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
                     <ul className="divide-y divide-border -mx-4">
-                        {favorieteResultaten.length > 0 && (
+                        {gefilterdeMaterialen.favorieteResultaten.length > 0 && (
                           <>
                             <li className="px-4 py-2 bg-muted/50 font-semibold text-sm sticky top-0">Favorieten</li>
-                            {renderMaterialList(favorieteResultaten)}
-                            {overigeResultaten.length > 0 && <li className="py-2"><Separator /></li>}
+                            {renderMaterialList(gefilterdeMaterialen.favorieteResultaten)}
+                            {gefilterdeMaterialen.overigeResultaten.length > 0 && <li className="py-2"><Separator /></li>}
                           </>
                         )}
-                        {renderMaterialList(overigeResultaten)}
-                        {gefilterdeMaterialen.length === 0 && (
+                        {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
+                        {initialMaterials.length === 0 && (
                              <div className="p-8 text-center text-muted-foreground">
                                 <p>Geen materialen gevonden die voldoen aan de criteria.</p>
                             </div>
@@ -651,8 +654,7 @@ export default function HsbWandMaterialenPage() {
 
        if (filterKey === 'gips / fermacell') {
          return alleMaterialen.filter(m => 
-              m.subsectie?.toLowerCase() === 'gips' ||
-              m.subsectie?.toLowerCase() === 'fermacell'
+              m.subsectie?.toLowerCase() === 'gips / fermacell'
          );
      }
       return alleMaterialen.filter(m => m.subsectie?.toLowerCase() === filterKey);
