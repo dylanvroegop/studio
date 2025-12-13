@@ -229,14 +229,6 @@ export default function Dashboard() {
                 </Button>
                 <h1 className="font-semibold text-2xl md:text-3xl">Dashboard</h1>
             </div>
-            <div className="flex gap-2">
-                <Button asChild>
-                    <Link href="/offertes/nieuw">
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Offerte aanvragen
-                    </Link>
-                </Button>
-            </div>
         </div>
         
         {/* Stat cards */}
