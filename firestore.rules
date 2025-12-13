@@ -35,7 +35,7 @@ service cloud.firestore {
 
     // Rules for the 'presets' collection
     match /presets/{presetId} {
-        allow list: if isSignedIn() && request.query.where.userId == request.auth.uid;
+        allow list: if isSignedIn();
         allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
         allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
