@@ -649,15 +649,39 @@ export default function HsbWandMaterialenPage() {
 
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-      const filterKey = sectieKey.toString().toLowerCase();
+    let filterWoorden: string[] = [];
+    switch (sectieKey) {
+        case 'balkhout':
+            filterWoorden = ['sls', 'cls', 'vuren', 'balk'];
+            break;
+        case 'isolatie':
+            filterWoorden = ['isolatie', 'glaswol', 'steenwol', 'pir'];
+            break;
+        case 'houten plaatmateriaal':
+            filterWoorden = ['osb', 'underlayment', 'multiplex'];
+            break;
+        case 'gips / fermacell':
+            return alleMaterialen.filter(m => m.subsectie?.toLowerCase().includes('gips / fermacell'));
+        case 'binnen kozijnen':
+             filterWoorden = ['kozijn'];
+             break;
+        case 'binnen deuren':
+            filterWoorden = ['deur'];
+            break;
+         case 'naden vullen':
+             filterWoorden = ['voeg', 'filler', 'gips'];
+             break;
+         case 'afwerkplinten':
+             filterWoorden = ['plint'];
+             break;
+        default:
+            return alleMaterialen;
+    }
 
-      if (filterKey === 'gips / fermacell') {
-         return alleMaterialen.filter(m => 
-              m.subsectie?.toLowerCase() === 'gips / fermacell'
-         );
-     }
-      return alleMaterialen.filter(m => m.subsectie?.toLowerCase() === filterKey);
-  }, [alleMaterialen]);
+    return alleMaterialen.filter(m => 
+        filterWoorden.some(fw => m.materiaalnaam.toLowerCase().includes(fw))
+    );
+}, [alleMaterialen]);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
@@ -811,7 +835,11 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm text-primary font-semibold">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-muted-foreground italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? (
+                                  <p className="text-sm text-muted-foreground font-semibold">{gekozenMateriaal.materiaalnaam}</p>
+                                ) : (
+                                  <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -1029,4 +1057,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
