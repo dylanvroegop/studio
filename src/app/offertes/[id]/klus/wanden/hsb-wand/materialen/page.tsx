@@ -109,6 +109,52 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
   )
 }
 
+type ReorderModalProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  materials: MateriaalKeuze[];
+  onSave: (materials: MateriaalKeuze[]) => void;
+};
+
+function ReorderModal({ open, onOpenChange, materials, onSave }: ReorderModalProps) {
+    const [orderedMaterials, setOrderedMaterials] = useState(materials);
+
+    useEffect(() => {
+        setOrderedMaterials(materials);
+    }, [materials]);
+
+    const handleSave = async () => {
+        onSave(orderedMaterials);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Materiaal Volgorde</DialogTitle>
+                    <DialogDescription>
+                        Sleep de materialen in de gewenste volgorde voor in de materiaalkiezer.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-[60vh] overflow-y-auto">
+                    <Reorder.Group axis="y" values={orderedMaterials} onReorder={setOrderedMaterials}>
+                        {orderedMaterials.map(item => (
+                            <Reorder.Item key={item.id} value={item} className="p-2 bg-card rounded my-1 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                                {item.materiaalnaam}
+                            </Reorder.Item>
+                        ))}
+                    </Reorder.Group>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+                    <Button onClick={handleSave}>Opslaan</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 type MateriaalKiezerModalProps = {
   open: boolean;
   sectieSleutel: SectieKey;
@@ -297,11 +343,19 @@ const MateriaalKiezerModal = React.forwardRef<
             key={materiaal.id}
             onClick={() => handleSelect(materiaal)}
             className={cn(
-              "relative w-full cursor-pointer p-4 text-left -mx-4 hover:bg-muted/50 transition-colors",
+              "relative flex w-full cursor-pointer items-start gap-3 p-4 text-left -mx-4 hover:bg-muted/50 transition-colors",
               geselecteerdMateriaalId === materiaal.id && 'bg-muted'
             )}
         >
-          <div className="pr-10 min-w-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 flex-shrink-0 rounded-full -ml-1" 
+            onClick={(e) => { e.stopPropagation(); toggleFavoriet(materiaal.id); }}
+          >
+              <Star className={cn("h-5 w-5", isFavoriet(materiaal.id) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/50 hover:text-muted-foreground')} />
+          </Button>
+          <div className="flex-1 min-w-0">
              <p className={cn(
                   "font-medium break-words leading-tight", 
                   geselecteerdMateriaalId === materiaal.id && 'text-primary'
@@ -313,14 +367,6 @@ const MateriaalKiezerModal = React.forwardRef<
               </p>
               <p className="text-xs text-muted-foreground">{materiaal.subsectie}</p>
           </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute right-3 top-3 h-8 w-8 rounded-full" 
-              onClick={(e) => { e.stopPropagation(); toggleFavoriet(materiaal.id); }}
-            >
-                <Star className={cn("h-5 w-5", isFavoriet(materiaal.id) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/50 hover:text-muted-foreground')} />
-            </Button>
         </li>
       ));
   };
@@ -485,6 +531,7 @@ export default function HsbWandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
 
   const isVolgendeIngeschakeld = true;
@@ -588,6 +635,15 @@ export default function HsbWandMaterialenPage() {
     setCollapsedSections(preset.collapsedSections || {});
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
+
+  // Set loading to false after a short delay to prevent flash of loading state
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setMaterialenLaden(false);
+        }, 50); // Small delay
+        return () => clearTimeout(timer);
+    }, []);
+
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
       if (!alleMaterialen) return [];
