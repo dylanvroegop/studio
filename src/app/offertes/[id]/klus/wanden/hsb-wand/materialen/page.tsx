@@ -649,10 +649,9 @@ export default function HsbWandMaterialenPage() {
 
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-      if (!alleMaterialen) return [];
       const filterKey = sectieKey.toString().toLowerCase();
 
-       if (filterKey === 'gips / fermacell') {
+      if (filterKey === 'gips / fermacell') {
          return alleMaterialen.filter(m => 
               m.subsectie?.toLowerCase() === 'gips / fermacell'
          );
@@ -798,7 +797,7 @@ export default function HsbWandMaterialenPage() {
     }
     
     return (
-        <Card className={cn("border-l-2 border-l-primary/50")}>
+        <Card className={cn(gekozenMateriaal ? "" : "border-l-2 border-l-primary/50")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">{titel}</CardTitle>
