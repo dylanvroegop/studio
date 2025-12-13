@@ -1,11 +1,10 @@
-
 'use client';
 
 import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight } from 'lucide-react';
+import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
@@ -31,7 +30,7 @@ import { Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
-
+import { Separator } from '@/components/ui/separator';
 
 // ==================================
 // Definities en Data
@@ -116,21 +115,101 @@ type MateriaalKiezerModalProps = {
   onSluiten: () => void;
   onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
   onAddExtra: (materiaal: ExtraMaterial) => void;
-  openReorderModal: () => void;
   materialen: MateriaalKeuze[];
 };
 
 const MateriaalKiezerModal = React.forwardRef<
   HTMLDivElement,
   MateriaalKiezerModalProps
->(({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen: initialMaterials, onAddExtra }, ref) => {
+>(({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, materialen: initialMaterials, onAddExtra }, ref) => {
+  const { user } = useUser();
+  const { toast } = useToast();
   const [zoekterm, setZoekterm] = useState('');
   const [activeTab, setActiveTab] = useState("eigen");
   const [orderedMaterials, setOrderedMaterials] = useState(initialMaterials);
-  
+  const [favorieten, setFavorieten] = useState<string[]>([]);
+
+  const FAVORITES_LIMIT = 30;
+
+  // Helper functions for favorites
+  const laadFavorieten = useCallback((uid: string): string[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const favs = localStorage.getItem(`offertehulp:favorieten:${uid}`);
+      return favs ? JSON.parse(favs) : [];
+    } catch (e) {
+      console.error("Kon favorieten niet laden uit localStorage", e);
+      return [];
+    }
+  }, []);
+
+  const bewaarFavorieten = useCallback((uid: string, ids: string[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(`offertehulp:favorieten:${uid}`, JSON.stringify(ids));
+    } catch (e) {
+      console.error("Kon favorieten niet opslaan in localStorage", e);
+    }
+  }, []);
+
+  const isFavoriet = useCallback((id: string): boolean => {
+    return favorieten.includes(id);
+  }, [favorieten]);
+
+  const toggleFavoriet = useCallback((id: string) => {
+    if (!user) return;
+    const currentFavorieten = laadFavorieten(user.uid);
+    let nieuweFavorieten;
+    if (currentFavorieten.includes(id)) {
+      nieuweFavorieten = currentFavorieten.filter(favId => favId !== id);
+    } else {
+      if (currentFavorieten.length >= FAVORITES_LIMIT) {
+        toast({
+          variant: "destructive",
+          title: "Limiet bereikt",
+          description: `U kunt maximaal ${FAVORITES_LIMIT} favorieten opslaan.`,
+        });
+        return;
+      }
+      nieuweFavorieten = [...currentFavorieten, id];
+    }
+    bewaarFavorieten(user.uid, nieuweFavorieten);
+    setFavorieten(nieuweFavorieten); // Optimistic UI update
+  }, [user, laadFavorieten, bewaarFavorieten, toast]);
+
+  useEffect(() => {
+    if (user) {
+      setFavorieten(laadFavorieten(user.uid));
+    } else {
+      setFavorieten([]);
+    }
+  }, [user, laadFavorieten]);
+
   useEffect(() => {
     setOrderedMaterials(initialMaterials);
   }, [initialMaterials]);
+
+  const gefilterdeMaterialen = useMemo(() => {
+    const filtered = orderedMaterials.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
+    
+    // Sort logic
+    return filtered.sort((a, b) => {
+      const aIsFav = isFavoriet(a.id);
+      const bIsFav = isFavoriet(b.id);
+
+      if (aIsFav && !bIsFav) return -1;
+      if (!aIsFav && bIsFav) return 1;
+      
+      // If both are fav or not fav, sort by name
+      return a.materiaalnaam.localeCompare(b.materiaalnaam);
+    });
+  }, [zoekterm, orderedMaterials, isFavoriet]);
+
+  const { favorieteResultaten, overigeResultaten } = useMemo(() => {
+    const favorieteResultaten = gefilterdeMaterialen.filter(m => isFavoriet(m.id));
+    const overigeResultaten = gefilterdeMaterialen.filter(m => !isFavoriet(m.id));
+    return { favorieteResultaten, overigeResultaten };
+  }, [gefilterdeMaterialen, isFavoriet]);
 
 
   const [eigenNaam, setEigenNaam] = useState('');
@@ -142,16 +221,10 @@ const MateriaalKiezerModal = React.forwardRef<
   const [breedte, setBreedte] = useState('');
   const [hoogte, setHoogte] = useState('');
 
-
   const [formErrors, setFormErrors] = useState({ naam: '', eenheid: '', prijs: '', usageDescription: '' });
   
   const showWarning = !!(eigenNaam || eigenEenheid || eigenPrijs || aantal);
   const requiresDescription = ['stuk', 'doos', 'set', 'uur', 'anders'].includes(eigenEenheid);
-
-
-  const gefilterdeMaterialen = useMemo(() => {
-    return orderedMaterials.filter(m => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
-  }, [zoekterm, orderedMaterials]);
 
   useEffect(() => {
     if (open) {
@@ -228,6 +301,30 @@ const MateriaalKiezerModal = React.forwardRef<
     };
 
   const isExtraMateriaal = sectieSleutel === 'extra';
+
+  const renderMaterialList = (materials: MateriaalKeuze[]) => {
+      return materials.map(materiaal => (
+        <li
+            key={materiaal.id}
+            onClick={() => handleSelect(materiaal)}
+            className={cn("p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors flex justify-between items-center", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
+        >
+            <div>
+                <p className={cn("font-medium", geselecteerdMateriaalId === materiaal.id && 'text-primary')}>{materiaal.materiaalnaam}</p>
+                <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="text-right">
+                    <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
+                    <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => { e.stopPropagation(); toggleFavoriet(materiaal.id); }}>
+                    <Star className={cn("h-5 w-5", isFavoriet(materiaal.id) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground')} />
+                </Button>
+            </div>
+        </li>
+      ));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onSluiten}>
@@ -306,29 +403,8 @@ const MateriaalKiezerModal = React.forwardRef<
                         />
                     </div>
                     <div className="overflow-y-auto flex-1 mt-4 max-h-[40vh]">
-                        <ul className="divide-y divide-border">
-                            {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
-                                <li 
-                                    key={materiaal.id}
-                                    onClick={() => handleSelect(materiaal)}
-                                    className="p-4 -mx-4 cursor-pointer hover:bg-muted/50 transition-colors"
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium">{materiaal.materiaalnaam}</p>
-                                            <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
-                                            <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
-                                        </div>
-                                    </div>
-                                </li>
-                            )) : (
-                                <div className="p-8 text-center text-muted-foreground">
-                                    <p>Geen materialen gevonden die voldoen aan de criteria.</p>
-                                </div>
-                            )}
+                        <ul className="divide-y divide-border -mx-4">
+                            {renderMaterialList(gefilterdeMaterialen)}
                         </ul>
                     </div>
                 </TabsContent>
@@ -345,23 +421,16 @@ const MateriaalKiezerModal = React.forwardRef<
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
                     <ul className="divide-y divide-border -mx-4">
-                        {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
-                            <li
-                                key={materiaal.id}
-                                onClick={() => handleSelect(materiaal)}
-                                className={cn("p-4 cursor-pointer hover:bg-muted/50 transition-colors flex justify-between items-center", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
-                            >
-                                <div>
-                                    <p className={cn("font-medium", geselecteerdMateriaalId === materiaal.id && 'text-primary')}>{materiaal.materiaalnaam}</p>
-                                    <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
-                                    <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
-                                </div>
-                            </li>
-                        )) : (
-                            <div className="p-8 text-center text-muted-foreground">
+                        {favorieteResultaten.length > 0 && (
+                          <>
+                            <li className="px-4 py-2 bg-muted/50 font-semibold text-sm">Favorieten</li>
+                            {renderMaterialList(favorieteResultaten)}
+                            {overigeResultaten.length > 0 && <li className="py-2"><Separator /></li>}
+                          </>
+                        )}
+                        {renderMaterialList(overigeResultaten)}
+                        {gefilterdeMaterialen.length === 0 && (
+                             <div className="p-8 text-center text-muted-foreground">
                                 <p>Geen materialen gevonden die voldoen aan de criteria.</p>
                             </div>
                         )}
@@ -947,19 +1016,6 @@ export default function HsbWandMaterialenPage() {
             setReorderModalOpen(true);
           }}
       />}
-
-      {alleMaterialen.length > 0 && <ReorderModal
-        open={reorderModalOpen}
-        onOpenChange={setReorderModalOpen}
-        materials={alleMaterialen}
-        onSave={(newOrder) => {
-            // Here you would ideally update the sort_order in your backend
-            console.log("New order:", newOrder.map(m => m.id));
-            setAlleMaterialen(newOrder); // Optimistically update UI
-        }}
-       />}
     </>
   );
 }
-
-    
