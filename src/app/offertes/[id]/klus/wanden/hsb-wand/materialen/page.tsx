@@ -119,7 +119,10 @@ type MateriaalKiezerModalProps = {
   materialen: MateriaalKeuze[];
 };
 
-function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen: initialMaterials, onAddExtra }: MateriaalKiezerModalProps) {
+const MateriaalKiezerModal = React.forwardRef<
+  HTMLDivElement,
+  MateriaalKiezerModalProps
+>(({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, openReorderModal, materialen: initialMaterials, onAddExtra }, ref) => {
   const [zoekterm, setZoekterm] = useState('');
   const [activeTab, setActiveTab] = useState("eigen");
   const [orderedMaterials, setOrderedMaterials] = useState(initialMaterials);
@@ -340,29 +343,28 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
                     />
                 </div>
                 <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
-                    <Reorder.Group as="ul" axis="y" values={gefilterdeMaterialen} onReorder={setOrderedMaterials} className="divide-y divide-border">
+                    <ul className="divide-y divide-border -mx-4">
                         {gefilterdeMaterialen.length > 0 ? gefilterdeMaterialen.map(materiaal => (
-                            <Reorder.Item 
+                            <li
                                 key={materiaal.id}
-                                value={materiaal}
-                                className={cn("p-4 -mx-4 cursor-grab active:cursor-grabbing bg-background flex items-center justify-between", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
+                                onClick={() => handleSelect(materiaal)}
+                                className={cn("p-4 cursor-pointer hover:bg-muted/50 transition-colors flex justify-between items-center", geselecteerdMateriaalId === materiaal.id && 'bg-muted')}
                             >
-                                <div onClick={() => handleSelect(materiaal)} className="flex-grow">
-                                    <p className="font-medium">{materiaal.materiaalnaam}</p>
+                                <div>
+                                    <p className={cn("font-medium", geselecteerdMateriaalId === materiaal.id && 'text-primary')}>{materiaal.materiaalnaam}</p>
                                     <p className="text-sm text-muted-foreground">{materiaal.subsectie}</p>
                                 </div>
-                                <div onClick={() => handleSelect(materiaal)} className="text-right pr-4">
+                                <div className="text-right">
                                     <p className="text-sm">{new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materiaal.prijs)}</p>
                                     <p className="text-xs text-muted-foreground">per {materiaal.eenheid}</p>
                                 </div>
-                                <GripVertical className="h-5 w-5 text-muted-foreground" />
-                            </Reorder.Item>
+                            </li>
                         )) : (
                             <div className="p-8 text-center text-muted-foreground">
                                 <p>Geen materialen gevonden die voldoen aan de criteria.</p>
                             </div>
                         )}
-                    </Reorder.Group>
+                    </ul>
                 </div>
             </div>
         )}
@@ -376,7 +378,8 @@ function MateriaalKiezerModal({ open, sectieSleutel, geselecteerdMateriaalId, on
       </DialogContent>
     </Dialog>
   );
-}
+});
+MateriaalKiezerModal.displayName = 'MateriaalKiezerModal';
 
 function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean, onOpenChange: (open:boolean) => void, materials: MateriaalKeuze[], onSave: (materials: MateriaalKeuze[]) => void }) {
     const [orderedMaterials, setOrderedMaterials] = useState(materials);
@@ -386,6 +389,7 @@ function ReorderModal({ open, onOpenChange, materials, onSave }: { open: boolean
     }, [materials]);
 
     const handleSave = async () => {
+        // Implement save logic here, this will likely involve updating the sort_order in your database
         onSave(orderedMaterials);
         onOpenChange(false);
     };
@@ -562,10 +566,10 @@ export default function HsbWandMaterialenPage() {
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
       if (!alleMaterialen) return [];
       const filterKey = sectieKey.toString().toLowerCase();
-
-      if (filterKey === 'gips / fermacell') {
-        return alleMaterialen.filter(m => 
-             m.subsectie?.toLowerCase() === 'gips / fermacell'
+       if (filterKey === 'gips / fermacell') {
+         return alleMaterialen.filter(m => 
+              m.subsectie?.toLowerCase() === 'gips' ||
+              m.subsectie?.toLowerCase() === 'fermacell'
          );
      }
       return alleMaterialen.filter(m => m.subsectie?.toLowerCase() === filterKey);
@@ -929,6 +933,7 @@ export default function HsbWandMaterialenPage() {
        />
 
        {actieveSectie && <MateriaalKiezerModal
+          ref={null}
           open={!!actieveSectie}
           sectieSleutel={actieveSectie}
           geselecteerdMateriaalId={actieveSectie !== 'extra' ? gekozenMaterialen[actieveSectie]?.id : undefined}
@@ -955,3 +960,12 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
+
+    
+
