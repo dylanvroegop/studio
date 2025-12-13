@@ -125,7 +125,7 @@ export default function MaterialenPage() {
 
                 if (error) {
                     console.error('Fout bij het ophalen van Supabase:', error);
-                    setError(`Fout bij het laden van materialen: ${error.message}`);
+                    setError(`Fout bij het laden van materialen: prijslijst nog niet verwerkt.`);
                     setMaterials([]);
                 } else {
                     setMaterials(data as Material[] || []);
@@ -192,7 +192,7 @@ export default function MaterialenPage() {
             <main className="flex-1 p-4 md:p-6 space-y-6">
                 <div className="flex items-center gap-4">
                     <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                        <Link href="/dashboard">
+                        <Link href="/">
                             <ArrowLeft className="h-4 w-4" />
                             <span className="sr-only">Terug</span>
                         </Link>
