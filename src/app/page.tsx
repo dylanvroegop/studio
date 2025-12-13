@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -65,6 +66,19 @@ export default function LandingPage() {
                             </CardHeader>
                             <CardContent className="p-0">
                                 <CardDescription>Geef de basis door — wij zorgen voor de offerte.</CardDescription>
+                            </CardContent>
+                        </Link>
+                    </Card>
+                    <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer">
+                        <Link href="/materialen" className="block p-6 h-full">
+                            <CardHeader className="p-0">
+                                <div className="flex items-center gap-4 mb-2">
+                                    <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
+                                    <CardTitle className="text-lg">Materialen &amp; Prijzen</CardTitle>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <CardDescription>Beheer uw materiaalbibliotheek en upload nieuwe prijslijsten.</CardDescription>
                             </CardContent>
                         </Link>
                     </Card>
