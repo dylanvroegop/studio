@@ -591,6 +591,7 @@ export default function HsbWandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
@@ -722,24 +723,15 @@ export default function HsbWandMaterialenPage() {
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-      if (sectieKey === 'extra') return alleMaterialen;
+        if (sectieKey === 'extra') return alleMaterialen;
       
-      const subsectie = subsectieMapping[sectieKey];
-      if (!subsectie) return alleMaterialen;
+        const subsectie = subsectieMapping[sectieKey as keyof typeof subsectieMapping];
+        if (!subsectie) return alleMaterialen;
       
-      const sectieMaterialen = alleMaterialen.filter(m => m.subsectie === subsectie);
-
-      // Sorteer op basis van `sort_order` indien beschikbaar, anders alfabetisch
-      return sectieMaterialen.sort((a, b) => {
+        const sectieMaterialen = alleMaterialen.filter(m => m.subsectie === subsectie);
+    
         // @ts-ignore
-        const orderA = a.sort_order ?? Infinity;
-        // @ts-ignore
-        const orderB = b.sort_order ?? Infinity;
-        if (orderA !== orderB) {
-            return orderA - orderB;
-        }
-        return a.materiaalnaam.localeCompare(b.materiaalnaam);
-      });
+        return sectieMaterialen.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
     }, [alleMaterialen, subsectieMapping]);
 
 
@@ -876,7 +868,7 @@ export default function HsbWandMaterialenPage() {
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
 
         return (
-            <Card className={cn(gekozenMateriaal1 && gekozenMateriaal2 ? "" : "border-l-2 border-l-primary/50")}>
+            <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-primary/50")}>
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
                     <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground flex items-center gap-1">Verberg <ChevronUp className="h-4 w-4" /></Button>
@@ -885,7 +877,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -897,7 +889,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-muted-foreground/70')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-muted-foreground/70 italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
                             </p></div>
                             <div className="flex items-center gap-2">
