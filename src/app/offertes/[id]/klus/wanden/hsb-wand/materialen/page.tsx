@@ -33,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
 import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
@@ -123,9 +123,10 @@ type ManagePresetsDialogProps = {
   onOpenChange: (open: boolean) => void;
   presets: PresetType[];
   onDelete: (preset: PresetType) => void;
+  onSetDefault: (preset: PresetType) => void;
 };
 
-function ManagePresetsDialog({ open, onOpenChange, presets, onDelete }: ManagePresetsDialogProps) {
+function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefault }: ManagePresetsDialogProps) {
   if (!presets || presets.length === 0) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -148,22 +149,35 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete }: ManagePr
         <DialogHeader>
           <DialogTitle>Werkwijzen beheren</DialogTitle>
           <DialogDescription>
-            Klik op verwijderen om een werkwijze permanent te wissen.
+            Beheer hier uw opgeslagen werkwijzen voor dit klustype.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-2 max-h-[60vh] overflow-y-auto">
           {presets.map(preset => (
             <div key={preset.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
-              <span className="text-sm">{preset.name}{preset.isDefault && " (standaard)"}</span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-primary hover:text-primary/80"
-                onClick={() => onDelete(preset)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Verwijderen
-              </Button>
+              <span className="text-sm font-medium">{preset.name}
+                {preset.isDefault && <span className="text-xs text-muted-foreground ml-2">(standaard)</span>}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => onSetDefault(preset)}
+                    disabled={preset.isDefault}
+                >
+                    <Star className="mr-2 h-4 w-4" />
+                    Maak standaard
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-destructive hover:text-destructive/80"
+                  onClick={() => onDelete(preset)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Verwijderen
+                </Button>
+              </div>
             </div>
           ))}
         </div>
@@ -708,28 +722,26 @@ export default function HsbWandMaterialenPage() {
         return () => clearTimeout(timer);
     }, []);
 
-    const subsectieMapping: Record<SectieKey, string> = {
-        'balkhout': 'Balkhout',
-        'isolatie': 'Isolatie',
-        'houten plaatmateriaal': 'Houten plaatmateriaal',
-        'gips / fermacell': 'Gips / Fermacell',
-        'binnen kozijnen': 'Binnen kozijnen',
-        'binnen deuren': 'Binnen deuren',
-        'naden_vullen': 'Naden vullen',
-        'naden_vullen_2': 'Naden vullen',
-        'afwerkplinten': 'Afwerkplinten',
-        'extra': '', 
-        'klein_materiaal': '',
-        'buitenbekleding': 'Gevelbekleding',
-        'folie_buitenzijde': 'Folie',
-        'binnenbekleding': 'OSB / Constructieplaat'
+    const subsectieMapping: Record<string, string> = {
+      'balkhout': 'Balkhout',
+      'isolatie': 'Isolatie',
+      'houten plaatmateriaal': 'Houten plaatmateriaal',
+      'gips / fermacell': 'Gips / Fermacell',
+      'binnen kozijnen': 'Binnen kozijnen',
+      'binnen deuren': 'Binnen deuren',
+      'naden_vullen': 'Naden vullen',
+      'naden_vullen_2': 'Naden vullen',
+      'afwerkplinten': 'Afwerkplinten',
+      'buitenbekleding': 'Gevelbekleding',
+      'folie_buitenzijde': 'Folie',
+      'binnenbekleding': 'OSB / Constructieplaat'
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
         if (!alleMaterialen) return [];
         if (sectieKey === 'extra') return alleMaterialen;
-      
-        const subsectie = subsectieMapping[sectieKey as keyof typeof subsectieMapping];
+
+        const subsectie = subsectieMapping[sectieKey];
         if (!subsectie) return alleMaterialen;
       
         const sectieMaterialen = alleMaterialen.filter(m => m.subsectie === subsectie);
@@ -851,6 +863,45 @@ export default function HsbWandMaterialenPage() {
       setDeleteConfirmationOpen(false);
       setPresetToDelete(null);
       setManagePresetsModalOpen(false); // Close the management modal as well
+    }
+  };
+  
+    const handleSetDefaultPreset = async (presetToSet: PresetType) => {
+    if (!user || !firestore || presetToSet.isDefault) return;
+    
+    const batch = writeBatch(firestore);
+    
+    // Find and unset the current default
+    const currentDefault = presets.find(p => p.isDefault);
+    if (currentDefault) {
+      const currentDefaultRef = doc(firestore, 'presets', currentDefault.id);
+      batch.update(currentDefaultRef, { isDefault: false });
+    }
+    
+    // Set the new default
+    const newDefaultRef = doc(firestore, 'presets', presetToSet.id);
+    batch.update(newDefaultRef, { isDefault: true });
+    
+    try {
+      await batch.commit();
+      toast({
+        title: 'Standaard ingesteld',
+        description: `"${presetToSet.name}" is nu de standaard werkwijze.`,
+      });
+      // Optimistically update local state
+      setPresets(prev => 
+        prev.map(p => ({
+          ...p,
+          isDefault: p.id === presetToSet.id,
+        }))
+      );
+    } catch (error) {
+      console.error("Fout bij instellen standaard werkwijze:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Kon de standaard werkwijze niet instellen.',
+      });
     }
   };
 
@@ -1168,6 +1219,7 @@ export default function HsbWandMaterialenPage() {
            setPresetToDelete(preset);
            setDeleteConfirmationOpen(true);
          }}
+         onSetDefault={handleSetDefaultPreset}
        />
 
        <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
