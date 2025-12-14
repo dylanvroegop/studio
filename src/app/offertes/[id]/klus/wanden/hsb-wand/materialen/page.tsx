@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
@@ -722,9 +722,24 @@ export default function HsbWandMaterialenPage() {
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
+      if (sectieKey === 'extra') return alleMaterialen;
+      
       const subsectie = subsectieMapping[sectieKey];
-      if (!subsectie) return alleMaterialen; // Voor 'extra' etc, toon alles
-      return alleMaterialen.filter(m => m.subsectie === subsectie);
+      if (!subsectie) return alleMaterialen;
+      
+      const sectieMaterialen = alleMaterialen.filter(m => m.subsectie === subsectie);
+
+      // Sorteer op basis van `sort_order` indien beschikbaar, anders alfabetisch
+      return sectieMaterialen.sort((a, b) => {
+        // @ts-ignore
+        const orderA = a.sort_order ?? Infinity;
+        // @ts-ignore
+        const orderB = b.sort_order ?? Infinity;
+        if (orderA !== orderB) {
+            return orderA - orderB;
+        }
+        return a.materiaalnaam.localeCompare(b.materiaalnaam);
+      });
     }, [alleMaterialen, subsectieMapping]);
 
 
