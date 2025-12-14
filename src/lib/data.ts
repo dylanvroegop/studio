@@ -1,5 +1,5 @@
 import { initializeFirebaseServer } from '@/firebase/server';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import type { Client, Quote, Job, JobMaterial, User } from './types';
 
 
@@ -37,10 +37,25 @@ export const getQuoteById = async (id: string): Promise<Quote | undefined> => {
 }
 
 export const getJobsForQuote = async (quoteId: string): Promise<Job[]> => {
-    return Promise.resolve(jobs.filter(j => j.quoteId === quoteId));
+    const { firestore } = initializeFirebaseServer();
+    const jobsCollectionRef = collection(firestore, `quotes/${quoteId}/jobs`);
+    const q = query(jobsCollectionRef);
+    const querySnapshot = await getDocs(q);
+    const jobs: Job[] = [];
+    querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        jobs.push({
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt.toDate().toISOString(),
+        } as Job);
+    });
+    return jobs;
 }
 
 export const getJobById = async (id: string): Promise<Job | undefined> => {
+    // This function might need to be aware of the quoteId to find the job.
+    // For now, we'll stick to the mockup data.
     return Promise.resolve(jobs.find(j => j.id === id));
 }
 
