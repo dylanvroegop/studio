@@ -527,14 +527,13 @@ export default function HsbWandMaterialenPage() {
   
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [extraMaterials, setExtraMaterials] = useState<ExtraMaterial[]>([]);
-  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: null, fixedAmount: null });
+  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({ mode: 'percentage', percentage: 5, fixedAmount: null });
   
   // State for collapsible cards / hidden slots
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
-  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
@@ -624,7 +623,7 @@ export default function HsbWandMaterialenPage() {
       // Reset naar leeg
       setGekozenMaterialen({});
       setCollapsedSections({});
-      setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
+      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
       return;
     }
     const preset = presets.find(p => p.id === gekozenPresetId);
@@ -1040,6 +1039,21 @@ export default function HsbWandMaterialenPage() {
                             ))}
                         </SelectContent>
                     </Select>
+                     <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => {
+                          const preset = presets.find(p => p.id === gekozenPresetId);
+                          if(preset) {
+                            setPresetToDelete(preset);
+                            setDeleteConfirmationOpen(true);
+                          }
+                      }}
+                      disabled={gekozenPresetId === 'default'}
+                      aria-label="Verwijder voorinstelling"
+                    >
+                       <Trash2 className="h-4 w-4" />
+                    </Button>
                 </div>
               </div>
 
