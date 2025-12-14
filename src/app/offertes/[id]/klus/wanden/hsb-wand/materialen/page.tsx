@@ -119,6 +119,64 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
   )
 }
 
+type ManagePresetsDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  presets: PresetType[];
+  onDelete: (preset: PresetType) => void;
+};
+
+function ManagePresetsDialog({ open, onOpenChange, presets, onDelete }: ManagePresetsDialogProps) {
+  if (!presets || presets.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Voorinstellingen beheren</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm py-8 text-center">Er zijn geen voorinstellingen om te beheren.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Sluiten</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Voorinstellingen beheren</DialogTitle>
+          <DialogDescription>
+            Klik op verwijderen om een voorinstelling permanent te wissen.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-2 max-h-[60vh] overflow-y-auto">
+          {presets.map(preset => (
+            <div key={preset.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
+              <span className="text-sm">{preset.name}{preset.isDefault && " (standaard)"}</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-destructive hover:text-destructive/80"
+                onClick={() => onDelete(preset)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Verwijderen
+              </Button>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Sluiten</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 type MateriaalKiezerModalProps = {
   open: boolean;
   sectieSleutel: SectieKey;
@@ -537,6 +595,7 @@ export default function HsbWandMaterialenPage() {
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
+  const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
 
 
   const isVolgendeIngeschakeld = true;
@@ -767,7 +826,9 @@ export default function HsbWandMaterialenPage() {
         description: `"${presetToDelete.name}" is verwijderd.`,
       });
       setPresets(prev => prev.filter(p => p.id !== presetToDelete.id));
-      setGekozenPresetId('default'); // Reset to default
+      if (gekozenPresetId === presetToDelete.id) {
+          setGekozenPresetId('default'); // Reset to default if the deleted one was selected
+      }
     } catch (error) {
       console.error('Fout bij verwijderen preset:', error);
       toast({
@@ -778,6 +839,7 @@ export default function HsbWandMaterialenPage() {
     } finally {
       setDeleteConfirmationOpen(false);
       setPresetToDelete(null);
+      setManagePresetsModalOpen(false); // Close the management modal as well
     }
   };
 
@@ -820,7 +882,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-muted-foreground/70')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -1040,19 +1102,13 @@ export default function HsbWandMaterialenPage() {
                         </SelectContent>
                     </Select>
                      <Button 
-                      variant="ghost" 
+                      variant="outline" 
                       size="icon" 
-                      onClick={() => {
-                          const preset = presets.find(p => p.id === gekozenPresetId);
-                          if(preset) {
-                            setPresetToDelete(preset);
-                            setDeleteConfirmationOpen(true);
-                          }
-                      }}
-                      disabled={gekozenPresetId === 'default'}
-                      aria-label="Verwijder voorinstelling"
+                      onClick={() => setManagePresetsModalOpen(true)}
+                      disabled={presets.length === 0}
+                      aria-label="Beheer voorinstellingen"
                     >
-                       <Trash2 className="h-4 w-4" />
+                       <Settings className="h-4 w-4" />
                     </Button>
                 </div>
               </div>
@@ -1089,6 +1145,16 @@ export default function HsbWandMaterialenPage() {
           </div>
         </div>
       </main>
+
+       <ManagePresetsDialog 
+         open={managePresetsModalOpen}
+         onOpenChange={setManagePresetsModalOpen}
+         presets={presets}
+         onDelete={(preset) => {
+           setPresetToDelete(preset);
+           setDeleteConfirmationOpen(true);
+         }}
+       />
 
        <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
         <AlertDialogContent>
