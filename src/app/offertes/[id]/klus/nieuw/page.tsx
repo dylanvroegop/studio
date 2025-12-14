@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useParams } from 'next/navigation';
+import { Progress } from '@/components/ui/progress';
 
 const categories: { name: JobCategory; description: string; icon: IconName }[] = [
     { name: "Wanden", description: "Binnen- en buitenwanden", icon: "wall" },
@@ -55,8 +56,11 @@ export default function NewJobPage() {
         return category;
     });
 
+    const progressValue = (2 / 6) * 100;
+
     return (
         <main className="flex flex-1 flex-col">
+             <Progress value={progressValue} className="h-1 w-full" />
             <header className="grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
                 <div className="flex items-center justify-start">
                     <Button asChild variant="outline" size="icon" className="h-8 w-8">
@@ -68,7 +72,6 @@ export default function NewJobPage() {
                 </div>
                 <div className="text-center">
                     <h1 className="font-semibold text-lg">Kies een klus</h1>
-                    <p className="text-xs text-muted-foreground">stap 2 van 6</p>
                 </div>
                 <div className="flex items-center justify-end">
                     {loading ? (
