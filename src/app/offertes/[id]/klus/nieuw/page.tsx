@@ -60,8 +60,7 @@ export default function NewJobPage() {
 
     return (
         <main className="flex flex-1 flex-col">
-             <Progress value={progressValue} className="h-1 w-full" />
-            <header className="grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+            <header className="sticky top-0 z-10 grid h-auto w-full grid-cols-3 items-center border-b bg-background/95 px-4 pt-3 pb-2 backdrop-blur-sm sm:px-6">
                 <div className="flex items-center justify-start">
                     <Button asChild variant="outline" size="icon" className="h-8 w-8">
                         <Link href={`/offertes/${quoteId}/edit`}>
@@ -70,8 +69,9 @@ export default function NewJobPage() {
                         </Link>
                     </Button>
                 </div>
-                <div className="text-center">
+                <div className="text-center flex flex-col items-center">
                     <h1 className="font-semibold text-lg">Kies een klus</h1>
+                    <Progress value={progressValue} className="h-1 w-1/5 mt-1" />
                 </div>
                 <div className="flex items-center justify-end">
                     {loading ? (
