@@ -1,6 +1,7 @@
 
 'use client';
 
+import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -929,7 +930,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -941,7 +942,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
