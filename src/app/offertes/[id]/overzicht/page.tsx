@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2, Send, HardHat, Truck, Percent, Euro, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Quote, Job, KleinMateriaalConfig } from '@/lib/types';
@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 type MaterieelItem = {
   naam: string;
@@ -51,9 +51,10 @@ export default function OverzichtPage() {
   });
 
   useEffect(() => {
-    if (isUserLoading || !firestore) return;
-    if (!user) {
-        router.push('/login');
+    if (isUserLoading || !firestore || !user) {
+        if (!isUserLoading && !user) {
+            router.push('/login');
+        }
         return;
     }
 
@@ -81,18 +82,17 @@ export default function OverzichtPage() {
 
         setQuote(quoteData);
 
-        // Extract jobs from the quote object itself
         const extractedJobs: Job[] = [];
         if (quoteData.jobs && typeof quoteData.jobs === 'object') {
             for (const key in quoteData.jobs) {
                 // @ts-ignore
                 const jobData = quoteData.jobs[key];
                 extractedJobs.push({
-                    id: jobData.jobKey, // Use the key as an ID
+                    id: jobData.jobKey || key, // Fallback to key if jobKey is not present
                     quoteId: quoteId,
                     categorie: jobData.jobType,
-                    omschrijvingKlant: jobData.presetLabel || jobData.jobType, // Fallback label
-                    aantal: 1, // Default or find from data
+                    omschrijvingKlant: jobData.presetLabel || jobData.jobTitle || 'Onbekende klus', // Fallback labels
+                    aantal: 1, // Default, as it's not stored in the job object itself
                     createdAt: jobData.savedAt?.toDate().toISOString() || new Date().toISOString(),
                     ...jobData,
                 });
@@ -156,7 +156,7 @@ export default function OverzichtPage() {
             </CardContent>
             <CardFooter>
                  <Button asChild className="w-full">
-                    <Link href="/">Terug naar dashboard</Link>
+                    <Link href="/dashboard">Terug naar dashboard</Link>
                 </Button>
             </CardFooter>
         </Card>
@@ -308,5 +308,5 @@ export default function OverzichtPage() {
         </div>
       </div>
     </main>
-  
-    
+  );
+}
