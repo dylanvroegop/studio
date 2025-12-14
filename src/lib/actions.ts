@@ -1,11 +1,10 @@
-
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getJobById, updateJob, getFullQuoteDetails } from './data';
-import type { JobCategory } from './types';
-import { addDoc, serverTimestamp, collection, doc } from 'firebase/firestore';
+import type { JobCategory, Quote, Job, ExtraMaterial, KleinMateriaalConfig } from './types';
+import { addDoc, serverTimestamp, collection, doc, updateDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { initializeFirebaseServer } from '@/firebase/server';
 
 const QuoteFormSchema = z.object({
@@ -92,7 +91,7 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
       projectStreet: projectStraat || null,
       projectHouseNumber: projectHuisnummer || null,
       projectPostcode: projectPostcode || null,
-      projectCity: projectPlaats || null,
+      projectPlaats: projectPlaats || null,
       shortDescription: werkomschrijving,
       clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
       title: werkomschrijving,
@@ -170,10 +169,79 @@ export async function updateJobAction(quoteId: string, jobId: string, formData: 
     redirect(`/offertes/${quoteId}`);
 }
 
+export async function saveHsbWandSelectionsAction(
+  quoteId: string,
+  jobId: string,
+  payload: {
+    selections: any;
+    extraMaterials: ExtraMaterial[];
+    kleinMateriaal: KleinMateriaalConfig;
+    presetId: string | null;
+  }
+): Promise<{ success: boolean; message?: string }> {
+  const { firestore } = initializeFirebaseServer();
+  if (!quoteId || !jobId) {
+    return { success: false, message: 'ID van offerte of klus ontbreekt.' };
+  }
+
+  try {
+    const quoteRef = doc(firestore, 'quotes', quoteId);
+    const quoteSnap = await getDoc(quoteRef);
+
+    if (!quoteSnap.exists()) {
+      return { success: false, message: 'Offerte niet gevonden.' };
+    }
+
+    const quoteData = quoteSnap.data() as Quote;
+    const existingJobs: any[] = quoteData.jobs || [];
+    
+    let jobExists = false;
+    const updatedJobs = existingJobs.map(job => {
+        if (job.jobId === jobId) {
+            jobExists = true;
+            return {
+                ...job,
+                selections: payload.selections,
+                extraMaterials: payload.extraMaterials,
+                kleinMateriaal: payload.kleinMateriaal,
+                presetId: payload.presetId,
+                updatedAt: serverTimestamp(),
+            };
+        }
+        return job;
+    });
+
+    if (!jobExists) {
+        updatedJobs.push({
+            jobId: jobId,
+            jobType: 'wanden/hsb-wand',
+            jobTitle: 'HSB Wand',
+            selections: payload.selections,
+            extraMaterials: payload.extraMaterials,
+            kleinMateriaal: payload.kleinMateriaal,
+            presetId: payload.presetId,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+    }
+    
+    await updateDoc(quoteRef, {
+      jobs: updatedJobs,
+      updatedAt: serverTimestamp(),
+    });
+
+    revalidatePath(`/offertes/${quoteId}`);
+    revalidatePath(`/offertes/${quoteId}/overzicht`);
+    return { success: true };
+  } catch (error) {
+    console.error('Fout bij opslaan HSB-wand selecties:', error);
+    return { success: false, message: 'Kon de materialen niet opslaan in de database.' };
+  }
+}
+
 export async function submitQuoteAction(quoteId: string) {
     const { redirect } = await import('next/navigation');
     try {
-        // This will need to be updated to use Firestore
         const fullQuoteData = await getFullQuoteDetails(quoteId);
         if (!fullQuoteData) {
             throw new Error("Offerte niet gevonden.");
@@ -191,9 +259,6 @@ export async function submitQuoteAction(quoteId: string) {
             throw new Error(`Webhook mislukt met status: ${response.status}`);
         }
         
-        // This will need to be updated to use Firestore
-        // await updateQuoteStatus(quoteId, 'in_behandeling');
-
     } catch (error) {
         console.error(error);
         return { message: 'Fout: Offerte kon niet worden verstuurd.' };

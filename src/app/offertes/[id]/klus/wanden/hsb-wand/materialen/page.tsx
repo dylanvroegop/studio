@@ -42,6 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
+import { saveHsbWandSelectionsAction } from '@/lib/actions';
 
 // ==================================
 // Definities en Data
@@ -585,10 +586,12 @@ export default function HsbWandMaterialenPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
+  const klusId = "hsb-wand"; // This should be dynamic if you have multiple HSB wanden
   const JOB_TYPE = "hsb-wand";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
+  const [isOpslaan, setIsOpslaan] = useState(false);
   
   // State voor materialen
   const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
@@ -691,7 +694,7 @@ export default function HsbWandMaterialenPage() {
       });
     };
     fetchPresets();
-  }, [user, firestore]);
+  }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -901,6 +904,25 @@ export default function HsbWandMaterialenPage() {
       });
     }
   };
+
+  const handleNext = () => {
+    setIsOpslaan(true);
+    const payload = {
+        selections: gekozenMaterialen,
+        extraMaterials,
+        kleinMateriaal: kleinMateriaalConfig,
+        presetId: gekozenPresetId === 'default' ? null : gekozenPresetId,
+    };
+    saveHsbWandSelectionsAction(quoteId, klusId, payload).then(result => {
+        if (result.success) {
+            toast({ title: "Materialen opgeslagen" });
+            router.push(`/offertes/${quoteId}/overzicht`);
+        } else {
+            toast({ variant: "destructive", title: "Fout", description: result.message || "Kon materialen niet opslaan." });
+        }
+    }).finally(() => setIsOpslaan(false));
+  };
+
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
@@ -1200,8 +1222,9 @@ export default function HsbWandMaterialenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/wanden/hsb-wand`}>Terug</Link>
                   </Button>
-                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                     <Link href={`/offertes/${quoteId}/overzicht`}>Volgende</Link>
+                  <Button onClick={handleNext} disabled={isOpslaan} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    {isOpslaan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isOpslaan ? 'Opslaan...' : 'Volgende'}
                   </Button>
               </div>
           </div>
