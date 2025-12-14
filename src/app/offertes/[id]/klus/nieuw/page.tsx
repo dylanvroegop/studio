@@ -71,7 +71,7 @@ export default function NewJobPage() {
                 </div>
                 <div className="text-center flex flex-col items-center">
                     <h1 className="font-semibold text-lg">Kies een klus</h1>
-                    <Progress value={progressValue} className="h-1 w-1/5 mt-1" />
+                    <Progress value={progressValue} className="h-1 w-1/3 mt-1" />
                 </div>
                 <div className="flex items-center justify-end">
                     {loading ? (
