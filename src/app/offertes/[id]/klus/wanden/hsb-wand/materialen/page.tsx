@@ -930,7 +930,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -942,7 +942,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -1009,7 +1009,7 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-destructive italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -1085,7 +1085,7 @@ export default function HsbWandMaterialenPage() {
                                               }
                                             }}
                                         />
-                                        <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground pointer-events-none">%</span>
+                                        <span className="absolute inset-y-0 right-3 flex items-center pr-3 text-muted-foreground pointer-events-none">%</span>
                                     </div>
                                 </div>
                             )}
@@ -1103,7 +1103,7 @@ export default function HsbWandMaterialenPage() {
                                 <div className="pt-2">
                                     <Label htmlFor="fixedAmount">Bedrag</Label>
                                     <div className="relative">
-                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground pointer-events-none">€</span>
+                                        <span className="absolute inset-y-0 left-3 flex items-center pl-3 text-muted-foreground pointer-events-none">€</span>
                                         <Input
                                             id="fixedAmount"
                                             type="number"
