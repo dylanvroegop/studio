@@ -719,10 +719,14 @@ export default function HsbWandMaterialenPage() {
         'naden_vullen_2': 'Naden vullen',
         'afwerkplinten': 'Afwerkplinten',
         'extra': '', 
-        'klein_materiaal': ''
+        'klein_materiaal': '',
+        'folie_buitenzijde': 'Folie',
+        'binnenbekleding': 'OSB / Constructieplaat',
+        'buitenbekleding': 'Gevelbekleding'
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
+        if (!alleMaterialen) return [];
         if (sectieKey === 'extra') return alleMaterialen;
       
         const subsectie = subsectieMapping[sectieKey as keyof typeof subsectieMapping];
@@ -877,7 +881,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -889,8 +893,8 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
-                               {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>
+                               {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal2 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen_2')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
@@ -956,7 +960,7 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-destructive italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -1103,8 +1107,7 @@ export default function HsbWandMaterialenPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="default">Nieuw</SelectItem>
-                            {presets.map(p => (
-                            <SelectItem key={p.id} value={p.id}>
+                            {presets.map(p => (<SelectItem key={p.id} value={p.id}>
                                 <div className="flex items-center justify-between w-full">
                                 <span>{p.name}{p.isDefault && " (standaard)"}</span>
                                 </div>
@@ -1203,11 +1206,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
