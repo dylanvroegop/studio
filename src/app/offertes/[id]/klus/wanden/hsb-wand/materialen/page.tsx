@@ -158,7 +158,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete }: ManagePr
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="text-destructive hover:text-destructive/80"
+                className="text-primary hover:text-primary/80"
                 onClick={() => onDelete(preset)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -674,7 +674,7 @@ export default function HsbWandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore, toast]);
+  }, [user, firestore]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -720,9 +720,9 @@ export default function HsbWandMaterialenPage() {
         'afwerkplinten': 'Afwerkplinten',
         'extra': '', 
         'klein_materiaal': '',
+        'buitenbekleding': 'Gevelbekleding',
         'folie_buitenzijde': 'Folie',
-        'binnenbekleding': 'OSB / Constructieplaat',
-        'buitenbekleding': 'Gevelbekleding'
+        'binnenbekleding': 'OSB / Constructieplaat'
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
@@ -736,7 +736,7 @@ export default function HsbWandMaterialenPage() {
     
         // @ts-ignore
         return sectieMaterialen.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-    }, [alleMaterialen, subsectieMapping]);
+    }, [alleMaterialen]);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
@@ -787,7 +787,7 @@ export default function HsbWandMaterialenPage() {
         if (materiaal) slots[key] = materiaal.id;
     }
     
-    const newPresetData: Omit<PresetType, 'id'> = {
+    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
