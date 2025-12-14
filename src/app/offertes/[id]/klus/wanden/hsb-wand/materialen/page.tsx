@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -92,14 +92,14 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Voorinstelling opslaan</DialogTitle>
+          <DialogTitle>Werkwijze opslaan</DialogTitle>
           <DialogDescription>
             Sla de huidige materiaalconfiguratie op voor later gebruik bij HSB wanden.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
             <div className="space-y-2">
-                <Label htmlFor="preset-name">Naam voorinstelling *</Label>
+                <Label htmlFor="preset-name">Naam werkwijze *</Label>
                 <Input id="preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="bv. Standaard HSB wand" />
             </div>
             <div className="flex items-center space-x-2">
@@ -132,9 +132,9 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete }: ManagePr
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Voorinstellingen beheren</DialogTitle>
+            <DialogTitle>Werkwijzen beheren</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground text-sm py-8 text-center">Er zijn geen voorinstellingen om te beheren.</p>
+          <p className="text-muted-foreground text-sm py-8 text-center">Er zijn geen werkwijzen om te beheren.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>Sluiten</Button>
           </DialogFooter>
@@ -147,9 +147,9 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete }: ManagePr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Voorinstellingen beheren</DialogTitle>
+          <DialogTitle>Werkwijzen beheren</DialogTitle>
           <DialogDescription>
-            Klik op verwijderen om een voorinstelling permanent te wissen.
+            Klik op verwijderen om een werkwijze permanent te wissen.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-2 max-h-[60vh] overflow-y-auto">
@@ -668,7 +668,7 @@ export default function HsbWandMaterialenPage() {
           operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        setFoutMaterialen('Kon presets niet laden vanwege permissieproblemen.');
+        setFoutMaterialen('Kon werkwijzen niet laden vanwege permissieproblemen.');
         setPresetsLaden(false);
       });
     };
@@ -800,7 +800,7 @@ export default function HsbWandMaterialenPage() {
     batch.set(newDocRef, newPresetData);
 
     batch.commit().then(() => {
-        toast({ title: 'Voorinstelling opgeslagen', description: `Voorinstelling "${presetName}" is succesvol opgeslagen.` });
+        toast({ title: 'Werkwijze opgeslagen', description: `Werkwijze "${presetName}" is succesvol opgeslagen.` });
         setSavePresetModalOpen(false);
         const newPreset = { id: newDocRef.id, ...newPresetData } as PresetType;
         setPresets(prev => [...prev.map(p => ({...p, isDefault: isDefault ? false : p.isDefault })), newPreset]);
@@ -822,19 +822,19 @@ export default function HsbWandMaterialenPage() {
     try {
       await deleteDoc(docRef);
       toast({
-        title: 'Voorinstelling verwijderd',
-        description: `"${presetToDelete.name}" is verwijderd.`,
+        title: 'Werkwijze verwijderd',
+        description: `De werkwijze "${presetToDelete.name}" is verwijderd.`,
       });
       setPresets(prev => prev.filter(p => p.id !== presetToDelete.id));
       if (gekozenPresetId === presetToDelete.id) {
           setGekozenPresetId('default'); // Reset to default if the deleted one was selected
       }
     } catch (error) {
-      console.error('Fout bij verwijderen preset:', error);
+      console.error('Fout bij verwijderen werkwijze:', error);
       toast({
         variant: 'destructive',
         title: 'Fout',
-        description: 'Kon voorinstelling niet verwijderen.',
+        description: 'Kon werkwijze niet verwijderen.',
       });
     } finally {
       setDeleteConfirmationOpen(false);
@@ -1092,13 +1092,11 @@ export default function HsbWandMaterialenPage() {
                 <div className="flex items-center gap-2">
                     <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
                         <SelectTrigger id='preset-select'>
-                            <SelectValue placeholder="Kies een voorinstelling..." />
+                            <SelectValue placeholder="Kies een werkwijze..." />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="default">Nieuw</SelectItem>
-                            {presets.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
-                            ))}
+                            {presets.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>))}
                         </SelectContent>
                     </Select>
                      <Button 
@@ -1106,7 +1104,7 @@ export default function HsbWandMaterialenPage() {
                       size="icon" 
                       onClick={() => setManagePresetsModalOpen(true)}
                       disabled={presets.length === 0}
-                      aria-label="Beheer voorinstellingen"
+                      aria-label="Beheer werkwijzen"
                     >
                        <Settings className="h-4 w-4" />
                     </Button>
@@ -1161,7 +1159,7 @@ export default function HsbWandMaterialenPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
             <AlertDialogDescription>
-              U staat op het punt om de voorinstelling "{presetToDelete?.name}" te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
+              U staat op het punt om de werkwijze "{presetToDelete?.name}" te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
