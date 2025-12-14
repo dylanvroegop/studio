@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
+import { buttonVariants } from "@/components/ui/button";
 
 // ==================================
 // Definities en Data
@@ -171,7 +172,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="text-destructive hover:text-destructive/80"
+                  className="text-destructive hover:text-destructive"
                   onClick={() => onDelete(preset)}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -726,7 +727,7 @@ export default function HsbWandMaterialenPage() {
         'balkhout': 'Balkhout',
         'isolatie': 'Isolatie',
         'houten plaatmateriaal': 'Houten plaatmateriaal',
-        'gips / fermacell': 'Gips / Fermacell',
+        'gips_fermacell': 'Gips / Fermacell',
         'binnen kozijnen': 'Binnen kozijnen',
         'binnen deuren': 'Binnen deuren',
         'naden_vullen': 'Naden vullen',
@@ -737,13 +738,11 @@ export default function HsbWandMaterialenPage() {
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-        if (!alleMaterialen) return [];
-        if (sectieKey === 'extra') return alleMaterialen;
-
-        const subsectie = subsectieMapping[sectieKey];
-        if (!subsectie) return alleMaterialen; // Fallback to all materials if no specific mapping
-      
-        return alleMaterialen.filter(m => m.subsectie === subsectie);
+      if (!alleMaterialen) return [];
+      if (sectieKey === 'extra') return alleMaterialen;
+      const subsectie = subsectieMapping[sectieKey];
+      if (!subsectie) return alleMaterialen;
+      return alleMaterialen.filter(m => m.subsectie === subsectie);
     }, [alleMaterialen]);
 
 
@@ -919,7 +918,7 @@ export default function HsbWandMaterialenPage() {
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
 
         return (
-            <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-destructive")}>
+            <Card className={cn(gekozenMateriaal1 && gekozenMateriaal2 ? "" : "border-l-2 border-l-destructive")}>
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
                     <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground flex items-center gap-1">Verberg <ChevronUp className="h-4 w-4" /></Button>
@@ -1178,7 +1177,7 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('balkhout', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
-                {renderSelectieRij('gips / fermacell', 'Gips / Fermacell')}
+                {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
                 {renderSelectieRij('binnen deuren', 'Binnen deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
