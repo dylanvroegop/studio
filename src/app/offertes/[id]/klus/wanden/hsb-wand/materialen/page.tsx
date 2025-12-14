@@ -13,6 +13,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -24,7 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
 import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
@@ -526,6 +536,9 @@ export default function HsbWandMaterialenPage() {
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
+
 
   const isVolgendeIngeschakeld = true;
 
@@ -747,22 +760,47 @@ export default function HsbWandMaterialenPage() {
     });
   };
 
+  const handleDeletePreset = async () => {
+    if (!presetToDelete || !firestore) return;
+    
+    const docRef = doc(firestore, 'presets', presetToDelete.id);
+    try {
+      await deleteDoc(docRef);
+      toast({
+        title: 'Voorinstelling verwijderd',
+        description: `"${presetToDelete.name}" is verwijderd.`,
+      });
+      setPresets(prev => prev.filter(p => p.id !== presetToDelete.id));
+      setGekozenPresetId('default'); // Reset to default
+    } catch (error) {
+      console.error('Fout bij verwijderen preset:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Kon voorinstelling niet verwijderen.',
+      });
+    } finally {
+      setDeleteConfirmationOpen(false);
+      setPresetToDelete(null);
+    }
+  };
+
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
+
+    if (isCollapsed) {
+        return (
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
+                <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
+            </div>
+        );
+    }
     
     if (sectieSleutel === 'naden_vullen') {
         const gekozenMateriaal1 = gekozenMaterialen['naden_vullen'];
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
-
-        if (isCollapsed) {
-          return (
-            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
-              <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
-              <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
-            </div>
-          )
-        }
 
         return (
             <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-primary/50")}>
@@ -774,7 +812,9 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>{gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}</p></div>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>
+                                {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
+                            </p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal1 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                                 <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen')}>{gekozenMateriaal1 ? 'Wijzigen' : 'Kiezen'}</Button>
@@ -784,7 +824,9 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>{gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}</p></div>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                               {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
+                            </p></div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal2 && <Button variant="ghost" size="icon" onClick={() => handleMateriaalVerwijderen('naden_vullen_2')} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>}
                                 <Button variant="outline" size="sm" onClick={() => openMateriaalKiezer('naden_vullen_2')}>{gekozenMateriaal2 ? 'Wijzigen' : 'Kiezen'}</Button>
@@ -833,15 +875,6 @@ export default function HsbWandMaterialenPage() {
             </Card>
         );
     }
-
-    if (isCollapsed) {
-        return (
-             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
-                <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
-            </div>
-        );
-    }
     
     return (
         <Card className={cn(gekozenMateriaal ? "" : "border-l-2 border-l-primary/50")}>
@@ -881,12 +914,12 @@ export default function HsbWandMaterialenPage() {
     const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = collapsedSections[sectieSleutel];
-    const isFilled = kleinMateriaalConfig.mode === 'fixed' ? kleinMateriaalConfig.fixedAmount !== null && kleinMateriaalConfig.fixedAmount > 0 : kleinMateriaalConfig.percentage !== null && kleinMateriaalConfig.percentage > 0;
+    const isFilled = kleinMateriaalConfig.mode === 'fixed' ? (kleinMateriaalConfig.fixedAmount !== null && kleinMateriaalConfig.fixedAmount > 0) : (kleinMateriaalConfig.percentage !== null && kleinMateriaalConfig.percentage > 0);
 
     if (isCollapsed) {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
-                <p className={cn("text-sm font-medium text-muted-foreground")}>Klein materiaal <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
+                <p className={cn("text-sm font-medium text-muted-foreground")}>Klein materiaal <span className="font-normal ml-2">· Niet van toepassing</span></p>
                 <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
@@ -1005,7 +1038,23 @@ export default function HsbWandMaterialenPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="default">Standaard (leeg)</SelectItem>
-                            {presets.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>))}
+                            {presets.map(p => (
+                                <SelectItem key={p.id} value={p.id} className="flex items-center justify-between">
+                                  <span>{p.name}{p.isDefault && ' (standaard)'}</span>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPresetToDelete(p);
+                                      setDeleteConfirmationOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                     <Button 
@@ -1054,6 +1103,23 @@ export default function HsbWandMaterialenPage() {
         </div>
       </main>
 
+       <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              U staat op het punt om de voorinstelling "{presetToDelete?.name}" te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePreset} className={buttonVariants({ variant: "destructive" })}>
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
        <SavePresetDialog 
          open={savePresetModalOpen}
          onOpenChange={setSavePresetModalOpen}
@@ -1073,3 +1139,12 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
+
+    
+
