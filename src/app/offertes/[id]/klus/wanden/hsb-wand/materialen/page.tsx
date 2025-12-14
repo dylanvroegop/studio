@@ -55,7 +55,7 @@ type Material = {
 
 type MateriaalKeuze = Omit<Material, 'prijs' | 'row_id'> & { prijs: number; id: string };
 
-const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips / fermacell', 'binnen kozijnen', 'binnen deuren', 'naden_vullen', 'naden_vullen_2', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips_fermacell', 'binnen kozijnen', 'binnen deuren', 'naden_vullen', 'naden_vullen_2', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -723,18 +723,17 @@ export default function HsbWandMaterialenPage() {
     }, []);
 
     const subsectieMapping: Record<string, string> = {
-      'balkhout': 'Balkhout',
-      'isolatie': 'Isolatie',
-      'houten plaatmateriaal': 'Houten plaatmateriaal',
-      'gips / fermacell': 'Gips / Fermacell',
-      'binnen kozijnen': 'Binnen kozijnen',
-      'binnen deuren': 'Binnen deuren',
-      'naden_vullen': 'Naden vullen',
-      'naden_vullen_2': 'Naden vullen',
-      'afwerkplinten': 'Afwerkplinten',
-      'buitenbekleding': 'Gevelbekleding',
-      'folie_buitenzijde': 'Folie',
-      'binnenbekleding': 'OSB / Constructieplaat'
+        'balkhout': 'Balkhout',
+        'isolatie': 'Isolatie',
+        'houten plaatmateriaal': 'Houten plaatmateriaal',
+        'gips / fermacell': 'Gips / Fermacell',
+        'binnen kozijnen': 'Binnen kozijnen',
+        'binnen deuren': 'Binnen deuren',
+        'naden_vullen': 'Naden vullen',
+        'naden_vullen_2': 'Naden vullen',
+        'afwerkplinten': 'Afwerkplinten',
+        'buitenbekleding': 'Gevelbekleding',
+        'folie_buitenzijde': 'Folie',
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
@@ -742,12 +741,9 @@ export default function HsbWandMaterialenPage() {
         if (sectieKey === 'extra') return alleMaterialen;
 
         const subsectie = subsectieMapping[sectieKey];
-        if (!subsectie) return alleMaterialen;
+        if (!subsectie) return alleMaterialen; // Fallback to all materials if no specific mapping
       
-        const sectieMaterialen = alleMaterialen.filter(m => m.subsectie === subsectie);
-    
-        // @ts-ignore
-        return sectieMaterialen.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        return alleMaterialen.filter(m => m.subsectie === subsectie);
     }, [alleMaterialen]);
 
 
@@ -923,7 +919,7 @@ export default function HsbWandMaterialenPage() {
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
 
         return (
-            <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-primary/50")}>
+            <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-destructive")}>
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
                     <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground flex items-center gap-1">Verberg <ChevronUp className="h-4 w-4" /></Button>
@@ -932,7 +928,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -944,7 +940,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -997,7 +993,7 @@ export default function HsbWandMaterialenPage() {
     }
     
     return (
-        <Card className={cn(gekozenMateriaal ? "" : "border-l-2 border-l-primary/50")}>
+        <Card className={cn(gekozenMateriaal ? "" : "border-l-2 border-l-primary")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">{titel}</CardTitle>
@@ -1046,7 +1042,7 @@ export default function HsbWandMaterialenPage() {
     }
     
     return (
-        <Card className={cn(isFilled ? "" : "border-l-2 border-l-primary/50")}>
+        <Card className={cn(isFilled ? "" : "border-l-2 border-l-primary")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
                 <div className="space-y-1.5">
                     <CardTitle className="text-lg">Klein materiaal</CardTitle>
@@ -1181,12 +1177,12 @@ export default function HsbWandMaterialenPage() {
               <div className="space-y-4">
                 {renderSelectieRij('balkhout', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('houten plaatmateriaal', 'OSB / Constructieplaat')}
+                {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
                 {renderSelectieRij('gips / fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
                 {renderSelectieRij('binnen deuren', 'Binnen deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
-                {renderSelectieRij('afwerkplinten', 'Plinten')}
+                {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
                 
                  {renderSelectieRij('extra', 'Extra materiaal')}
 
