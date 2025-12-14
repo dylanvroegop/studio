@@ -1,7 +1,6 @@
 
 'use client';
 
-import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -722,10 +721,11 @@ export default function HsbWandMaterialenPage() {
         'klein_materiaal': ''
     };
 
-  const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-      // Always return empty array as per user request
-      return [];
-  }, []);
+    const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
+      const subsectie = subsectieMapping[sectieKey];
+      if (!subsectie) return alleMaterialen; // Voor 'extra' etc, toon alles
+      return alleMaterialen.filter(m => m.subsectie === subsectie);
+    }, [alleMaterialen, subsectieMapping]);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
@@ -1190,11 +1190,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
