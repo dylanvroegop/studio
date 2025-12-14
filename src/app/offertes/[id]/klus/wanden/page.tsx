@@ -11,6 +11,7 @@ import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
 import { createJobAction } from '@/lib/actions';
+import { Progress } from '@/components/ui/progress';
 
 type Subcategory = {
   name: JobCategory;
@@ -76,9 +77,11 @@ export default function WandenPage() {
     </div>
   );
 
+  const progressValue = (3 / 6) * 100;
+
   return (
     <main className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+      <header className="sticky top-0 z-10 grid h-auto w-full grid-cols-3 items-center border-b bg-background/95 px-4 pt-3 pb-2 backdrop-blur-sm sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="outline" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/nieuw`}>
@@ -87,9 +90,9 @@ export default function WandenPage() {
             </Link>
           </Button>
         </div>
-        <div className="text-center">
+        <div className="text-center flex flex-col items-center">
             <h1 className="font-semibold text-lg">Wanden</h1>
-            <p className="text-xs text-muted-foreground">stap 3 van 6</p>
+            <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
         </div>
         <div className="flex items-center justify-end">
           {loading ? (
