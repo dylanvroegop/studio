@@ -674,7 +674,7 @@ export default function HsbWandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore]);
+  }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -1035,17 +1035,21 @@ export default function HsbWandMaterialenPage() {
                     {kleinMateriaalConfig.mode === 'percentage' && (
                         <div className="pt-4">
                             <Label htmlFor="percentage">Percentage</Label>
-                            <div className="relative flex items-center">
+                            <div className="relative">
                                 <Input
                                     id="percentage"
                                     type="number"
                                     step="0.1"
-                                    className="w-24"
-                                    placeholder="0"
+                                    className="pr-8"
                                     value={kleinMateriaalConfig.percentage ?? ''}
                                     onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                    onBlur={(e) => {
+                                      if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
+                                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
+                                      }
+                                    }}
                                 />
-                                <span className="ml-2 text-muted-foreground">%</span>
+                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
                             </div>
                         </div>
                     )}
@@ -1075,7 +1079,7 @@ export default function HsbWandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 grid h-14 w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex items-center justify-start">
             <Button asChild variant="ghost" size="icon" className="h-8 w-8">
               <Link href={`/offertes/${quoteId}/klus/wanden/hsb-wand`}>
@@ -1084,14 +1088,12 @@ export default function HsbWandMaterialenPage() {
               </Link>
             </Button>
           </div>
-           <div className="text-center">
+          <div className="col-start-2 flex flex-col items-center text-center">
             <h1 className="font-semibold text-lg">HSB Wand</h1>
             <p className="text-xs text-muted-foreground">stap 5 van 6</p>
           </div>
           <div className="flex items-center justify-end">
-            {isPaginaLaden ? (
-              <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-            ) : null}
+            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : null}
           </div>
         </header>
         
