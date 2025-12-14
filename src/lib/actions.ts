@@ -1,3 +1,4 @@
+
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -171,71 +172,50 @@ export async function updateJobAction(quoteId: string, jobId: string, formData: 
 
 export async function saveHsbWandSelectionsAction(
   quoteId: string,
-  jobId: string,
   payload: {
     selections: any;
     extraMaterials: ExtraMaterial[];
     kleinMateriaal: KleinMateriaalConfig;
     presetId: string | null;
+    presetLabel: string | null;
   }
 ): Promise<{ success: boolean; message?: string }> {
   const { firestore } = initializeFirebaseServer();
-  if (!quoteId || !jobId) {
+  const writePath = `quotes/${quoteId}`;
+  console.log("Attempting to write to:", writePath);
+  console.log("Payload keys:", Object.keys(payload));
+
+
+  if (!quoteId) {
     return { success: false, message: 'ID van offerte of klus ontbreekt.' };
   }
 
+  const jobData = {
+    jobType: "hsb-wand",
+    jobTitle: "HSB Wand",
+    presetId: payload.presetId,
+    presetLabel: payload.presetLabel,
+    selectedSlots: payload.selections,
+    extraMaterials: payload.extraMaterials,
+    kleinMateriaal: payload.kleinMateriaal,
+    updatedAt: serverTimestamp(),
+  };
+
   try {
     const quoteRef = doc(firestore, 'quotes', quoteId);
-    const quoteSnap = await getDoc(quoteRef);
-
-    if (!quoteSnap.exists()) {
-      return { success: false, message: 'Offerte niet gevonden.' };
-    }
-
-    const quoteData = quoteSnap.data() as Quote;
-    const existingJobs: any[] = quoteData.jobs || [];
     
-    let jobExists = false;
-    const updatedJobs = existingJobs.map(job => {
-        if (job.jobId === jobId) {
-            jobExists = true;
-            return {
-                ...job,
-                selections: payload.selections,
-                extraMaterials: payload.extraMaterials,
-                kleinMateriaal: payload.kleinMateriaal,
-                presetId: payload.presetId,
-                updatedAt: serverTimestamp(),
-            };
-        }
-        return job;
-    });
-
-    if (!jobExists) {
-        updatedJobs.push({
-            jobId: jobId,
-            jobType: 'wanden/hsb-wand',
-            jobTitle: 'HSB Wand',
-            selections: payload.selections,
-            extraMaterials: payload.extraMaterials,
-            kleinMateriaal: payload.kleinMateriaal,
-            presetId: payload.presetId,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
-    }
-    
+    // Using dot notation to update a nested object field.
     await updateDoc(quoteRef, {
-      jobs: updatedJobs,
+      "jobs.hsb-wand": jobData,
       updatedAt: serverTimestamp(),
     });
 
     revalidatePath(`/offertes/${quoteId}`);
     revalidatePath(`/offertes/${quoteId}/overzicht`);
     return { success: true };
-  } catch (error) {
-    console.error('Fout bij opslaan HSB-wand selecties:', error);
-    return { success: false, message: 'Kon de materialen niet opslaan in de database.' };
+  } catch (error: any) {
+    console.error(`Error writing to ${writePath}:`, error);
+    return { success: false, message: error.message || 'Kon de materialen niet opslaan in de database.' };
   }
 }
 

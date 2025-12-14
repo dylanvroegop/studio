@@ -279,7 +279,7 @@ const MateriaalKiezerModal = React.forwardRef<
 
   const uniekeSubsecties = useMemo(() => {
       if (!initialMaterials) return [];
-      const subsecties = initialMaterials.map(m => m.subsectie).filter(Boolean);
+      const subsecties = initialMaterials.map(m => m.categorie).filter(Boolean);
       // @ts-ignore
       return [...new Set(subsecties)].sort();
   }, [initialMaterials]);
@@ -296,7 +296,7 @@ const MateriaalKiezerModal = React.forwardRef<
     }
 
     if (subsectieFilter !== 'all') {
-        filtered = filtered.filter(m => m.subsectie === subsectieFilter);
+        filtered = filtered.filter(m => m.categorie === subsectieFilter);
     }
 
     const favorieteResultaten = filtered.filter(m => isFavoriet(m.id));
@@ -424,7 +424,7 @@ const MateriaalKiezerModal = React.forwardRef<
               <p className="text-xs text-muted-foreground mt-1">
                   €{materiaal.prijs.toFixed(2)} • {materiaal.eenheid}
               </p>
-              {materiaal.subsectie && <p className="text-xs text-muted-foreground">{materiaal.subsectie}</p>}
+              {materiaal.categorie && <p className="text-xs text-muted-foreground">{materiaal.categorie}</p>}
           </div>
         </li>
       ));
@@ -535,10 +535,10 @@ const MateriaalKiezerModal = React.forwardRef<
                     />
                     <Select value={subsectieFilter} onValueChange={setSubsectieFilter}>
                         <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="Subsectie" />
+                            <SelectValue placeholder="Categorie" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Alle subsecties</SelectItem>
+                            <SelectItem value="all">Alle categorieën</SelectItem>
                             {uniekeSubsecties.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                         </SelectContent>
                     </Select>
@@ -586,7 +586,6 @@ export default function HsbWandMaterialenPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
-  const klusId = "hsb-wand"; // This should be dynamic if you have multiple HSB wanden
   const JOB_TYPE = "hsb-wand";
   
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -612,7 +611,6 @@ export default function HsbWandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
-  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
@@ -747,7 +745,7 @@ export default function HsbWandMaterialenPage() {
       if (sectieKey === 'extra') return alleMaterialen;
       const subsectie = subsectieMapping[sectieKey];
       if (!subsectie) return alleMaterialen;
-      return alleMaterialen.filter(m => m.subsectie === subsectie);
+      return alleMaterialen.filter(m => m.categorie === subsectie);
     }, [alleMaterialen]);
 
 
@@ -905,23 +903,30 @@ export default function HsbWandMaterialenPage() {
     }
   };
 
-  const handleNext = () => {
+ const handleNext = async () => {
     setIsOpslaan(true);
+    const presetLabel = presets.find(p => p.id === gekozenPresetId)?.name || null;
+
     const payload = {
         selections: gekozenMaterialen,
         extraMaterials,
         kleinMateriaal: kleinMateriaalConfig,
         presetId: gekozenPresetId === 'default' ? null : gekozenPresetId,
+        presetLabel,
     };
-    saveHsbWandSelectionsAction(quoteId, klusId, payload).then(result => {
-        if (result.success) {
-            toast({ title: "Materialen opgeslagen" });
-            router.push(`/offertes/${quoteId}/overzicht`);
-        } else {
-            toast({ variant: "destructive", title: "Fout", description: result.message || "Kon materialen niet opslaan." });
-        }
-    }).finally(() => setIsOpslaan(false));
-  };
+    
+    const result = await saveHsbWandSelectionsAction(quoteId, payload);
+    
+    if (result.success) {
+        toast({ title: "Materialen opgeslagen" });
+        router.push(`/offertes/${quoteId}/overzicht`);
+    } else {
+        console.error("Save Error:", result.message);
+        toast({ variant: "destructive", title: "Fout", description: "Kon materialen niet opslaan." });
+    }
+    
+    setIsOpslaan(false);
+};
 
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
@@ -1214,7 +1219,7 @@ export default function HsbWandMaterialenPage() {
 
               <div className="mt-8">
                 <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
-                    <Save className="mr-2 h-4 w-4" /> Huidige keuzes opslaan voor volgende keer
+                    <Save className="mr-2 h-4 w-4" /> Huidige keuzes opslaan als werkwijze
                 </Button>
               </div>
 
