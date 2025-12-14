@@ -674,7 +674,7 @@ export default function HsbWandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore]);
+  }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -1027,7 +1027,7 @@ export default function HsbWandMaterialenPage() {
                                             id="percentage"
                                             type="number"
                                             step="0.1"
-                                            className="w-32 pr-8"
+                                            className="w-full pr-8"
                                             value={kleinMateriaalConfig.percentage ?? ''}
                                             onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
                                             onBlur={(e) => {
@@ -1058,7 +1058,7 @@ export default function HsbWandMaterialenPage() {
                                         <Input
                                             id="fixedAmount"
                                             type="number"
-                                            className="w-32 pl-7"
+                                            className="w-full pl-7"
                                             placeholder="Bijv. 50"
                                             value={kleinMateriaalConfig.fixedAmount || ''}
                                             onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
