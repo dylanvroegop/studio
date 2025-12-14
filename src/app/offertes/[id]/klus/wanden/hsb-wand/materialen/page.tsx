@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, forwardRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
@@ -203,7 +203,7 @@ type MateriaalKiezerModalProps = {
   materialen: MateriaalKeuze[];
 };
 
-const MateriaalKiezerModal = React.forwardRef<
+const MateriaalKiezerModal = forwardRef<
   HTMLDivElement,
   MateriaalKiezerModalProps
 >(({ open, sectieSleutel, geselecteerdMateriaalId, onSluiten, onSelecteren, materialen: initialMaterials, onAddExtra }, ref) => {
@@ -584,7 +584,7 @@ export default function HsbWandMaterialenPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
-  const JOB_KEY = "wanden/hsb-wand";
+  const JOB_TYPE = "hsb-wand";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -671,7 +671,7 @@ export default function HsbWandMaterialenPage() {
       getDocs(q).then(querySnapshot => {
         const fetchedPresets = querySnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as PresetType))
-            .filter(p => p.jobType === JOB_KEY); // Lokaal filteren
+            .filter(p => p.jobType === JOB_TYPE); // Lokaal filteren
 
         setPresets(fetchedPresets);
         const defaultPreset = fetchedPresets.find(p => p.isDefault);
@@ -913,7 +913,7 @@ export default function HsbWandMaterialenPage() {
     const quoteRef = doc(firestore, 'quotes', quoteId);
     
     const jobPayload = {
-      jobKey: JOB_KEY,
+      jobKey: JOB_TYPE,
       jobType: "wanden",
       jobSlug: "hsb-wand",
       workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
@@ -926,10 +926,10 @@ export default function HsbWandMaterialenPage() {
 
     try {
       console.log(`Attempting to save job to quoteId: ${quoteId}, using UID: ${user.uid}`);
-      console.log("Payload being sent:", { jobs: { [JOB_KEY]: jobPayload } });
+      console.log("Payload being sent:", { jobs: { [JOB_TYPE]: jobPayload } });
 
       await updateDoc(quoteRef, {
-          [`jobs.hsb-wand`]: jobPayload
+          [`jobs.${JOB_TYPE}`]: jobPayload
       });
 
       toast({ title: "Materialen opgeslagen!" });
@@ -1310,4 +1310,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
