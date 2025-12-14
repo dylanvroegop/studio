@@ -193,7 +193,7 @@ export default function OverzichtPage() {
           {/* Huidige klussen */}
           <Card>
             <CardHeader>
-              <CardTitle>Huidige klus(sen)</CardTitle>
+              <CardTitle>Huidige klussen</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {jobs.length > 0 ? jobs.map(job => (
