@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -17,7 +18,7 @@ import type { Quote } from '@/lib/types';
 
 // 🔧 Firestore imports (pas evt. het db-importpad aan naar jouw project)
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useFirestore } from '@/firebase';
 
 type Wall = {
   lengte: string;
@@ -52,6 +53,7 @@ export default function HsbWandPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   const quoteId = params.id as string;
 
@@ -76,11 +78,11 @@ export default function HsbWandPage() {
   // 2) Prefill: eerst Firestore (bron van waarheid), anders localStorage fallback
   useEffect(() => {
     async function prefill() {
-      if (!quoteId) return;
+      if (!quoteId || !firestore) return;
 
       // Firestore proberen
       try {
-        const ref = doc(db, 'quotes', quoteId);
+        const ref = doc(firestore, 'quotes', quoteId);
         const snap = await getDoc(ref);
 
         if (snap.exists()) {
@@ -120,8 +122,10 @@ export default function HsbWandPage() {
       }
     }
 
-    prefill();
-  }, [quoteId]);
+    if (firestore) {
+        prefill();
+    }
+  }, [quoteId, firestore]);
 
   const handleAddWall = () => {
     setWalls((prev) => {
@@ -181,7 +185,7 @@ export default function HsbWandPage() {
       };
     });
 
-    const ref = doc(db, 'quotes', quoteId);
+    const ref = doc(firestore, 'quotes', quoteId);
 
     // Alles onder dezelfde quote doc, georganiseerd:
     // jobData -> wanden -> hsbWand -> wanden: [ ... ]
