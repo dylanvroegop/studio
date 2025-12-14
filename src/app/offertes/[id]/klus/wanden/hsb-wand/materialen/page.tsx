@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
@@ -1008,7 +1008,7 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-destructive italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -1255,4 +1255,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
