@@ -665,12 +665,9 @@ export default function HsbWandMaterialenPage() {
     };
 
   const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-    const subsectieNaam = subsectieMapping[sectieKey];
-    if (!subsectieNaam) {
-        return alleMaterialen; // Voor 'extra' of als er geen mapping is
-    }
-    return alleMaterialen.filter(m => m.subsectie?.toLowerCase() === subsectieNaam.toLowerCase());
-}, [alleMaterialen]);
+      // Always return empty array as per user request
+      return [];
+  }, []);
 
 
   const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
@@ -1039,36 +1036,10 @@ export default function HsbWandMaterialenPage() {
                         <SelectContent>
                             <SelectItem value="default">Nieuw</SelectItem>
                             {presets.map(p => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  <div className="flex items-center justify-between w-full">
-                                    <span>{p.name}{p.isDefault && ' (standaard)'}</span>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-6 w-6"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPresetToDelete(p);
-                                        setDeleteConfirmationOpen(true);
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                  </div>
-                                </SelectItem>
+                                <SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setGekozenPresetId('default')}
-                        disabled={gekozenPresetId === 'default'}
-                        className="flex items-center gap-2 text-muted-foreground"
-                    >
-                       <RotateCcw className="h-4 w-4" />
-                        Reset
-                    </Button>
                 </div>
               </div>
 
