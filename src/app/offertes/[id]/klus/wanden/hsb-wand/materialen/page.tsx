@@ -674,7 +674,7 @@ export default function HsbWandMaterialenPage() {
     };
 
     fetchPresets();
-  }, [user, firestore, toast]);
+  }, [user, firestore]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -787,7 +787,7 @@ export default function HsbWandMaterialenPage() {
         if (materiaal) slots[key] = materiaal.id;
     }
     
-    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
+    const newPresetData: Omit<PresetType, 'id'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
@@ -1012,64 +1012,62 @@ export default function HsbWandMaterialenPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div
                             className={cn(
-                                "p-4 rounded-lg border cursor-pointer",
+                                "p-4 rounded-lg border cursor-pointer space-y-2",
                                 kleinMateriaalConfig.mode === 'percentage' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
                             )}
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'percentage'}))}
                         >
                             <h4 className="font-semibold">Percentage (%)</h4>
                             <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
+                            {kleinMateriaalConfig.mode === 'percentage' && (
+                                <div className="pt-2">
+                                    <Label htmlFor="percentage">Percentage</Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="percentage"
+                                            type="number"
+                                            step="0.1"
+                                            className="w-32 pr-8"
+                                            value={kleinMateriaalConfig.percentage ?? ''}
+                                            onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                                            onBlur={(e) => {
+                                              if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
+                                                  setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
+                                              }
+                                            }}
+                                        />
+                                        <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground pointer-events-none">%</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div
                             className={cn(
-                                "p-4 rounded-lg border cursor-pointer",
+                                "p-4 rounded-lg border cursor-pointer space-y-2",
                                 kleinMateriaalConfig.mode === 'fixed' ? "border-primary bg-muted/30" : "hover:bg-muted/50"
                             )}
                             onClick={() => setKleinMateriaalConfig(prev => ({...prev, mode: 'fixed'}))}
                         >
                             <h4 className="font-semibold">Vast bedrag (€)</h4>
                             <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
+                            {kleinMateriaalConfig.mode === 'fixed' && (
+                                <div className="pt-2">
+                                    <Label htmlFor="fixedAmount">Bedrag</Label>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground pointer-events-none">€</span>
+                                        <Input
+                                            id="fixedAmount"
+                                            type="number"
+                                            className="w-32 pl-7"
+                                            placeholder="Bijv. 50"
+                                            value={kleinMateriaalConfig.fixedAmount || ''}
+                                            onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
-
-                    {kleinMateriaalConfig.mode === 'percentage' && (
-                        <div className="pt-4">
-                            <Label htmlFor="percentage">Percentage</Label>
-                            <div className="relative">
-                                <Input
-                                    id="percentage"
-                                    type="number"
-                                    step="0.1"
-                                    className="pr-8"
-                                    value={kleinMateriaalConfig.percentage ?? ''}
-                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value === '' ? null : parseFloat(e.target.value) })}
-                                    onBlur={(e) => {
-                                      if (e.target.value === '' || kleinMateriaalConfig.percentage === null) {
-                                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: 5 });
-                                      }
-                                    }}
-                                />
-                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">%</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {kleinMateriaalConfig.mode === 'fixed' && (
-                        <div className="pt-2">
-                            <Label htmlFor="fixedAmount">Bedrag</Label>
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">€</span>
-                                <Input
-                                    id="fixedAmount"
-                                    type="number"
-                                    className="w-32 pl-7"
-                                    placeholder="Bijv. 50"
-                                    value={kleinMateriaalConfig.fixedAmount || ''}
-                                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: e.target.value ? Number(e.target.value) : null })}
-                                />
-                            </div>
-                        </div>
-                    )}
                 </div>
             </CardContent>
         </Card>
