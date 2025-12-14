@@ -14,10 +14,11 @@ service cloud.firestore {
     
     // Rules for the 'quotes' collection
     match /quotes/{quoteId} {
+      allow read, get: if isSignedIn() && isOwner(resource.data.userId);
       allow list: if isSignedIn() && request.query.where.userId == request.auth.uid;
-      allow get: if isSignedIn() && isOwner(resource.data.userId);
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isOwner(resource.data.userId);
     }
     
     // Rules for the 'materials' collection
@@ -35,8 +36,7 @@ service cloud.firestore {
 
     // Rules for the 'presets' collection
     match /presets/{presetId} {
-        allow list: if isSignedIn();
-        allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow read, get, list: if isSignedIn() && resource.data.userId == request.auth.uid;
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
         allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }

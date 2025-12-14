@@ -92,7 +92,7 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
       projectStreet: projectStraat || null,
       projectHouseNumber: projectHuisnummer || null,
       projectPostcode: projectPostcode || null,
-      projectPlaats: projectPlaats || null,
+      projectCity: projectPlaats || null,
       shortDescription: werkomschrijving,
       clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
       title: werkomschrijving,
@@ -170,54 +170,6 @@ export async function updateJobAction(quoteId: string, jobId: string, formData: 
     redirect(`/offertes/${quoteId}`);
 }
 
-export async function saveHsbWandSelectionsAction(
-  quoteId: string,
-  payload: {
-    selections: any;
-    extraMaterials: ExtraMaterial[];
-    kleinMateriaal: KleinMateriaalConfig;
-    presetId: string | null;
-    presetLabel: string | null;
-  }
-): Promise<{ success: boolean; message?: string }> {
-  const { firestore } = initializeFirebaseServer();
-  const writePath = `quotes/${quoteId}`;
-  console.log("Attempting to write to:", writePath);
-  console.log("Payload keys:", Object.keys(payload));
-
-
-  if (!quoteId) {
-    return { success: false, message: 'ID van offerte of klus ontbreekt.' };
-  }
-
-  const jobData = {
-    jobType: "hsb-wand",
-    jobTitle: "HSB Wand",
-    presetId: payload.presetId,
-    presetLabel: payload.presetLabel,
-    selectedSlots: payload.selections,
-    extraMaterials: payload.extraMaterials,
-    kleinMateriaal: payload.kleinMateriaal,
-    updatedAt: serverTimestamp(),
-  };
-
-  try {
-    const quoteRef = doc(firestore, 'quotes', quoteId);
-    
-    // Using dot notation to update a nested object field.
-    await updateDoc(quoteRef, {
-      "jobs.hsb-wand": jobData,
-      updatedAt: serverTimestamp(),
-    });
-
-    revalidatePath(`/offertes/${quoteId}`);
-    revalidatePath(`/offertes/${quoteId}/overzicht`);
-    return { success: true };
-  } catch (error: any) {
-    console.error(`Error writing to ${writePath}:`, error);
-    return { success: false, message: error.message || 'Kon de materialen niet opslaan in de database.' };
-  }
-}
 
 export async function submitQuoteAction(quoteId: string) {
     const { redirect } = await import('next/navigation');

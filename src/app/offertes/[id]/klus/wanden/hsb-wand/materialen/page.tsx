@@ -1,7 +1,6 @@
 
 'use client';
 
-import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -34,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
 import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
@@ -42,7 +41,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
-import { saveHsbWandSelectionsAction } from '@/lib/actions';
 
 // ==================================
 // Definities en Data
@@ -586,7 +584,7 @@ export default function HsbWandMaterialenPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const quoteId = params.id as string;
-  const JOB_TYPE = "hsb-wand";
+  const JOB_KEY = "wanden/hsb-wand";
   
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -673,7 +671,7 @@ export default function HsbWandMaterialenPage() {
       getDocs(q).then(querySnapshot => {
         const fetchedPresets = querySnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as PresetType))
-            .filter(p => p.jobType === JOB_TYPE); // Lokaal filteren
+            .filter(p => p.jobType === JOB_KEY); // Lokaal filteren
 
         setPresets(fetchedPresets);
         const defaultPreset = fetchedPresets.find(p => p.isDefault);
@@ -741,11 +739,11 @@ export default function HsbWandMaterialenPage() {
     };
 
     const filterMaterialenVoorSectie = useCallback((sectieKey: SectieKey): MateriaalKeuze[] => {
-      if (!alleMaterialen) return [];
-      if (sectieKey === 'extra') return alleMaterialen;
-      const subsectie = subsectieMapping[sectieKey];
-      if (!subsectie) return alleMaterialen;
-      return alleMaterialen.filter(m => m.categorie === subsectie);
+        if (!alleMaterialen) return [];
+        if (sectieKey === 'extra') return alleMaterialen;
+        const subsectie = subsectieMapping[sectieKey];
+        if (!subsectie) return alleMaterialen;
+        return alleMaterialen.filter(m => m.categorie === subsectie);
     }, [alleMaterialen]);
 
 
@@ -905,27 +903,57 @@ export default function HsbWandMaterialenPage() {
 
  const handleNext = async () => {
     setIsOpslaan(true);
-    const presetLabel = presets.find(p => p.id === gekozenPresetId)?.name || null;
-
-    const payload = {
-        selections: gekozenMaterialen,
-        extraMaterials,
-        kleinMateriaal: kleinMateriaalConfig,
-        presetId: gekozenPresetId === 'default' ? null : gekozenPresetId,
-        presetLabel,
-    };
     
-    const result = await saveHsbWandSelectionsAction(quoteId, payload);
-    
-    if (result.success) {
-        toast({ title: "Materialen opgeslagen" });
-        router.push(`/offertes/${quoteId}/overzicht`);
-    } else {
-        console.error("Save Error:", result.message);
-        toast({ variant: "destructive", title: "Fout", description: "Kon materialen niet opslaan." });
+    if (!user || !firestore) {
+      toast({ variant: "destructive", title: "Fout", description: "U bent niet ingelogd." });
+      setIsOpslaan(false);
+      return;
     }
     
-    setIsOpslaan(false);
+    const quoteRef = doc(firestore, 'quotes', quoteId);
+    
+    const jobPayload = {
+      jobKey: JOB_KEY,
+      jobType: "wanden",
+      jobSlug: "hsb-wand",
+      workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
+      presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
+      selections: gekozenMaterialen,
+      extraMaterials: extraMaterials,
+      kleinMateriaal: kleinMateriaalConfig,
+      savedAt: serverTimestamp(),
+    };
+
+    try {
+      console.log(`Attempting to save job to quoteId: ${quoteId}, using UID: ${user.uid}`);
+      console.log("Payload being sent:", { jobs: { [JOB_KEY]: jobPayload } });
+
+      await updateDoc(quoteRef, {
+          [`jobs.hsb-wand`]: jobPayload
+      });
+
+      toast({ title: "Materialen opgeslagen!" });
+      router.push(`/offertes/${quoteId}/overzicht`);
+
+    } catch (error: any) {
+      console.error("SAVE ERROR:", {
+        quoteId: quoteId,
+        uid: user.uid,
+        writePath: `quotes/${quoteId}`,
+        errorCode: error.code,
+        errorMessage: error.message,
+        payloadKeys: Object.keys(jobPayload),
+        fullError: error
+      });
+      
+      toast({
+        variant: "destructive",
+        title: "Kon materialen niet opslaan",
+        description: `Fout: ${error.message}`,
+      });
+    } finally {
+      setIsOpslaan(false);
+    }
 };
 
 
@@ -1271,7 +1299,6 @@ export default function HsbWandMaterialenPage() {
        />
 
        <MateriaalKiezerModal
-          ref={null}
           open={!!actieveSectie}
           sectieSleutel={actieveSectie as SectieKey}
           geselecteerdMateriaalId={actieveSectie && actieveSectie !== 'extra' ? gekozenMaterialen[actieveSectie]?.id : undefined}
@@ -1283,3 +1310,4 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
