@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -824,7 +824,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -1039,12 +1039,12 @@ export default function HsbWandMaterialenPage() {
                         <SelectContent>
                             <SelectItem value="default">Standaard (leeg)</SelectItem>
                             {presets.map(p => (
-                                <SelectItem key={p.id} value={p.id} className="flex items-center justify-between">
+                                <SelectItem key={p.id} value={p.id} className="flex items-center justify-between group/preset">
                                   <span>{p.name}{p.isDefault && ' (standaard)'}</span>
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100"
+                                    className="h-6 w-6 ml-auto opacity-0 group-hover/preset:opacity-100"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setPresetToDelete(p);
