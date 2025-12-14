@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw, ChevronUp, ChevronRight, Star } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,20 +41,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
-import { buttonVariants } from "@/components/ui/button";
 
 // ==================================
 // Definities en Data
 // ==================================
 type Material = {
   row_id: string;
+  id: string;
   materiaalnaam: string;
-  subsectie: string | null;
+  categorie: string | null;
   eenheid: string;
   prijs: number | string | null;
+  sort_order: number | null;
+  user_id: string;
 };
 
-type MateriaalKeuze = Omit<Material, 'prijs' | 'row_id'> & { prijs: number; id: string };
+type MateriaalKeuze = Omit<Material, 'row_id' | 'user_id' | 'prijs'> & { prijs: number; id: string };
 
 const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips_fermacell', 'binnen kozijnen', 'binnen deuren', 'naden_vullen', 'naden_vullen_2', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -918,7 +920,7 @@ export default function HsbWandMaterialenPage() {
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
 
         return (
-            <Card className={cn(gekozenMateriaal1 && gekozenMateriaal2 ? "" : "border-l-2 border-l-destructive")}>
+            <Card className={cn(gekozenMateriaal1 && gekozenMateriaal2 ? "" : "border-l-2 border-l-primary")}>
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
                     <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground flex items-center gap-1">Verberg <ChevronUp className="h-4 w-4" /></Button>
@@ -927,7 +929,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -939,7 +941,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -1253,3 +1255,4 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
