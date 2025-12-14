@@ -889,7 +889,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-muted-foreground/70 italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -1103,7 +1103,13 @@ export default function HsbWandMaterialenPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="default">Nieuw</SelectItem>
-                            {presets.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}{p.isDefault && ' (standaard)'}</SelectItem>))}
+                            {presets.map(p => (
+                            <SelectItem key={p.id} value={p.id}>
+                                <div className="flex items-center justify-between w-full">
+                                <span>{p.name}{p.isDefault && " (standaard)"}</span>
+                                </div>
+                            </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                      <Button 
@@ -1197,3 +1203,11 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
+
+    
+
+    
+
+    
+
+    
