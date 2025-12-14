@@ -616,8 +616,6 @@ export default function HsbWandMaterialenPage() {
   const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
 
 
-  const isVolgendeIngeschakeld = true;
-
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections(prev => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
   };
@@ -666,14 +664,16 @@ export default function HsbWandMaterialenPage() {
   // Presets ophalen
   useEffect(() => {
     if (!user || !firestore) return;
-
     const fetchPresets = async () => {
       setPresetsLaden(true);
       const presetsRef = collection(firestore, 'presets');
-      const q = query(presetsRef, where('userId', '==', user.uid), where('jobType', '==', JOB_TYPE));
+      const q = query(presetsRef, where('userId', '==', user.uid));
       
       getDocs(q).then(querySnapshot => {
-        const fetchedPresets = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PresetType));
+        const fetchedPresets = querySnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as PresetType))
+            .filter(p => p.jobType === JOB_TYPE); // Lokaal filteren
+
         setPresets(fetchedPresets);
         const defaultPreset = fetchedPresets.find(p => p.isDefault);
         if (defaultPreset) {
@@ -690,9 +690,8 @@ export default function HsbWandMaterialenPage() {
         setPresetsLaden(false);
       });
     };
-
     fetchPresets();
-  }, [user, firestore, toast]);
+  }, [user, firestore]);
   
   // Gekozen preset toepassen
   useEffect(() => {
@@ -1201,8 +1200,8 @@ export default function HsbWandMaterialenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/wanden/hsb-wand`}>Terug</Link>
                   </Button>
-                  <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                      Volgende
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
+                     <Link href={`/offertes/${quoteId}/overzicht`}>Volgende</Link>
                   </Button>
               </div>
           </div>

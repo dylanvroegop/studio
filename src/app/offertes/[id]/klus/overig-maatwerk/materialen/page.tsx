@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Settings, Save, RotateCcw, Loader2, MoreVertical, Edit, GripVertical, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType } from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -50,7 +50,7 @@ type CustomSection = {
   order: number;
 };
 
-const sectieSleutels = ['extra'] as const;
+const sectieSleutels = ['extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number] | string; // Allow string for custom sections
 
 
@@ -385,7 +385,7 @@ export default function OverigMaatwerkMaterialenPage() {
         }
     }
     
-    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
+    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen' | 'kleinMateriaalConfig'> = {
         userId: user.uid,
         jobType: JOB_TYPE,
         name: presetName,
@@ -622,11 +622,9 @@ export default function OverigMaatwerkMaterialenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/overig-maatwerk`}>Terug</Link>
                   </Button>
-                  <div>
-                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                        Volgende
-                    </Button>
-                   </div>
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                     <Link href={`/offertes/${quoteId}/overzicht`}>Volgende</Link>
+                  </Button>
               </div>
           </div>
         </div>
@@ -655,4 +653,3 @@ export default function OverigMaatwerkMaterialenPage() {
     </>
   );
 }
-

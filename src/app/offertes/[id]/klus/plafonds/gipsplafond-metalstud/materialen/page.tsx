@@ -378,7 +378,7 @@ export default function GipsplafondMetalstudMaterialenPage() {
         return (
             <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
                 <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0">Toon weer</Button>
             </div>
         );
     }
@@ -603,11 +603,9 @@ export default function GipsplafondMetalstudMaterialenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/plafonds/gipsplafond-metalstud`}>Terug</Link>
                   </Button>
-                  <div>
-                    <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                        Volgende
-                    </Button>
-                   </div>
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                     <Link href={`/offertes/${quoteId}/overzicht`}>Volgende</Link>
+                  </Button>
               </div>
           </div>
         </div>
@@ -629,5 +627,3 @@ export default function GipsplafondMetalstudMaterialenPage() {
     </>
   );
 }
-
-    

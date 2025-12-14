@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -597,11 +598,9 @@ export default function LichtkoepelMaterialenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/dakramen/lichtkoepel`}>Terug</Link>
                   </Button>
-                  <div>
-                    <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                        Volgende
-                    </Button>
-                   </div>
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                     <Link href={`/offertes/${quoteId}/overzicht`}>Volgende</Link>
+                  </Button>
               </div>
           </div>
         </div>

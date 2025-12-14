@@ -717,11 +717,9 @@ export default function OverigKozijnenMaterialenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/kozijnen/overig-kozijnen`}>Terug</Link>
                   </Button>
-                  <div>
-                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                        Volgende
-                    </Button>
-                   </div>
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                     <Link href={`/offertes/${quoteId}/overzicht`}>Volgende</Link>
+                  </Button>
               </div>
           </div>
         </div>
@@ -750,4 +748,3 @@ export default function OverigKozijnenMaterialenPage() {
     </>
   );
 }
-

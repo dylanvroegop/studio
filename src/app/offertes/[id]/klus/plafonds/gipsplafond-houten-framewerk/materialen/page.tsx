@@ -5,12 +5,22 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, X, Trash2, Plus, Minus, Settings, AlertTriangle, Save, RotateCcw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import type { Quote, Preset as PresetType, KleinMateriaalConfig } from '@/lib/types';
+import { Button, buttonVariants } from '@/components/ui/button';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -23,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { Reorder } from 'framer-motion';
 import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, writeBatch, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
@@ -32,7 +42,7 @@ import { Loader2 } from 'lucide-react';
 // ==================================
 // Definities en Data
 // ==================================
-type Materiaal = {
+type Material = {
   row_id: string;
   id: string;
   materiaalnaam: string;
@@ -43,17 +53,7 @@ type Materiaal = {
   user_id: string;
 };
 
-type MateriaalKeuze = Omit<Materiaal, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
-
-type ExtraMateriaal = {
-  id: string;
-  naam: string;
-  eenheid: 'stuk' | 'm¹' | 'm²' | 'm³';
-  lengteMm?: number;
-  breedteMm?: number;
-  hoogteMm?: number;
-  prijsPerEenheid: number;
-}
+type MateriaalKeuze = Omit<Material, 'row_id' | 'user_id' | 'prijs'> & { prijs: number };
 
 const sectieSleutels = ['balktype', 'rachelwerk', 'isolatie', 'folie', 'gips_fermacell', 'naden_vullen', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
@@ -399,7 +399,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
         if (materiaal) slots[key] = materiaal.id;
     }
     
-    const newPresetData: Omit<PresetType, 'id'> = {
+    const newPresetData: Omit<PresetType, 'id' | 'gipsLagen'> = {
         userId: user.uid, jobType: JOB_TYPE, name: presetName, isDefault: isDefault,
         slots: slots, collapsedSections: collapsedSections, kleinMateriaalConfig, createdAt: serverTimestamp() as any,
     };
@@ -444,22 +444,18 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
 
     if (isCollapsed) {
         return (
-            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4">
-                <p className="text-sm font-medium">{titel} <span className="text-muted-foreground font-normal ml-2">· Niet van toepassing</span></p>
-                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground">Toon weer</Button>
+            <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
+                <p className={cn("text-sm font-medium text-muted-foreground")}>{titel} <span className="font-normal ml-2">· Niet van toepassing</span></p>
+                <Button variant="link" size="sm" onClick={() => toggleSection(sectieSleutel)} className="h-auto p-0 text-muted-foreground hover:text-foreground flex items-center gap-1">Toon weer <ChevronRight className="h-4 w-4" /></Button>
             </div>
         );
     }
     
     return (
-        <Card>
+        <Card className={cn(gekozenMateriaal ? "" : "border-l-2 border-l-primary")}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
-                <div className="space-y-1.5">
-                    <CardTitle className="text-lg">{titel}</CardTitle>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground">
-                   Verberg
-                </Button>
+                <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
+                <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground flex items-center gap-1">Verberg <ChevronUp className="h-4 w-4" /></Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
                  <div className="border-t pt-4">
@@ -604,6 +600,7 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
         
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
+              
               <div className="mb-8 space-y-2">
                 <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
                 <div className="flex items-center gap-2">
@@ -652,8 +649,8 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
                   <Button variant="outline" asChild>
                       <Link href={`/offertes/${quoteId}/klus/plafonds/gipsplafond-houten-framewerk`}>Terug</Link>
                   </Button>
-                  <Button disabled={!isVolgendeIngeschakeld} className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed">
-                      Volgende
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                     <Link href={`/offertes/${quoteId}/overzicht`}>Volgende</Link>
                   </Button>
               </div>
           </div>
@@ -692,9 +689,3 @@ export default function GipsplafondHoutenFramewerkMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
