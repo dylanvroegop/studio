@@ -642,7 +642,7 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay to prevent flash of loading state
+  // Set loading to false after a short delay
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
@@ -1080,7 +1080,7 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
                 {renderSelectieRij('binnen deuren', 'Binnen deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
-                {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
+                {renderSelectieRij('afwerkplinten', 'Plinten')}
                 
                  {renderSelectieRij('extra', 'Extra materiaal')}
 
