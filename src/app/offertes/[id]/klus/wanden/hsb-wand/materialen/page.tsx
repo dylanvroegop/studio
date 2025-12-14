@@ -803,7 +803,7 @@ export default function HsbWandMaterialenPage() {
         const gekozenMateriaal2 = gekozenMaterialen['naden_vullen_2'];
 
         return (
-            <Card className={cn(gekozenMateriaal1 ? "" : "border-l-2 border-l-primary/50")}>
+            <Card className={cn(gekozenMateriaal1 && gekozenMateriaal2 ? "" : "border-l-2 border-l-primary/50")}>
                 <CardHeader className="flex flex-row items-center justify-between p-4">
                     <div className="space-y-1.5"><CardTitle className="text-lg">{titel}</CardTitle></div>
                     <Button variant="ghost" size="sm" onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground hover:text-foreground flex items-center gap-1">Verberg <ChevronUp className="h-4 w-4" /></Button>
@@ -812,7 +812,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -824,7 +824,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -1030,7 +1030,7 @@ export default function HsbWandMaterialenPage() {
           <div className="max-w-2xl mx-auto w-full">
               
               <div className="mb-8 space-y-2">
-                <Label htmlFor='preset-select'>Gekozen voorinstelling</Label>
+                <Label htmlFor='preset-select'>Gekozen werkwijze</Label>
                 <div className="flex items-center gap-2">
                     <Select onValueChange={setGekozenPresetId} value={gekozenPresetId} disabled={isPresetsLaden}>
                         <SelectTrigger id='preset-select'>
