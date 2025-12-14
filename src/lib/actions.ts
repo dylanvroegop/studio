@@ -1,10 +1,11 @@
+
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getJobById, updateJob, getFullQuoteDetails } from './data';
 import type { JobCategory } from './types';
-import { addDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { addDoc, serverTimestamp, collection, doc } from 'firebase/firestore';
 import { initializeFirebaseServer } from '@/firebase/server';
 
 const QuoteFormSchema = z.object({
@@ -114,13 +115,27 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
 
 export async function createJobAction(quoteId: string, categorie: JobCategory, omschrijving: string) {
     const { redirect } = await import('next/navigation');
+    const { firestore } = initializeFirebaseServer();
+    
+    if (!quoteId) {
+        return { message: 'Offerte ID is niet aanwezig.' };
+    }
+
+    const newJob = {
+        quoteId,
+        categorie,
+        omschrijvingKlant: omschrijving,
+        aantal: 1, // Default value
+        createdAt: serverTimestamp(),
+    };
+
     try {
-        // This function will need to be updated to write to a subcollection in Firestore
-        console.log("Klus aanmaken voor offerte:", quoteId);
-        // For now, we redirect to the edit page, which is not yet Firestore-aware
-        redirect(`/offertes/${quoteId}/klus/temp-job-id/bewerken`);
+        const jobsCollectionRef = collection(firestore, `quotes/${quoteId}/jobs`);
+        const docRef = await addDoc(jobsCollectionRef, newJob);
+        revalidatePath(`/offertes/${quoteId}`);
+        redirect(`/offertes/${quoteId}/klus/${docRef.id}/bewerken`);
     } catch (error) {
-        console.error(error);
+        console.error("Fout bij aanmaken klus:", error);
         return { message: 'Database Fout: Klus kon niet worden aangemaakt.' };
     }
 }
