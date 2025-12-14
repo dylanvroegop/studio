@@ -4,16 +4,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2, Send, HardHat, Truck, Percent, Euro } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2, Send, HardHat, Truck, Percent, Euro, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getQuoteById, getJobsForQuote } from '@/lib/data';
 import type { Quote, Job, KleinMateriaalConfig } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 type MaterieelItem = {
   naam: string;
@@ -27,9 +28,13 @@ export default function OverzichtPage() {
   const { toast } = useToast();
   const quoteId = params.id as string;
   
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
   const [quote, setQuote] = useState<Quote | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // State for this page's data
   const [prijsPerKm, setPrijsPerKm] = useState('');
@@ -46,29 +51,76 @@ export default function OverzichtPage() {
   });
 
   useEffect(() => {
-    async function fetchData() {
-      if (!quoteId) return;
+    if (isUserLoading || !firestore) return;
+    if (!user) {
+        router.push('/login');
+        return;
+    }
+
+    const fetchQuoteData = async () => {
       setLoading(true);
+      setError(null);
+      const quoteRef = doc(firestore, 'quotes', quoteId);
+
       try {
-        const [quoteData, jobsData] = await Promise.all([
-          getQuoteById(quoteId),
-          getJobsForQuote(quoteId),
-        ]);
-        setQuote(quoteData || null);
-        setJobs(jobsData);
-      } catch (error) {
-        console.error("Fout bij ophalen offertegegevens:", error);
+        const docSnap = await getDoc(quoteRef);
+
+        if (!docSnap.exists()) {
+          setError("Offerte niet gevonden.");
+          setLoading(false);
+          return;
+        }
+        
+        const quoteData = docSnap.data() as Quote;
+
+        if (quoteData.userId !== user.uid) {
+          setError("U heeft geen toegang tot deze offerte.");
+          setLoading(false);
+          return;
+        }
+
+        setQuote(quoteData);
+
+        // Extract jobs from the quote object itself
+        const extractedJobs: Job[] = [];
+        if (quoteData.jobs && typeof quoteData.jobs === 'object') {
+            for (const key in quoteData.jobs) {
+                // @ts-ignore
+                const jobData = quoteData.jobs[key];
+                extractedJobs.push({
+                    id: jobData.jobKey, // Use the key as an ID
+                    quoteId: quoteId,
+                    categorie: jobData.jobType,
+                    omschrijvingKlant: jobData.presetLabel || jobData.jobType, // Fallback label
+                    aantal: 1, // Default or find from data
+                    createdAt: jobData.savedAt?.toDate().toISOString() || new Date().toISOString(),
+                    ...jobData,
+                });
+            }
+        }
+        setJobs(extractedJobs);
+
+      } catch (err: any) {
+        console.error("Fout bij ophalen offertegegevens:", {
+            quoteId: quoteId,
+            uid: user.uid,
+            pathTried: `quotes/${quoteId}`,
+            errorCode: err.code,
+            errorMessage: err.message,
+        });
+        setError("Kon de offertegegevens niet laden.");
         toast({
           variant: "destructive",
           title: "Fout",
-          description: "Kon de offertegegevens niet laden.",
+          description: `Kon offerte niet laden: ${err.message}`,
         });
       } finally {
         setLoading(false);
       }
-    }
-    fetchData();
-  }, [quoteId, toast]);
+    };
+
+    fetchQuoteData();
+  }, [quoteId, firestore, user, isUserLoading, router, toast]);
 
   const handleMaterieelChange = (index: number, field: keyof MaterieelItem, value: string) => {
     const newMaterieel = [...materieel];
@@ -83,10 +135,31 @@ export default function OverzichtPage() {
     router.push(`/offertes/${quoteId}`);
   };
 
-  if (loading) {
+  if (loading || isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Offerteoverzicht laden...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="ml-4 text-muted-foreground">Offerteoverzicht laden...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-center p-4">
+        <Card className="w-full max-w-md">
+            <CardHeader>
+                <CardTitle className="text-destructive">Fout</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-muted-foreground">{error}</p>
+            </CardContent>
+            <CardFooter>
+                 <Button asChild className="w-full">
+                    <Link href="/">Terug naar dashboard</Link>
+                </Button>
+            </CardFooter>
+        </Card>
       </div>
     );
   }
@@ -97,7 +170,7 @@ export default function OverzichtPage() {
         <div className="flex items-center justify-start">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8">
             {/* This should ideally go back to the last material page */}
-            <Link href={`/offertes/${quoteId}`}>
+            <Link href={`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`}>
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Terug</span>
             </Link>
@@ -123,11 +196,13 @@ export default function OverzichtPage() {
               <CardTitle>Huidige klus(sen)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {jobs.map(job => (
+              {jobs.length > 0 ? jobs.map(job => (
                 <div key={job.id} className="flex items-center justify-between p-3 -m-3 rounded-lg bg-muted/30">
                   <p className="font-medium">{job.omschrijvingKlant}</p>
                 </div>
-              ))}
+              )) : (
+                 <p className="text-sm text-muted-foreground italic text-center py-4">Er zijn nog geen klussen toegevoegd aan deze offerte.</p>
+              )}
               <Button asChild variant="outline" className="w-full">
                 <Link href={`/offertes/${quoteId}/klus/nieuw`}>
                   <PlusCircle className="mr-2 h-4 w-4" />
@@ -170,7 +245,7 @@ export default function OverzichtPage() {
                     onChange={e => handleMaterieelChange(index, 'prijs', e.target.value)}
                     className="col-span-2"
                   />
-                   <Select value={item.per} onValueChange={(value) => handleMaterieelChange(index, 'per', value)}>
+                   <Select value={item.per} onValueChange={(value) => handleMaterieelChange(index, 'per', value as 'dag' | 'week' | 'klus')}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                           <SelectItem value="dag">dag</SelectItem>
@@ -233,5 +308,5 @@ export default function OverzichtPage() {
         </div>
       </div>
     </main>
-  );
-}
+  
+    
