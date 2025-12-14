@@ -642,7 +642,7 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Set loading to false after a short delay
+  // Set loading to false after a short delay to prevent flash of loading state
     useEffect(() => {
         const timer = setTimeout(() => {
             setMaterialenLaden(false);
@@ -812,7 +812,7 @@ export default function HsbWandMaterialenPage() {
                     {/* First material */}
                     <div className="border-t pt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-primary italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal1 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                 {gekozenMateriaal1 ? gekozenMateriaal1.materiaalnaam : 'Nog geen materiaal gekozen'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -824,7 +824,7 @@ export default function HsbWandMaterialenPage() {
                     {/* Second material */}
                     <div className="border-t pt-4 mt-4">
                         <div className="flex items-center justify-between min-h-[40px]">
-                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-primary italic')}>
+                            <div><p className={cn("text-sm", gekozenMateriaal2 ? 'text-muted-foreground' : 'text-destructive italic')}>
                                {gekozenMateriaal2 ? gekozenMateriaal2.materiaalnaam : 'Nog geen materiaal gekozen (optioneel)'}
                             </p></div>
                             <div className="flex items-center gap-2">
@@ -891,7 +891,7 @@ export default function HsbWandMaterialenPage() {
                     {isMaterialenLaden ? <div className="h-10 bg-muted/50 rounded animate-pulse" /> : (
                          <div className="flex items-center justify-between min-h-[40px]">
                             <div>
-                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-primary italic">Nog geen materiaal gekozen</p>}
+                                {gekozenMateriaal ? <p className="text-sm text-muted-foreground">{gekozenMateriaal.materiaalnaam}</p> : <p className="text-sm text-destructive italic">Nog geen materiaal gekozen</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 {gekozenMateriaal && (
@@ -1037,22 +1037,24 @@ export default function HsbWandMaterialenPage() {
                             <SelectValue placeholder="Kies een voorinstelling..." />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="default">Standaard (leeg)</SelectItem>
+                            <SelectItem value="default">Nieuw</SelectItem>
                             {presets.map(p => (
-                                <SelectItem key={p.id} value={p.id} className="flex items-center justify-between group/preset">
-                                  <span>{p.name}{p.isDefault && ' (standaard)'}</span>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-6 w-6 ml-auto opacity-0 group-hover/preset:opacity-100"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPresetToDelete(p);
-                                      setDeleteConfirmationOpen(true);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
+                                <SelectItem key={p.id} value={p.id}>
+                                  <div className="flex items-center justify-between w-full">
+                                    <span>{p.name}{p.isDefault && ' (standaard)'}</span>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-6 w-6"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPresetToDelete(p);
+                                        setDeleteConfirmationOpen(true);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -1139,12 +1141,3 @@ export default function HsbWandMaterialenPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
-
