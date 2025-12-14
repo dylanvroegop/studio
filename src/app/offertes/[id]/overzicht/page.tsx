@@ -177,15 +177,54 @@ export default function OverzichtPage() {
     const copy = [...materieel];
     copy[index] = { ...copy[index], [field]: value };
     setMaterieel(copy);
-  };
+  }
 
-  const handleFinishQuote = () => {
-    toast({
-      title: 'Offerte wordt gegenereerd',
-      description: 'U wordt doorgestuurd.',
-    });
-    router.push(`/offertes/${quoteId}`);
+  const handleFinishQuote = async () => {
+    if (!quote) {
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Geen offerte gevonden om te versturen.',
+      });
+      return;
+    }
+  
+    try {
+      const response = await fetch(
+        'https://n8n.dylan8n.org/webhook-test/offerte-test',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quoteId,
+            quote, // single source of truth
+            triggeredAt: new Date().toISOString(),
+          }),
+        }
+      );
+  
+      if (!response.ok) {
+        throw new Error(`Webhook fout: ${response.status}`);
+      }
+  
+      toast({
+        title: 'Offerte verzonden',
+        description: 'De offerte is doorgestuurd naar verwerking.',
+      });
+  
+      router.push(`/offertes/${quoteId}`);
+    } catch (err: any) {
+      console.error('Webhook error:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Webhook fout',
+        description: err.message || 'Kon offerte niet versturen.',
+      });
+    }
   };
+  
 
   /* ---------------------------------------------
    Render states
