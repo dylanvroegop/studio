@@ -651,7 +651,13 @@ export default function HsbWandMaterialenPage() {
                     if (typeof p === 'string') return parseFloat(p.replace(',', '.')) || 0;
                     return 0;
                 }
-                const materialenData = data.map(m => ({...m, id: m.row_id, prijs: getCorrectPrice(m.prijs)}));
+                const materialenData = data.map(m => ({
+                  ...m,
+                  id: m.row_id,
+                  prijs: getCorrectPrice(m.prijs),
+                  categorie: m.subsectie, // <-- THIS IS THE FIX
+                }));
+                
                 setAlleMaterialen(materialenData);
             }
             setMaterialenLaden(false);
