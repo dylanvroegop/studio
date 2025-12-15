@@ -51,7 +51,7 @@ export default function WandenPage() {
   };
 
   const subcategories: Subcategory[] = [
-    { name: 'Wanden', title: 'HSB Wand', description: 'Enkelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
+    { name: 'Wanden', title: 'HSB Voorzetwand', description: 'Enkelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
     { name: 'Wanden', title: 'Metalstud Wand', description: 'Enkelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
     { name: 'Wanden', title: 'HSB Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
     { name: 'Wanden', title: 'Metalstud Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
