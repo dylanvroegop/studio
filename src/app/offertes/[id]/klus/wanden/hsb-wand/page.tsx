@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
@@ -231,10 +232,12 @@ export default function HsbWandPage() {
       setSaving(false);
     }
   };
+  
+  const progressValue = (4 / 6) * 100;
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="grid w-full grid-cols-3 items-center border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6 py-3">
+      <header className="sticky top-0 z-10 grid h-auto w-full grid-cols-3 items-center border-b bg-background/95 px-4 pt-3 pb-2 backdrop-blur-sm sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8">
             <Link href={`/offertes/${quoteId}/klus/wanden`}>
@@ -244,9 +247,9 @@ export default function HsbWandPage() {
           </Button>
         </div>
 
-        <div className="text-center">
-          <h1 className="font-semibold text-lg">HSB Wand</h1>
-          <p className="text-xs text-muted-foreground">stap 4 van 6</p>
+        <div className="text-center flex flex-col items-center">
+            <h1 className="font-semibold text-lg">HSB Wand</h1>
+            <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
         </div>
 
         <div className="flex items-center justify-end">
