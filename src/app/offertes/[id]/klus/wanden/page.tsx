@@ -1,4 +1,3 @@
-// src/app/offertes/[id]/klus/wanden/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
@@ -12,8 +11,8 @@ import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
 
-// ✅ Server action (DIT is wat het “werkt altijd” maakt)
-import { updateWandenKeuzeAction } from '@/lib/actions';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { firestore } from '@/firebase/firestore/config';
 
 type Subcategory = {
   name: JobCategory;
@@ -56,15 +55,28 @@ export default function WandenPage() {
     [quoteId]
   );
 
-  // ✅ Schrijf titel+beschrijving naar quotes/{quoteId} via SERVER ACTION en navigeer daarna
   const slaKaartOpEnNavigeer = (item: Subcategory) => {
     if (!quoteId) return;
 
     startTransition(() => {
-      void (async () => {
-        const res = await updateWandenKeuzeAction(quoteId, item.title, item.description, item.slug);
-        if ((res as any)?.message) return; // optioneel: toast/loggen
-        router.push(item.href);
+      (async () => {
+        try {
+          const quoteRef = doc(firestore, 'quotes', quoteId);
+
+          await updateDoc(quoteRef, {
+            'jobCards.wanden': {
+              title: item.title,
+              description: item.description,
+              slug: item.slug,
+              updatedAt: serverTimestamp(),
+            },
+            updatedAt: serverTimestamp(),
+          });
+
+          router.push(item.href);
+        } catch (err) {
+          console.error('Fout bij opslaan jobCards.wanden:', err);
+        }
       })();
     });
   };
@@ -75,7 +87,7 @@ export default function WandenPage() {
         'group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]',
         'border-[rgba(255,0,0,0.2)]',
         'hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10',
-        isPending && 'opacity-70 pointer-events-none'
+        isPending && 'opacity-70'
       )}
     >
       <div className="w-full h-full text-left p-0">
