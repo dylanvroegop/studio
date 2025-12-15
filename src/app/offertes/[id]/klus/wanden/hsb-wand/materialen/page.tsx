@@ -908,51 +908,81 @@ export default function HsbWandMaterialenPage() {
     }
   };
 
- const handleNext = async () => {
+  const handleNext = async () => {
+    if (isOpslaan) return;
     setIsOpslaan(true);
-    
-    if (!user || !firestore) {
-      toast({ variant: "destructive", title: "Fout", description: "U bent niet ingelogd." });
-      setIsOpslaan(false);
-      return;
-    }
-    
-    const quoteRef = doc(firestore, 'quotes', quoteId);
-    
-    const jobPayload = {
-      jobKey: JOB_TYPE,
-      jobType: "wanden",
-      jobSlug: "hsb-wand",
-      workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
-      presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
-      selections: gekozenMaterialen,
-      extraMaterials: extraMaterials,
-      kleinMateriaal: kleinMateriaalConfig,
-      savedAt: serverTimestamp(),
-    };
-
+  
     try {
-      console.log(`Attempting to save job to quoteId: ${quoteId}, using UID: ${user.uid}`);
-      console.log("Payload being sent:", { jobs: { [JOB_TYPE]: jobPayload } });
-
+      if (!user || !firestore) {
+        toast({ variant: "destructive", title: "Fout", description: "U bent niet ingelogd." });
+        return;
+      }
+  
+      const quoteRef = doc(firestore, "quotes", quoteId);
+  
+      // ✅ SINGLE SOURCE OF TRUTH: alle secties die deze pagina kent
+      // collapsedSections bevat jouw keys (ook naden_vullen_2 etc.)
+      const toegestaneSecties = new Set(Object.keys(collapsedSections ?? {}));
+  
+      // ✅ selections opschonen: alleen secties op deze pagina + niet-collapsed + niet-leeg
+      const opgeschoondeSelections: Record<string, any> = {};
+      const gebruikteRowIds = new Set<string>();
+  
+      for (const [sectieKey, m] of Object.entries(gekozenMaterialen ?? {})) {
+        if (!toegestaneSecties.has(sectieKey)) continue;                 // oud/verdwenen key -> weg
+        if (collapsedSections?.[sectieKey as any] === true) continue;     // niet van toepassing -> weg
+        if (!m) continue;
+  
+        const materiaalnaam = (m as any).materiaalnaam ?? null;
+        const id = (m as any).id ?? null;
+        const row_id = (m as any).row_id ?? null;
+  
+        // leeg -> weg
+        if (!materiaalnaam && !id) continue;
+  
+        // dedupe op row_id (optioneel maar voorkomt rare doubles)
+        if (row_id && gebruikteRowIds.has(row_id)) continue;
+        if (row_id) gebruikteRowIds.add(row_id);
+  
+        // minimal + stabiel (geen prijs/eenheid nodig)
+        opgeschoondeSelections[sectieKey] = {
+          id,
+          row_id,
+          materiaalnaam,
+          categorie: (m as any).categorie ?? null,
+          subsectie: (m as any).subsectie ?? null,
+          leverancier: (m as any).leverancier ?? null,
+          volgorde: (m as any).volgorde ?? null,
+        };
+      }
+  
+      // extra materialen opschonen
+      const opgeschoondeExtraMaterials = Array.isArray(extraMaterials)
+        ? extraMaterials.filter(Boolean)
+        : [];
+  
+      const jobPayload = {
+        jobKey: JOB_TYPE,
+        jobType: "wanden",
+        jobSlug: "hsb-wand",
+        workMethodId: gekozenPresetId === "default" ? null : gekozenPresetId,
+        presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
+        selections: opgeschoondeSelections,          // ✅ CLEAN
+        extraMaterials: opgeschoondeExtraMaterials,  // ✅ CLEAN
+        kleinMateriaal: kleinMateriaalConfig,
+        savedAt: serverTimestamp(),
+      };
+  
+      // ✅ Overwrite job object (prima), maar nu met CLEAN selections
       await updateDoc(quoteRef, {
-          [`jobs.${JOB_TYPE}`]: jobPayload
+        [`jobs.${JOB_TYPE}`]: jobPayload,
+        updatedAt: serverTimestamp(),
       });
-
+  
       toast({ title: "Materialen opgeslagen!" });
       router.push(`/offertes/${quoteId}/overzicht`);
-
     } catch (error: any) {
-      console.error("SAVE ERROR:", {
-        quoteId: quoteId,
-        uid: user.uid,
-        writePath: `quotes/${quoteId}`,
-        errorCode: error.code,
-        errorMessage: error.message,
-        payloadKeys: Object.keys(jobPayload),
-        fullError: error
-      });
-      
+      console.error("SAVE ERROR:", error);
       toast({
         variant: "destructive",
         title: "Kon materialen niet opslaan",
@@ -961,7 +991,8 @@ export default function HsbWandMaterialenPage() {
     } finally {
       setIsOpslaan(false);
     }
-};
+  };
+  
 
 
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string, beschrijving?: string) => {
