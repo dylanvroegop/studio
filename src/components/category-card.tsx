@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -109,7 +110,7 @@ export function CategoryCard({ quoteId, category, className }: CategoryCardProps
       router.push(`/offertes/${quoteId}/klus/isolatiewerken`);
       return;
     }
-    if (category.name === 'Overig / Maatwerk') {
+    if (category.name === 'Overige werkzaamheden') {
         e.preventDefault();
         setIsSelected(true);
         router.push(`/offertes/${quoteId}/klus/overig-maatwerk`);

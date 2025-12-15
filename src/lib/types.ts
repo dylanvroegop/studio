@@ -1,3 +1,4 @@
+
 import { Timestamp } from "firebase/firestore";
 
 export type User = {
@@ -64,7 +65,7 @@ export type JobCategory =
   | "Schutting / Tuinafscheiding"
   | "Overkapping / Pergola"
   | "Isolatiewerken"
-  | "Overig / Maatwerk";
+  | "Overige werkzaamheden";
 
 
 export type Job = {

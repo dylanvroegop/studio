@@ -28,7 +28,7 @@ const categories: { name: JobCategory; description: string; icon: IconName }[] =
     { name: "Dakramen / Lichtkoepel", description: "Plaatsen van Velux of andere merken", icon: "window" },
     { name: "Schutting / Tuinafscheiding", description: "Houten of composiet schuttingen", icon: "fence" },
     { name: "Overkapping / Pergola", description: "Houtconstructies voor in de tuin", icon: "pergola" },
-    { name: "Overig / Maatwerk", description: "Specifiek timmerwerk", icon: "plus" },
+    { name: "Overige werkzaamheden", description: "Specifiek timmerwerk", icon: "plus" },
 ];
 
 
