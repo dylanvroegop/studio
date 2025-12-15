@@ -700,28 +700,37 @@ export default function HsbWandMaterialenPage() {
   }, [user, firestore, toast]);
   
   // Gekozen preset toepassen
-  useEffect(() => {
-    if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
-      // Reset naar leeg
-      setGekozenMaterialen({});
-      setCollapsedSections({});
-      setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
-      return;
-    }
-    const preset = presets.find(p => p.id === gekozenPresetId);
-    if (!preset) return;
-    const nieuweGekozenMaterialen: Record<string, MateriaalKeuze | undefined> = {};
-    for (const slot in preset.slots) {
-      const materiaalId = preset.slots[slot];
-      const materiaal = alleMaterialen.find(m => m.id === materiaalId);
-      if (materiaal) {
-        nieuweGekozenMaterialen[slot] = materiaal;
-      }
-    }
-    setGekozenMaterialen(nieuweGekozenMaterialen);
-    setCollapsedSections(preset.collapsedSections || {});
-    setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
-  }, [gekozenPresetId, presets, alleMaterialen]);
+// Gekozen preset toepassen (ALLEEN keys die deze pagina ondersteunt)
+useEffect(() => {
+  if (gekozenPresetId === 'default' || alleMaterialen.length === 0) {
+    setGekozenMaterialen({});
+    setCollapsedSections({});
+    setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
+    return;
+  }
+
+  const preset = presets.find(p => p.id === gekozenPresetId);
+  if (!preset) return;
+
+  const nieuweGekozenMaterialen: Record<string, MateriaalKeuze | undefined> = {};
+
+  // ✅ alleen keys uit sectieSleutels meenemen (oude keys uit presets negeren)
+  for (const key of sectieSleutels) {
+    // extra/klein_materiaal zijn geen Supabase materials
+    if (key === 'extra' || key === 'klein_materiaal') continue;
+
+    const materiaalId = preset.slots?.[key];
+    if (!materiaalId) continue;
+
+    const materiaal = alleMaterialen.find(m => m.id === materiaalId);
+    if (materiaal) nieuweGekozenMaterialen[key] = materiaal;
+  }
+
+  setGekozenMaterialen(nieuweGekozenMaterialen);
+  setCollapsedSections(preset.collapsedSections || {});
+  setKleinMateriaalConfig(preset.kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null });
+}, [gekozenPresetId, presets, alleMaterialen]);
+
 
   // Set loading to false after a short delay
     useEffect(() => {
@@ -920,15 +929,19 @@ export default function HsbWandMaterialenPage() {
       // 1) Forceer 1 bron van waarheid voor de job key (dit moet EXACT hetzelfde zijn overal)
       const JOB_KEY = "hsb-wand"; // <-- zet dit exact gelijk aan jouw job slug/route
   
-      // 2) Alleen gekozen items opslaan (geen lege secties, geen undefined)
+      const toegestaneKeys = new Set(sectieSleutels);
+
       const schoneSelecties = Object.fromEntries(
-        Object.entries(gekozenMaterialen || {}).filter(([_, v]: any) => {
-          if (!v) return false;
-          if (typeof v !== "object") return false;
-          if (!v.id && !v.row_id) return false; // minimaal 1 identifier
-          return true;
-        })
+        Object.entries(gekozenMaterialen || {})
+          .filter(([k, v]: any) => {
+            if (!toegestaneKeys.has(k as any)) return false;   // ✅ kill old keys like "binnen deuren"
+            if (k === 'extra' || k === 'klein_materiaal') return false;
+            if (!v || typeof v !== 'object') return false;
+            if (!v.id) return false;
+            return true;
+          })
       );
+      
   
       // 3) Extra materialen moeten altijd array zijn
       const schoneExtra = Array.isArray(extraMaterials)
