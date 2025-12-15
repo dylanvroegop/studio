@@ -1,4 +1,4 @@
-# Firebase Studio
+/offertes/rbjSzmmaqTZxbESsckFx/klus/wanden# Firebase Studio
 
 This is a NextJS starter in Firebase Studio.
 

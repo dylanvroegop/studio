@@ -1,7 +1,7 @@
-
+// src/app/offertes/[id]/klus/wanden/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -10,25 +10,28 @@ import { cn } from '@/lib/utils';
 import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
-import { createJobAction } from '@/lib/actions';
 import { Progress } from '@/components/ui/progress';
+
+// ✅ Server action (DIT is wat het “werkt altijd” maakt)
+import { updateWandenKeuzeAction } from '@/lib/actions';
 
 type Subcategory = {
   name: JobCategory;
   title: string;
   description: string;
   icon: IconName;
-  href?: string;
-  action?: () => void;
+  href: string;
+  slug: string;
 };
 
 export default function WandenPage() {
   const params = useParams();
   const router = useRouter();
   const quoteId = params.id as string;
+
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isPending, startTransition] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     async function fetchQuote() {
@@ -41,30 +44,38 @@ export default function WandenPage() {
     fetchQuote();
   }, [quoteId]);
 
-  const handleCreateJob = (description: string) => {
-    startTransition(true);
-    // This is a server action, but we trigger it on the client
-    // It will handle the redirect internally
-    createJobAction(quoteId, 'Wanden', description).finally(() => {
-      startTransition(false);
+  const subcategories: Subcategory[] = useMemo(
+    () => [
+      { name: 'Wanden', title: 'HSB Voorzetwand', description: 'Enkelzijdig bekleed', icon: 'wall', slug: 'hsb-voorzetwand', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
+      { name: 'Wanden', title: 'Metalstud Voorzetwand', description: 'Enkelzijdig bekleed', icon: 'wall', slug: 'metalstud-voorzetwand', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
+      { name: 'Wanden', title: 'HSB Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', slug: 'hsb-tussenwand', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
+      { name: 'Wanden', title: 'Metalstud Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', slug: 'metalstud-tussenwand', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
+      { name: 'Wanden', title: 'HSB Buitenwand', description: 'Binnen/Buitenzijde bekleed', icon: 'wall', slug: 'hsb-buitenwand', href: `/offertes/${quoteId}/klus/wanden/hsb-buitenwand` },
+      { name: 'Wanden', title: 'Overig Wanden', description: 'Afwijkende wandopbouw', icon: 'plus', slug: 'overig-wanden', href: `/offertes/${quoteId}/klus/wanden/overig-wanden` },
+    ],
+    [quoteId]
+  );
+
+  // ✅ Schrijf titel+beschrijving naar quotes/{quoteId} via SERVER ACTION en navigeer daarna
+  const slaKaartOpEnNavigeer = (item: Subcategory) => {
+    if (!quoteId) return;
+
+    startTransition(() => {
+      void (async () => {
+        const res = await updateWandenKeuzeAction(quoteId, item.title, item.description, item.slug);
+        if ((res as any)?.message) return; // optioneel: toast/loggen
+        router.push(item.href);
+      })();
     });
   };
-
-  const subcategories: Subcategory[] = [
-    { name: 'Wanden', title: 'HSB Voorzetwand', description: 'Enkelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
-    { name: 'Wanden', title: 'Metalstud Voorzetwand', description: 'Enkelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
-    { name: 'Wanden', title: 'HSB Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
-    { name: 'Wanden', title: 'Metalstud Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
-    { name: 'Wanden', title: 'HSB Buitenwand (gevel)', description: 'Constructieve wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-buitenwand` },
-    { name: 'Wanden', title: 'Overig Wanden', description: 'Afwijkende wandopbouw', icon: 'plus', href: `/offertes/${quoteId}/klus/wanden/overig-wanden` },
-  ];
 
   const renderCardContent = (item: Subcategory) => (
     <div
       className={cn(
-        "group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]",
-        "border-[rgba(255,0,0,0.2)]", // A neutral, non-selected state
-        "hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+        'group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]',
+        'border-[rgba(255,0,0,0.2)]',
+        'hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10',
+        isPending && 'opacity-70 pointer-events-none'
       )}
     >
       <div className="w-full h-full text-left p-0">
@@ -92,36 +103,31 @@ export default function WandenPage() {
             </Link>
           </Button>
         </div>
+
         <div className="text-center flex flex-col items-center">
-            <h1 className="font-semibold text-lg">Wanden</h1>
-            <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
+          <h1 className="font-semibold text-lg">Wanden</h1>
+          <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
         </div>
+
         <div className="flex items-center justify-end">
-          {loading ? (
-            <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-          ) : quote ? (
-            <p className="text-sm text-muted-foreground truncate"></p>
-          ) : null}
+          {loading ? <div className="h-4 bg-muted rounded w-32 animate-pulse" /> : quote ? <p className="text-sm text-muted-foreground truncate" /> : null}
         </div>
       </header>
+
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-4xl mx-auto w-full">
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-            {subcategories.map((item) => {
-              if (item.href) {
-                return (
-                  <Link key={item.title} href={item.href} className="h-full">
-                    {renderCardContent(item)}
-                  </Link>
-                );
-              }
-              return (
-                <div key={item.title} onClick={() => item.action?.()} className="h-full">
-                   {renderCardContent(item)}
-                </div>
-              );
-            })}
+            {subcategories.map((item) => (
+              <button
+                key={item.slug}
+                type="button"
+                onClick={() => slaKaartOpEnNavigeer(item)}
+                className="h-full text-left"
+                disabled={isPending}
+              >
+                {renderCardContent(item)}
+              </button>
+            ))}
           </div>
         </div>
       </div>
