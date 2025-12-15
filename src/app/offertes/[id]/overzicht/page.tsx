@@ -59,11 +59,7 @@ function resolvePresetLabel(presetLabel?: string | null) {
 }
 
 function jobIsComplete(job: any): boolean {
-  // Simple, safe heuristic
-  return (
-    job?.selections &&
-    Object.keys(job.selections).length > 0
-  );
+  return job?.selections && Object.keys(job.selections).length > 0;
 }
 
 /* ---------------------------------------------
@@ -93,6 +89,8 @@ export default function OverzichtPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Transport / extra state
   const [prijsPerKm, setPrijsPerKm] = useState('');
@@ -140,10 +138,9 @@ export default function OverzichtPage() {
         setQuote(data);
 
         const extractedJobs: Job[] = [];
-
         if (data.jobs) {
           for (const key in data.jobs) {
-            const jobData: any = data.jobs[key];
+            const jobData: any = (data.jobs as any)[key];
 
             extractedJobs.push({
               id: jobData.jobKey ?? key,
@@ -177,7 +174,7 @@ export default function OverzichtPage() {
     const copy = [...materieel];
     copy[index] = { ...copy[index], [field]: value };
     setMaterieel(copy);
-  }
+  };
 
   const handleFinishQuote = async () => {
     if (!quote) {
@@ -188,43 +185,52 @@ export default function OverzichtPage() {
       });
       return;
     }
-  
+
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     try {
-      const response = await fetch(
-        'https://n8n.dylan8n.org/webhook-test/offerte-test',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+      const response = await fetch('https://n8n.dylan8n.org/webhook-test/offerte-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quoteId,
+          quote, // single source of truth
+          extras: {
+            transport: {
+              prijsPerKm: prijsPerKm ? Number(prijsPerKm) : null,
+              vasteTransportkosten: vasteTransportkosten ? Number(vasteTransportkosten) : null,
+            },
+            materieel,
+            onvoorzien,
           },
-          body: JSON.stringify({
-            quoteId,
-            quote, // single source of truth
-            triggeredAt: new Date().toISOString(),
-          }),
-        }
-      );
-  
+          triggeredAt: new Date().toISOString(),
+        }),
+      });
+
       if (!response.ok) {
-        throw new Error(`Webhook fout: ${response.status}`);
+        const text = await response.text().catch(() => '');
+        throw new Error(`Webhook fout: ${response.status}${text ? ` - ${text}` : ''}`);
       }
-  
+
       toast({
         title: 'Offerte verzonden',
         description: 'De offerte is doorgestuurd naar verwerking.',
       });
-  
-      router.push(`/offertes/${quoteId}`);
+
+      // ✅ ALWAYS go to dashboard after triggering webhook
+      router.push('/dashboard');
     } catch (err: any) {
       console.error('Webhook error:', err);
       toast({
         variant: 'destructive',
         title: 'Webhook fout',
-        description: err.message || 'Kon offerte niet versturen.',
+        description: err?.message || 'Kon offerte niet versturen.',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
 
   /* ---------------------------------------------
    Render states
@@ -234,9 +240,7 @@ export default function OverzichtPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-3 text-muted-foreground">
-          Overzicht laden…
-        </span>
+        <span className="ml-3 text-muted-foreground">Overzicht laden…</span>
       </div>
     );
   }
@@ -246,9 +250,7 @@ export default function OverzichtPage() {
       <div className="min-h-screen flex items-center justify-center">
         <Card className="max-w-md w-full">
           <CardHeader>
-            <CardTitle className="text-destructive">
-              Fout
-            </CardTitle>
+            <CardTitle className="text-destructive">Fout</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">{error}</p>
@@ -264,7 +266,6 @@ export default function OverzichtPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      {/* Header */}
       <header className="sticky top-0 z-10 grid grid-cols-3 items-center border-b bg-background/95 px-4 py-3 backdrop-blur-sm">
         <div>
           <Button asChild variant="ghost" size="icon">
@@ -274,19 +275,13 @@ export default function OverzichtPage() {
           </Button>
         </div>
         <div className="text-center">
-          <h1 className="font-semibold text-lg">
-            Overzicht & extra’s
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            stap 6 van 6
-          </p>
+          <h1 className="font-semibold text-lg">Overzicht & extra’s</h1>
+          <p className="text-xs text-muted-foreground">stap 6 van 6</p>
         </div>
       </header>
 
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-2xl mx-auto space-y-8">
-
-          {/* Jobs */}
           <Card>
             <CardHeader>
               <CardTitle>Huidige klussen</CardTitle>
@@ -300,20 +295,15 @@ export default function OverzichtPage() {
               )}
 
               {jobs.map((job) => {
-                const title = humanizeJobKey(job.jobKey);
-                const preset = resolvePresetLabel(job.presetLabel);
+                const title = humanizeJobKey((job as any).jobKey);
+                const preset = resolvePresetLabel((job as any).presetLabel);
                 const isComplete = jobIsComplete(job);
 
                 return (
-                  <div
-                    key={job.id}
-                    className="flex items-center justify-between rounded-lg border p-4"
-                  >
+                  <div key={job.id} className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-1">
                       <p className="font-medium">{title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Werkwijze: {preset}
-                      </p>
+                      <p className="text-sm text-muted-foreground">Werkwijze: {preset}</p>
                     </div>
 
                     <div className="flex items-center gap-2 text-sm">
@@ -342,7 +332,6 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Transport */}
           <Card>
             <CardHeader>
               <CardTitle>Transport</CardTitle>
@@ -350,11 +339,7 @@ export default function OverzichtPage() {
             <CardContent className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Prijs per km (€)</Label>
-                <Input
-                  type="number"
-                  value={prijsPerKm}
-                  onChange={(e) => setPrijsPerKm(e.target.value)}
-                />
+                <Input type="number" value={prijsPerKm} onChange={(e) => setPrijsPerKm(e.target.value)} />
               </div>
               <div>
                 <Label>Vaste transportkosten (€)</Label>
@@ -367,7 +352,6 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Materieel */}
           <Card>
             <CardHeader>
               <CardTitle>Materieel</CardTitle>
@@ -375,23 +359,14 @@ export default function OverzichtPage() {
             <CardContent className="space-y-4">
               {materieel.map((item, i) => (
                 <div key={i} className="grid grid-cols-5 gap-3 items-center">
-                  <span className="col-span-2 text-sm">
-                    {item.naam}
-                  </span>
+                  <span className="col-span-2 text-sm">{item.naam}</span>
                   <Input
                     type="number"
                     value={item.prijs}
-                    onChange={(e) =>
-                      handleMaterieelChange(i, 'prijs', e.target.value)
-                    }
+                    onChange={(e) => handleMaterieelChange(i, 'prijs', e.target.value)}
                     className="col-span-2"
                   />
-                  <Select
-                    value={item.per}
-                    onValueChange={(v) =>
-                      handleMaterieelChange(i, 'per', v)
-                    }
-                  >
+                  <Select value={item.per} onValueChange={(v) => handleMaterieelChange(i, 'per', v)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -406,21 +381,14 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Onvoorzien */}
           <Card>
             <CardHeader>
               <CardTitle>Onvoorzien</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer',
-                  onvoorzien.mode === 'percentage' &&
-                    'border-primary bg-muted/30'
-                )}
-                onClick={() =>
-                  setOnvoorzien({ ...onvoorzien, mode: 'percentage' })
-                }
+                className={cn('p-4 rounded-lg border cursor-pointer', onvoorzien.mode === 'percentage' && 'border-primary bg-muted/30')}
+                onClick={() => setOnvoorzien({ ...onvoorzien, mode: 'percentage' })}
               >
                 <h4 className="font-semibold flex items-center">
                   <Percent className="mr-2 h-4 w-4" /> Percentage
@@ -430,25 +398,14 @@ export default function OverzichtPage() {
                     className="mt-2"
                     type="number"
                     value={onvoorzien.percentage ?? ''}
-                    onChange={(e) =>
-                      setOnvoorzien({
-                        ...onvoorzien,
-                        percentage: Number(e.target.value),
-                      })
-                    }
+                    onChange={(e) => setOnvoorzien({ ...onvoorzien, percentage: Number(e.target.value) })}
                   />
                 )}
               </div>
 
               <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer',
-                  onvoorzien.mode === 'fixed' &&
-                    'border-primary bg-muted/30'
-                )}
-                onClick={() =>
-                  setOnvoorzien({ ...onvoorzien, mode: 'fixed' })
-                }
+                className={cn('p-4 rounded-lg border cursor-pointer', onvoorzien.mode === 'fixed' && 'border-primary bg-muted/30')}
+                onClick={() => setOnvoorzien({ ...onvoorzien, mode: 'fixed' })}
               >
                 <h4 className="font-semibold flex items-center">
                   <Euro className="mr-2 h-4 w-4" /> Vast bedrag
@@ -458,12 +415,7 @@ export default function OverzichtPage() {
                     className="mt-2"
                     type="number"
                     value={onvoorzien.fixedAmount ?? ''}
-                    onChange={(e) =>
-                      setOnvoorzien({
-                        ...onvoorzien,
-                        fixedAmount: Number(e.target.value),
-                      })
-                    }
+                    onChange={(e) => setOnvoorzien({ ...onvoorzien, fixedAmount: Number(e.target.value) })}
                   />
                 )}
               </div>
@@ -472,10 +424,11 @@ export default function OverzichtPage() {
 
           <Button
             onClick={handleFinishQuote}
+            disabled={isSubmitting}
             className="w-full bg-primary text-primary-foreground"
           >
-            <Send className="mr-2 h-4 w-4" />
-            Offerte genereren
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            {isSubmitting ? 'Versturen…' : 'Offerte genereren'}
           </Button>
         </div>
       </div>
