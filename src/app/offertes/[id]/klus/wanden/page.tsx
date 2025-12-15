@@ -15,6 +15,7 @@ import { Progress } from '@/components/ui/progress';
 
 type Subcategory = {
   name: JobCategory;
+  title: string;
   description: string;
   icon: IconName;
   href?: string;
@@ -50,12 +51,12 @@ export default function WandenPage() {
   };
 
   const subcategories: Subcategory[] = [
-    { name: 'Wanden', description: 'HSB Wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
-    { name: 'Wanden', description: 'HSB Tussenwand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
-    { name: 'Wanden', description: 'HSB Buitenwand (gevel)', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-buitenwand` },
-    { name: 'Wanden', description: 'Metalstud Wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
-    { name: 'Wanden', description: 'Metalstud Tussenwand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
-    { name: 'Wanden', description: 'Overig Wanden', icon: 'plus', href: `/offertes/${quoteId}/klus/wanden/overig-wanden` },
+    { name: 'Wanden', title: 'HSB Wand', description: 'Enkelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
+    { name: 'Wanden', title: 'HSB Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
+    { name: 'Wanden', title: 'HSB Buitenwand (gevel)', description: 'Constructieve wand', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/hsb-buitenwand` },
+    { name: 'Wanden', title: 'Metalstud Wand', description: 'Enkelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
+    { name: 'Wanden', title: 'Metalstud Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
+    { name: 'Wanden', title: 'Overig Wanden', description: 'Afwijkende wandopbouw', icon: 'plus', href: `/offertes/${quoteId}/klus/wanden/overig-wanden` },
   ];
 
   const renderCardContent = (item: Subcategory) => (
@@ -70,7 +71,8 @@ export default function WandenPage() {
         <div className="p-4 flex items-center gap-4 h-full">
           <JobIcon name={item.icon} className="w-6 h-6 text-primary flex-shrink-0" />
           <div className="flex flex-col">
-            <h3 className="font-semibold text-base text-white">{item.description}</h3>
+            <h3 className="font-semibold text-base text-white">{item.title}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
           </div>
         </div>
       </div>
@@ -109,13 +111,13 @@ export default function WandenPage() {
             {subcategories.map((item) => {
               if (item.href) {
                 return (
-                  <Link key={item.description} href={item.href} className="h-full">
+                  <Link key={item.title} href={item.href} className="h-full">
                     {renderCardContent(item)}
                   </Link>
                 );
               }
               return (
-                <div key={item.description} onClick={() => item.action?.()} className="h-full">
+                <div key={item.title} onClick={() => item.action?.()} className="h-full">
                    {renderCardContent(item)}
                 </div>
               );
