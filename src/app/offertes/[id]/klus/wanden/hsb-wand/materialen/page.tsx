@@ -216,7 +216,7 @@ const MateriaalKiezerModal = forwardRef<
   const [orderedMaterials, setOrderedMaterials] = useState(initialMaterials);
   const [favorieten, setFavorieten] = useState<string[]>([]);
 
-  const FAVORITES_LIMIT = 30;
+  const FAVORITES_LIMIT = 50;
 
   // Helper functions for favorites
   const laadFavorieten = useCallback((uid: string): string[] => {
@@ -1244,7 +1244,7 @@ export default function HsbWandMaterialenPage() {
               <div className="space-y-4">
                 {renderSelectieRij('balkhout', 'Balkhout')}
                 {renderSelectieRij('isolatie', 'Isolatie')}
-                {renderSelectieRij('binnenbekleding', 'Houten plaatmateriaal')}
+                {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
                 {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
                 {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
                 {renderSelectieRij('binnen deuren', 'Binnen deuren')}
