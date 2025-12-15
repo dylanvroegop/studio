@@ -59,7 +59,7 @@ type Material = {
 
 type MateriaalKeuze = Omit<Material, 'row_id' | 'user_id' | 'prijs'> & { prijs: number; id: string };
 
-const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips_fermacell', 'binnen kozijnen', 'binnen deuren', 'naden_vullen', 'naden_vullen_2', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
+const sectieSleutels = ['balkhout', 'isolatie', 'houten plaatmateriaal', 'gips_fermacell', 'naden_vullen', 'naden_vullen_2', 'afwerkplinten', 'extra', 'klein_materiaal'] as const;
 type SectieKey = typeof sectieSleutels[number];
 
 
@@ -1199,11 +1199,9 @@ export default function HsbWandMaterialenPage() {
             </Button>
           </div>
           <div className="col-start-2 flex flex-col items-center text-center">
-  <h1 className="font-semibold text-lg">HSB Wand</h1>
-  <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
-  <p className="text-xs text-muted-foreground">stap 5 van 6</p>
-</div>
-
+            <h1 className="font-semibold text-lg">HSB Wand</h1>
+            <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
+          </div>
           <div className="flex items-center justify-end">
             {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : null}
           </div>
@@ -1246,8 +1244,6 @@ export default function HsbWandMaterialenPage() {
                 {renderSelectieRij('isolatie', 'Isolatie')}
                 {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
                 {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
-                {renderSelectieRij('binnen kozijnen', 'Binnen kozijnen')}
-                {renderSelectieRij('binnen deuren', 'Binnen deuren')}
                 {renderSelectieRij('naden_vullen', 'Naden vullen')}
                 {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
                 
