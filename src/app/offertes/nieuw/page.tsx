@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
+import { Progress } from '@/components/ui/progress';
 
 export default function NewQuotePage() {
   const router = useRouter();
@@ -25,9 +26,11 @@ export default function NewQuotePage() {
       );
   }
 
+  const progressValue = (1 / 6) * 100;
+
   return (
     <main className="flex flex-1 flex-col">
-       <header className="flex h-auto items-center justify-between border-b bg-background px-4 py-3 sm:px-6">
+       <header className="sticky top-0 z-10 grid h-auto w-full grid-cols-3 items-center border-b bg-background/95 px-4 pt-3 pb-2 backdrop-blur-sm sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="outline" size="icon" className="h-8 w-8">
             <Link href="/">
@@ -36,9 +39,9 @@ export default function NewQuotePage() {
             </Link>
           </Button>
         </div>
-        <div className="text-center">
+        <div className="text-center flex flex-col items-center">
             <h1 className="font-semibold text-lg">Nieuwe Offerte</h1>
-            <p className="text-xs text-muted-foreground">stap 1 van 6</p>
+            <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
         </div>
         <div className="flex items-center justify-end"></div>
       </header>
