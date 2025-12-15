@@ -1183,6 +1183,8 @@ export default function HsbWandMaterialenPage() {
     );
   };
   
+  const progressValue = (5 / 6) * 100;
+
   return (
     <>
       <main className="flex flex-1 flex-col">
@@ -1196,9 +1198,11 @@ export default function HsbWandMaterialenPage() {
             </Button>
           </div>
           <div className="col-start-2 flex flex-col items-center text-center">
-            <h1 className="font-semibold text-lg">HSB Wand</h1>
-            <p className="text-xs text-muted-foreground">stap 5 van 6</p>
-          </div>
+  <h1 className="font-semibold text-lg">HSB Wand</h1>
+  <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
+  <p className="text-xs text-muted-foreground">stap 5 van 6</p>
+</div>
+
           <div className="flex items-center justify-end">
             {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : null}
           </div>
