@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
@@ -12,7 +13,7 @@ import { getQuoteById } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
 
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { firestore } from '@/firebase/firestore/config';
+import { useFirestore } from '@/firebase';
 
 type Subcategory = {
   name: JobCategory;
@@ -27,6 +28,7 @@ export default function WandenPage() {
   const params = useParams();
   const router = useRouter();
   const quoteId = params.id as string;
+  const firestore = useFirestore();
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
