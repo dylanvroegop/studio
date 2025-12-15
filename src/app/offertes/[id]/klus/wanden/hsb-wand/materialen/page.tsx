@@ -909,7 +909,6 @@ export default function HsbWandMaterialenPage() {
   };
 
   const handleNext = async () => {
-    if (isOpslaan) return;
     setIsOpslaan(true);
   
     try {
@@ -918,65 +917,48 @@ export default function HsbWandMaterialenPage() {
         return;
       }
   
-      const quoteRef = doc(firestore, "quotes", quoteId);
+      // 1) Forceer 1 bron van waarheid voor de job key (dit moet EXACT hetzelfde zijn overal)
+      const JOB_KEY = "hsb-wand"; // <-- zet dit exact gelijk aan jouw job slug/route
   
-      // ✅ SINGLE SOURCE OF TRUTH: alle secties die deze pagina kent
-      // collapsedSections bevat jouw keys (ook naden_vullen_2 etc.)
-      const toegestaneSecties = new Set(Object.keys(collapsedSections ?? {}));
+      // 2) Alleen gekozen items opslaan (geen lege secties, geen undefined)
+      const schoneSelecties = Object.fromEntries(
+        Object.entries(gekozenMaterialen || {}).filter(([_, v]: any) => {
+          if (!v) return false;
+          if (typeof v !== "object") return false;
+          if (!v.id && !v.row_id) return false; // minimaal 1 identifier
+          return true;
+        })
+      );
   
-      // ✅ selections opschonen: alleen secties op deze pagina + niet-collapsed + niet-leeg
-      const opgeschoondeSelections: Record<string, any> = {};
-      const gebruikteRowIds = new Set<string>();
-  
-      for (const [sectieKey, m] of Object.entries(gekozenMaterialen ?? {})) {
-        if (!toegestaneSecties.has(sectieKey)) continue;                 // oud/verdwenen key -> weg
-        if (collapsedSections?.[sectieKey as any] === true) continue;     // niet van toepassing -> weg
-        if (!m) continue;
-  
-        const materiaalnaam = (m as any).materiaalnaam ?? null;
-        const id = (m as any).id ?? null;
-        const row_id = (m as any).row_id ?? null;
-  
-        // leeg -> weg
-        if (!materiaalnaam && !id) continue;
-  
-        // dedupe op row_id (optioneel maar voorkomt rare doubles)
-        if (row_id && gebruikteRowIds.has(row_id)) continue;
-        if (row_id) gebruikteRowIds.add(row_id);
-  
-        // minimal + stabiel (geen prijs/eenheid nodig)
-        opgeschoondeSelections[sectieKey] = {
-          id,
-          row_id,
-          materiaalnaam,
-          categorie: (m as any).categorie ?? null,
-          subsectie: (m as any).subsectie ?? null,
-          leverancier: (m as any).leverancier ?? null,
-          volgorde: (m as any).volgorde ?? null,
-        };
-      }
-  
-      // extra materialen opschonen
-      const opgeschoondeExtraMaterials = Array.isArray(extraMaterials)
-        ? extraMaterials.filter(Boolean)
+      // 3) Extra materialen moeten altijd array zijn
+      const schoneExtra = Array.isArray(extraMaterials)
+        ? extraMaterials.filter((m: any) => m && (m.id || m.row_id || m.materiaalnaam))
         : [];
   
+      const quoteRef = doc(firestore, "quotes", quoteId);
+  
       const jobPayload = {
-        jobKey: JOB_TYPE,
+        jobKey: JOB_KEY,
         jobType: "wanden",
-        jobSlug: "hsb-wand",
+        jobSlug: JOB_KEY,
         workMethodId: gekozenPresetId === "default" ? null : gekozenPresetId,
         presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
-        selections: opgeschoondeSelections,          // ✅ CLEAN
-        extraMaterials: opgeschoondeExtraMaterials,  // ✅ CLEAN
-        kleinMateriaal: kleinMateriaalConfig,
+        selections: schoneSelecties,
+        extraMaterials: schoneExtra,
+        kleinMateriaal: kleinMateriaalConfig ?? null,
         savedAt: serverTimestamp(),
+        savedByUid: user.uid,
       };
   
-      // ✅ Overwrite job object (prima), maar nu met CLEAN selections
+      // DEBUG (tijdelijk laten staan tot het stabiel is)
+      console.log("JOB_KEY =", JOB_KEY);
+      console.log("writePath =", `jobs.${JOB_KEY}`);
+      console.log("extraMaterials isArray =", Array.isArray(extraMaterials), extraMaterials);
+      console.log("schoneSelecties =", schoneSelecties);
+      console.log("jobPayload =", jobPayload);
+  
       await updateDoc(quoteRef, {
-        [`jobs.${JOB_TYPE}`]: jobPayload,
-        updatedAt: serverTimestamp(),
+        [`jobs.${JOB_KEY}`]: jobPayload,
       });
   
       toast({ title: "Materialen opgeslagen!" });
@@ -986,12 +968,13 @@ export default function HsbWandMaterialenPage() {
       toast({
         variant: "destructive",
         title: "Kon materialen niet opslaan",
-        description: `Fout: ${error.message}`,
+        description: `Fout: ${error?.message || "Onbekend"}`,
       });
     } finally {
       setIsOpslaan(false);
     }
   };
+  
   
 
 
