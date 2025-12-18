@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -26,7 +27,7 @@ import type { Quote } from '@/lib/types';
 
 
 const QuoteFormSchema = z.object({
-  werkomschrijving: z.string().min(1, 'Geef een korte omschrijving van het werk.').max(800, 'De omschrijving mag maximaal 800 tekens lang zijn.'),
+  title: z.string().min(1, 'Geef een titel voor de offerte.'),
   clientType: z.enum(['particulier', 'zakelijk']),
   bedrijfsnaam: z.string().optional(),
   contactpersoon: z.string().optional(),
@@ -111,7 +112,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
         }
 
         const { 
-          werkomschrijving,
+          title,
           clientType,
           bedrijfsnaam,
           contactpersoon,
@@ -149,9 +150,9 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           projectHouseNumber: projectHuisnummer || null,
           projectPostcode: projectPostcode || null,
           projectCity: projectPlaats || null,
-          shortDescription: werkomschrijving,
+          shortDescription: title,
           clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
-          title: werkomschrijving,
+          title: title,
       };
 
       try {
@@ -209,6 +210,23 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleFormSubmit} className="space-y-8">
+            {/* Sectie 0 – Titel */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-lg">Offertetitel</h3>
+              <p className="text-sm text-muted-foreground">Geef een korte, duidelijke titel voor de offerte. Dit is voor uw eigen referentie.</p>
+              <div>
+                <Label htmlFor="title">Titel *</Label>
+                <Input
+                  id="title"
+                  name="title"
+                  required
+                  placeholder="Bijv. Aanbouw fam. Jansen, Keukenverbouwing"
+                  defaultValue={initialData?.title || ''}
+                />
+                {errors?.title && <p className="text-sm text-destructive mt-1">{errors.title[0]}</p>}
+              </div>
+            </div>
+            <Separator />
             {/* Sectie 1 – Klanttype en naam */}
             <div className="space-y-4">
               <h3 className="font-medium text-lg">Klanttype en naam</h3>
@@ -318,27 +336,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                      </div>
                 )}
             </div>
-            <Separator />
-
-            {/* Sectie 4 – Korte omschrijving */}
-            <div className="space-y-4">
-                 <h3 className="font-medium text-lg">Korte omschrijving van het werk</h3>
-                 <p className="text-sm text-muted-foreground">Beschrijf kort wat er moet gebeuren — wij maken er later een duidelijke, uitgebreide werkbeschrijving van.</p>
-                 <div>
-                    <Label htmlFor="werkomschrijving">Werkomschrijving *</Label>
-                    <Textarea 
-                        id="werkomschrijving" 
-                        name="werkomschrijving"
-                        required 
-                        maxLength={800}
-                        placeholder="Bijv. Plaatsen van HSB wand in keuken, incl. isolatie & gips."
-                        className="min-h-[100px]"
-                        defaultValue={initialData?.shortDescription || ''}
-                    />
-                    {errors?.werkomschrijving && <p className="text-sm text-destructive mt-1">{errors.werkomschrijving[0]}</p>}
-                 </div>
-            </div>
-
+            
             <div className="flex justify-end gap-4 pt-4">
                 <Button variant="outline" asChild>
                     <Link href={quoteId ? `/offertes/${quoteId}` : '/'}>Annuleren</Link>
