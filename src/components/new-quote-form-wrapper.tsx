@@ -27,7 +27,7 @@ import type { Quote } from '@/lib/types';
 
 
 const QuoteFormSchema = z.object({
-  title: z.string().min(1, 'Geef een titel voor de offerte.'),
+  title: z.string().min(1, 'Geef een titel voor de offerte.').optional(),
   clientType: z.enum(['particulier', 'zakelijk']),
   bedrijfsnaam: z.string().optional(),
   contactpersoon: z.string().optional(),
@@ -150,9 +150,9 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           projectHouseNumber: projectHuisnummer || null,
           projectPostcode: projectPostcode || null,
           projectCity: projectPlaats || null,
-          shortDescription: title,
+          shortDescription: title || `${voornaam} ${achternaam}`,
           clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
-          title: title,
+          title: title || `${voornaam} ${achternaam}`,
       };
 
       try {
@@ -210,23 +210,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleFormSubmit} className="space-y-8">
-            {/* Sectie 0 – Titel */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">Offertetitel</h3>
-              <p className="text-sm text-muted-foreground">Geef een korte, duidelijke titel voor de offerte. Dit is voor uw eigen referentie.</p>
-              <div>
-                <Label htmlFor="title">Titel *</Label>
-                <Input
-                  id="title"
-                  name="title"
-                  required
-                  placeholder="Bijv. Aanbouw fam. Jansen, Keukenverbouwing"
-                  defaultValue={initialData?.title || ''}
-                />
-                {errors?.title && <p className="text-sm text-destructive mt-1">{errors.title[0]}</p>}
-              </div>
-            </div>
-            <Separator />
+            
             {/* Sectie 1 – Klanttype en naam */}
             <div className="space-y-4">
               <h3 className="font-medium text-lg">Klanttype en naam</h3>
