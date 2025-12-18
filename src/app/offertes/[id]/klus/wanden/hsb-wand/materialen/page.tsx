@@ -610,6 +610,7 @@ export default function HsbWandMaterialenPage() {
 
   // State voor modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
@@ -1226,7 +1227,7 @@ useEffect(() => {
             </Button>
           </div>
           <div className="col-start-2 flex flex-col items-center text-center">
-            <h1 className="font-semibold text-lg">HSB Wand</h1>
+            <h1 className="font-semibold text-lg">HSB Voorzetwand</h1>
             <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
           </div>
           <div className="flex items-center justify-end">
