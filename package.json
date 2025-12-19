@@ -19,10 +19,6 @@
 
     "firebase": "10.12.3",
 
-    "genkit": "1.20.0",
-    "@genkit-ai/google-genai": "1.20.0",
-    "@genkit-ai/next": "1.20.0",
-
     "@supabase/supabase-js": "2.45.0",
 
     "@radix-ui/react-accordion": "1.2.3",
@@ -70,8 +66,6 @@
     "eslint-config-next": "14.2.8",
 
     "tailwindcss": "3.4.14",
-    "postcss": "8.4.38",
-
-    "genkit-cli": "1.20.0"
+    "postcss": "8.4.38"
   }
 }

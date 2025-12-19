@@ -4,6 +4,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
+import dynamic from 'next/dynamic';
 
 function LandingPageSkeleton() {
     return (
@@ -21,7 +22,7 @@ function LandingPageSkeleton() {
     )
 }
 
-export default function LandingPage() {
+function LandingPageContent() {
     const { user, isUserLoading } = useUser();
     const router = useRouter();
 
@@ -37,4 +38,13 @@ export default function LandingPage() {
     }, [user, isUserLoading, router]);
 
     return <LandingPageSkeleton />;
+}
+
+const NoSsrLandingPage = dynamic(() => Promise.resolve(LandingPageContent), {
+    ssr: false,
+    loading: () => <LandingPageSkeleton />,
+});
+
+export default function LandingPage() {
+    return <NoSsrLandingPage />;
 }
