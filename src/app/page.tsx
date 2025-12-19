@@ -3,22 +3,11 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useUser } from '@/firebase';
-import { PlusCircle, LayoutDashboard, HardHat } from 'lucide-react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import { DashboardHeader } from '@/components/dashboard-header';
 
 function LandingPageSkeleton() {
     return (
         <div className="flex flex-col min-h-screen">
-             <DashboardHeader user={null} />
             <main className="flex flex-1 flex-col justify-center items-center gap-4 p-4 md:gap-8 md:p-6">
                 <div className="text-center p-8 text-gray-500 flex items-center">
                     <svg className="animate-spin mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -37,66 +26,16 @@ export default function LandingPage() {
     const router = useRouter();
 
     useEffect(() => {
-        if (!isUserLoading && !user) {
+        if (isUserLoading) {
+            return; // Wacht tot de authenticatiestatus bekend is
+        }
+        if (user) {
+            router.push('/dashboard');
+        } else {
             router.push('/login');
         }
     }, [user, isUserLoading, router]);
 
-    if (isUserLoading || !user) {
-        return <LandingPageSkeleton />;
-    }
-
-    return (
-        <div className="flex flex-col min-h-screen">
-            <DashboardHeader user={user} />
-            <main className="flex flex-1 flex-col items-center gap-4 p-4 pt-12 md:gap-8 md:p-6">
-                 <div className="text-center">
-                    <h1 className="font-semibold text-2xl md:text-3xl">Welkom bij OfferteHulp</h1>
-                    <p className="text-muted-foreground">Wat wilt u doen?</p>
-                </div>
-
-                <div className="grid gap-6 max-w-xl w-full pt-8">
-                    <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer">
-                        <Link href="/offertes/nieuw" className="block p-6 h-full">
-                            <CardHeader className="p-0">
-                                <div className="flex items-center gap-4 mb-2">
-                                    <PlusCircle className="h-8 w-8 text-primary flex-shrink-0" />
-                                    <CardTitle className="text-lg">Offerte aanvragen</CardTitle>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <CardDescription>Geef de basis door — wij zorgen voor de offerte.</CardDescription>
-                            </CardContent>
-                        </Link>
-                    </Card>
-                    <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer">
-                        <Link href="/materialen" className="block p-6 h-full">
-                            <CardHeader className="p-0">
-                                <div className="flex items-center gap-4 mb-2">
-                                    <HardHat className="h-8 w-8 text-primary flex-shrink-0" />
-                                    <CardTitle className="text-lg">Materialen &amp; Prijzen</CardTitle>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <CardDescription>Beheer uw materiaalbibliotheek en upload nieuwe prijslijsten.</CardDescription>
-                            </CardContent>
-                        </Link>
-                    </Card>
-                    <Card className="hover:bg-muted/50 transition-colors w-full cursor-pointer">
-                        <Link href="/dashboard" className="block p-6 h-full">
-                            <CardHeader className="p-0">
-                                 <div className="flex items-center gap-4 mb-2">
-                                    <LayoutDashboard className="h-8 w-8 text-primary flex-shrink-0" />
-                                    <CardTitle className="text-lg">Naar Dashboard</CardTitle>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <CardDescription>Bekijk recente offertes en statistieken.</CardDescription>
-                            </CardContent>
-                        </Link>
-                    </Card>
-                </div>
-            </main>
-        </div>
-    );
+    return <LandingPageSkeleton />;
 }
+
