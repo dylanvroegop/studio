@@ -116,7 +116,6 @@ export async function createJobAction(quoteId: string, categorie: JobCategory, o
   if (!quoteId) return { message: 'Offerte ID is niet aanwezig.' };
 
   const newJob = {
-    quoteId,
     categorie,
     omschrijvingKlant: omschrijving,
     aantal: 1,
@@ -161,10 +160,6 @@ export async function updateJobAction(quoteId: string, jobId: string, formData: 
   redirect(`/offertes/${quoteId}`);
 }
 
-/**
- * ✅ DIT is de hele fix:
- * Schrijf kaart titel + beschrijving naar quotes/{quoteId} (dus NIET naar jobs subcollection)
- */
 export async function updateWandenKeuzeAction(
   quoteId: string,
   title: string,
