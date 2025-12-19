@@ -222,7 +222,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
                  <Button asChild variant="outline" size="icon">
-                  <Link href="/">
+                  <Link href="/landing">
                     <ArrowLeft className="h-4 w-4" />
                     <span className="sr-only">Terug</span>
                   </Link>
@@ -371,7 +371,3 @@ export default function Dashboard() {
     </TooltipProvider>
   );
 }
-
-    
-
-    

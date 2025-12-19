@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -41,7 +42,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.push('/');
+      router.push('/landing');
     }
   }, [user, isUserLoading, router]);
 
@@ -111,7 +112,7 @@ export default function RegisterPage() {
       const businessDocRef = doc(firestore, 'businesses', newUser.uid);
       setDocumentNonBlocking(businessDocRef, businessData, { merge: true });
 
-      router.push('/');
+      router.push('/landing');
 
     } catch (e) {
       const authError = e as AuthError;

@@ -31,7 +31,7 @@ function LandingPageContent() {
             return; // Wacht tot de authenticatiestatus bekend is
         }
         if (user) {
-            router.push('/dashboard');
+            router.push('/landing');
         } else {
             router.push('/login');
         }
@@ -45,6 +45,6 @@ const NoSsrLandingPage = dynamic(() => Promise.resolve(LandingPageContent), {
     loading: () => <LandingPageSkeleton />,
 });
 
-export default function LandingPage() {
+export default function RootPage() {
     return <NoSsrLandingPage />;
 }

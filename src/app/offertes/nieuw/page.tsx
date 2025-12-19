@@ -33,7 +33,7 @@ export default function NewQuotePage() {
        <header className="sticky top-0 z-10 grid h-auto w-full grid-cols-3 items-center border-b bg-background/95 px-4 pt-3 pb-2 backdrop-blur-sm sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="outline" size="icon" className="h-8 w-8">
-            <Link href="/">
+            <Link href="/landing">
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Terug</span>
             </Link>
