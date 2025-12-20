@@ -193,14 +193,13 @@ export default function HsbWandPage() {
       throw new Error('klusId ontbreekt in de URL.');
     }
     
-
-// Schrijf metingen onder de juiste JOB + juiste klus-type ("hsb-wand")
-await updateDoc(ref, {
-  [`jobs.${activeKlusId}.hsb-wand.wanden`]: mapped,
-  [`jobs.${activeKlusId}.hsb-wand.updatedAt`]: serverTimestamp(),
-  [`jobs.${activeKlusId}.hsb-wand.isCompleted`]: true,
-  updatedAt: serverTimestamp(),
-});
+    await updateDoc(ref, {
+      [`jobs.${klusId}.hsb-wand.wanden`]: mapped,
+      [`jobs.${klusId}.hsb-wand.updatedAt`]: serverTimestamp(),
+      [`jobs.${klusId}.hsb-wand.isCompleted`]: true,
+      updatedAt: serverTimestamp(),
+    });
+    
   }
 
   const handleSubmit = async (event: React.MouseEvent<HTMLButtonElement>) => {

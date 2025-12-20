@@ -71,9 +71,6 @@ export default function WandenPage() {
               : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
           
               await updateDoc(quoteRef, {
-                activeKlusId: nieuweKlusId,
-                activeKlusSlug: item.slug,
-                activeKlusType: "wanden",
               
                 [`jobs.${nieuweKlusId}.meta`]: {
                   title: item.title,
