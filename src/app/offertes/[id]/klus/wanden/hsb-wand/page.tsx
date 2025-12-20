@@ -188,15 +188,21 @@ export default function HsbWandPage() {
 
     const ref = doc(firestore, 'quotes', quoteId);
 
-    // Alles onder dezelfde quote doc, georganiseerd:
-    // jobData -> wanden -> hsbWand -> wanden: [ ... ]
-    await updateDoc(ref, {
-      'jobData.wanden.hsbWand.wanden': mapped,
-      'jobData.wanden.hsbWand.updatedAt': serverTimestamp(),
-      // optioneel: stap-status (handig voor overzicht/voortgang)
-      'jobData.wanden.hsbWand.isCompleted': true,
-      updatedAt: serverTimestamp(),
-    });
+// Haal activeKlusId uit de quote (zodat we in de juiste job schrijven)
+const snap = await getDoc(ref);
+const activeKlusId = snap.data()?.activeKlusId as string | undefined;
+
+if (!activeKlusId) {
+  throw new Error('activeKlusId ontbreekt (geen actieve klus geselecteerd).');
+}
+
+// Schrijf metingen onder de juiste JOB + juiste klus-type ("hsb-wand")
+await updateDoc(ref, {
+  [`jobs.${activeKlusId}.hsb-wand.wanden`]: mapped,
+  [`jobs.${activeKlusId}.hsb-wand.updatedAt`]: serverTimestamp(),
+  [`jobs.${activeKlusId}.hsb-wand.isCompleted`]: true,
+  updatedAt: serverTimestamp(),
+});
   }
 
   const handleSubmit = async (event: React.MouseEvent<HTMLButtonElement>) => {
