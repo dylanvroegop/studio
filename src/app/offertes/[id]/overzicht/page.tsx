@@ -36,7 +36,7 @@ import type { Quote, Job, KleinMateriaalConfig } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 /* ---------------------------------------------
  Helpers
@@ -46,8 +46,7 @@ function humanizeJobKey(jobKey: string): string {
   switch (jobKey) {
     case 'hsb-wand':
       return 'HSB wand';
-    default:
-      return jobKey.replace(/-/g, ' ');
+      
   }
 }
 
@@ -232,6 +231,33 @@ export default function OverzichtPage() {
     }
   };
 
+  const handleAddJob = async () => {
+    if (!firestore || !quoteId) return;
+
+    try {
+      const newKlusId =
+        typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2);
+
+      const ref = doc(firestore, 'quotes', quoteId);
+      await updateDoc(ref, {
+        activeKlusId: newKlusId,
+        activeKlusSlug: 'hsb-wand',
+        activeKlusType: 'wanden',
+      });
+
+      router.push(`/offertes/${quoteId}/klus/nieuw`);
+    } catch (err) {
+      console.error('Error updating quote for new job:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Kon geen nieuwe klus initialiseren.',
+      });
+    }
+  };
+
   /* ---------------------------------------------
    Render states
   --------------------------------------------- */
@@ -323,11 +349,9 @@ export default function OverzichtPage() {
                 );
               })}
 
-              <Button asChild variant="outline" className="w-full">
-                <Link href={`/offertes/${quoteId}/klus/nieuw`}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Nog een klus toevoegen
-                </Link>
+              <Button variant="outline" className="w-full" onClick={handleAddJob}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Nog een klus toevoegen
               </Button>
             </CardContent>
           </Card>

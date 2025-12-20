@@ -928,9 +928,10 @@ useEffect(() => {
       }
   
       // 1) Forceer 1 bron van waarheid voor de job key (dit moet EXACT hetzelfde zijn overal)
-      const JOB_KEY = "hsb-wand"; // <-- zet dit exact gelijk aan jouw job slug/route
-  
+      const JOB_KEY = "hsb-wand";
+
       const toegestaneKeys = new Set(sectieSleutels);
+      
 
       const schoneSelecties = Object.fromEntries(
         Object.entries(gekozenMaterialen || {})
@@ -974,6 +975,8 @@ useEffect(() => {
       await updateDoc(quoteRef, {
         [`jobs.${JOB_KEY}`]: jobPayload,
       });
+      
+      
   
       toast({ title: "Materialen opgeslagen!" });
       router.push(`/offertes/${quoteId}/overzicht`);

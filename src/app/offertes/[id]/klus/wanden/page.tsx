@@ -65,17 +65,28 @@ export default function WandenPage() {
         try {
           const quoteRef = doc(firestore, 'quotes', quoteId);
 
-          await updateDoc(quoteRef, {
-            'jobCards.wanden': {
-              title: item.title,
-              description: item.description,
-              slug: item.slug,
-              updatedAt: serverTimestamp(),
-            },
-            updatedAt: serverTimestamp(),
-          });
-
+          const nieuweKlusId =
+            (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          
+              await updateDoc(quoteRef, {
+                activeKlusId: nieuweKlusId,
+                activeKlusSlug: item.slug,
+                activeKlusType: "wanden",
+              
+                [`jobs.${nieuweKlusId}.meta`]: {
+                  title: item.title,
+                  slug: item.slug,
+                  type: "wanden",
+                  description: item.description,
+                },
+                
+              });
+              
+          
           router.push(item.href);
+          
         } catch (err) {
           console.error('Fout bij opslaan jobCards.wanden:', err);
         }
