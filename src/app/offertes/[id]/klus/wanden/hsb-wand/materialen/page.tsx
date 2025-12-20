@@ -950,8 +950,21 @@ useEffect(() => {
         ? extraMaterials.filter((m: any) => m && (m.id || m.row_id || m.materiaalnaam))
         : [];
   
-      const quoteRef = doc(firestore, "quotes", quoteId);
-  
+        const quoteRef = doc(firestore, "quotes", quoteId);
+
+        // ✅ HIER (direct na quoteRef) activeKlusId ophalen
+        const quoteSnap = await getDoc(quoteRef);
+        const activeKlusId = quoteSnap.data()?.activeKlusId as string | undefined;
+        
+        if (!activeKlusId) {
+          toast({
+            title: "Kon materialen niet opslaan",
+            description: "Fout: activeKlusId ontbreekt",
+            variant: "destructive",
+          });
+          return;
+        }
+          
       const jobPayload = {
         jobKey: JOB_KEY,
         jobType: "wanden",
@@ -961,7 +974,6 @@ useEffect(() => {
         selections: schoneSelecties,
         extraMaterials: schoneExtra,
         kleinMateriaal: kleinMateriaalConfig ?? null,
-        savedAt: serverTimestamp(),
         savedByUid: user.uid,
       };
   
@@ -973,8 +985,10 @@ useEffect(() => {
       console.log("jobPayload =", jobPayload);
   
       await updateDoc(quoteRef, {
-        [`jobs.${JOB_KEY}`]: jobPayload,
+        [`jobs.${activeKlusId}.${JOB_KEY}`]: jobPayload,
+        [`jobs.${activeKlusId}.updatedAt`]: serverTimestamp(),
       });
+      
       
       
   

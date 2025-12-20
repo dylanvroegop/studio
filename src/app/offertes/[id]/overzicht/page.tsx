@@ -135,20 +135,33 @@ export default function OverzichtPage() {
         }
 
         setQuote(data);
-
         const extractedJobs: Job[] = [];
-        if (data.jobs) {
-          for (const key in data.jobs) {
-            const jobData: any = (data.jobs as any)[key];
 
+        if (data.jobs) {
+          for (const klusId in data.jobs) {
+            const container: any = (data.jobs as any)[klusId];
+        
+            // pak de echte jobKey binnen deze klus (bv "hsb-wand")
+            const jobKey = Object.keys(container || {}).find(
+              (k) => k !== 'meta' && k !== 'updatedAt' && k !== 'createdAt'
+            );
+        
+            if (!jobKey) continue;
+        
+            const payload = container[jobKey] || {};
+            const meta = container.meta || {};
+        
             extractedJobs.push({
-              id: jobData.jobKey ?? key,
+              id: klusId,                // dit is de unieke klusId (belangrijk!)
               quoteId,
-              ...jobData,
-            });
+              klusId,
+              jobKey,
+              meta,
+              ...payload,                // selections, extraMaterials, presetLabel, etc komen nu TOP-LEVEL
+            } as any);
           }
         }
-
+        
         setJobs(extractedJobs);
       } catch (err: any) {
         console.error(err);
@@ -321,7 +334,10 @@ export default function OverzichtPage() {
               )}
 
               {jobs.map((job) => {
-                const title = humanizeJobKey((job as any).jobKey);
+                const title =
+                (job as any)?.meta?.title?.trim?.() ||
+                (job as any)?.title?.trim?.() ||
+                humanizeJobKey((job as any).jobKey);              
                 const preset = resolvePresetLabel((job as any).presetLabel);
                 const isComplete = jobIsComplete(job);
 
