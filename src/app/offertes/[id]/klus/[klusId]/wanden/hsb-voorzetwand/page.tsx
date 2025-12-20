@@ -194,10 +194,7 @@ export default function HsbWandPage() {
     }
     
     await updateDoc(ref, {
-      [`jobs.${klusId}.hsb-wand.wanden`]: mapped,
-      [`jobs.${klusId}.hsb-wand.updatedAt`]: serverTimestamp(),
-      [`jobs.${klusId}.hsb-wand.isCompleted`]: true,
-      updatedAt: serverTimestamp(),
+      [`klussen.${klusId}.maatwerk`]: mapped,
     });
     
   }
@@ -224,7 +221,7 @@ export default function HsbWandPage() {
       await saveToFirestoreOrThrow();
 
       // 3) Next step
-      router.push(`/offertes/${quoteId}/klus/wanden/hsb-wand/materialen`);
+      router.push(`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand/materialen`);
     } catch (e: any) {
       console.error(e);
       toast({

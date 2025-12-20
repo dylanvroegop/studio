@@ -930,7 +930,7 @@ useEffect(() => {
       }
   
       // 1) Forceer 1 bron van waarheid voor de job key (dit moet EXACT hetzelfde zijn overal)
-      const JOB_KEY = "hsb-wand";
+      const JOB_KEY = "hsb-voorzetwand";
 
       const toegestaneKeys = new Set(sectieSleutels);
       
@@ -971,17 +971,13 @@ useEffect(() => {
         savedByUid: user.uid,
       };
   
-      // DEBUG (tijdelijk laten staan tot het stabiel is)
-      console.log("JOB_KEY =", JOB_KEY);
-      console.log("writePath =", `jobs.${JOB_KEY}`);
-      console.log("extraMaterials isArray =", Array.isArray(extraMaterials), extraMaterials);
-      console.log("schoneSelecties =", schoneSelecties);
-      console.log("jobPayload =", jobPayload);
-  
-      await updateDoc(quoteRef, {
-        [`jobs.${activeKlusId}.${JOB_KEY}`]: jobPayload,
-        [`jobs.${activeKlusId}.updatedAt`]: serverTimestamp(),
-      });
+      await updateDoc(
+        ref,
+        ({
+          [`klussen.${klusId}.materialen`]: jobPayload,
+        } as any)
+      );
+      
       
       
       

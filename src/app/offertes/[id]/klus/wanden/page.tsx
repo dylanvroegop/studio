@@ -72,9 +72,8 @@ export default function WandenPage() {
           
               await updateDoc(quoteRef, {
               
-                [`jobs.${nieuweKlusId}.meta`]: {
+                [`klussen.${nieuweKlusId}.klusinformatie`]: {
                   title: item.title,
-                  slug: item.slug,
                   type: "wanden",
                   description: item.description,
                 },
