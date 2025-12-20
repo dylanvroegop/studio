@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -348,7 +349,7 @@ export default function OverzichtPage() {
                       <p className="text-sm text-muted-foreground">Werkwijze: {preset}</p>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-4 text-sm">
                       {isComplete ? (
                         <span className="flex items-center text-emerald-500">
                           <CheckCircle2 className="mr-1 h-4 w-4" />
@@ -360,6 +361,7 @@ export default function OverzichtPage() {
                           Onvolledig
                         </span>
                       )}
+                      <Button variant="outline" size="sm">Bewerken</Button>
                     </div>
                   </div>
                 );
