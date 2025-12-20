@@ -85,7 +85,10 @@ export default function WandenPage() {
               });
               
           
-          router.push(item.href);
+              router.push(
+                `/offertes/${quoteId}/klus/${nieuweKlusId}/wanden/${item.slug}`
+              );
+              
           
         } catch (err) {
           console.error('Fout bij opslaan jobCards.wanden:', err);

@@ -57,6 +57,7 @@ export default function HsbWandPage() {
   const firestore = useFirestore();
 
   const quoteId = params.id as string;
+  const klusId = params.klusId as string;
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
@@ -188,13 +189,10 @@ export default function HsbWandPage() {
 
     const ref = doc(firestore, 'quotes', quoteId);
 
-// Haal activeKlusId uit de quote (zodat we in de juiste job schrijven)
-const snap = await getDoc(ref);
-const activeKlusId = snap.data()?.activeKlusId as string | undefined;
-
-if (!activeKlusId) {
-  throw new Error('activeKlusId ontbreekt (geen actieve klus geselecteerd).');
-}
+    if (!klusId) {
+      throw new Error('klusId ontbreekt in de URL.');
+    }
+    
 
 // Schrijf metingen onder de juiste JOB + juiste klus-type ("hsb-wand")
 await updateDoc(ref, {

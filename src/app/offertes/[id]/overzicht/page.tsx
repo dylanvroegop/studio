@@ -361,7 +361,12 @@ export default function OverzichtPage() {
                           Onvolledig
                         </span>
                       )}
-                      <Button variant="outline" size="sm">Bewerken</Button>
+                      <Link href={`/offertes/${quoteId}/klus/${job.id}/wanden/hsb-wand`} prefetch={false}>
+  <Button variant="outline" size="sm">
+    Bewerken
+  </Button>
+</Link>
+
                     </div>
                   </div>
                 );
