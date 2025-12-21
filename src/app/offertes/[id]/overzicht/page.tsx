@@ -51,16 +51,25 @@ function humanizeJobKey(jobKey?: string | null): string {
   }
 }
 
-function resolvePresetLabel(presetLabel?: string | null) {
-  if (!presetLabel || !presetLabel.trim()) {
-    return 'Aangepaste werkwijze';
-  }
-  return presetLabel;
+function resolvePresetLabelForUI(presetLabel?: string | null) {
+  const v = (presetLabel ?? '').trim();
+  if (!v) return null;                 // niets gekozen -> niks tonen
+  if (v.toLowerCase() === 'nieuw') return null;  // “Nieuw” -> niks tonen
+  return v;
 }
 
+
 function jobIsComplete(job: any): boolean {
-  return !!(job?.selections && Object.keys(job.selections).length > 0);
+  const hasSelections =
+    job?.selections && Object.keys(job.selections).length > 0;
+
+  const hasKleinMateriaalPreset =
+    !!job?.kleinMateriaal?.presetLabel &&
+    job.kleinMateriaal.presetLabel.toLowerCase() !== 'nieuw';
+
+  return hasSelections || hasKleinMateriaalPreset;
 }
+
 
 /* ---------------------------------------------
  Types
@@ -362,7 +371,9 @@ export default function OverzichtPage() {
                   job?.title?.trim?.() ||
                   humanizeJobKey(job?.jobKey);
 
-                const preset = resolvePresetLabel(job?.presetLabel);
+                  const preset = resolvePresetLabelForUI(
+                    (job as any)?.kleinMateriaal?.presetLabel ?? null
+                  );                  
                 const isComplete = jobIsComplete(job);
 
                 // probeer dynamisch te bouwen (type/slug), anders fallback
