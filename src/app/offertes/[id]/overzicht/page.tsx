@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -21,7 +20,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,11 +41,13 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
  Helpers
 --------------------------------------------- */
 
-function humanizeJobKey(jobKey: string): string {
+function humanizeJobKey(jobKey?: string | null): string {
+  if (!jobKey) return 'Klus';
   switch (jobKey) {
     case 'hsb-voorzetwand':
       return 'HSB voorzetwand';
-      
+    default:
+      return jobKey.replace(/-/g, ' ');
   }
 }
 
@@ -59,7 +59,7 @@ function resolvePresetLabel(presetLabel?: string | null) {
 }
 
 function jobIsComplete(job: any): boolean {
-  return job?.selections && Object.keys(job.selections).length > 0;
+  return !!(job?.selections && Object.keys(job.selections).length > 0);
 }
 
 /* ---------------------------------------------
@@ -130,43 +130,55 @@ export default function OverzichtPage() {
 
         const data = snap.data() as Quote;
 
-        if (data.userId !== user.uid) {
+        if ((data as any).userId !== user.uid) {
           setError('Geen toegang tot deze offerte.');
           return;
         }
 
         setQuote(data);
+
         const extractedJobs: Job[] = [];
 
-        if (data.klussen) {
-          for (const klusId in data.klussen) {
-            const container: any = (data.klussen as any)[klusId];
-        
-            const jobKey = Object.keys(container || {}).find(
+        const klussen: any = (data as any).klussen;
+
+        if (klussen && typeof klussen === 'object') {
+          for (const klusId in klussen) {
+            const container: any = klussen[klusId] || {};
+
+            // 1) probeer payload key te vinden (oude structuur)
+            const payloadKey = Object.keys(container).find(
               (k) =>
                 k !== 'meta' &&
                 k !== 'updatedAt' &&
                 k !== 'createdAt' &&
                 k !== 'klusinformatie'
             );
-            
-        
-            if (!jobKey) continue;
-        
-            const payload = container[jobKey] || {};
-            const meta = container.meta || {};
-        
+
+            // 2) als er geen payloadKey is, dan zit alles waarschijnlijk in klusinformatie (nieuwe structuur)
+            const klusinformatie = container.klusinformatie || {};
+            const payload = payloadKey ? (container[payloadKey] || {}) : klusinformatie;
+
+            // meta = titel/slug/type etc kan óf in container.meta óf in klusinformatie zitten
+            const meta = container.meta || klusinformatie || {};
+
+            // jobKey/slug: eerst uit meta/klusinformatie, anders payloadKey, anders fallback
+            const jobKey =
+              (meta?.slug as string | undefined) ||
+              (meta?.jobKey as string | undefined) ||
+              (payloadKey as string | undefined) ||
+              'klus';
+
             extractedJobs.push({
-              id: klusId,                // dit is de unieke klusId (belangrijk!)
+              id: klusId,
               quoteId,
               klusId,
               jobKey,
               meta,
-              ...payload,                // selections, extraMaterials, presetLabel, etc komen nu TOP-LEVEL
+              ...payload,
             } as any);
           }
         }
-        
+
         setJobs(extractedJobs);
       } catch (err: any) {
         console.error(err);
@@ -177,7 +189,7 @@ export default function OverzichtPage() {
     };
 
     fetchQuote();
-  }, [quoteId, firestore, user, isUserLoading]);
+  }, [quoteId, firestore, user, isUserLoading, setJobs, setQuote]);
 
   /* ---------------------------------------------
    Handlers
@@ -207,27 +219,34 @@ export default function OverzichtPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('https://n8n.dylan8n.org/webhook-test/offerte-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quoteId,
-          quote, // single source of truth
-          extras: {
-            transport: {
-              prijsPerKm: prijsPerKm ? Number(prijsPerKm) : null,
-              vasteTransportkosten: vasteTransportkosten ? Number(vasteTransportkosten) : null,
+      const response = await fetch(
+        'https://n8n.dylan8n.org/webhook-test/offerte-test',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quoteId,
+            quote, // single source of truth
+            extras: {
+              transport: {
+                prijsPerKm: prijsPerKm ? Number(prijsPerKm) : null,
+                vasteTransportkosten: vasteTransportkosten
+                  ? Number(vasteTransportkosten)
+                  : null,
+              },
+              materieel,
+              onvoorzien,
             },
-            materieel,
-            onvoorzien,
-          },
-          triggeredAt: new Date().toISOString(),
-        }),
-      });
+            triggeredAt: new Date().toISOString(),
+          }),
+        }
+      );
 
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`Webhook fout: ${response.status}${text ? ` - ${text}` : ''}`);
+        throw new Error(
+          `Webhook fout: ${response.status}${text ? ` - ${text}` : ''}`
+        );
       }
 
       toast({
@@ -235,7 +254,6 @@ export default function OverzichtPage() {
         description: 'De offerte is doorgestuurd naar verwerking.',
       });
 
-      // ✅ ALWAYS go to dashboard after triggering webhook
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Webhook error:', err);
@@ -338,19 +356,38 @@ export default function OverzichtPage() {
                 </p>
               )}
 
-              {jobs.map((job) => {
+              {jobs.map((job: any) => {
                 const title =
-                (job as any)?.meta?.title?.trim?.() ||
-                (job as any)?.title?.trim?.() ||
-                humanizeJobKey((job as any).jobKey);              
-                const preset = resolvePresetLabel((job as any).presetLabel);
+                  job?.meta?.title?.trim?.() ||
+                  job?.title?.trim?.() ||
+                  humanizeJobKey(job?.jobKey);
+
+                const preset = resolvePresetLabel(job?.presetLabel);
                 const isComplete = jobIsComplete(job);
 
+                // probeer dynamisch te bouwen (type/slug), anders fallback
+                const type =
+                  job?.meta?.type ||
+                  job?.meta?.activeKlusType ||
+                  'wanden';
+
+                const slug =
+                  job?.meta?.slug ||
+                  job?.jobKey ||
+                  'hsb-voorzetwand';
+
+                const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
+
                 return (
-                  <div key={job.id} className="flex items-center justify-between rounded-lg border p-4">
+                  <div
+                    key={job.id}
+                    className="flex items-center justify-between rounded-lg border p-4"
+                  >
                     <div className="space-y-1">
                       <p className="font-medium">{title}</p>
-                      <p className="text-sm text-muted-foreground">Werkwijze: {preset}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Werkwijze: {preset}
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-4 text-sm">
@@ -365,18 +402,22 @@ export default function OverzichtPage() {
                           Onvolledig
                         </span>
                       )}
-                      <Link href={`/offertes/${quoteId}/klus/${klus.id}/wanden/hsb-voorzetwand`} prefetch={false}>
-  <Button variant="outline" size="sm">
-    Bewerken
-  </Button>
-</Link>
 
+                      <Link href={bewerkenHref} prefetch={false}>
+                        <Button variant="outline" size="sm">
+                          Bewerken
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 );
               })}
 
-              <Button variant="outline" className="w-full" onClick={handleAddJob}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleAddJob}
+              >
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Nog een klus toevoegen
               </Button>
@@ -390,7 +431,11 @@ export default function OverzichtPage() {
             <CardContent className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Prijs per km (€)</Label>
-                <Input type="number" value={prijsPerKm} onChange={(e) => setPrijsPerKm(e.target.value)} />
+                <Input
+                  type="number"
+                  value={prijsPerKm}
+                  onChange={(e) => setPrijsPerKm(e.target.value)}
+                />
               </div>
               <div>
                 <Label>Vaste transportkosten (€)</Label>
@@ -414,10 +459,17 @@ export default function OverzichtPage() {
                   <Input
                     type="number"
                     value={item.prijs}
-                    onChange={(e) => handleMaterieelChange(i, 'prijs', e.target.value)}
+                    onChange={(e) =>
+                      handleMaterieelChange(i, 'prijs', e.target.value)
+                    }
                     className="col-span-2"
                   />
-                  <Select value={item.per} onValueChange={(v) => handleMaterieelChange(i, 'per', v)}>
+                  <Select
+                    value={item.per}
+                    onValueChange={(v) =>
+                      handleMaterieelChange(i, 'per', v)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -438,8 +490,14 @@ export default function OverzichtPage() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div
-                className={cn('p-4 rounded-lg border cursor-pointer', onvoorzien.mode === 'percentage' && 'border-primary bg-muted/30')}
-                onClick={() => setOnvoorzien({ ...onvoorzien, mode: 'percentage' })}
+                className={cn(
+                  'p-4 rounded-lg border cursor-pointer',
+                  onvoorzien.mode === 'percentage' &&
+                    'border-primary bg-muted/30'
+                )}
+                onClick={() =>
+                  setOnvoorzien({ ...onvoorzien, mode: 'percentage' })
+                }
               >
                 <h4 className="font-semibold flex items-center">
                   <Percent className="mr-2 h-4 w-4" /> Percentage
@@ -449,14 +507,24 @@ export default function OverzichtPage() {
                     className="mt-2"
                     type="number"
                     value={onvoorzien.percentage ?? ''}
-                    onChange={(e) => setOnvoorzien({ ...onvoorzien, percentage: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setOnvoorzien({
+                        ...onvoorzien,
+                        percentage: Number(e.target.value),
+                      })
+                    }
                   />
                 )}
               </div>
 
               <div
-                className={cn('p-4 rounded-lg border cursor-pointer', onvoorzien.mode === 'fixed' && 'border-primary bg-muted/30')}
-                onClick={() => setOnvoorzien({ ...onvoorzien, mode: 'fixed' })}
+                className={cn(
+                  'p-4 rounded-lg border cursor-pointer',
+                  onvoorzien.mode === 'fixed' && 'border-primary bg-muted/30'
+                )}
+                onClick={() =>
+                  setOnvoorzien({ ...onvoorzien, mode: 'fixed' })
+                }
               >
                 <h4 className="font-semibold flex items-center">
                   <Euro className="mr-2 h-4 w-4" /> Vast bedrag
@@ -466,7 +534,12 @@ export default function OverzichtPage() {
                     className="mt-2"
                     type="number"
                     value={onvoorzien.fixedAmount ?? ''}
-                    onChange={(e) => setOnvoorzien({ ...onvoorzien, fixedAmount: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setOnvoorzien({
+                        ...onvoorzien,
+                        fixedAmount: Number(e.target.value),
+                      })
+                    }
                   />
                 )}
               </div>
@@ -478,7 +551,11 @@ export default function OverzichtPage() {
             disabled={isSubmitting}
             className="w-full bg-primary text-primary-foreground"
           >
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            {isSubmitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
             {isSubmitting ? 'Versturen…' : 'Offerte genereren'}
           </Button>
         </div>
