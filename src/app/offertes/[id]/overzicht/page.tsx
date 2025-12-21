@@ -138,10 +138,18 @@ export default function OverzichtPage() {
 
         const data = snap.data() as Quote;
 
-        if ((data as any).userId !== user.uid) {
+        const ownerUid = (data as any)?.klantinformatie?.userId;
+
+        if (!ownerUid) {
+          setError('Geen eigenaar gevonden bij deze offerte.');
+          return;
+        }
+        
+        if (ownerUid !== user.uid) {
           setError('Geen toegang tot deze offerte.');
           return;
         }
+        
 
         setQuote(data);
 
