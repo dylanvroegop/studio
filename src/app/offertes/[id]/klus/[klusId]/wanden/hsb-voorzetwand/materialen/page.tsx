@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Star,
   Loader2,
+  Pencil,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -31,7 +32,13 @@ import type {
   ExtraMaterial,
 } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -43,7 +50,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -52,9 +59,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
+import {
+  useUser,
+  useFirestore,
+  FirestorePermissionError,
+  errorEmitter,
+} from '@/firebase';
 import {
   collection,
   query,
@@ -115,6 +133,7 @@ type FirestoreMaterialenPayload = {
   selections?: Record<string, any>;
   extraMaterials?: any[];
   savedByUid?: string | null;
+  collapsedSections?: Record<string, boolean>;
 };
 
 type FirestoreWerkwijzePayload = {
@@ -182,7 +201,9 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Annuleren
+          </Button>
           <Button onClick={handleSave} disabled={!name || isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isSaving ? 'Opslaan...' : 'Opslaan'}
@@ -219,7 +240,9 @@ function ManagePresetsDialog({
             Er zijn geen werkwijzen om te beheren.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Sluiten</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Sluiten
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -274,7 +297,9 @@ function ManagePresetsDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Sluiten</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Sluiten
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -287,7 +312,12 @@ type MateriaalKiezerModalProps = {
   geselecteerdMateriaalId?: string;
   onSluiten: () => void;
   onSelecteren: (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => void;
+
+  // extra materiaal (eigen toevoegen / bewerken)
   onAddExtra: (materiaal: ExtraMaterial) => void;
+  onUpdateExtra: (materiaal: ExtraMaterial) => void;
+  editExtraMaterial?: ExtraMaterial | null;
+
   materialen: MateriaalKeuze[];
 };
 
@@ -301,6 +331,8 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       onSelecteren,
       materialen: initialMaterials,
       onAddExtra,
+      onUpdateExtra,
+      editExtraMaterial,
     },
     _ref
   ) => {
@@ -395,6 +427,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       return { favorieteResultaten, overigeResultaten };
     }, [zoekterm, subsectieFilter, initialMaterials, isFavoriet]);
 
+    // -------- eigen materiaal state (extra) --------
     const [eigenNaam, setEigenNaam] = useState('');
     const [eigenEenheid, setEigenEenheid] = useState<string>('');
     const [eigenPrijs, setEigenPrijs] = useState('');
@@ -411,10 +444,14 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       usageDescription: '',
     });
 
-    const requiresDescription = ['stuk', 'doos', 'set', 'uur', 'anders'].includes(eigenEenheid);
+    // ✅ uur/anders expliciet NIET meer in deze modal
+    const requiresDescription = ['stuk', 'doos', 'set'].includes(eigenEenheid);
 
+    // Reset bij open/sluiten + prefill bij edit
     useEffect(() => {
       if (!open) return;
+
+      // standaard reset
       setEigenNaam('');
       setEigenEenheid('');
       setEigenPrijs('');
@@ -424,7 +461,23 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       setBreedte('');
       setHoogte('');
       setFormErrors({ naam: '', eenheid: '', prijs: '', usageDescription: '' });
-    }, [open]);
+
+      // edit prefill (alleen bij extra materiaal)
+      if (sectieSleutel === 'extra' && editExtraMaterial) {
+        setActiveTab('eigen');
+        setEigenNaam(editExtraMaterial.naam || '');
+        setEigenEenheid((editExtraMaterial.eenheid as any) || '');
+        setEigenPrijs(
+          typeof editExtraMaterial.prijsPerEenheid === 'number'
+            ? String(editExtraMaterial.prijsPerEenheid)
+            : ''
+        );
+        setAantal(
+          typeof editExtraMaterial.aantal === 'number' ? editExtraMaterial.aantal : undefined
+        );
+        setUsageDescription(editExtraMaterial.usageDescription || '');
+      }
+    }, [open, sectieSleutel, editExtraMaterial]);
 
     if (!open) return null;
 
@@ -433,11 +486,11 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       onSluiten();
     };
 
-    const handleAddEigenMateriaal = () => {
+    const handleOpslaanEigenMateriaal = () => {
       const errors = { naam: '', eenheid: '', prijs: '', usageDescription: '' };
       let hasError = false;
 
-      if (!eigenNaam) {
+      if (!eigenNaam.trim()) {
         errors.naam = 'Naam is verplicht';
         hasError = true;
       }
@@ -445,11 +498,13 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
         errors.eenheid = 'Eenheid is verplicht';
         hasError = true;
       }
-      const prijsNum = parseFloat(eigenPrijs);
+
+      const prijsNum = parseFloat(String(eigenPrijs).replace(',', '.'));
       if (!eigenPrijs || Number.isNaN(prijsNum) || prijsNum < 0) {
         errors.prijs = 'Geldige prijs is verplicht';
         hasError = true;
       }
+
       if (requiresDescription && !usageDescription.trim()) {
         errors.usageDescription = 'Beschrijf kort waar dit materiaal voor gebruikt wordt.';
         hasError = true;
@@ -458,16 +513,18 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       setFormErrors(errors);
       if (hasError) return;
 
-      const nieuwItem: ExtraMaterial = {
-        id: crypto.randomUUID(),
-        naam: eigenNaam,
+      const payload: ExtraMaterial = {
+        id: editExtraMaterial?.id ?? crypto.randomUUID(),
+        naam: eigenNaam.trim(),
         eenheid: eigenEenheid as any,
         prijsPerEenheid: prijsNum,
-        aantal,
+        aantal: typeof aantal === 'number' && !Number.isNaN(aantal) ? aantal : undefined,
         usageDescription: usageDescription.trim(),
       };
 
-      onAddExtra(nieuwItem);
+      if (editExtraMaterial) onUpdateExtra(payload);
+      else onAddExtra(payload);
+
       onSluiten();
     };
 
@@ -478,8 +535,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       stuk: 'Prijs per stuk (€)',
       doos: 'Prijs per doos (€)',
       set: 'Prijs per set (€)',
-      uur: 'Prijs per uur (€)',
-      anders: 'Prijs per eenheid (€)',
     };
 
     const isExtraMateriaal = sectieSleutel === 'extra';
@@ -502,6 +557,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
               e.stopPropagation();
               toggleFavoriet(materiaal.id);
             }}
+            aria-label="Favoriet"
           >
             <Star
               className={cn(
@@ -534,11 +590,21 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
 
     return (
       <Dialog open={open} onOpenChange={onSluiten}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+        {/* ✅ geen inner scroll voor "eigen" tab; dialog groeit mee */}
+        <DialogContent className="max-w-2xl p-0">
           <DialogHeader className="p-6 pb-0">
             <DialogTitle>
-              Kies materiaal voor: {isExtraMateriaal ? 'Extra Materiaal' : 'de geselecteerde categorie'}
+              {isExtraMateriaal
+                ? editExtraMaterial
+                  ? 'Extra materiaal bewerken'
+                  : 'Kies materiaal voor: Extra Materiaal'
+                : 'Kies materiaal voor: de geselecteerde categorie'}
             </DialogTitle>
+            {isExtraMateriaal ? (
+              <DialogDescription className="pt-2">
+                Voeg extra materiaal toe of kies uit uw lijst.
+              </DialogDescription>
+            ) : null}
           </DialogHeader>
 
           {isExtraMateriaal ? (
@@ -552,11 +618,18 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                 <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
               </TabsList>
 
+              {/* ✅ GEEN overflow / GEEN forced scroll */}
               <TabsContent value="eigen" className="pt-4 space-y-4 px-2">
                 <div className="space-y-2">
                   <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
-                  <Input id="eigen-naam" value={eigenNaam} onChange={(e) => setEigenNaam(e.target.value)} />
-                  {formErrors.naam && <p className="text-sm text-destructive">{formErrors.naam}</p>}
+                  <Input
+                    id="eigen-naam"
+                    value={eigenNaam}
+                    onChange={(e) => setEigenNaam(e.target.value)}
+                  />
+                  {formErrors.naam && (
+                    <p className="text-sm text-destructive">{formErrors.naam}</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -575,11 +648,15 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                         <SelectItem value="set">set</SelectItem>
                       </SelectContent>
                     </Select>
-                    {formErrors.eenheid && <p className="text-sm text-destructive">{formErrors.eenheid}</p>}
+                    {formErrors.eenheid && (
+                      <p className="text-sm text-destructive">{formErrors.eenheid}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="eigen-prijs">{eenheidLabel[eigenEenheid] || 'Prijs per eenheid (€)'} *</Label>
+                    <Label htmlFor="eigen-prijs">
+                      {eenheidLabel[eigenEenheid] || 'Prijs per eenheid (€)'} *
+                    </Label>
                     <Input
                       id="eigen-prijs"
                       type="number"
@@ -588,7 +665,9 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                       value={eigenPrijs}
                       onChange={(e) => setEigenPrijs(e.target.value)}
                     />
-                    {formErrors.prijs && <p className="text-sm text-destructive">{formErrors.prijs}</p>}
+                    {formErrors.prijs && (
+                      <p className="text-sm text-destructive">{formErrors.prijs}</p>
+                    )}
                   </div>
                 </div>
 
@@ -604,44 +683,76 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                 {eigenEenheid === 'm1' && (
                   <div className="space-y-2">
                     <Label>Lengte (m)</Label>
-                    <Input type="number" value={lengte} onChange={(e) => setLengte(e.target.value)} />
+                    <Input
+                      type="number"
+                      value={lengte}
+                      onChange={(e) => setLengte(e.target.value)}
+                    />
                   </div>
                 )}
+
                 {eigenEenheid === 'm2' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Lengte (m)</Label>
-                      <Input type="number" value={lengte} onChange={(e) => setLengte(e.target.value)} />
+                      <Input
+                        type="number"
+                        value={lengte}
+                        onChange={(e) => setLengte(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Breedte (m)</Label>
-                      <Input type="number" value={breedte} onChange={(e) => setBreedte(e.target.value)} />
+                      <Input
+                        type="number"
+                        value={breedte}
+                        onChange={(e) => setBreedte(e.target.value)}
+                      />
                     </div>
                   </div>
                 )}
+
                 {eigenEenheid === 'm3' && (
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label>Lengte (m)</Label>
-                      <Input type="number" value={lengte} onChange={(e) => setLengte(e.target.value)} />
+                      <Input
+                        type="number"
+                        value={lengte}
+                        onChange={(e) => setLengte(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Breedte (m)</Label>
-                      <Input type="number" value={breedte} onChange={(e) => setBreedte(e.target.value)} />
+                      <Input
+                        type="number"
+                        value={breedte}
+                        onChange={(e) => setBreedte(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Hoogte (m)</Label>
-                      <Input type="number" value={hoogte} onChange={(e) => setHoogte(e.target.value)} />
+                      <Input
+                        type="number"
+                        value={hoogte}
+                        onChange={(e) => setHoogte(e.target.value)}
+                      />
                     </div>
                   </div>
                 )}
+
                 {requiresDescription && (
                   <div className="space-y-2">
                     <Label>Aantal</Label>
                     <Input
                       type="number"
-                      value={aantal ?? ''}
-                      onChange={(e) => setAantal(parseInt(e.target.value, 10))}
+                      value={typeof aantal === 'number' ? aantal : ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '') return setAantal(undefined);
+                        const n = parseInt(v, 10);
+                        setAantal(Number.isNaN(n) ? undefined : n);
+                      }}
                     />
                   </div>
                 )}
@@ -662,7 +773,8 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                 )}
               </TabsContent>
 
-              <TabsContent value="lijst" className="pt-4 flex-1 flex flex-col min-h-0">
+              {/* ✅ lijst mag scrollen (anders wordt dit gigantisch) */}
+              <TabsContent value="lijst" className="pt-4 flex flex-col">
                 <div className="flex gap-2 border-b pb-4">
                   <Input
                     type="text"
@@ -686,7 +798,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                   </Select>
                 </div>
 
-                <div className="overflow-y-auto flex-1 mt-4 max-h-[40vh]">
+                <div className="overflow-y-auto mt-4 max-h-[45vh]">
                   <ul className="divide-y divide-border">
                     {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
                   </ul>
@@ -694,7 +806,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
               </TabsContent>
             </Tabs>
           ) : (
-            <div className="p-6 pt-2 flex-1 flex flex-col min-h-0">
+            <div className="p-6 pt-2 flex flex-col">
               <div className="flex gap-2 border-b pb-4">
                 <Input
                   type="text"
@@ -718,19 +830,19 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                 </Select>
               </div>
 
-              <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
-  <ul className="divide-y divide-border">
-    {gefilterdeMaterialen.favorieteResultaten.length > 0 && (
-      <>
-        {renderMaterialList(gefilterdeMaterialen.favorieteResultaten)}
+              <div className="overflow-y-auto mt-4 max-h-[calc(80vh-200px)]">
+                <ul className="divide-y divide-border">
+                  {gefilterdeMaterialen.favorieteResultaten.length > 0 && (
+                    <>
+                      {renderMaterialList(gefilterdeMaterialen.favorieteResultaten)}
 
-        {gefilterdeMaterialen.overigeResultaten.length > 0 && (
-          <li className="py-2">
-            <Separator />
-          </li>
-        )}
-      </>
-    )}
+                      {gefilterdeMaterialen.overigeResultaten.length > 0 && (
+                        <li className="py-2">
+                          <Separator />
+                        </li>
+                      )}
+                    </>
+                  )}
 
                   {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
 
@@ -748,8 +860,11 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
             <Button variant="outline" onClick={onSluiten}>
               Annuleren
             </Button>
+
             {isExtraMateriaal && activeTab === 'eigen' && (
-              <Button onClick={handleAddEigenMateriaal}>Materiaal toevoegen</Button>
+              <Button onClick={handleOpslaanEigenMateriaal}>
+                {editExtraMaterial ? 'Opslaan' : 'Materiaal toevoegen'}
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>
@@ -792,9 +907,9 @@ export default function HsbWandMaterialenPage() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
 
   // Selections state
-  const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>(
-    {}
-  );
+  const [gekozenMaterialen, setGekozenMaterialen] = useState<
+    Record<string, MateriaalKeuze | undefined>
+  >({});
   const [extraMaterials, setExtraMaterials] = useState<ExtraMaterial[]>([]);
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfig>({
     mode: 'percentage',
@@ -811,6 +926,9 @@ export default function HsbWandMaterialenPage() {
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
   const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
+
+  // ✅ extra materiaal bewerken
+  const [editExtraMaterial, setEditExtraMaterial] = useState<ExtraMaterial | null>(null);
 
   // ✅ belangrijk: onderscheid “initieel geladen uit DB” vs “user kiest preset”
   const userHeeftPresetGewijzigdRef = useRef(false);
@@ -934,16 +1052,13 @@ export default function HsbWandMaterialenPage() {
         const hasSelections = Object.keys(rawSelections || {}).length > 0;
         const hasExtra = Array.isArray(rawExtra) && rawExtra.length > 0;
         const hasKleinMateriaal = !!km;
-        const hasWerkwijze = !!(werkw?.workMethodId);
+        const hasWerkwijze = !!werkw?.workMethodId;
         hasSavedConfigRef.current = hasSelections || hasExtra || hasKleinMateriaal || hasWerkwijze;
 
         // werkmethode select in UI (DB leidend)
         const workMethodId = werkw?.workMethodId ?? null;
-        if (workMethodId) {
-          setGekozenPresetId(workMethodId);
-        } else {
-          setGekozenPresetId('default');
-        }
+        if (workMethodId) setGekozenPresetId(workMethodId);
+        else setGekozenPresetId('default');
 
         // klein materiaal
         if (km && typeof km === 'object') {
@@ -952,13 +1067,13 @@ export default function HsbWandMaterialenPage() {
           setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
         }
 
-        // collapsed sections (optioneel)
-        const rawCollapsed = (klusNode?.materialen?.collapsedSections || klusNode?.collapsedSections) ?? null;
+        // collapsed sections
+        const rawCollapsed =
+          (klusNode?.materialen?.collapsedSections || klusNode?.collapsedSections) ?? null;
         if (rawCollapsed && typeof rawCollapsed === 'object') {
           setCollapsedSections(rawCollapsed);
         }
 
-        // markeer hydrating klaar (maar mapping gebeurt later)
         isHydratingRef.current = false;
       } catch (e) {
         console.error('Hydrate Firestore mislukt:', e);
@@ -973,12 +1088,6 @@ export default function HsbWandMaterialenPage() {
   useEffect(() => {
     if (!alleMaterialen || alleMaterialen.length === 0) return;
 
-    const rawSelections = ((
-      ((): any => null) as any
-    ) as any);
-
-    // we kunnen niet direct bij hydrateFromDb closure; dus we lezen opnieuw uit Firestore op safe manier
-    // (1 extra getDoc is oké en voorkomt fragile hacks)
     const mapNow = async () => {
       if (!firestore || !quoteId || !klusId) return;
 
@@ -991,27 +1100,23 @@ export default function HsbWandMaterialenPage() {
         const klusNode = data?.klussen?.[klusId];
         const mat: FirestoreMaterialenPayload | undefined = klusNode?.materialen;
 
-        const selections = mat?.selections && typeof mat.selections === 'object' ? mat.selections : {};
+        const selections =
+          mat?.selections && typeof mat.selections === 'object' ? mat.selections : {};
         const extra = Array.isArray(mat?.extraMaterials) ? mat!.extraMaterials : [];
 
         const heeftSelections = Object.keys(selections || {}).length > 0;
-const heeftExtra = Array.isArray(extra) && extra.length > 0;
+        const heeftExtra = Array.isArray(extra) && extra.length > 0;
 
-// ✅ Als DB leeg is (nieuwe klus), NIET overschrijven (anders wipe je de preset apply)
-if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) {
-  return;
-}
-
+        // ✅ Als DB leeg is (nieuwe klus), NIET overschrijven
+        if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) return;
 
         const toegestaneKeys = new Set(sectieSleutels);
-
         const mapped: Record<string, MateriaalKeuze | undefined> = {};
 
         for (const [key, val] of Object.entries(selections)) {
           if (!toegestaneKeys.has(key as any)) continue;
           if (key === 'extra' || key === 'klein_materiaal') continue;
 
-          // jouw selections kan een volledig object bevatten of alleen id
           const id = (val as any)?.id || (val as any)?.row_id || (val as any);
           if (!id) continue;
 
@@ -1023,14 +1128,14 @@ if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) {
 
         const mappedExtra: ExtraMaterial[] = (extra || [])
           .map((m: any) => {
-            // accepteer oude vormen maar normaliseer
             const naam = m?.naam || m?.materiaalnaam || '';
             const eenheid = m?.eenheid || 'stuk';
-            const prijsPerEenheid = typeof m?.prijsPerEenheid === 'number'
-              ? m.prijsPerEenheid
-              : typeof m?.prijs === 'number'
-                ? m.prijs
-                : 0;
+            const prijsPerEenheid =
+              typeof m?.prijsPerEenheid === 'number'
+                ? m.prijsPerEenheid
+                : typeof m?.prijs === 'number'
+                  ? m.prijs
+                  : 0;
 
             return {
               id: m?.id || crypto.randomUUID(),
@@ -1050,24 +1155,15 @@ if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) {
     };
 
     mapNow();
-    // alleen opnieuw mappen als materialen veranderen of klus/quote wisselt
   }, [alleMaterialen, firestore, quoteId, klusId]);
 
   // ✅ NIEUW: als deze klus nog leeg is, selecteer automatisch de standaard preset (en pas toe)
   useEffect(() => {
     if (isPresetsLaden) return;
     if (!presets || presets.length === 0) return;
-
-    // niet auto-doen als user al iets heeft gedaan
     if (userHeeftPresetGewijzigdRef.current) return;
-
-    // wacht tot hydraten klaar is
     if (isHydratingRef.current) return;
-
-    // als DB al iets had, nooit auto-standaard forceren
     if (hasSavedConfigRef.current) return;
-
-    // alleen als we nog op "Nieuw" staan
     if (gekozenPresetId !== 'default') return;
 
     const defaultPreset =
@@ -1080,10 +1176,9 @@ if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) {
     setGekozenPresetId(defaultPreset.id);
   }, [isPresetsLaden, presets, gekozenPresetId]);
 
-  // Preset toepassen (alleen als user actief preset kiest OF auto-standaard bij lege klus)
+  // Preset toepassen
   useEffect(() => {
     if (gekozenPresetId === 'default') {
-      // Alleen resetten als user actief “Nieuw” kiest (niet tijdens hydraten)
       if (userHeeftPresetGewijzigdRef.current) {
         setGekozenMaterialen({});
         setCollapsedSections({});
@@ -1093,21 +1188,16 @@ if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) {
       return;
     }
 
-    // ✅ WACHT tot materialen geladen zijn, anders "apply" je een lege preset
-if (!alleMaterialen || alleMaterialen.length === 0) return;
-
+    if (!alleMaterialen || alleMaterialen.length === 0) return;
 
     const preset = presets.find((p) => p.id === gekozenPresetId);
     if (!preset) return;
 
-    // Als dit initieel uit DB komt (hydraten), NIET overschrijven met preset slots.
-    // ✅ behalve als we auto-standaard toepassen op een lege klus.
     if (
       !userHeeftPresetGewijzigdRef.current &&
       isHydratingRef.current === false &&
       !autoApplyDefaultPresetRef.current
     ) {
-      // DB heeft een presetId gezet, maar selections blijven leidend.
       return;
     }
 
@@ -1129,13 +1219,9 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
       (preset as any).kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null }
     );
 
-    // ✅ na 1x auto-apply weer uitzetten
-    if (autoApplyDefaultPresetRef.current) {
-      autoApplyDefaultPresetRef.current = false;
-    }
+    if (autoApplyDefaultPresetRef.current) autoApplyDefaultPresetRef.current = false;
   }, [gekozenPresetId, presets, alleMaterialen]);
 
-  // Wanneer user preset dropdown wijzigt, markeer
   const onPresetChange = (value: string) => {
     userHeeftPresetGewijzigdRef.current = true;
     autoApplyDefaultPresetRef.current = false;
@@ -1165,8 +1251,14 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
     [alleMaterialen]
   );
 
-  const openMateriaalKiezer = (sectieSleutel: SectieKey) => setActieveSectie(sectieSleutel);
-  const sluitMateriaalKiezer = () => setActieveSectie(null);
+  const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
+    setActieveSectie(sectieSleutel);
+  };
+
+  const sluitMateriaalKiezer = () => {
+    setActieveSectie(null);
+    setEditExtraMaterial(null);
+  };
 
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     if (sectieSleutel === 'extra') {
@@ -1186,6 +1278,15 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
 
   const handleAddExtraMateriaal = (materiaal: ExtraMaterial) => {
     setExtraMaterials((prev) => [...prev, materiaal]);
+  };
+
+  const handleUpdateExtraMateriaal = (materiaal: ExtraMaterial) => {
+    setExtraMaterials((prev) => prev.map((m) => (m.id === materiaal.id ? materiaal : m)));
+  };
+
+  const handleEditExtraMateriaal = (mat: ExtraMaterial) => {
+    setEditExtraMaterial(mat);
+    setActieveSectie('extra');
   };
 
   const handleRemoveExtraMaterial = (idToRemove: string) => {
@@ -1247,14 +1348,15 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
 
     try {
       await batch.commit();
-      toast({ title: 'Werkwijze opgeslagen', description: `Werkwijze "${presetName}" is succesvol opgeslagen.` });
+      toast({
+        title: 'Werkwijze opgeslagen',
+        description: `Werkwijze "${presetName}" is succesvol opgeslagen.`,
+      });
 
       const newPreset = { id: newDocRef.id, ...(newPresetData as any) } as PresetType;
 
       setPresets((prev) =>
-        prev
-          .map((p) => ({ ...p, isDefault: isDefault ? false : p.isDefault }))
-          .concat(newPreset)
+        prev.map((p) => ({ ...p, isDefault: isDefault ? false : p.isDefault })).concat(newPreset)
       );
       setGekozenPresetId(newDocRef.id);
     } catch (serverError) {
@@ -1283,7 +1385,11 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
       if (gekozenPresetId === presetToDelete.id) setGekozenPresetId('default');
     } catch (error) {
       console.error('Fout bij verwijderen werkwijze:', error);
-      toast({ variant: 'destructive', title: 'Fout', description: 'Kon werkwijze niet verwijderen.' });
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Kon werkwijze niet verwijderen.',
+      });
     } finally {
       setDeleteConfirmationOpen(false);
       setPresetToDelete(null);
@@ -1291,7 +1397,6 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
     }
   };
 
-  // ✅ Dit was jouw runtime error: deze functie moet bestaan
   const handleSetDefaultPreset = async (presetToSet: PresetType) => {
     if (!user || !firestore || presetToSet.isDefault) return;
 
@@ -1368,11 +1473,14 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
 
       const kleinMateriaalPayload = kleinMateriaalConfig ?? null;
 
-      await updateDoc(ref, {
-        [`klussen.${klusId}.materialen`]: materialenPayload,
-        [`klussen.${klusId}.werkwijze`]: werkwijzePayload,
-        [`klussen.${klusId}.kleinMateriaal`]: kleinMateriaalPayload,
-      } as any);
+      await updateDoc(
+        ref,
+        {
+          [`klussen.${klusId}.materialen`]: materialenPayload,
+          [`klussen.${klusId}.werkwijze`]: werkwijzePayload,
+          [`klussen.${klusId}.kleinMateriaal`]: kleinMateriaalPayload,
+        } as any
+      );
 
       toast({ title: 'Materialen opgeslagen!' });
       router.push(`/offertes/${quoteId}/overzicht`);
@@ -1445,6 +1553,7 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
                       size="icon"
                       onClick={() => handleMateriaalVerwijderen('naden_vullen')}
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      aria-label="Verwijder materiaal"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -1470,6 +1579,7 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
                       size="icon"
                       onClick={() => handleMateriaalVerwijderen('naden_vullen_2')}
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      aria-label="Verwijder materiaal"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -1494,10 +1604,14 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
             <div className="space-y-1.5">
               <CardTitle className="text-lg">{titel}</CardTitle>
             </div>
+
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => openMateriaalKiezer('extra')}
+              onClick={() => {
+                setEditExtraMaterial(null);
+                openMateriaalKiezer('extra');
+              }}
               className="text-primary hover:text-primary/80"
             >
               <Plus className="mr-2 h-4 w-4" /> Toevoegen
@@ -1511,23 +1625,41 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
               ) : (
                 <ul className="space-y-3">
                   {extraMaterials.map((mat) => (
-                    <li key={mat.id} className="flex items-start justify-between text-sm">
-                      <div>
-                        <p className="font-medium">
+                    <li key={mat.id} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium break-words">
                           {mat.naam} – €{mat.prijsPerEenheid.toFixed(2)} / {mat.eenheid}
                         </p>
-                        {mat.usageDescription && (
+                        {typeof mat.aantal === 'number' ? (
+                          <p className="text-xs text-muted-foreground">Aantal: {mat.aantal}</p>
+                        ) : null}
+                        {mat.usageDescription ? (
                           <p className="text-xs text-muted-foreground">{mat.usageDescription}</p>
-                        )}
+                        ) : null}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveExtraMaterial(mat.id)}
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* ✅ BEWERKEN */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditExtraMateriaal(mat)}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Bewerken
+                        </Button>
+
+                        {/* verwijderen */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveExtraMaterial(mat.id)}
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          aria-label="Verwijder extra materiaal"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1594,14 +1726,12 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
   const renderKleinMateriaalSectie = () => {
     const sectieSleutel: SectieKey = 'klein_materiaal';
     const isCollapsed = !!collapsedSections[sectieSleutel];
-  
+
     const isFilled =
       kleinMateriaalConfig.mode === 'fixed'
-        ? kleinMateriaalConfig.fixedAmount !== null &&
-          kleinMateriaalConfig.fixedAmount > 0
-        : kleinMateriaalConfig.percentage !== null &&
-          kleinMateriaalConfig.percentage > 0;
-  
+        ? kleinMateriaalConfig.fixedAmount !== null && kleinMateriaalConfig.fixedAmount > 0
+        : kleinMateriaalConfig.percentage !== null && kleinMateriaalConfig.percentage > 0;
+
     if (isCollapsed) {
       return (
         <div className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)]">
@@ -1619,7 +1749,7 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
         </div>
       );
     }
-  
+
     return (
       <Card className={cn(isFilled ? '' : 'border-l-2 border-l-primary')}>
         <CardHeader className="flex flex-row items-center justify-between p-4">
@@ -1638,11 +1768,10 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
             Verberg <ChevronUp className="h-4 w-4" />
           </Button>
         </CardHeader>
-  
+
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Percentage */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2',
@@ -1650,15 +1779,13 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
                     ? 'border-primary bg-muted/30'
                     : 'hover:bg-muted/50'
                 )}
-                onClick={() =>
-                  setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'percentage' }))
-                }
+                onClick={() => setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'percentage' }))}
               >
                 <h4 className="font-semibold">Percentage (%)</h4>
                 <p className="text-sm text-muted-foreground">
                   Reken een percentage van de totale materiaalkosten.
                 </p>
-  
+
                 {kleinMateriaalConfig.mode === 'percentage' && (
                   <div className="pt-2 space-y-2">
                     <Label htmlFor="kleinMateriaalPercentage">Percentage</Label>
@@ -1694,8 +1821,7 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
                   </div>
                 )}
               </div>
-  
-              {/* Vast bedrag */}
+
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2',
@@ -1703,15 +1829,13 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
                     ? 'border-primary bg-muted/30'
                     : 'hover:bg-muted/50'
                 )}
-                onClick={() =>
-                  setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'fixed' }))
-                }
+                onClick={() => setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'fixed' }))}
               >
                 <h4 className="font-semibold">Vast bedrag (€)</h4>
                 <p className="text-sm text-muted-foreground">
                   Voeg een vast bedrag toe voor kleine materialen.
                 </p>
-  
+
                 {kleinMateriaalConfig.mode === 'fixed' && (
                   <div className="pt-2 space-y-2">
                     <Label htmlFor="kleinMateriaalFixedAmount">Bedrag (€)</Label>
@@ -1737,7 +1861,6 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
       </Card>
     );
   };
-  
 
   const progressValue = (5 / 6) * 100;
 
@@ -1822,7 +1945,11 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
                 <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-wand`}>Terug</Link>
               </Button>
 
-              <Button onClick={handleNext} disabled={isOpslaan} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Button
+                onClick={handleNext}
+                disabled={isOpslaan}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
                 {isOpslaan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isOpslaan ? 'Opslaan...' : 'Volgende'}
               </Button>
@@ -1847,35 +1974,35 @@ if (!alleMaterialen || alleMaterialen.length === 0) return;
           <AlertDialogHeader>
             <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
             <AlertDialogDescription>
-              U staat op het punt om de werkwijze "{presetToDelete?.name}" te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
+              U staat op het punt om de werkwijze "{presetToDelete?.name}" te verwijderen. Deze actie kan
+              niet ongedaan worden gemaakt.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePreset} className={buttonVariants({ variant: 'destructive' })}>
+            <AlertDialogAction
+              onClick={handleDeletePreset}
+              className={buttonVariants({ variant: 'destructive' })}
+            >
               Verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <SavePresetDialog
-        open={savePresetModalOpen}
-        onOpenChange={setSavePresetModalOpen}
-        onSave={handleSavePreset}
-      />
+      <SavePresetDialog open={savePresetModalOpen} onOpenChange={setSavePresetModalOpen} onSave={handleSavePreset} />
 
       <MateriaalKiezerModal
         open={!!actieveSectie}
         sectieSleutel={actieveSectie as SectieKey}
         geselecteerdMateriaalId={
-          actieveSectie && actieveSectie !== 'extra'
-            ? gekozenMaterialen[actieveSectie]?.id
-            : undefined
+          actieveSectie && actieveSectie !== 'extra' ? gekozenMaterialen[actieveSectie]?.id : undefined
         }
         onSluiten={sluitMateriaalKiezer}
         onSelecteren={handleMateriaalSelectie}
         onAddExtra={handleAddExtraMateriaal}
+        onUpdateExtra={handleUpdateExtraMateriaal}
+        editExtraMaterial={actieveSectie === 'extra' ? editExtraMaterial : null}
         materialen={actieveSectie ? filterMaterialenVoorSectie(actieveSectie) : []}
       />
     </>
