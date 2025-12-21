@@ -23,31 +23,49 @@ export type Client = {
 export type Quote = {
   id: string;
   userId: string;
+
   status: "concept" | "in_behandeling" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  clientType: "Particulier" | "Zakelijk";
-  companyName?: string;
-  contactPerson?: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  billingStreet: string;
-  billingHouseNumber: string;
-  billingPostcode: string;
-  billingCity: string;
-  hasDifferentProjectAddress: boolean;
-  projectStreet?: string;
-  projectHouseNumber?: string;
-  projectPostcode?: string;
-  projectCity?: string;
-  shortDescription: string;
-  clientName: string;
-  title: string;
+
+  // Offerte meta
+  werkomschrijving: string;
+  titel: string;
+
+  // ✅ Alles klantgericht in 1 map
+  klantinformatie: {
+    klanttype: "Particulier" | "Zakelijk";
+
+    bedrijfsnaam: string | null;
+    contactpersoon: string | null;
+    voornaam: string;
+    achternaam: string;
+
+    "e-mailadres": string;
+    telefoonnummer: string;
+
+    factuuradres: {
+      straat: string;
+      huisnummer: string;
+      postcode: string;
+      plaats: string | null;
+    };
+
+    afwijkendProjectadres: boolean;
+
+    projectadres: {
+      straat: string | null;
+      huisnummer: string | null;
+      postcode: string | null;
+      plaats: string | null;
+    };
+  };
+
+  // optioneel
   amount?: number;
   sentAt?: Timestamp | Date;
 };
+
 
 
 export type JobCategory =

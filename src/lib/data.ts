@@ -1,106 +1,169 @@
 import { initializeFirebaseServer } from '@/firebase/server';
-import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
-import type { Client, Quote, Job, JobMaterial, User } from './types';
-
+import { doc, getDoc, collection, getDocs, query } from 'firebase/firestore';
+import type { Client, Quote, Job, JobMaterial } from './types';
 
 // This file will be deprecated in favor of direct Firestore calls.
 // The functions are kept for now to avoid breaking other parts of the app, but will be removed.
 
+/* ---------------------------------------------
+ Mock data (alleen voor onderdelen die nog niet op Firestore zitten)
+--------------------------------------------- */
+
 let jobs: Job[] = [
-  { id: 'job-1', quoteId: 'quote-1', categorie: 'Wanden', omschrijvingKlant: 'Buitenwand aanbouw', aantal: 1, createdAt: new Date().toISOString() },
-  { id: 'job-2', quoteId: 'quote-2', categorie: 'Wanden', omschrijvingKlant: 'Glazen tussenwand kantoor', aantal: 5, createdAt: new Date().toISOString() },
+  {
+    id: 'job-1',
+    quoteId: 'quote-1',
+    categorie: 'Wanden',
+    omschrijvingKlant: 'Buitenwand aanbouw',
+    aantal: 1,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'job-2',
+    quoteId: 'quote-2',
+    categorie: 'Wanden',
+    omschrijvingKlant: 'Glazen tussenwand kantoor',
+    aantal: 5,
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 let jobMaterials: JobMaterial[] = [
-  { id: 'mat-1', jobId: 'job-1', materiaalCategorie: 'hout', naam: 'Vuren SLS 38x140mm', eenheid: 'm1', hoeveelheid: 120, createdAt: new Date().toISOString() },
-  { id: 'mat-2', jobId: 'job-1', materiaalCategorie: 'isolatie', naam: 'Glaswol 140mm', eenheid: 'm2', hoeveelheid: 25, createdAt: new Date().toISOString() },
+  {
+    id: 'mat-1',
+    jobId: 'job-1',
+    materiaalCategorie: 'hout',
+    naam: 'Vuren SLS 38x140mm',
+    eenheid: 'm1',
+    hoeveelheid: 120,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'mat-2',
+    jobId: 'job-1',
+    materiaalCategorie: 'isolatie',
+    naam: 'Glaswol 140mm',
+    eenheid: 'm2',
+    hoeveelheid: 25,
+    createdAt: new Date().toISOString(),
+  },
 ];
 
-export const getQuoteById = async (id: string): Promise<Quote | undefined> => {
-    const { firestore } = initializeFirebaseServer();
-    const docRef = doc(firestore, "quotes", id);
-    const docSnap = await getDoc(docRef);
+/* ---------------------------------------------
+ Quotes
+--------------------------------------------- */
 
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        return {
-            id: docSnap.id,
-            ...data,
-            // Convert Firestore Timestamps to serializable format for client components
-            createdAt: data.createdAt.toDate(),
-            updatedAt: data.updatedAt.toDate(),
-            sentAt: data.sentAt ? data.sentAt.toDate() : undefined,
-        } as unknown as Quote;
-    } else {
-        return undefined;
-    }
-}
+export const getQuoteById = async (id: string): Promise<Quote | undefined> => {
+  const { firestore } = initializeFirebaseServer();
+  const docRef = doc(firestore, 'quotes', id);
+  const docSnap = await getDoc(docRef);
+
+  if (!docSnap.exists()) return undefined;
+
+  const data: any = docSnap.data();
+
+  // Convert Firestore Timestamps to serializable format for client components
+  return {
+    id: docSnap.id,
+    ...data,
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+    sentAt: data.sentAt?.toDate ? data.sentAt.toDate() : data.sentAt,
+  } as unknown as Quote;
+};
+
+/* ---------------------------------------------
+ Jobs
+--------------------------------------------- */
 
 export const getJobsForQuote = async (quoteId: string): Promise<Job[]> => {
-    const { firestore } = initializeFirebaseServer();
-    const jobsCollectionRef = collection(firestore, `quotes/${quoteId}/jobs`);
-    const q = query(jobsCollectionRef);
-    const querySnapshot = await getDocs(q);
-    const jobs: Job[] = [];
-    querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        jobs.push({
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt.toDate().toISOString(),
-        } as Job);
-    });
-    return jobs;
-}
+  const { firestore } = initializeFirebaseServer();
+
+  const jobsCollectionRef = collection(firestore, `quotes/${quoteId}/jobs`);
+  const q = query(jobsCollectionRef);
+  const querySnapshot = await getDocs(q);
+
+  const result: Job[] = [];
+  querySnapshot.forEach((d) => {
+    const data: any = d.data();
+    result.push({
+      id: d.id,
+      ...data,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+    } as Job);
+  });
+
+  return result;
+};
 
 export const getJobById = async (id: string): Promise<Job | undefined> => {
-    // This function might need to be aware of the quoteId to find the job.
-    // For now, we'll stick to the mockup data.
-    return Promise.resolve(jobs.find(j => j.id === id));
-}
+  // Deze functie is nog mock-based (er is geen quoteId meegegeven).
+  return Promise.resolve(jobs.find((j) => j.id === id));
+};
 
-export const updateJob = async (id: string, jobData: Partial<Omit<Job, 'id'>>): Promise<Job | undefined> => {
-    const jobIndex = jobs.findIndex(j => j.id === id);
-    if (jobIndex > -1) {
-        jobs[jobIndex] = { ...jobs[jobIndex], ...jobData };
-        return Promise.resolve(jobs[jobIndex]);
-    }
-    return Promise.resolve(undefined);
-}
+export const updateJob = async (
+  id: string,
+  jobData: Partial<Omit<Job, 'id'>>
+): Promise<Job | undefined> => {
+  const jobIndex = jobs.findIndex((j) => j.id === id);
+  if (jobIndex > -1) {
+    jobs[jobIndex] = { ...jobs[jobIndex], ...jobData };
+    return Promise.resolve(jobs[jobIndex]);
+  }
+  return Promise.resolve(undefined);
+};
+
+/* ---------------------------------------------
+ Materials
+--------------------------------------------- */
 
 export const getMaterialsForJob = async (jobId: string): Promise<JobMaterial[]> => {
-    return Promise.resolve(jobMaterials.filter(m => m.jobId === jobId));
-}
+  return Promise.resolve(jobMaterials.filter((m) => m.jobId === jobId));
+};
+
+/* ---------------------------------------------
+ Full quote details (overzicht + webhook)
+--------------------------------------------- */
 
 export const getFullQuoteDetails = async (quoteId: string) => {
-    const quote = await getQuoteById(quoteId);
-    if (!quote) return null;
+  const quote = await getQuoteById(quoteId);
+  if (!quote) return null;
 
-    // Client is now part of the quote document, so we don't need a separate fetch.
-    const client: Client = {
-        id: 'temp-client-id', // This is temporary, as we don't store clients separately anymore
-        userId: quote.userId,
-        naam: quote.clientName,
-        email: quote.email,
-        telefoon: quote.phone,
-        adres: `${quote.billingStreet} ${quote.billingHouseNumber}`,
-        postcode: quote.billingPostcode,
-        plaats: quote.billingCity || '',
-        createdAt: (quote.createdAt as unknown as Date).toISOString(),
-    };
+  // ✅ NIEUWE structuur: alles uit quote.klantinformatie
+  const ki: any = (quote as any).klantinformatie;
 
-    const quoteJobs = await getJobsForQuote(quoteId);
+  const factuur = ki?.factuuradres;
+  const clientNaam =
+    ki?.klanttype === 'Zakelijk'
+      ? (ki?.bedrijfsnaam || `${ki?.voornaam || ''} ${ki?.achternaam || ''}`.trim())
+      : `${ki?.voornaam || ''} ${ki?.achternaam || ''}`.trim();
 
-    const jobsWithMaterials = await Promise.all(
-        quoteJobs.map(async (job) => {
-            const materials = await getMaterialsForJob(job.id);
-            return { ...job, materials };
-        })
-    );
+  const client: Client = {
+    id: 'temp-client-id',
+    userId: (quote as any).userId,
+    naam: clientNaam,
+    email: ki?.['e-mailadres'] || '',
+    telefoon: ki?.telefoonnummer || '',
+    adres: `${factuur?.straat || ''} ${factuur?.huisnummer || ''}`.trim(),
+    postcode: factuur?.postcode || '',
+    plaats: factuur?.plaats || '',
+    createdAt: (quote as any).createdAt?.toISOString
+      ? (quote as any).createdAt.toISOString()
+      : new Date().toISOString(),
+  };
 
-    return {
-        quote,
-        client,
-        jobs: jobsWithMaterials,
-    };
-}
+  const quoteJobs = await getJobsForQuote(quoteId);
+
+  const jobsWithMaterials = await Promise.all(
+    quoteJobs.map(async (job) => {
+      const materials = await getMaterialsForJob(job.id);
+      return { ...job, materials };
+    })
+  );
+
+  return {
+    quote,
+    client,
+    jobs: jobsWithMaterials,
+  };
+};

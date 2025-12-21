@@ -14,20 +14,32 @@ import {
 } from 'firebase/firestore';
 import { initializeFirebaseServer } from '@/firebase/server';
 
+/* ---------------------------------------------
+ Schema
+--------------------------------------------- */
+
 const QuoteFormSchema = z.object({
   werkomschrijving: z.string().min(1).max(800),
   userId: z.string(),
+
+  // Klanttype en naam
   clientType: z.enum(['particulier', 'zakelijk']),
   bedrijfsnaam: z.string().optional(),
   contactpersoon: z.string().optional(),
   voornaam: z.string().min(1),
   achternaam: z.string().min(1),
+
+  // Contactgegevens
   email: z.string().email(),
   telefoon: z.string().min(1),
+
+  // Factuuradres / hoofdadres
   straat: z.string().min(1),
-  huisnummer: z.string().min(1),
+  huisnummer: z.string().min(1), // incl. toevoeging
   postcode: z.string().min(1),
-  plaats: z.string().min(1).optional(),
+  plaats: z.string().optional(),
+
+  // Afwijkend projectadres
   afwijkendProjectadres: z.preprocess((val) => val === 'on', z.boolean()).optional(),
   projectStraat: z.string().optional(),
   projectHuisnummer: z.string().optional(),
@@ -40,6 +52,10 @@ type CreateQuoteState = {
   message?: string | null;
   redirect?: string | null;
 };
+
+/* ---------------------------------------------
+ Offerte aanmaken
+--------------------------------------------- */
 
 export async function createQuoteAction(formData: FormData): Promise<CreateQuoteState> {
   const { firestore } = initializeFirebaseServer();
@@ -55,17 +71,21 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   const {
     userId,
     werkomschrijving,
+
     clientType,
     bedrijfsnaam,
     contactpersoon,
     voornaam,
     achternaam,
+
     email,
     telefoon,
+
     straat,
     huisnummer,
     postcode,
     plaats,
+
     afwijkendProjectadres,
     projectStraat,
     projectHuisnummer,
@@ -73,30 +93,49 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
     projectPlaats,
   } = validatedFields.data;
 
+  // Alles wat “klantinformatie” is gaat in één map: klantinformatie
+  // Velden zijn Nederlands en volgen de UI-namen.
   const quoteData = {
     userId,
     status: 'concept' as const,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-    clientType: (clientType === 'particulier' ? 'Particulier' : 'Zakelijk') as 'Particulier' | 'Zakelijk',
-    companyName: bedrijfsnaam || null,
-    contactPerson: contactpersoon || null,
-    firstName: voornaam,
-    lastName: achternaam,
-    email,
-    phone: telefoon,
-    billingStreet: straat,
-    billingHouseNumber: huisnummer,
-    billingPostcode: postcode,
-    billingCity: plaats || null,
-    hasDifferentProjectAddress: afwijkendProjectadres || false,
-    projectStreet: projectStraat || null,
-    projectHouseNumber: projectHuisnummer || null,
-    projectPostcode: projectPostcode || null,
-    projectCity: projectPlaats || null,
-    shortDescription: werkomschrijving,
-    clientName: clientType === 'zakelijk' ? bedrijfsnaam || `${voornaam} ${achternaam}` : `${voornaam} ${achternaam}`,
-    title: werkomschrijving,
+
+    // Offerte meta
+    werkomschrijving,
+    titel: werkomschrijving,
+
+    // ✅ Nieuwe structuur
+    klantinformatie: {
+      klanttype: clientType === 'particulier' ? 'Particulier' : 'Zakelijk',
+
+      // Klanttype en naam
+      bedrijfsnaam: bedrijfsnaam || null,
+      contactpersoon: contactpersoon || null,
+      voornaam,
+      achternaam,
+
+      // Contactgegevens
+      'e-mailadres': email,
+      telefoonnummer: telefoon,
+
+      // Factuuradres / hoofdadres
+      factuuradres: {
+        straat,
+        huisnummer, // huisnummer + toev.
+        postcode,
+        plaats: plaats || null,
+      },
+
+      // Afwijkend projectadres
+      afwijkendProjectadres: afwijkendProjectadres || false,
+      projectadres: {
+        straat: projectStraat || null,
+        huisnummer: projectHuisnummer || null,
+        postcode: projectPostcode || null,
+        plaats: projectPlaats || null,
+      },
+    },
   };
 
   try {
@@ -109,7 +148,15 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
   }
 }
 
-export async function createJobAction(quoteId: string, categorie: JobCategory, omschrijving: string) {
+/* ---------------------------------------------
+ Klus aanmaken
+--------------------------------------------- */
+
+export async function createJobAction(
+  quoteId: string,
+  categorie: JobCategory,
+  omschrijving: string
+) {
   const { redirect } = await import('next/navigation');
   const { firestore } = initializeFirebaseServer();
 
@@ -133,6 +180,10 @@ export async function createJobAction(quoteId: string, categorie: JobCategory, o
   }
 }
 
+/* ---------------------------------------------
+ Klus updaten
+--------------------------------------------- */
+
 const JobDetailsSchema = z.object({
   subcategorie: z.string().optional(),
   lengteMm: z.coerce.number().optional(),
@@ -144,6 +195,7 @@ const JobDetailsSchema = z.object({
 
 export async function updateJobAction(quoteId: string, jobId: string, formData: FormData) {
   const { redirect } = await import('next/navigation');
+
   const validatedFields = JobDetailsSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!validatedFields.success) {
     return { errors: validatedFields.error.flatten().fieldErrors };
@@ -159,6 +211,10 @@ export async function updateJobAction(quoteId: string, jobId: string, formData: 
   revalidatePath(`/offertes/${quoteId}`);
   redirect(`/offertes/${quoteId}`);
 }
+
+/* ---------------------------------------------
+ Wanden keuze opslaan
+--------------------------------------------- */
 
 export async function updateWandenKeuzeAction(
   quoteId: string,
@@ -189,6 +245,10 @@ export async function updateWandenKeuzeAction(
     return { message: 'Database Fout: Wanden keuze kon niet worden opgeslagen.' };
   }
 }
+
+/* ---------------------------------------------
+ Offerte versturen
+--------------------------------------------- */
 
 export async function submitQuoteAction(quoteId: string) {
   const { redirect } = await import('next/navigation');
