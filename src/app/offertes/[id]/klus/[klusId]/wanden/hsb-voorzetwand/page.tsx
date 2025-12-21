@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -17,18 +16,17 @@ import { Progress } from '@/components/ui/progress';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 
-// 🔧 Firestore imports (pas evt. het db-importpad aan naar jouw project)
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
-type Wall = {
+type WandForm = {
   lengte: string;
   hoogte: string;
   balkafstand: string;
   opmerkingen: string;
 };
 
-type SavedWall = {
+type OpgeslagenWand = {
   wandNummer: number;
   lengteMm: number;
   hoogteMm: number;
@@ -36,16 +34,16 @@ type SavedWall = {
   opmerkingen: string;
 };
 
-const defaultWallState: Wall = {
+const standaardWand: WandForm = {
   lengte: '',
   hoogte: '',
   balkafstand: '600',
   opmerkingen: '',
 };
 
-function toIntOrNull(value: string): number | null {
-  if (!value) return null;
-  const n = Number(value);
+function toIntOrNull(waarde: string): number | null {
+  if (!waarde) return null;
+  const n = Number(waarde);
   if (!Number.isFinite(n)) return null;
   return Math.trunc(n);
 }
@@ -63,7 +61,9 @@ export default function HsbWandPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [walls, setWalls] = useState<Wall[]>([defaultWallState]);
+  const [wanden, setWanden] = useState<WandForm[]>([standaardWand]);
+
+  const opslagSleutel = `quote-${quoteId}-klus-${klusId}-hsb-wand`;
 
   // 1) Quote ophalen (voor header etc.)
   useEffect(() => {
@@ -77,10 +77,10 @@ export default function HsbWandPage() {
     fetchQuote();
   }, [quoteId]);
 
-  // 2) Prefill: eerst Firestore (bron van waarheid), anders localStorage fallback
+  // 2) Prefill: Firestore = bron van waarheid, anders localStorage fallback
   useEffect(() => {
     async function prefill() {
-      if (!quoteId || !firestore) return;
+      if (!quoteId || !klusId || !firestore) return;
 
       // Firestore proberen
       try {
@@ -89,34 +89,34 @@ export default function HsbWandPage() {
 
         if (snap.exists()) {
           const data = snap.data() as any;
-          const saved = data?.jobData?.wanden?.hsbWand?.wanden as SavedWall[] | undefined;
+
+          // ✅ LEES UIT DEZELFDE PLEK ALS WAAR JE OPSLAAT
+          const saved = data?.klussen?.[klusId]?.maatwerk as OpgeslagenWand[] | undefined;
 
           if (Array.isArray(saved) && saved.length > 0) {
-            const mapped: Wall[] = saved.map((w) => ({
+            const mapped: WandForm[] = saved.map((w) => ({
               lengte: String(w?.lengteMm ?? ''),
               hoogte: String(w?.hoogteMm ?? ''),
               balkafstand: String(w?.balkafstandMm ?? '600'),
               opmerkingen: String(w?.opmerkingen ?? ''),
             }));
 
-            setWalls(mapped);
-            // ook localStorage synchroniseren (handig bij refresh/offline)
-            localStorage.setItem(`quote-${quoteId}-hsb-wand`, JSON.stringify(mapped));
+            setWanden(mapped);
+            localStorage.setItem(opslagSleutel, JSON.stringify(mapped));
             return;
           }
         }
       } catch (e) {
-        // Stil falen -> we proberen localStorage
         console.error('Prefill Firestore mislukt:', e);
       }
 
-      // localStorage fallback
-      const savedWalls = localStorage.getItem(`quote-${quoteId}-hsb-wand`);
+      // localStorage fallback (ook klusId-scoped)
+      const savedWalls = localStorage.getItem(opslagSleutel);
       if (savedWalls) {
         try {
           const parsedWalls = JSON.parse(savedWalls);
           if (Array.isArray(parsedWalls) && parsedWalls.length > 0) {
-            setWalls(parsedWalls);
+            setWanden(parsedWalls);
           }
         } catch (e) {
           console.error('Failed to parse walls from localStorage', e);
@@ -124,26 +124,24 @@ export default function HsbWandPage() {
       }
     }
 
-    if (firestore) {
-        prefill();
-    }
-  }, [quoteId, firestore]);
+    prefill();
+  }, [quoteId, klusId, firestore]); // ✅ klusId toegevoegd
 
   const handleAddWall = () => {
-    setWalls((prev) => {
+    setWanden((prev) => {
       const last = prev[prev.length - 1];
-      const newWall: Wall = {
+      const nieuweWand: WandForm = {
         lengte: '',
         hoogte: '',
         balkafstand: last ? last.balkafstand : '600',
         opmerkingen: '',
       };
-      return [...prev, newWall];
+      return [...prev, nieuweWand];
     });
   };
 
   const handleRemoveWall = (index: number) => {
-    if (walls.length <= 1) {
+    if (wanden.length <= 1) {
       toast({
         variant: 'destructive',
         title: 'Kan niet verwijderen',
@@ -151,25 +149,25 @@ export default function HsbWandPage() {
       });
       return;
     }
-    const newWalls = walls.filter((_, i) => i !== index);
-    setWalls(newWalls);
+    setWanden((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleWallChange = (index: number, field: keyof Wall, value: string) => {
-    setWalls((prev) => prev.map((wall, i) => (i === index ? { ...wall, [field]: value } : wall)));
+  const handleWallChange = (index: number, field: keyof WandForm, value: string) => {
+    setWanden((prev) => prev.map((wand, i) => (i === index ? { ...wand, [field]: value } : wand)));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'e' || e.key === 'E') {
-      e.preventDefault();
-    }
+    if (e.key === 'e' || e.key === 'E') e.preventDefault();
   };
 
-  const isNextDisabled = saving || walls.some((wall) => !wall.lengte || !wall.hoogte);
+  const isNextDisabled = saving || wanden.some((w) => !w.lengte || !w.hoogte);
 
   async function saveToFirestoreOrThrow() {
-    // Validatie + mapping naar nette Firestore-structuur: "Wand 1", "Wand 2" etc.
-    const mapped: SavedWall[] = walls.map((w, idx) => {
+    if (!firestore) throw new Error('Firestore ontbreekt.');
+    if (!quoteId) throw new Error('quoteId ontbreekt.');
+    if (!klusId) throw new Error('klusId ontbreekt in de URL.');
+
+    const mapped: OpgeslagenWand[] = wanden.map((w, idx) => {
       const lengte = toIntOrNull(w.lengte);
       const hoogte = toIntOrNull(w.hoogte);
       const balkafstand = toIntOrNull(w.balkafstand) ?? 600;
@@ -189,20 +187,17 @@ export default function HsbWandPage() {
 
     const ref = doc(firestore, 'quotes', quoteId);
 
-    if (!klusId) {
-      throw new Error('klusId ontbreekt in de URL.');
-    }
-    
+    // ✅ Alleen deze subpath updaten (geen overwrites van andere job-data)
     await updateDoc(ref, {
       [`klussen.${klusId}.maatwerk`]: mapped,
+      [`klussen.${klusId}.updatedAt`]: new Date(),
     });
-    
   }
 
   const handleSubmit = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
 
-    if (walls.some((wall) => !wall.lengte || !wall.hoogte)) {
+    if (wanden.some((w) => !w.lengte || !w.hoogte)) {
       toast({
         variant: 'destructive',
         title: 'Ontbrekende gegevens',
@@ -214,13 +209,9 @@ export default function HsbWandPage() {
     setSaving(true);
 
     try {
-      // 1) localStorage bewaren (snelle UX)
-      localStorage.setItem(`quote-${quoteId}-hsb-wand`, JSON.stringify(walls));
-
-      // 2) Firestore bewaren (echte bron van waarheid)
+      localStorage.setItem(opslagSleutel, JSON.stringify(wanden));
       await saveToFirestoreOrThrow();
 
-      // 3) Next step
       router.push(`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand/materialen`);
     } catch (e: any) {
       console.error(e);
@@ -232,7 +223,7 @@ export default function HsbWandPage() {
       setSaving(false);
     }
   };
-  
+
   const progressValue = (4 / 6) * 100;
 
   return (
@@ -240,7 +231,7 @@ export default function HsbWandPage() {
       <header className="sticky top-0 z-10 grid h-auto w-full grid-cols-3 items-center border-b bg-background/95 px-4 pt-3 pb-2 backdrop-blur-sm sm:px-6">
         <div className="flex items-center justify-start">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-            <Link href={`/offertes/${quoteId}/klus/wanden`}>
+            <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden`}>
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Terug</span>
             </Link>
@@ -248,12 +239,16 @@ export default function HsbWandPage() {
         </div>
 
         <div className="text-center flex flex-col items-center">
-            <h1 className="font-semibold text-lg">HSB Wand</h1>
-            <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
+          <h1 className="font-semibold text-lg">HSB Wand</h1>
+          <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
         </div>
 
         <div className="flex items-center justify-end">
-          {loading ? <div className="h-4 bg-muted rounded w-32 animate-pulse"></div> : quote ? <p className="text-sm text-muted-foreground truncate"></p> : null}
+          {loading ? (
+            <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+          ) : quote ? (
+            <p className="text-sm text-muted-foreground truncate"></p>
+          ) : null}
         </div>
       </header>
 
@@ -261,7 +256,7 @@ export default function HsbWandPage() {
         <div className="max-w-2xl mx-auto w-full">
           <form>
             <div className="space-y-6">
-              {walls.map((wall, index) => (
+              {wanden.map((wand, index) => (
                 <Card key={index}>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
@@ -293,7 +288,7 @@ export default function HsbWandPage() {
                           type="number"
                           placeholder="Bijv. 5000"
                           required
-                          value={wall.lengte}
+                          value={wand.lengte}
                           onChange={(e) => handleWallChange(index, 'lengte', e.target.value)}
                           onKeyDown={handleKeyDown}
                           disabled={saving}
@@ -307,7 +302,7 @@ export default function HsbWandPage() {
                           type="number"
                           placeholder="Bijv. 2600"
                           required
-                          value={wall.hoogte}
+                          value={wand.hoogte}
                           onChange={(e) => handleWallChange(index, 'hoogte', e.target.value)}
                           onKeyDown={handleKeyDown}
                           disabled={saving}
@@ -321,7 +316,7 @@ export default function HsbWandPage() {
                         id={`balkafstand-${index}`}
                         type="number"
                         placeholder="Bijv. 600"
-                        value={wall.balkafstand}
+                        value={wand.balkafstand}
                         onChange={(e) => handleWallChange(index, 'balkafstand', e.target.value)}
                         onKeyDown={handleKeyDown}
                         disabled={saving}
@@ -331,11 +326,13 @@ export default function HsbWandPage() {
 
                     <div className="space-y-2 pt-2">
                       <Label htmlFor={`opmerkingen-${index}`}>Extra opmerkingen (optioneel)</Label>
-                      <p className="text-xs text-muted-foreground">Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Alleen invullen bij bijzondere situaties. Meestal kun je dit leeg laten.
+                      </p>
                       <Textarea
                         id={`opmerkingen-${index}`}
                         placeholder="Bijzondere details, alleen indien nodig…"
-                        value={wall.opmerkingen}
+                        value={wand.opmerkingen}
                         onChange={(e) => handleWallChange(index, 'opmerkingen', e.target.value)}
                         disabled={saving}
                       />
@@ -352,7 +349,7 @@ export default function HsbWandPage() {
 
             <div className="mt-6 flex justify-between items-center">
               <Button variant="outline" asChild disabled={saving}>
-                <Link href={`/offertes/${quoteId}/klus/wanden`}>Terug</Link>
+                <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden`}>Terug</Link>
               </Button>
 
               <Button

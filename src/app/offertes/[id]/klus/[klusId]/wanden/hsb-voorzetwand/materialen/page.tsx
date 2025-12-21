@@ -216,7 +216,7 @@ const MateriaalKiezerModal = forwardRef<
   const [orderedMaterials, setOrderedMaterials] = useState(initialMaterials);
   const [favorieten, setFavorieten] = useState<string[]>([]);
 
-  const FAVORITES_LIMIT = 50;
+  const FAVORITES_LIMIT = 1000;
 
   // Helper functions for favorites
   const laadFavorieten = useCallback((uid: string): string[] => {
