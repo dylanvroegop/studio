@@ -263,7 +263,7 @@ export default function OverzichtPage() {
         description: 'De offerte is doorgestuurd naar verwerking.',
       });
 
-      router.push('/dashboard');
+      router.push('/landing');
     } catch (err: any) {
       console.error('Webhook error:', err);
       toast({
@@ -280,17 +280,6 @@ export default function OverzichtPage() {
     if (!firestore || !quoteId) return;
 
     try {
-      const newKlusId =
-        typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : Math.random().toString(36).slice(2);
-
-      const ref = doc(firestore, 'quotes', quoteId);
-      await updateDoc(ref, {
-        activeKlusId: newKlusId,
-        activeKlusSlug: 'hsb-wand',
-        activeKlusType: 'wanden',
-      });
 
       router.push(`/offertes/${quoteId}/klus/nieuw`);
     } catch (err) {
