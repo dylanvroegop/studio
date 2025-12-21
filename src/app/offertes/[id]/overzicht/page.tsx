@@ -45,8 +45,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 function humanizeJobKey(jobKey: string): string {
   switch (jobKey) {
-    case 'hsb-wand':
-      return 'HSB wand';
+    case 'hsb-voorzetwand':
+      return 'HSB voorzetwand';
       
   }
 }
@@ -138,14 +138,18 @@ export default function OverzichtPage() {
         setQuote(data);
         const extractedJobs: Job[] = [];
 
-        if (data.jobs) {
-          for (const klusId in data.jobs) {
-            const container: any = (data.jobs as any)[klusId];
+        if (data.klussen) {
+          for (const klusId in data.klussen) {
+            const container: any = (data.klussen as any)[klusId];
         
-            // pak de echte jobKey binnen deze klus (bv "hsb-wand")
             const jobKey = Object.keys(container || {}).find(
-              (k) => k !== 'meta' && k !== 'updatedAt' && k !== 'createdAt'
+              (k) =>
+                k !== 'meta' &&
+                k !== 'updatedAt' &&
+                k !== 'createdAt' &&
+                k !== 'klusinformatie'
             );
+            
         
             if (!jobKey) continue;
         
@@ -361,7 +365,7 @@ export default function OverzichtPage() {
                           Onvolledig
                         </span>
                       )}
-                      <Link href={`/offertes/${quoteId}/klus/${job.id}/wanden/hsb-wand`} prefetch={false}>
+                      <Link href={`/offertes/${quoteId}/klus/${klus.id}/wanden/hsb-voorzetwand`} prefetch={false}>
   <Button variant="outline" size="sm">
     Bewerken
   </Button>
