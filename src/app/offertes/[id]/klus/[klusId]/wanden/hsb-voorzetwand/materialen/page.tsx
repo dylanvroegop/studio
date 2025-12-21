@@ -517,7 +517,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
             <p
               className={cn(
                 'font-medium break-words leading-tight',
-                geselecteerdMateriaalId === materiaal.id && 'text-primary'
+                geselecteerdMateriaalId === materiaal.id && 'font-semibold'
               )}
             >
               {materiaal.materiaalnaam}
@@ -721,20 +721,18 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
               </div>
 
               <div className="overflow-y-auto flex-1 mt-4 max-h-[calc(80vh-200px)]">
-                <ul className="divide-y divide-border">
-                  {gefilterdeMaterialen.favorieteResultaten.length > 0 && (
-                    <>
-                      <li className="px-4 py-2 bg-muted/50 font-semibold text-sm sticky top-0">
-                        Favorieten
-                      </li>
-                      {renderMaterialList(gefilterdeMaterialen.favorieteResultaten)}
-                      {gefilterdeMaterialen.overigeResultaten.length > 0 && (
-                        <li className="py-2">
-                          <Separator />
-                        </li>
-                      )}
-                    </>
-                  )}
+  <ul className="divide-y divide-border">
+    {gefilterdeMaterialen.favorieteResultaten.length > 0 && (
+      <>
+        {renderMaterialList(gefilterdeMaterialen.favorieteResultaten)}
+
+        {gefilterdeMaterialen.overigeResultaten.length > 0 && (
+          <li className="py-2">
+            <Separator />
+          </li>
+        )}
+      </>
+    )}
 
                   {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
 
@@ -820,6 +818,12 @@ export default function HsbWandMaterialenPage() {
   const userHeeftPresetGewijzigdRef = useRef(false);
   const isHydratingRef = useRef(true);
 
+  // ✅ nieuw: detecteer of DB al iets heeft (dan NIET auto-standaard toepassen)
+  const hasSavedConfigRef = useRef(false);
+
+  // ✅ nieuw: 1x automatisch de standaard preset toepassen (alleen bij lege klus)
+  const autoApplyDefaultPresetRef = useRef(false);
+
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections((prev) => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
   };
@@ -891,13 +895,6 @@ export default function HsbWandMaterialenPage() {
           .filter((p) => p.jobType === JOB_KEY);
 
         setPresets(fetched);
-
-        // default preset ID klaarzetten (maar NIET forceren als DB al werkwijze heeft)
-        const defaultPreset = fetched.find((p) => p.isDefault);
-        if (defaultPreset) {
-          // alleen als user nog niet heeft gekozen + we nog aan het hydraten zijn
-          // daadwerkelijke keuze wordt verderop bepaald door DB werkwijze
-        }
       } catch (serverError) {
         const permissionError = new FirestorePermissionError({
           path: 'presets',
@@ -931,6 +928,17 @@ export default function HsbWandMaterialenPage() {
         const werkw: FirestoreWerkwijzePayload | undefined = klusNode?.werkwijze;
         const km: KleinMateriaalConfig | null | undefined = klusNode?.kleinMateriaal;
 
+        const rawSelections =
+          mat?.selections && typeof mat.selections === 'object' ? mat.selections : {};
+        const rawExtra = Array.isArray(mat?.extraMaterials) ? mat!.extraMaterials : [];
+
+        // ✅ bepaal of dit klusje al "iets" heeft opgeslagen
+        const hasSelections = Object.keys(rawSelections || {}).length > 0;
+        const hasExtra = Array.isArray(rawExtra) && rawExtra.length > 0;
+        const hasKleinMateriaal = !!km;
+        const hasWerkwijze = !!(werkw?.workMethodId);
+        hasSavedConfigRef.current = hasSelections || hasExtra || hasKleinMateriaal || hasWerkwijze;
+
         // werkmethode select in UI (DB leidend)
         const workMethodId = werkw?.workMethodId ?? null;
         if (workMethodId) {
@@ -946,20 +954,11 @@ export default function HsbWandMaterialenPage() {
           setKleinMateriaalConfig({ mode: 'percentage', percentage: 5, fixedAmount: null });
         }
 
-        // selections + extras
-        const rawSelections = mat?.selections && typeof mat.selections === 'object' ? mat.selections : {};
-        const rawExtra = Array.isArray(mat?.extraMaterials) ? mat!.extraMaterials : [];
-        const rawCollapsed = (klusNode?.materialen?.collapsedSections || klusNode?.collapsedSections) ?? null;
-
         // collapsed sections (optioneel)
+        const rawCollapsed = (klusNode?.materialen?.collapsedSections || klusNode?.collapsedSections) ?? null;
         if (rawCollapsed && typeof rawCollapsed === 'object') {
           setCollapsedSections(rawCollapsed);
         }
-
-        // selections kunnen alleen gemapt worden zodra alleMaterialen geladen zijn
-        // -> we bewaren raw in ref en mappen in aparte effect
-        (hydrateFromDb as any)._rawSelections = rawSelections;
-        (hydrateFromDb as any)._rawExtra = rawExtra;
 
         // markeer hydrating klaar (maar mapping gebeurt later)
         isHydratingRef.current = false;
@@ -976,7 +975,6 @@ export default function HsbWandMaterialenPage() {
   useEffect(() => {
     if (!alleMaterialen || alleMaterialen.length === 0) return;
 
-    // probeer raw selections uit hydrate effect te pakken
     const rawSelections = ((
       ((): any => null) as any
     ) as any);
@@ -997,6 +995,15 @@ export default function HsbWandMaterialenPage() {
 
         const selections = mat?.selections && typeof mat.selections === 'object' ? mat.selections : {};
         const extra = Array.isArray(mat?.extraMaterials) ? mat!.extraMaterials : [];
+
+        const heeftSelections = Object.keys(selections || {}).length > 0;
+const heeftExtra = Array.isArray(extra) && extra.length > 0;
+
+// ✅ Als DB leeg is (nieuwe klus), NIET overschrijven (anders wipe je de preset apply)
+if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) {
+  return;
+}
+
 
         const toegestaneKeys = new Set(sectieSleutels);
 
@@ -1048,7 +1055,34 @@ export default function HsbWandMaterialenPage() {
     // alleen opnieuw mappen als materialen veranderen of klus/quote wisselt
   }, [alleMaterialen, firestore, quoteId, klusId]);
 
-  // Preset toepassen (alleen als user actief preset kiest)
+  // ✅ NIEUW: als deze klus nog leeg is, selecteer automatisch de standaard preset (en pas toe)
+  useEffect(() => {
+    if (isPresetsLaden) return;
+    if (!presets || presets.length === 0) return;
+
+    // niet auto-doen als user al iets heeft gedaan
+    if (userHeeftPresetGewijzigdRef.current) return;
+
+    // wacht tot hydraten klaar is
+    if (isHydratingRef.current) return;
+
+    // als DB al iets had, nooit auto-standaard forceren
+    if (hasSavedConfigRef.current) return;
+
+    // alleen als we nog op "Nieuw" staan
+    if (gekozenPresetId !== 'default') return;
+
+    const defaultPreset =
+      presets.find((p) => p.isDefault) ||
+      presets.find((p) => (p.name || '').toLowerCase().includes('standaard'));
+
+    if (!defaultPreset) return;
+
+    autoApplyDefaultPresetRef.current = true;
+    setGekozenPresetId(defaultPreset.id);
+  }, [isPresetsLaden, presets, gekozenPresetId]);
+
+  // Preset toepassen (alleen als user actief preset kiest OF auto-standaard bij lege klus)
   useEffect(() => {
     if (gekozenPresetId === 'default') {
       // Alleen resetten als user actief “Nieuw” kiest (niet tijdens hydraten)
@@ -1061,11 +1095,20 @@ export default function HsbWandMaterialenPage() {
       return;
     }
 
+    // ✅ WACHT tot materialen geladen zijn, anders "apply" je een lege preset
+if (!alleMaterialen || alleMaterialen.length === 0) return;
+
+
     const preset = presets.find((p) => p.id === gekozenPresetId);
     if (!preset) return;
 
     // Als dit initieel uit DB komt (hydraten), NIET overschrijven met preset slots.
-    if (!userHeeftPresetGewijzigdRef.current && isHydratingRef.current === false) {
+    // ✅ behalve als we auto-standaard toepassen op een lege klus.
+    if (
+      !userHeeftPresetGewijzigdRef.current &&
+      isHydratingRef.current === false &&
+      !autoApplyDefaultPresetRef.current
+    ) {
       // DB heeft een presetId gezet, maar selections blijven leidend.
       return;
     }
@@ -1087,11 +1130,17 @@ export default function HsbWandMaterialenPage() {
     setKleinMateriaalConfig(
       (preset as any).kleinMateriaalConfig || { mode: 'percentage', percentage: 5, fixedAmount: null }
     );
+
+    // ✅ na 1x auto-apply weer uitzetten
+    if (autoApplyDefaultPresetRef.current) {
+      autoApplyDefaultPresetRef.current = false;
+    }
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Wanneer user preset dropdown wijzigt, markeer
   const onPresetChange = (value: string) => {
     userHeeftPresetGewijzigdRef.current = true;
+    autoApplyDefaultPresetRef.current = false;
     setGekozenPresetId(value);
   };
 
@@ -1158,7 +1207,7 @@ export default function HsbWandMaterialenPage() {
 
     const slots: Record<string, string> = {};
     for (const key of Object.keys(gekozenMaterialen || {})) {
-      const materiaal = gekozenMaterialen[key];
+      const materiaal = (gekozenMaterialen as any)[key];
       if (materiaal?.id) slots[key] = materiaal.id;
     }
 
