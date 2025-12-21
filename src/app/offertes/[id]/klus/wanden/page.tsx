@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRef, useEffect, useMemo, useState, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -12,7 +11,7 @@ import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
 
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
 type Subcategory = {
@@ -32,7 +31,13 @@ export default function WandenPage() {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // UI pending state (React transition)
   const [isPending, startTransition] = useTransition();
+
+  // ✅ HARD LOCK tegen dubbel klikken (maakt 2+ klusId's onmogelijk)
+  const klusAanmakenRef = useRef(false);
+  const [isKlusAanmaken, setIsKlusAanmaken] = useState(false);
 
   useEffect(() => {
     async function fetchQuote() {
@@ -47,18 +52,66 @@ export default function WandenPage() {
 
   const subcategories: Subcategory[] = useMemo(
     () => [
-      { name: 'Wanden', title: 'HSB Voorzetwand', description: 'Enkelzijdig bekleed', icon: 'wall', slug: 'hsb-voorzetwand', href: `/offertes/${quoteId}/klus/wanden/hsb-wand` },
-      { name: 'Wanden', title: 'Metalstud Voorzetwand', description: 'Enkelzijdig bekleed', icon: 'wall', slug: 'metalstud-voorzetwand', href: `/offertes/${quoteId}/klus/wanden/metalstud-wand` },
-      { name: 'Wanden', title: 'HSB Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', slug: 'hsb-tussenwand', href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand` },
-      { name: 'Wanden', title: 'Metalstud Tussenwand', description: 'Dubbelzijdig bekleed', icon: 'wall', slug: 'metalstud-tussenwand', href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand` },
-      { name: 'Wanden', title: 'HSB Buitenwand', description: 'Binnen/Buitenzijde bekleed', icon: 'wall', slug: 'hsb-buitenwand', href: `/offertes/${quoteId}/klus/wanden/hsb-buitenwand` },
-      { name: 'Wanden', title: 'Overig Wanden', description: 'Afwijkende wandopbouw', icon: 'plus', slug: 'overig-wanden', href: `/offertes/${quoteId}/klus/wanden/overig-wanden` },
+      {
+        name: 'Wanden',
+        title: 'HSB Voorzetwand',
+        description: 'Enkelzijdig bekleed',
+        icon: 'wall',
+        slug: 'hsb-voorzetwand',
+        href: `/offertes/${quoteId}/klus/wanden/hsb-wand`,
+      },
+      {
+        name: 'Wanden',
+        title: 'Metalstud Voorzetwand',
+        description: 'Enkelzijdig bekleed',
+        icon: 'wall',
+        slug: 'metalstud-voorzetwand',
+        href: `/offertes/${quoteId}/klus/wanden/metalstud-wand`,
+      },
+      {
+        name: 'Wanden',
+        title: 'HSB Tussenwand',
+        description: 'Dubbelzijdig bekleed',
+        icon: 'wall',
+        slug: 'hsb-tussenwand',
+        href: `/offertes/${quoteId}/klus/wanden/hsb-tussenwand`,
+      },
+      {
+        name: 'Wanden',
+        title: 'Metalstud Tussenwand',
+        description: 'Dubbelzijdig bekleed',
+        icon: 'wall',
+        slug: 'metalstud-tussenwand',
+        href: `/offertes/${quoteId}/klus/wanden/metalstud-tussenwand`,
+      },
+      {
+        name: 'Wanden',
+        title: 'HSB Buitenwand',
+        description: 'Binnen/Buitenzijde bekleed',
+        icon: 'wall',
+        slug: 'hsb-buitenwand',
+        href: `/offertes/${quoteId}/klus/wanden/hsb-buitenwand`,
+      },
+      {
+        name: 'Wanden',
+        title: 'Overig Wanden',
+        description: 'Afwijkende wandopbouw',
+        icon: 'plus',
+        slug: 'overig-wanden',
+        href: `/offertes/${quoteId}/klus/wanden/overig-wanden`,
+      },
     ],
     [quoteId]
   );
 
   const slaKaartOpEnNavigeer = (item: Subcategory) => {
-    if (!quoteId) return;
+    if (!quoteId || !firestore) return;
+
+    // ✅ 1e klik wint. Alle volgende kliks negeren.
+    if (klusAanmakenRef.current) return;
+
+    klusAanmakenRef.current = true;
+    setIsKlusAanmaken(true);
 
     startTransition(() => {
       (async () => {
@@ -66,28 +119,25 @@ export default function WandenPage() {
           const quoteRef = doc(firestore, 'quotes', quoteId);
 
           const nieuweKlusId =
-            (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+            typeof crypto !== 'undefined' && 'randomUUID' in crypto
               ? crypto.randomUUID()
               : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-          
-              await updateDoc(quoteRef, {
-              
-                [`klussen.${nieuweKlusId}.klusomschrijving`]: {
-                  title: item.title,
-                  type: "wanden",
-                  description: item.description,
-                },
-                
-              });
-              
-          
-              router.push(
-                `/offertes/${quoteId}/klus/${nieuweKlusId}/wanden/${item.slug}`
-              );
-              
-          
+
+          await updateDoc(quoteRef, {
+            [`klussen.${nieuweKlusId}.klusomschrijving`]: {
+              title: item.title,
+              type: 'wanden',
+              description: item.description,
+            },
+          });
+
+          router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/wanden/${item.slug}`);
         } catch (err) {
           console.error('Fout bij opslaan jobCards.wanden:', err);
+
+          // ✅ Alleen bij fout weer unlocken zodat user opnieuw kan proberen
+          klusAanmakenRef.current = false;
+          setIsKlusAanmaken(false);
         }
       })();
     });
@@ -99,7 +149,7 @@ export default function WandenPage() {
         'group h-[110px] cursor-pointer text-left transition-all duration-200 rounded-xl bg-[#131313] border shadow-soft-sm hover:scale-[1.02] active:scale-[0.98]',
         'border-[rgba(255,0,0,0.2)]',
         'hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10',
-        isPending && 'opacity-70'
+        (isPending || isKlusAanmaken) && 'opacity-70 pointer-events-none cursor-not-allowed'
       )}
     >
       <div className="w-full h-full text-left p-0">
@@ -134,7 +184,11 @@ export default function WandenPage() {
         </div>
 
         <div className="flex items-center justify-end">
-          {loading ? <div className="h-4 bg-muted rounded w-32 animate-pulse" /> : quote ? <p className="text-sm text-muted-foreground truncate" /> : null}
+          {loading ? (
+            <div className="h-4 bg-muted rounded w-32 animate-pulse" />
+          ) : quote ? (
+            <p className="text-sm text-muted-foreground truncate" />
+          ) : null}
         </div>
       </header>
 
@@ -147,7 +201,7 @@ export default function WandenPage() {
                 type="button"
                 onClick={() => slaKaartOpEnNavigeer(item)}
                 className="h-full text-left"
-                disabled={isPending}
+                disabled={isPending || isKlusAanmaken}
               >
                 {renderCardContent(item)}
               </button>

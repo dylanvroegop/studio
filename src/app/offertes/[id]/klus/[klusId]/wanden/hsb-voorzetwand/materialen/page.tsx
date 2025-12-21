@@ -545,14 +545,14 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
             <Tabs
               value={activeTab}
               onValueChange={setActiveTab}
-              className="p-6 pt-2 flex-1 flex flex-col min-h-0"
+              className="p-6 pt-2 flex flex-col"
             >
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
                 <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="eigen" className="pt-4 flex-1 space-y-4 overflow-y-auto pr-2">
+              <TabsContent value="eigen" className="pt-4 space-y-4 px-2">
                 <div className="space-y-2">
                   <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
                   <Input id="eigen-naam" value={eigenNaam} onChange={(e) => setEigenNaam(e.target.value)} />
@@ -573,8 +573,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                         <SelectItem value="stuk">stuk</SelectItem>
                         <SelectItem value="doos">doos</SelectItem>
                         <SelectItem value="set">set</SelectItem>
-                        <SelectItem value="uur">uur</SelectItem>
-                        <SelectItem value="anders">anders</SelectItem>
                       </SelectContent>
                     </Select>
                     {formErrors.eenheid && <p className="text-sm text-destructive">{formErrors.eenheid}</p>}
