@@ -125,6 +125,15 @@ export type Material = {
     updatedAt: Timestamp;
 };
 
+export type ExtraMaterial = {
+  id: string;
+  naam: string;
+  eenheid: 'm1' | 'm2' | 'm3' | 'stuk' | 'doos' | 'set' | 'uur' | 'anders';
+  prijsPerEenheid: number;
+  aantal?: number;
+  usageDescription?: string;
+};
+
 export type KleinMateriaalConfig = {
   mode: 'percentage' | 'fixed';
   percentage: number | null;
