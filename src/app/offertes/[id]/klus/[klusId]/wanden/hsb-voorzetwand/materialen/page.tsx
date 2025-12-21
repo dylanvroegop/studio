@@ -958,25 +958,35 @@ useEffect(() => {
           throw new Error('klusId ontbreekt in de URL.');
         }
         
-          
-      const jobPayload = {
-        jobKey: JOB_KEY,
-        jobType: "wanden",
-        jobSlug: JOB_KEY,
-        workMethodId: gekozenPresetId === "default" ? null : gekozenPresetId,
-        presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
-        selections: schoneSelecties,
-        extraMaterials: schoneExtra,
-        kleinMateriaal: kleinMateriaalConfig ?? null,
-        savedByUid: user.uid,
-      };
-  
-      await updateDoc(
-        ref,
-        ({
-          [`klussen.${klusId}.materialen`]: jobPayload,
-        } as any)
-      );
+        // Werkwijze (preset) los opslaan van materialen
+        const werkwijzePayload = {
+          workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
+          presetLabel: presets.find((p) => p.id === gekozenPresetId)?.name || null,
+          savedByUid: user.uid,
+        };
+        
+        // Alleen materialen-data onder `.materialen` bewaren (geen presetLabel/workMethodId hier)
+        const materialenPayload = {
+          jobKey: JOB_KEY,
+          jobType: 'wanden',
+          jobSlug: JOB_KEY,
+          selections: schoneSelecties,
+          extraMaterials: schoneExtra,
+          savedByUid: user.uid,
+        };
+        
+        // Kleinmateriaal apart opslaan (als dit per klus hoort)
+        const kleinMateriaalPayload = kleinMateriaalConfig ?? null;
+        
+        await updateDoc(
+          ref,
+          ({
+            [`klussen.${klusId}.materialen`]: materialenPayload,
+            [`klussen.${klusId}.werkwijze`]: werkwijzePayload,
+            [`klussen.${klusId}.kleinMateriaal`]: kleinMateriaalPayload,
+          } as any)
+        );
+        
       
       
       

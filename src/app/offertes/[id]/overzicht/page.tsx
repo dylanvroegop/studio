@@ -53,23 +53,22 @@ function humanizeJobKey(jobKey?: string | null): string {
 
 function resolvePresetLabelForUI(presetLabel?: string | null) {
   const v = (presetLabel ?? '').trim();
-  if (!v) return null;                 // niets gekozen -> niks tonen
-  if (v.toLowerCase() === 'nieuw') return null;  // “Nieuw” -> niks tonen
+  if (!v) return null; // niets gekozen -> niks tonen
+  if (v.toLowerCase() === 'nieuw') return null; // “Nieuw” -> niks tonen
   return v;
 }
 
-
 function jobIsComplete(job: any): boolean {
+  const selections = job?.materialen?.selections;
   const hasSelections =
-    job?.selections && Object.keys(job.selections).length > 0;
+    selections && typeof selections === 'object' && Object.keys(selections).length > 0;
 
-  const hasKleinMateriaalPreset =
-    !!job?.kleinMateriaal?.presetLabel &&
-    job.kleinMateriaal.presetLabel.toLowerCase() !== 'nieuw';
+  const presetLabel = job?.werkwijze?.presetLabel;
+  const hasWerkwijzePreset =
+    !!presetLabel && presetLabel.trim().toLowerCase() !== 'nieuw';
 
-  return hasSelections || hasKleinMateriaalPreset;
+  return hasSelections || hasWerkwijzePreset;
 }
-
 
 /* ---------------------------------------------
  Types
@@ -146,49 +145,50 @@ export default function OverzichtPage() {
 
         setQuote(data);
 
-        const extractedJobs: Job[] = [];
-
+        const extractedJobs: any[] = [];
         const klussen: any = (data as any).klussen;
 
         if (klussen && typeof klussen === 'object') {
           for (const klusId in klussen) {
             const container: any = klussen[klusId] || {};
 
-            // 1) probeer payload key te vinden (oude structuur)
-            const payloadKey = Object.keys(container).find(
-              (k) =>
-                k !== 'meta' &&
-                k !== 'updatedAt' &&
-                k !== 'createdAt' &&
-                k !== 'klusinformatie'
-            );
+            // NIEUWE structuur (jouw huidige)
+            const klusinformatie = container.klusinformatie ?? {};
+            const materialen = container.materialen ?? {};
+            const werkwijze = container.werkwijze ?? null;
+            const kleinMateriaal = container.kleinMateriaal ?? null;
+            const meta = container.meta ?? null;
 
-            // 2) als er geen payloadKey is, dan zit alles waarschijnlijk in klusinformatie (nieuwe structuur)
-            const klusinformatie = container.klusinformatie || {};
-            const payload = payloadKey ? (container[payloadKey] || {}) : klusinformatie;
-
-            // meta = titel/slug/type etc kan óf in container.meta óf in klusinformatie zitten
-            const meta = container.meta || klusinformatie || {};
-
-            // jobKey/slug: eerst uit meta/klusinformatie, anders payloadKey, anders fallback
+            // jobKey/slug/type: haal bij voorkeur uit materialen.jobKey of meta/klusinformatie
             const jobKey =
+              (materialen?.jobKey as string | undefined) ||
               (meta?.slug as string | undefined) ||
               (meta?.jobKey as string | undefined) ||
-              (payloadKey as string | undefined) ||
+              (klusinformatie?.slug as string | undefined) ||
+              (klusinformatie?.jobKey as string | undefined) ||
               'klus';
 
+            // Bouw job object dat UI overal consistent kan lezen:
+            // - job.werkwijze.presetLabel
+            // - job.materialen.selections
+            // - job.klusinformatie.title/type/description
             extractedJobs.push({
               id: klusId,
               quoteId,
               klusId,
               jobKey,
               meta,
-              ...payload,
-            } as any);
+              klusinformatie,
+              materialen,
+              werkwijze,
+              kleinMateriaal,
+              createdAt: container.createdAt ?? null,
+              updatedAt: container.updatedAt ?? null,
+            });
           }
         }
 
-        setJobs(extractedJobs);
+        setJobs(extractedJobs as any);
       } catch (err: any) {
         console.error(err);
         setError('Kon offerte niet laden.');
@@ -198,7 +198,7 @@ export default function OverzichtPage() {
     };
 
     fetchQuote();
-  }, [quoteId, firestore, user, isUserLoading, setJobs, setQuote]);
+  }, [quoteId, firestore, user, isUserLoading]);
 
   /* ---------------------------------------------
    Handlers
@@ -367,22 +367,25 @@ export default function OverzichtPage() {
 
               {jobs.map((job: any) => {
                 const title =
+                  job?.klusinformatie?.title?.trim?.() ||
                   job?.meta?.title?.trim?.() ||
-                  job?.title?.trim?.() ||
+                  job?.materialen?.jobKey?.trim?.() ||
                   humanizeJobKey(job?.jobKey);
 
-                  const preset = resolvePresetLabelForUI(
-                    (job as any)?.kleinMateriaal?.presetLabel ?? null
-                  );                  
+                const preset = resolvePresetLabelForUI(
+                  job?.werkwijze?.presetLabel ?? null
+                );
+
                 const isComplete = jobIsComplete(job);
 
-                // probeer dynamisch te bouwen (type/slug), anders fallback
                 const type =
+                  job?.klusinformatie?.type ||
+                  job?.materialen?.jobType ||
                   job?.meta?.type ||
-                  job?.meta?.activeKlusType ||
                   'wanden';
 
                 const slug =
+                  job?.materialen?.jobSlug ||
                   job?.meta?.slug ||
                   job?.jobKey ||
                   'hsb-voorzetwand';
@@ -396,9 +399,16 @@ export default function OverzichtPage() {
                   >
                     <div className="space-y-1">
                       <p className="font-medium">{title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Werkwijze: {preset}
-                      </p>
+
+                      {preset ? (
+                        <p className="text-sm text-muted-foreground">
+                          Werkwijze: {preset}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Werkwijze: —
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-4 text-sm">
