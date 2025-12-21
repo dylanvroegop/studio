@@ -31,7 +31,6 @@ import { Loader2 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
-import type { Quote } from '@/lib/types';
 
 /* ---------------------------------------------
  Validatie (alleen klantinformatie)
@@ -63,25 +62,21 @@ const KlantinformatieSchema = z.object({
 });
 
 /* ---------------------------------------------
- Helpers: geen null/undefined/"" opslaan
+ Helpers: geen lege velden opslaan
 --------------------------------------------- */
 
 function isLeeg(val: unknown) {
-  return val === undefined || val === null || (typeof val === 'string' && val.trim() === '');
+  return (
+    val === undefined ||
+    val === null ||
+    (typeof val === 'string' && val.trim() === '')
+  );
 }
 
 function schoonObject<T extends Record<string, any>>(obj: T): Partial<T> {
-  const cleaned: any = Array.isArray(obj) ? [] : {};
+  const cleaned: any = {};
   for (const [k, v] of Object.entries(obj)) {
     if (isLeeg(v)) continue;
-
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      const nested = schoonObject(v);
-      if (Object.keys(nested).length === 0) continue;
-      cleaned[k] = nested;
-      continue;
-    }
-
     cleaned[k] = v;
   }
   return cleaned;
@@ -103,7 +98,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [isPending, startTransition] = useTransition();
 
-  const [initialData, setInitialData] = useState<Partial<Quote> | null>(null);
+  const [initialKI, setInitialKI] = useState<Record<string, any> | null>(null);
   const [isLoading, setIsLoading] = useState(!!quoteId);
 
   /* ---------------------------------------------
@@ -126,10 +121,11 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           return;
         }
 
-        const data = docSnap.data() as Quote;
-        setInitialData(data);
+        const data = docSnap.data() as any;
+        const ki = (data?.klantinformatie ?? null) as any;
 
-        const ki: any = (data as any).klantinformatie;
+        setInitialKI(ki);
+
         const typeFromDb: 'particulier' | 'zakelijk' =
           ki?.klanttype === 'Zakelijk' ? 'zakelijk' : 'particulier';
 
@@ -151,8 +147,11 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
   }, [quoteId, firestore, router, toast]);
 
   /* ---------------------------------------------
-  Submit (alles IN klantinformatie, alleen createdAt buiten)
-  - Geen werkomschrijving meer
+  Submit
+  - Alles onder klantinformatie (1 map)
+  - Alleen createdAt buiten klantinformatie
+  - Geen status opslaan
+  - Als afwijkendProjectadres = false: veld + projectvelden NIET opslaan
   - Geen null/lege velden opslaan
   --------------------------------------------- */
 
@@ -205,65 +204,90 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
         projectPlaats,
       } = validated.data;
 
-      // Bouw klantinformatie (zonder null/lege velden)
+      const heeftProjectadres = !!afwijkendProjectadres;
+
+      // 1 map: klantinformatie (GEEN sub-maps zoals factuuradres)
       const klantinformatieRuw: any = {
-        // Alles in NL + exact zoals UI
+        // ownership hoort hier (regels checken hierop)
+        userId: user.uid,
+
+        // timestamps horen hier (alles behalve createdAt)
+        updatedAt: serverTimestamp(),
+
+        // velden exact NL (zoals UI)
         klanttype: klanttype === 'particulier' ? 'Particulier' : 'Zakelijk',
 
-        // Alleen voor zakelijk opslaan
         bedrijfsnaam: klanttype === 'zakelijk' ? bedrijfsnaam : undefined,
         contactpersoon: klanttype === 'zakelijk' ? contactpersoon : undefined,
 
         voornaam,
         achternaam,
 
-        'e-mailadres': emailadres,
+        emailadres,
         telefoonnummer,
 
-        factuuradres: {
-          straat,
-          huisnummer, // incl. toevoeging
-          postcode,
-          plaats,
-        },
+        straat,
+        huisnummer,
+        postcode,
+        plaats,
 
-        afwijkendProjectadres: !!afwijkendProjectadres,
-        projectadres: !!afwijkendProjectadres
-          ? {
-              straat: projectStraat,
-              huisnummer: projectHuisnummer,
-              postcode: projectPostcode,
-              plaats: projectPlaats,
-            }
-          : undefined,
+        // alleen opslaan als true
+        afwijkendProjectadres: heeftProjectadres ? true : undefined,
 
-        // Als je écht alles in klantinformatie wilt:
-        userId: user.uid,
-        status: 'concept',
-        updatedAt: serverTimestamp(),
+        // projectvelden alleen als true
+        projectStraat: heeftProjectadres ? projectStraat : undefined,
+        projectHuisnummer: heeftProjectadres ? projectHuisnummer : undefined,
+        projectPostcode: heeftProjectadres ? projectPostcode : undefined,
+        projectPlaats: heeftProjectadres ? projectPlaats : undefined,
       };
 
       const klantinformatie = schoonObject(klantinformatieRuw);
 
       try {
         if (quoteId) {
-          // Update bestaande offerte:
-          // - set klantinformatie volledig (clean)
-          // - verwijder optionele velden die leeg geworden zijn (zodat ze niet blijven hangen)
           const patch: any = {
             klantinformatie,
           };
 
-          // Als klant zakelijk -> velden mogen bestaan, anders verwijderen we ze expliciet
+          // als Particulier => zakelijke velden weg
           if (klantinformatieRuw.klanttype === 'Particulier') {
             patch['klantinformatie.bedrijfsnaam'] = deleteField();
             patch['klantinformatie.contactpersoon'] = deleteField();
           }
 
-          // Als projectadres uit staat -> projectadres verwijderen
-          if (!klantinformatieRuw.afwijkendProjectadres) {
-            patch['klantinformatie.projectadres'] = deleteField();
+          // als projectadres uit => alles weg + flag weg
+          if (!heeftProjectadres) {
+            patch['klantinformatie.afwijkendProjectadres'] = deleteField();
+            patch['klantinformatie.projectStraat'] = deleteField();
+            patch['klantinformatie.projectHuisnummer'] = deleteField();
+            patch['klantinformatie.projectPostcode'] = deleteField();
+            patch['klantinformatie.projectPlaats'] = deleteField();
           }
+
+          // zeker weten dat oude rommel niet blijft hangen
+          patch['status'] = deleteField();
+          patch['updatedAt'] = deleteField();
+          patch['userId'] = deleteField();
+
+          patch['billingStreet'] = deleteField();
+          patch['billingHouseNumber'] = deleteField();
+          patch['billingPostcode'] = deleteField();
+          patch['billingCity'] = deleteField();
+          patch['projectStreet'] = deleteField();
+          patch['projectHouseNumber'] = deleteField();
+          patch['projectPostcode'] = deleteField();
+          patch['projectCity'] = deleteField();
+          patch['clientName'] = deleteField();
+          patch['clientType'] = deleteField();
+          patch['companyName'] = deleteField();
+          patch['contactPerson'] = deleteField();
+          patch['firstName'] = deleteField();
+          patch['lastName'] = deleteField();
+          patch['email'] = deleteField();
+          patch['phone'] = deleteField();
+          patch['shortDescription'] = deleteField();
+          patch['title'] = deleteField();
+          patch['hasDifferentProjectAddress'] = deleteField();
 
           const docRef = doc(firestore, 'quotes', quoteId);
           await updateDoc(docRef, patch);
@@ -272,10 +296,9 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
             title: 'Offerte bijgewerkt',
             description: 'U wordt doorgestuurd naar de volgende stap.',
           });
-
           router.push(`/offertes/${quoteId}/klus/nieuw`);
         } else {
-          // Nieuwe offerte: alleen createdAt buiten klantinformatie
+          // nieuwe offerte: alleen createdAt buiten klantinformatie
           const fullQuoteData: any = {
             createdAt: serverTimestamp(),
             klantinformatie,
@@ -287,7 +310,6 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
             title: 'Offerte aangemaakt',
             description: 'U wordt doorgestuurd naar de volgende stap.',
           });
-
           router.push(`/offertes/${docRef.id}/klus/nieuw`);
         }
       } catch (error) {
@@ -319,13 +341,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
     );
   }
 
-  /* ---------------------------------------------
-  Defaults uit nieuwe structuur
-  --------------------------------------------- */
-
-  const ki: any = (initialData as any)?.klantinformatie;
-  const factuur: any = ki?.factuuradres;
-  const project: any = ki?.projectadres;
+  const ki = initialKI || {};
 
   return (
     <Card>
@@ -340,12 +356,8 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
 
       <CardContent>
         <form onSubmit={handleFormSubmit} className="space-y-8">
-          {/* Hidden: Switch moet als "on" meekomen voor zod preprocess */}
-          <input
-            type="hidden"
-            name="afwijkendProjectadres"
-            value={showProjectAddress ? 'on' : ''}
-          />
+          {/* Hidden: zodat Zod preprocess "on" kan lezen */}
+          <input type="hidden" name="afwijkendProjectadres" value={showProjectAddress ? 'on' : ''} />
 
           {/* Sectie 1 – Klanttype en naam */}
           <div className="space-y-4">
@@ -372,11 +384,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 <div>
                   <Label htmlFor="bedrijfsnaam">Bedrijfsnaam</Label>
-                  <Input
-                    id="bedrijfsnaam"
-                    name="bedrijfsnaam"
-                    defaultValue={ki?.bedrijfsnaam || ''}
-                  />
+                  <Input id="bedrijfsnaam" name="bedrijfsnaam" defaultValue={ki?.bedrijfsnaam || ''} />
                 </div>
 
                 <div>
@@ -393,15 +401,8 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               <div>
                 <Label htmlFor="voornaam">Voornaam *</Label>
-                <Input
-                  id="voornaam"
-                  name="voornaam"
-                  required
-                  defaultValue={ki?.voornaam || ''}
-                />
-                {errors?.voornaam && (
-                  <p className="text-sm text-destructive mt-1">{errors.voornaam[0]}</p>
-                )}
+                <Input id="voornaam" name="voornaam" required defaultValue={ki?.voornaam || ''} />
+                {errors?.voornaam && <p className="text-sm text-destructive mt-1">{errors.voornaam[0]}</p>}
               </div>
 
               <div>
@@ -433,7 +434,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                   name="emailadres"
                   type="email"
                   required
-                  defaultValue={ki?.['e-mailadres'] || ''}
+                  defaultValue={ki?.emailadres || ''}
                 />
                 {errors?.emailadres && (
                   <p className="text-sm text-destructive mt-1">{errors.emailadres[0]}</p>
@@ -458,27 +459,20 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
 
           <Separator />
 
-          {/* Sectie 3 – Adresgegevens */}
+          {/* Sectie 3 – Adresgegevens (GEEN factuuradres map) */}
           <div className="space-y-4">
             <h3 className="font-medium text-lg">Factuuradres / hoofdadres</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="md:col-span-4">
                 <Label htmlFor="straat">Straat *</Label>
-                <Input id="straat" name="straat" required defaultValue={factuur?.straat || ''} />
-                {errors?.straat && (
-                  <p className="text-sm text-destructive mt-1">{errors.straat[0]}</p>
-                )}
+                <Input id="straat" name="straat" required defaultValue={ki?.straat || ''} />
+                {errors?.straat && <p className="text-sm text-destructive mt-1">{errors.straat[0]}</p>}
               </div>
 
               <div className="md:col-span-2">
                 <Label htmlFor="huisnummer">Huisnummer + toev. *</Label>
-                <Input
-                  id="huisnummer"
-                  name="huisnummer"
-                  required
-                  defaultValue={factuur?.huisnummer || ''}
-                />
+                <Input id="huisnummer" name="huisnummer" required defaultValue={ki?.huisnummer || ''} />
                 {errors?.huisnummer && (
                   <p className="text-sm text-destructive mt-1">{errors.huisnummer[0]}</p>
                 )}
@@ -486,12 +480,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
 
               <div className="md:col-span-2">
                 <Label htmlFor="postcode">Postcode *</Label>
-                <Input
-                  id="postcode"
-                  name="postcode"
-                  required
-                  defaultValue={factuur?.postcode || ''}
-                />
+                <Input id="postcode" name="postcode" required defaultValue={ki?.postcode || ''} />
                 {errors?.postcode && (
                   <p className="text-sm text-destructive mt-1">{errors.postcode[0]}</p>
                 )}
@@ -499,10 +488,8 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
 
               <div className="md:col-span-4">
                 <Label htmlFor="plaats">Plaats</Label>
-                <Input id="plaats" name="plaats" defaultValue={factuur?.plaats || ''} />
-                {errors?.plaats && (
-                  <p className="text-sm text-destructive mt-1">{errors.plaats[0]}</p>
-                )}
+                <Input id="plaats" name="plaats" defaultValue={ki?.plaats || ''} />
+                {errors?.plaats && <p className="text-sm text-destructive mt-1">{errors.plaats[0]}</p>}
               </div>
             </div>
 
@@ -519,11 +506,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
               <div className="grid grid-cols-1 md:grid-cols-6 gap-4 pt-4 border-t border-dashed mt-4">
                 <div className="md:col-span-4">
                   <Label htmlFor="projectStraat">Projectstraat</Label>
-                  <Input
-                    id="projectStraat"
-                    name="projectStraat"
-                    defaultValue={project?.straat || ''}
-                  />
+                  <Input id="projectStraat" name="projectStraat" defaultValue={ki?.projectStraat || ''} />
                 </div>
 
                 <div className="md:col-span-2">
@@ -531,7 +514,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                   <Input
                     id="projectHuisnummer"
                     name="projectHuisnummer"
-                    defaultValue={project?.huisnummer || ''}
+                    defaultValue={ki?.projectHuisnummer || ''}
                   />
                 </div>
 
@@ -540,17 +523,13 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                   <Input
                     id="projectPostcode"
                     name="projectPostcode"
-                    defaultValue={project?.postcode || ''}
+                    defaultValue={ki?.projectPostcode || ''}
                   />
                 </div>
 
                 <div className="md:col-span-4">
                   <Label htmlFor="projectPlaats">Project plaats</Label>
-                  <Input
-                    id="projectPlaats"
-                    name="projectPlaats"
-                    defaultValue={project?.plaats || ''}
-                  />
+                  <Input id="projectPlaats" name="projectPlaats" defaultValue={ki?.projectPlaats || ''} />
                 </div>
               </div>
             )}
