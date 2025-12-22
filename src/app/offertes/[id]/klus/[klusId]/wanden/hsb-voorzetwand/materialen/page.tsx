@@ -597,7 +597,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
               className={cn(
                 'h-5 w-5',
                 isFavoriet(materiaal.id)
-                  ? 'fill-emerald-500 text-emerald-500'
+                  ? 'fill-yellow-400 text-yellow-400'
                   : 'text-muted-foreground/50 hover:text-muted-foreground'
               )}
             />
@@ -1580,7 +1580,7 @@ export default function HsbWandMaterialenPage() {
             <div className="border-t pt-4">
               <div className="flex items-center justify-between min-h-[40px]">
                 <div>
-                  <p className={cn('text-sm', gekozen1 ? 'text-muted-foreground' : 'text-emerald-500 italic')}>
+                  <p className={cn('text-sm', gekozen1 ? 'text-muted-foreground' : 'text-destructive')}>
                     {gekozen1 ? gekozen1.materiaalnaam : 'Nog geen materiaal gekozen'}
                   </p>
                 </div>
@@ -1605,7 +1605,7 @@ export default function HsbWandMaterialenPage() {
             <div className="border-t pt-4 mt-4">
               <div className="flex items-center justify-between min-h-[40px]">
                 <div>
-                  <p className={cn('text-sm', gekozen2 ? 'text-muted-foreground' : 'text-emerald-500 italic')}>
+                  <p className={cn('text-sm', gekozen2 ? 'text-muted-foreground' : 'text-destructive')}>
                     {gekozen2 ? gekozen2.materiaalnaam : 'Nog geen materiaal gekozen'}
                   </p>
                 </div>
