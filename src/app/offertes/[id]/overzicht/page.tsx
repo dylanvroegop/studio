@@ -71,23 +71,64 @@ function jobIsComplete(job: any): boolean {
   return hasSelections || hasWerkwijzePreset;
 }
 
-function toNumberOrNull(v: string) {
-  if (v === '') return null;
-  const n = Number(v);
+/* ---------------------------------------------
+ EURO input helpers (NL style)
+- Alleen cijfers + komma
+- Duizendtallen met punt
+- Max 2 decimalen
+--------------------------------------------- */
+
+function formatEuroNL(raw: string): string {
+  // 1) laat alleen cijfers en komma toe
+  let v = raw.replace(/[^\d,]/g, '');
+
+  // 2) max 1 komma
+  const firstComma = v.indexOf(',');
+  if (firstComma !== -1) {
+    const before = v.slice(0, firstComma + 1);
+    const after = v
+      .slice(firstComma + 1)
+      .replace(/,/g, ''); // alle extra komma’s weg
+    v = before + after;
+  }
+
+  // 3) split integer/decimal
+  const [intRaw, decRaw] = v.split(',');
+
+  // 4) integer: leading zeros trimmen (maar laat 0 staan)
+  let intPart = (intRaw ?? '').replace(/^0+(?=\d)/, '');
+  if (intPart === '') intPart = '0';
+
+  // 5) duizendtallen punten
+  const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  // 6) decimal: max 2
+  if (decRaw !== undefined) {
+    const dec = decRaw.slice(0, 2);
+    return `${intFormatted},${dec}`;
+  }
+
+  return intFormatted;
+}
+
+function euroNLToNumberOrNull(v: string) {
+  // "" of "0" of "1.000" of "1.000,50"
+  const s = (v ?? '').trim();
+  if (!s) return null;
+
+  // remove thousand dots, convert comma to dot
+  const normalized = s.replace(/\./g, '').replace(',', '.');
+
+  // edge: "0," or "1," -> Number("0.") ok
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 
 /* ---------------------------------------------
- UI helpers
+ UI component: € prefix that never disappears
+- We keep the value numeric-ish (no € in value)
+- Prefix is visual only
 --------------------------------------------- */
-
-function onlyDecimalInput(raw: string) {
-  // Keep digits + at most one dot. (We keep this simple; backend uses Number().)
-  const cleaned = raw.replace(/[^\d.]/g, '');
-  const parts = cleaned.split('.');
-  if (parts.length <= 2) return cleaned;
-  return parts[0] + '.' + parts.slice(1).join('');
-}
 
 function EuroInput(props: {
   value: string;
@@ -98,18 +139,30 @@ function EuroInput(props: {
   disabled?: boolean;
   id?: string;
 }) {
-  const { value, onChange, placeholder = '0,00', className, inputClassName, disabled, id } = props;
-  const [focused, setFocused] = useState(false);
+  const {
+    value,
+    onChange,
+    placeholder = '0,00',
+    className,
+    inputClassName,
+    disabled,
+    id,
+  } = props;
 
-  const hasValue = (value ?? '').trim() !== '';
-  const prefixClass = cn(
-    'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm transition-colors',
-    (focused || hasValue) ? 'text-foreground' : 'text-muted-foreground'
-  );
+  const [focused, setFocused] = useState(false);
+  const hasValue = (value ?? '').trim() !== '' && (value ?? '').trim() !== '0';
 
   return (
     <div className={cn('relative', className)}>
-      <span className={prefixClass}>€</span>
+      <span
+        className={cn(
+          'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm transition-colors',
+          focused || hasValue ? 'text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        €
+      </span>
+
       <Input
         id={id}
         type="text"
@@ -118,7 +171,7 @@ function EuroInput(props: {
         value={value}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        onChange={(e) => onChange(onlyDecimalInput(e.target.value))}
+        onChange={(e) => onChange(formatEuroNL(e.target.value))}
         placeholder={placeholder}
         className={cn('pl-7', inputClassName)}
       />
@@ -173,7 +226,7 @@ export default function OverzichtPage() {
   // Onvoorzien
   const [onvoorzien, setOnvoorzien] = useState<KleinMateriaalConfig>({
     mode: 'percentage',
-    percentage: 5,
+    percentage: 10,
     fixedAmount: null,
   });
 
@@ -271,13 +324,20 @@ export default function OverzichtPage() {
     const compleet = jobs.filter((j: any) => jobIsComplete(j)).length;
     const incompleet = Math.max(0, totaal - compleet);
 
+    const prijsPerKmNum = euroNLToNumberOrNull(prijsPerKm);
+    const vasteTransportNum = euroNLToNumberOrNull(vasteTransportkosten);
+
     const heeftTransport =
       transportMode !== 'none' &&
-      ((transportMode === 'perKm' && toNumberOrNull(prijsPerKm) !== null) ||
+      ((transportMode === 'perKm' && prijsPerKmNum !== null && prijsPerKmNum !== 0) ||
         (transportMode === 'fixed' &&
-          toNumberOrNull(vasteTransportkosten) !== null));
+          vasteTransportNum !== null &&
+          vasteTransportNum !== 0));
 
-    const heeftMaterieel = materieel.some((m) => toNumberOrNull(m.prijs) !== null);
+    const heeftMaterieel = materieel.some((m) => {
+      const n = euroNLToNumberOrNull(m.prijs);
+      return n !== null && n !== 0;
+    });
 
     return { totaal, compleet, incompleet, heeftTransport, heeftMaterieel };
   }, [jobs, transportMode, prijsPerKm, vasteTransportkosten, materieel]);
@@ -326,22 +386,15 @@ export default function OverzichtPage() {
     setIsSubmitting(true);
 
     try {
+      const prijsPerKmNum = euroNLToNumberOrNull(prijsPerKm);
+      const vasteTransportNum = euroNLToNumberOrNull(vasteTransportkosten);
+
       const transportPayload =
         transportMode === 'none'
           ? { prijsPerKm: null, vasteTransportkosten: null, mode: 'none' }
           : transportMode === 'perKm'
-          ? {
-              prijsPerKm: prijsPerKm ? Number(prijsPerKm) : null,
-              vasteTransportkosten: null,
-              mode: 'perKm',
-            }
-          : {
-              prijsPerKm: null,
-              vasteTransportkosten: vasteTransportkosten
-                ? Number(vasteTransportkosten)
-                : null,
-              mode: 'fixed',
-            };
+          ? { prijsPerKm: prijsPerKmNum, vasteTransportkosten: null, mode: 'perKm' }
+          : { prijsPerKm: null, vasteTransportkosten: vasteTransportNum, mode: 'fixed' };
 
       const response = await fetch(
         'https://n8n.dylan8n.org/webhook-test/offerte-test',
@@ -353,7 +406,10 @@ export default function OverzichtPage() {
             quote,
             extras: {
               transport: transportPayload,
-              materieel,
+              materieel: materieel.map((m) => ({
+                ...m,
+                prijs: euroNLToNumberOrNull(m.prijs), // keep numeric for backend if needed later
+              })),
               onvoorzien,
             },
             triggeredAt: new Date().toISOString(),
@@ -432,6 +488,7 @@ export default function OverzichtPage() {
     <main className="flex min-h-screen flex-col">
       <div className="flex-1 px-4 py-6 md:py-10">
         <div className="mx-auto max-w-3xl space-y-6">
+          {/* Page top row (part of page, scrolls away normally) */}
           <div className="grid grid-cols-3 items-center">
             <div>
               <Button
@@ -472,6 +529,7 @@ export default function OverzichtPage() {
             </div>
           </div>
 
+          {/* Top summary */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
@@ -549,6 +607,7 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
+          {/* Jobs */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Huidige klussen</CardTitle>
@@ -649,11 +708,13 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
+          {/* Transport (choose one) */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Transport</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Per km */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
@@ -669,7 +730,7 @@ export default function OverzichtPage() {
                   <Truck className="mr-2 h-4 w-4" /> Prijs per km
                 </h4>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Automatisch berekend op basis van ingevulde adress.
+                  Afstand automatisch berekend.
                 </p>
 
                 {transportMode === 'perKm' && (
@@ -685,6 +746,7 @@ export default function OverzichtPage() {
                 )}
               </div>
 
+              {/* Vast bedrag */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
@@ -716,6 +778,7 @@ export default function OverzichtPage() {
                 )}
               </div>
 
+              {/* Geen */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
@@ -735,6 +798,7 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
+          {/* Materieel */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Materieel</CardTitle>
@@ -772,6 +836,7 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
+          {/* Onvoorzien */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Onvoorzien</CardTitle>
@@ -784,7 +849,9 @@ export default function OverzichtPage() {
                     ? 'border-emerald-500/40 bg-emerald-500/10'
                     : 'hover:border-muted-foreground/30'
                 )}
-                onClick={() => setOnvoorzien({ ...onvoorzien, mode: 'percentage' })}
+                onClick={() =>
+                  setOnvoorzien({ ...onvoorzien, mode: 'percentage' })
+                }
                 role="button"
                 tabIndex={0}
               >
@@ -794,7 +861,6 @@ export default function OverzichtPage() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   Reken een percentage van de totale materiaalkosten.
                 </p>
-
                 {onvoorzien.mode === 'percentage' && (
                   <div className="mt-3">
                     <Label className="text-xs">Percentage</Label>
@@ -809,7 +875,7 @@ export default function OverzichtPage() {
                           })
                         }
                         inputMode="decimal"
-                        placeholder="0"
+                        placeholder=""
                       />
                       <span className="text-sm text-muted-foreground">%</span>
                     </div>
@@ -834,29 +900,33 @@ export default function OverzichtPage() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   Voeg één vast bedrag toe voor kleine/onvoorziene materialen.
                 </p>
-
                 {onvoorzien.mode === 'fixed' && (
                   <div className="mt-3">
                     <Label className="text-xs">Bedrag</Label>
                     <EuroInput
-                      value={
-                        onvoorzien.fixedAmount === null ? '' : String(onvoorzien.fixedAmount)
-                      }
-                      onChange={(v) =>
-                        setOnvoorzien({
-                          ...onvoorzien,
-                          fixedAmount: v === '' ? null : Number(v),
-                        })
-                      }
-                      className="mt-1"
-                      placeholder="0,00"
-                    />
+  value={
+    onvoorzien.fixedAmount === null
+      ? ''
+      : formatEuroNL(String(onvoorzien.fixedAmount).replace('.', ','))
+  }
+  onChange={(v) => {
+    const n = euroNLToNumberOrNull(v);
+    setOnvoorzien({
+      ...onvoorzien,
+      fixedAmount: n === null ? null : n,
+    });
+  }}
+  className="mt-1"
+  placeholder="0,00"
+/>
+
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
 
+          {/* Sticky footer CTA */}
           <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 backdrop-blur-sm">
             <div className="mx-auto max-w-3xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">
