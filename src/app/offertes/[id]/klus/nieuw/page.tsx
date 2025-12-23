@@ -6,11 +6,10 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, Check, Search } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { CategoryCard } from '@/components/category-card';
+import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
-import type { IconName } from '@/components/icons';
-import { cn } from '@/lib/utils';
+import { JobIcon, type IconName } from '@/components/icons';
 
 const categories: { name: JobCategory; description: string; icon: IconName }[] = [
   { name: 'Wanden', description: 'Binnen- en buitenwanden', icon: 'wall' },
@@ -73,6 +72,7 @@ export default function NewJobPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+
   const [zoekterm, setZoekterm] = useState('');
   const [selectedName, setSelectedName] = useState<string | null>(null);
 
@@ -99,9 +99,7 @@ export default function NewJobPage() {
     const q = zoekterm.trim().toLowerCase();
     if (!q) return categories;
     return categories.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.description.toLowerCase().includes(q)
+      (c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
     );
   }, [zoekterm]);
 
@@ -111,7 +109,7 @@ export default function NewJobPage() {
     <main className="relative min-h-screen bg-background">
       {/* Header (scrolls away) */}
       <header className="border-b bg-background/80 backdrop-blur-xl">
-      <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
             <Button asChild variant="outline" size="icon" className="h-9 w-9 rounded-xl">
               <Link href={`/offertes/${quoteId}/edit`}>
@@ -136,6 +134,11 @@ export default function NewJobPage() {
                 <StapPunt index={4} label="Materialen" />
               </div>
             </div>
+
+            {/* rechter spacer zoals bij de andere pagina's */}
+            <div className="w-9">
+              {loading ? <div className="h-9 w-9 animate-pulse rounded-xl bg-muted/30" /> : quote ? null : null}
+            </div>
           </div>
 
           <div className="mt-2 flex justify-end">
@@ -159,22 +162,36 @@ export default function NewJobPage() {
             {filteredCategories.map((category) => (
               <div
                 key={category.name}
-                className={cn(
-                  'relative rounded-2xl',
-                  selectedName === category.name && 'ring-2 ring-primary/25'
-                )}
+                className={cn('relative rounded-2xl', selectedName === category.name && 'ring-2 ring-primary/25')}
                 onPointerDown={() => setSelectedName(category.name)}
                 onPointerUp={() => setSelectedName(null)}
                 onPointerCancel={() => setSelectedName(null)}
               >
-                <CategoryCard
-                  quoteId={quoteId}
-                  category={{
-                    name: category.name,
-                    description: category.description,
-                    iconName: category.icon,
-                  }}
-                />
+                <Link
+                  href={`/offertes/${quoteId}/klus/${category.name.toLowerCase()}`}
+                  className={cn(
+                    'group relative block h-[112px] w-full overflow-hidden rounded-2xl border text-left transition-all',
+                    'bg-[#121212]/80 hover:bg-[#141414]/90',
+                    'border-primary/15 hover:border-primary/30',
+                    'shadow-sm hover:shadow-lg hover:shadow-primary/10',
+                    'active:scale-[0.99]'
+                  )}
+                >
+                  <div className="flex h-full items-center gap-4 p-5">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/15">
+                      <JobIcon name={category.icon} className="h-6 w-6 text-primary" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold text-foreground">{category.name}</div>
+                      <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">{category.description}</div>
+                    </div>
+                  </div>
+
+                  <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="absolute -inset-24 bg-[radial-gradient(700px_circle_at_0%_0%,rgba(255,0,0,0.10),transparent_45%)]" />
+                  </div>
+                </Link>
               </div>
             ))}
           </div>
