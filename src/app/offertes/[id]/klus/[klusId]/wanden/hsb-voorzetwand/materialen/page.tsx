@@ -22,6 +22,7 @@ import {
   Star,
   Loader2,
   Pencil,
+  Check,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -91,7 +92,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
 
 // ==================================
 // Definities
@@ -143,16 +143,54 @@ type FirestoreWerkwijzePayload = {
 };
 
 // ==================================
-// UI helpers (groen thema per pagina)
+// UI helpers (alleen "Volgende" groen)
 // ==================================
 const POSITIVE_BTN =
-  'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600';
-const POSITIVE_GHOST =
-  'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10';
-const POSITIVE_RING =
-  'focus-visible:ring-emerald-600 focus-visible:ring-offset-0';
-const POSITIVE_BORDER = 'border-emerald-600';
-const POSITIVE_BG = 'bg-emerald-500/10';
+  'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600 focus-visible:ring-offset-0';
+
+// ==================================
+// Header stap punt
+// ==================================
+function StapPunt({
+  index,
+  label,
+  actief,
+  klaar,
+}: {
+  index: number;
+  label: string;
+  actief?: boolean;
+  klaar?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <div
+        className={cn(
+          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 transition-colors',
+          actief
+            ? 'bg-primary/10 ring-primary/25 text-primary'
+            : klaar
+              ? 'bg-primary/10 ring-primary/20 text-primary'
+              : 'bg-muted/35 ring-border text-muted-foreground'
+        )}
+      >
+        {klaar ? (
+          <Check className="h-4 w-4" />
+        ) : (
+          <span className="text-xs font-semibold">{index}</span>
+        )}
+      </div>
+      <div
+        className={cn(
+          'truncate text-xs',
+          actief ? 'text-foreground/85' : klaar ? 'text-foreground/70' : 'text-muted-foreground'
+        )}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
 
 // ==================================
 // Modal Components
@@ -182,7 +220,6 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* 1 scrollbar: dialog zelf, niet binnenin */}
       <DialogContent className="max-w-lg w-full max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Werkwijze opslaan</DialogTitle>
@@ -199,7 +236,6 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="bv. Standaard HSB wand"
-              className={cn(POSITIVE_RING)}
             />
           </div>
 
@@ -217,7 +253,7 @@ function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialogProps)
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuleren
           </Button>
-          <Button onClick={handleSave} disabled={!name || isSaving} className={POSITIVE_BTN}>
+          <Button onClick={handleSave} disabled={!name || isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isSaving ? 'Opslaan...' : 'Opslaan'}
           </Button>
@@ -289,7 +325,6 @@ function ManagePresetsDialog({
                   size="sm"
                   onClick={() => onSetDefault(preset)}
                   disabled={preset.isDefault}
-                  className={cn(POSITIVE_GHOST)}
                 >
                   <Star className="mr-2 h-4 w-4" />
                   Maak standaard
@@ -320,10 +355,6 @@ function ManagePresetsDialog({
 
 // ==================================
 // MateriaalKiezer Modal
-// - Geen interne scroll “card” meer; dialog groeit + één scrollbar op dialog.
-// - Geen uur/anders in eenheid.
-// - Fix “hoek weg”: geen overflow-clipping + extra padding rond inputs.
-// - Support voor Bewerken van extra materiaal.
 // ==================================
 type MateriaalKiezerModalProps = {
   open: boolean;
@@ -414,14 +445,12 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       else setFavorieten([]);
     }, [user, laadFavorieten]);
 
-    // form state (eigen materiaal / extra)
     const [eigenNaam, setEigenNaam] = useState('');
     const [eigenEenheid, setEigenEenheid] = useState<string>('');
     const [eigenPrijs, setEigenPrijs] = useState('');
     const [usageDescription, setUsageDescription] = useState('');
     const [aantal, setAantal] = useState<number | undefined>();
 
-    // voor m1/m2/m3 (optioneel)
     const [lengte, setLengte] = useState('');
     const [breedte, setBreedte] = useState('');
     const [hoogte, setHoogte] = useState('');
@@ -433,7 +462,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       usageDescription: '',
     });
 
-    // Alleen deze eenheden hebben “gebruik” verplicht
     const requiresDescription = ['stuk', 'doos', 'set'].includes(eigenEenheid);
 
     useEffect(() => {
@@ -442,11 +470,9 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       setZoekterm('');
       setSubsectieFilter('all');
 
-      // Extra materiaal: default naar eigen tab (en bij edit ook)
       if (isExtraMateriaal) setActiveTab('eigen');
       else setActiveTab('lijst');
 
-      // prefill bij bewerken
       if (isExtraMateriaal && editExtra) {
         setEigenNaam(editExtra.naam || '');
         setEigenEenheid((editExtra.eenheid as any) || '');
@@ -458,7 +484,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
         setUsageDescription(editExtra.usageDescription || '');
         setAantal(editExtra.aantal ?? undefined);
       } else {
-        // reset
         setEigenNaam('');
         setEigenEenheid('');
         setEigenPrijs('');
@@ -500,7 +525,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
 
     const handleSelect = (materiaal: MateriaalKeuze) => {
       if (isExtraMateriaal) {
-        // select uit lijst -> extra item toevoegen (niet bewerken)
         const newExtra: ExtraMaterial = {
           id: crypto.randomUUID(),
           naam: materiaal.materiaalnaam,
@@ -624,7 +648,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
 
     return (
       <Dialog open={open} onOpenChange={onSluiten}>
-        {/* ✅ 1 scrollbar op dialog zelf. Geen “card scroll” */}
         <DialogContent className="max-w-2xl w-full max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -635,43 +658,33 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                 : 'Kies materiaal'}
             </DialogTitle>
             {isExtraMateriaal ? (
-              <DialogDescription>
-                Voeg extra materiaal toe of kies uit uw lijst.
-              </DialogDescription>
+              <DialogDescription>Voeg extra materiaal toe of kies uit uw lijst.</DialogDescription>
             ) : null}
           </DialogHeader>
 
           {isExtraMateriaal ? (
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => setActiveTab(v as any)}
-              className="mt-4"
-            >
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mt-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
                 <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
               </TabsList>
 
               <TabsContent value="eigen" className="pt-4 space-y-4">
-                {/* ✅ extra padding zodat focus-ring nooit “afgekapt” wordt */}
                 <div className="space-y-2 px-1">
                   <Label htmlFor="eigen-naam">Materiaalnaam *</Label>
                   <Input
                     id="eigen-naam"
                     value={eigenNaam}
                     onChange={(e) => setEigenNaam(e.target.value)}
-                    className={cn(POSITIVE_RING)}
                   />
-                  {formErrors.naam && (
-                    <p className="text-sm text-destructive">{formErrors.naam}</p>
-                  )}
+                  {formErrors.naam && <p className="text-sm text-destructive">{formErrors.naam}</p>}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-1">
                   <div className="space-y-2">
                     <Label htmlFor="eigen-eenheid">Eenheid *</Label>
                     <Select value={eigenEenheid} onValueChange={setEigenEenheid}>
-                      <SelectTrigger id="eigen-eenheid" className={cn(POSITIVE_RING)}>
+                      <SelectTrigger id="eigen-eenheid">
                         <SelectValue placeholder="Kies eenheid" />
                       </SelectTrigger>
                       <SelectContent>
@@ -699,11 +712,8 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                       value={eigenPrijs}
                       onChange={(e) => setEigenPrijs(e.target.value)}
                       placeholder="bv. 0,32"
-                      className={cn(POSITIVE_RING)}
                     />
-                    {formErrors.prijs && (
-                      <p className="text-sm text-destructive">{formErrors.prijs}</p>
-                    )}
+                    {formErrors.prijs && <p className="text-sm text-destructive">{formErrors.prijs}</p>}
                   </div>
                 </div>
 
@@ -716,37 +726,21 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                   </div>
                 </div>
 
-                {/* optioneel, alleen visueel */}
                 {eigenEenheid === 'm1' && (
                   <div className="space-y-2 px-1">
                     <Label>Lengte (m)</Label>
-                    <Input
-                      type="number"
-                      value={lengte}
-                      onChange={(e) => setLengte(e.target.value)}
-                      className={cn(POSITIVE_RING)}
-                    />
+                    <Input type="number" value={lengte} onChange={(e) => setLengte(e.target.value)} />
                   </div>
                 )}
                 {eigenEenheid === 'm2' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-1">
                     <div className="space-y-2">
                       <Label>Lengte (m)</Label>
-                      <Input
-                        type="number"
-                        value={lengte}
-                        onChange={(e) => setLengte(e.target.value)}
-                        className={cn(POSITIVE_RING)}
-                      />
+                      <Input type="number" value={lengte} onChange={(e) => setLengte(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label>Breedte (m)</Label>
-                      <Input
-                        type="number"
-                        value={breedte}
-                        onChange={(e) => setBreedte(e.target.value)}
-                        className={cn(POSITIVE_RING)}
-                      />
+                      <Input type="number" value={breedte} onChange={(e) => setBreedte(e.target.value)} />
                     </div>
                   </div>
                 )}
@@ -754,30 +748,15 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-1">
                     <div className="space-y-2">
                       <Label>Lengte (m)</Label>
-                      <Input
-                        type="number"
-                        value={lengte}
-                        onChange={(e) => setLengte(e.target.value)}
-                        className={cn(POSITIVE_RING)}
-                      />
+                      <Input type="number" value={lengte} onChange={(e) => setLengte(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label>Breedte (m)</Label>
-                      <Input
-                        type="number"
-                        value={breedte}
-                        onChange={(e) => setBreedte(e.target.value)}
-                        className={cn(POSITIVE_RING)}
-                      />
+                      <Input type="number" value={breedte} onChange={(e) => setBreedte(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label>Hoogte (m)</Label>
-                      <Input
-                        type="number"
-                        value={hoogte}
-                        onChange={(e) => setHoogte(e.target.value)}
-                        className={cn(POSITIVE_RING)}
-                      />
+                      <Input type="number" value={hoogte} onChange={(e) => setHoogte(e.target.value)} />
                     </div>
                   </div>
                 )}
@@ -791,7 +770,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                       onChange={(e) =>
                         setAantal(e.target.value === '' ? undefined : parseInt(e.target.value, 10))
                       }
-                      className={cn(POSITIVE_RING)}
                     />
                   </div>
                 )}
@@ -804,7 +782,6 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                       value={usageDescription}
                       onChange={(e) => setUsageDescription(e.target.value)}
                       placeholder="Waar wordt dit materiaal voor gebruikt?"
-                      className={cn(POSITIVE_RING)}
                     />
                     {formErrors.usageDescription && (
                       <p className="text-sm text-destructive">{formErrors.usageDescription}</p>
@@ -820,10 +797,10 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                     placeholder="Zoek op materiaalnaam..."
                     value={zoekterm}
                     onChange={(e) => setZoekterm(e.target.value)}
-                    className={cn('w-full', POSITIVE_RING)}
+                    className="w-full"
                   />
                   <Select value={subsectieFilter} onValueChange={setSubsectieFilter}>
-                    <SelectTrigger className={cn('w-full sm:w-[220px]', POSITIVE_RING)}>
+                    <SelectTrigger className="w-full sm:w-[220px]">
                       <SelectValue placeholder="Subsectie" />
                     </SelectTrigger>
                     <SelectContent>
@@ -869,10 +846,10 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                   placeholder="Zoek op materiaalnaam..."
                   value={zoekterm}
                   onChange={(e) => setZoekterm(e.target.value)}
-                  className={cn('w-full', POSITIVE_RING)}
+                  className="w-full"
                 />
                 <Select value={subsectieFilter} onValueChange={setSubsectieFilter}>
-                  <SelectTrigger className={cn('w-full sm:w-[220px]', POSITIVE_RING)}>
+                  <SelectTrigger className="w-full sm:w-[220px]">
                     <SelectValue placeholder="Categorie" />
                   </SelectTrigger>
                   <SelectContent>
@@ -916,7 +893,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
               Annuleren
             </Button>
             {isExtraMateriaal && activeTab === 'eigen' && (
-              <Button onClick={handleSaveEigen} className={POSITIVE_BTN}>
+              <Button onClick={handleSaveEigen}>
                 {isEditMode ? 'Opslaan' : 'Materiaal toevoegen'}
               </Button>
             )}
@@ -942,24 +919,20 @@ export default function HsbWandMaterialenPage() {
   const quoteId = params.id as string;
   const klusId = params.klusId as string;
 
-  // Let op: dit is een jobKey / slug
   const JOB_KEY = 'hsb-voorzetwand';
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
   const [isOpslaan, setIsOpslaan] = useState(false);
 
-  // Materialen uit Supabase
   const [alleMaterialen, setAlleMaterialen] = useState<MateriaalKeuze[]>([]);
   const [isMaterialenLaden, setMaterialenLaden] = useState(true);
   const [foutMaterialen, setFoutMaterialen] = useState<string | null>(null);
 
-  // Presets
   const [presets, setPresets] = useState<PresetType[]>([]);
   const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
   const [isPresetsLaden, setPresetsLaden] = useState(true);
 
-  // Selections state
   const [gekozenMaterialen, setGekozenMaterialen] = useState<
     Record<string, MateriaalKeuze | undefined>
   >({});
@@ -970,34 +943,25 @@ export default function HsbWandMaterialenPage() {
     fixedAmount: null,
   });
 
-  // Collapsed sections
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
-  // Modals
   const [actieveSectie, setActieveSectie] = useState<SectieKey | null>(null);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
   const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
 
-  // Extra edit
   const [editExtra, setEditExtra] = useState<ExtraMaterial | null>(null);
 
-  // ✅ belangrijk: onderscheid “initieel geladen uit DB” vs “user kiest preset”
   const userHeeftPresetGewijzigdRef = useRef(false);
   const isHydratingRef = useRef(true);
-
-  // ✅ detecteer of DB al iets heeft (dan NIET auto-standaard toepassen)
   const hasSavedConfigRef = useRef(false);
-
-  // ✅ 1x automatisch de standaard preset toepassen (alleen bij lege klus)
   const autoApplyDefaultPresetRef = useRef(false);
 
   const toggleSection = (sectieSleutel: SectieKey) => {
     setCollapsedSections((prev) => ({ ...prev, [sectieSleutel]: !prev[sectieSleutel] }));
   };
 
-  // Quote ophalen
   useEffect(() => {
     async function fetchQuote() {
       if (!quoteId) return;
@@ -1009,7 +973,6 @@ export default function HsbWandMaterialenPage() {
     fetchQuote();
   }, [quoteId]);
 
-  // Supabase materialen ophalen
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -1048,7 +1011,6 @@ export default function HsbWandMaterialenPage() {
     fetchMaterials();
   }, [user?.uid]);
 
-  // Presets ophalen (Firestore)
   useEffect(() => {
     if (!user || !firestore) return;
 
@@ -1079,7 +1041,6 @@ export default function HsbWandMaterialenPage() {
     fetchPresets();
   }, [user, firestore]);
 
-  // ✅ Prefill uit Firestore voor EXACT deze klusId
   useEffect(() => {
     if (!firestore || !quoteId || !klusId) return;
 
@@ -1131,7 +1092,6 @@ export default function HsbWandMaterialenPage() {
     hydrateFromDb();
   }, [firestore, quoteId, klusId]);
 
-  // ✅ Map Firestore selections -> MateriaalKeuze zodra alleMaterialen beschikbaar zijn
   useEffect(() => {
     if (!alleMaterialen || alleMaterialen.length === 0) return;
 
@@ -1154,7 +1114,6 @@ export default function HsbWandMaterialenPage() {
         const heeftSelections = Object.keys(selections || {}).length > 0;
         const heeftExtra = Array.isArray(extra) && extra.length > 0;
 
-        // ✅ Als DB leeg is (nieuwe klus), NIET overschrijven
         if (!heeftSelections && !heeftExtra && !hasSavedConfigRef.current) return;
 
         const toegestaneKeys = new Set(sectieSleutels);
@@ -1204,7 +1163,6 @@ export default function HsbWandMaterialenPage() {
     mapNow();
   }, [alleMaterialen, firestore, quoteId, klusId]);
 
-  // ✅ Als klus leeg is, auto-standaard preset selecteren
   useEffect(() => {
     if (isPresetsLaden) return;
     if (!presets || presets.length === 0) return;
@@ -1223,7 +1181,6 @@ export default function HsbWandMaterialenPage() {
     setGekozenPresetId(defaultPreset.id);
   }, [isPresetsLaden, presets, gekozenPresetId]);
 
-  // Preset toepassen
   useEffect(() => {
     if (gekozenPresetId === 'default') {
       if (userHeeftPresetGewijzigdRef.current) {
@@ -1337,7 +1294,7 @@ export default function HsbWandMaterialenPage() {
   const handleMateriaalVerwijderen = (sectieSleutel: SectieKey) => {
     setGekozenMaterialen((prev) => {
       const next = { ...prev };
-      delete next[sectieSleutel];
+      delete (next as any)[sectieSleutel];
       return next;
     });
   };
@@ -1648,7 +1605,7 @@ export default function HsbWandMaterialenPage() {
                 setEditExtra(null);
                 openMateriaalKiezer('extra');
               }}
-              className={cn('flex items-center gap-2', POSITIVE_GHOST)}
+              className="flex items-center gap-2"
             >
               <Plus className="h-4 w-4" /> Toevoegen
             </Button>
@@ -1675,7 +1632,6 @@ export default function HsbWandMaterialenPage() {
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* ✅ Bewerken */}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1683,7 +1639,7 @@ export default function HsbWandMaterialenPage() {
                             setEditExtra(mat);
                             openMateriaalKiezer('extra');
                           }}
-                          className={cn('flex items-center gap-2', POSITIVE_GHOST)}
+                          className="flex items-center gap-2"
                         >
                           <Pencil className="h-4 w-4" />
                           Bewerken
@@ -1794,9 +1750,7 @@ export default function HsbWandMaterialenPage() {
         <CardHeader className="flex flex-row items-center justify-between p-4">
           <div className="space-y-1.5">
             <CardTitle className="text-lg">Klein materiaal</CardTitle>
-            <CardDescription>
-              Kies of je dit wilt berekenen via een percentage of een vast bedrag.
-            </CardDescription>
+            <CardDescription>Kies percentage of een vast bedrag.</CardDescription>
           </div>
           <Button
             variant="ghost"
@@ -1811,17 +1765,12 @@ export default function HsbWandMaterialenPage() {
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Percentage */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
-                  kleinMateriaalConfig.mode === 'percentage'
-                    ? cn(POSITIVE_BORDER, POSITIVE_BG)
-                    : 'hover:bg-muted/50'
+                  kleinMateriaalConfig.mode === 'percentage' ? 'bg-muted/30' : 'hover:bg-muted/50'
                 )}
-                onClick={() =>
-                  setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'percentage' }))
-                }
+                onClick={() => setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'percentage' }))}
               >
                 <h4 className="font-semibold">Percentage (%)</h4>
                 <p className="text-sm text-muted-foreground">
@@ -1836,7 +1785,7 @@ export default function HsbWandMaterialenPage() {
                         id="kleinMateriaalPercentage"
                         type="number"
                         step="0.1"
-                        className={cn('w-full pr-10', POSITIVE_RING)}
+                        className="w-full pr-10"
                         value={kleinMateriaalConfig.percentage ?? ''}
                         onChange={(e) =>
                           setKleinMateriaalConfig({
@@ -1864,17 +1813,12 @@ export default function HsbWandMaterialenPage() {
                 )}
               </div>
 
-              {/* Vast bedrag */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
-                  kleinMateriaalConfig.mode === 'fixed'
-                    ? cn(POSITIVE_BORDER, POSITIVE_BG)
-                    : 'hover:bg-muted/50'
+                  kleinMateriaalConfig.mode === 'fixed' ? 'bg-muted/30' : 'hover:bg-muted/50'
                 )}
-                onClick={() =>
-                  setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'fixed' }))
-                }
+                onClick={() => setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'fixed' }))}
               >
                 <h4 className="font-semibold">Vast bedrag (€)</h4>
                 <p className="text-sm text-muted-foreground">
@@ -1887,7 +1831,7 @@ export default function HsbWandMaterialenPage() {
                     <Input
                       id="kleinMateriaalFixedAmount"
                       type="number"
-                      className={cn('w-full', POSITIVE_RING)}
+                      className="w-full"
                       placeholder="Bijv. 50"
                       value={kleinMateriaalConfig.fixedAmount ?? ''}
                       onChange={(e) =>
@@ -1912,49 +1856,64 @@ export default function HsbWandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="grid h-auto items-center grid-cols-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
-          <div className="flex items-center justify-start">
-            <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-              <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-wand`}>
-                <ArrowLeft className="h-4 w-4" />
-                <span className="sr-only">Terug</span>
-              </Link>
-            </Button>
-          </div>
+        {/* ✅ Header exact zoals Maten, met stappen */}
+        <header className="border-b bg-background/80 backdrop-blur-xl">
+          <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+            <div className="flex items-center gap-3">
+              <Button asChild variant="outline" size="icon" className="h-9 w-9 rounded-xl">
+                <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
 
-          <div className="col-start-2 flex flex-col items-center text-center">
-            <h1 className="font-semibold text-lg">HSB Voorzetwand</h1>
-            <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
-          </div>
+              <div className="flex-1 text-center">
+                <div className="text-sm font-semibold">HSB Voorzetwand</div>
 
-          <div className="flex items-center justify-end">
-            {isPaginaLaden ? <div className="h-4 bg-muted rounded w-32 animate-pulse" /> : null}
+                <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
+                  <div
+                    className="h-full rounded-full bg-primary/65 transition-all"
+                    style={{ width: `${progressValue}%` }}
+                  />
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <StapPunt index={1} label="Klant" klaar />
+                  <StapPunt index={2} label="Klus" klaar />
+                  <StapPunt index={3} label="Maten" klaar />
+                  <StapPunt index={4} label="Materialen" actief />
+                </div>
+              </div>
+
+              <div className="w-9">
+                {isPaginaLaden ? (
+                  <div className="h-9 w-9 animate-pulse rounded-xl bg-muted/30" />
+                ) : null}
+              </div>
+            </div>
           </div>
         </header>
 
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
+            {foutMaterialen ? (
+              <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                {foutMaterialen}
+              </div>
+            ) : null}
+
             <div className="mb-8 space-y-2">
               <Label htmlFor="preset-select">Gekozen werkwijze</Label>
               <div className="flex items-center gap-2">
-                <Select
-                  onValueChange={onPresetChange}
-                  value={gekozenPresetId}
-                  disabled={isPresetsLaden}
-                >
-                  <SelectTrigger id="preset-select" className={cn(POSITIVE_RING)}>
+                <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
+                  <SelectTrigger id="preset-select">
                     <SelectValue placeholder="Kies een werkwijze..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">Nieuw</SelectItem>
                     {presets.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>
-                            {p.name}
-                            {p.isDefault && ' (standaard)'}
-                          </span>
-                        </div>
+                        {p.name}
+                        {p.isDefault ? ' (standaard)' : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1984,26 +1943,19 @@ export default function HsbWandMaterialenPage() {
             </div>
 
             <div className="mt-8">
-              <Button
-                variant="outline"
-                onClick={() => setSavePresetModalOpen(true)}
-                className={cn('w-full', POSITIVE_RING)}
-              >
+              <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full">
                 <Save className="mr-2 h-4 w-4" /> Huidige keuzes opslaan als werkwijze
               </Button>
             </div>
 
             <div className="mt-8 flex justify-between items-center">
+              {/* ✅ terug naar Maten (hsb-voorzetwand) */}
               <Button variant="outline" asChild>
-                <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-wand`}>Terug</Link>
+                <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>Terug</Link>
               </Button>
 
-              {/* ✅ Volgende groen */}
-              <Button
-                onClick={handleNext}
-                disabled={isOpslaan}
-                className={cn(POSITIVE_BTN)}
-              >
+              {/* ✅ Alleen "Volgende" groen */}
+              <Button onClick={handleNext} disabled={isOpslaan} className={cn(POSITIVE_BTN)}>
                 {isOpslaan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isOpslaan ? 'Opslaan...' : 'Volgende'}
               </Button>
@@ -2028,7 +1980,8 @@ export default function HsbWandMaterialenPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
             <AlertDialogDescription>
-              U staat op het punt om de werkwijze "{presetToDelete?.name}" te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
+              U staat op het punt om de werkwijze "{presetToDelete?.name}" te verwijderen. Deze actie kan
+              niet ongedaan worden gemaakt.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
