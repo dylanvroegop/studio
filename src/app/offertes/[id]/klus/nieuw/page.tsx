@@ -1,102 +1,191 @@
-
 'use client';
-import { createJobAction } from '@/lib/actions';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { JobCategory, Quote } from '@/lib/types';
-import { CategoryCard } from '@/components/category-card';
-import type { IconName } from '@/components/icons';
-import { useEffect, useState } from 'react';
-import { getQuoteById } from '@/lib/data';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useParams } from 'next/navigation';
-import { Progress } from '@/components/ui/progress';
+import { ArrowLeft, Check, Search } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { CategoryCard } from '@/components/category-card';
+import { getQuoteById } from '@/lib/data';
+import type { JobCategory, Quote } from '@/lib/types';
+import type { IconName } from '@/components/icons';
+import { cn } from '@/lib/utils';
 
 const categories: { name: JobCategory; description: string; icon: IconName }[] = [
-    { name: "Wanden", description: "Binnen- en buitenwanden", icon: "wall" },
-    { name: "Plafonds", description: "Plafonds met een houten of metalstud frame", icon: "ceiling" },
-    { name: "Vloeren", description: "Houten vloeren en ondervloeren", icon: "floor" },
-    { name: "Dakrenovatie", description: "Complete dakvernieuwing", icon: "roof" },
-    { name: "Isolatiewerken", description: "Isoleren van wanden, daken, vloeren", icon: "wall" },
-    { name: "Boeiboorden", description: "Vervangen en bekleden", icon: "fascia" },
-    { name: "Kozijnen", description: "Plaatsen en vervangen", icon: "frame" },
-    { name: "Deuren", description: "Afhangen van binnen- en buitendeuren", icon: "door" },
-    { name: "Gevelbekleding", description: "Hout, kunststof of composiet", icon: "siding" },
-    { name: "Glas zetten", description: "Enkel, dubbel of triple glas", icon: "glass" },
-    { name: "Afwerkingen", description: "Plinten, architraven en aftimmering", icon: "finishing" },
-    { name: "Dakramen / Lichtkoepel", description: "Plaatsen van Velux of andere merken", icon: "window" },
-    { name: "Schutting / Tuinafscheiding", description: "Houten of composiet schuttingen", icon: "fence" },
-    { name: "Overkapping / Pergola", description: "Houtconstructies voor in de tuin", icon: "pergola" },
-    { name: "Overige werkzaamheden", description: "Specifiek timmerwerk", icon: "plus" },
+  { name: 'Wanden', description: 'Binnen- en buitenwanden', icon: 'wall' },
+  { name: 'Plafonds', description: 'Plafonds met een houten of metalstud frame', icon: 'ceiling' },
+  { name: 'Vloeren', description: 'Houten vloeren en ondervloeren', icon: 'floor' },
+  { name: 'Dakrenovatie', description: 'Complete dakvernieuwing', icon: 'roof' },
+  { name: 'Isolatiewerken', description: 'Isoleren van wanden, daken, vloeren', icon: 'wall' },
+  { name: 'Boeiboorden', description: 'Vervangen en bekleden', icon: 'fascia' },
+  { name: 'Kozijnen', description: 'Plaatsen en vervangen', icon: 'frame' },
+  { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', icon: 'door' },
+  { name: 'Gevelbekleding', description: 'Hout, kunststof of composiet', icon: 'siding' },
+  { name: 'Glas zetten', description: 'Enkel, dubbel of triple glas', icon: 'glass' },
+  { name: 'Afwerkingen', description: 'Plinten, architraven en aftimmering', icon: 'finishing' },
+  { name: 'Dakramen / Lichtkoepel', description: 'Plaatsen van Velux of andere merken', icon: 'window' },
+  { name: 'Schutting / Tuinafscheiding', description: 'Houten of composiet schuttingen', icon: 'fence' },
+  { name: 'Overkapping / Pergola', description: 'Houtconstructies voor in de tuin', icon: 'pergola' },
+  { name: 'Overige werkzaamheden', description: 'Specifiek timmerwerk', icon: 'plus' },
 ];
 
+function StapPunt({
+  index,
+  label,
+  actief,
+  klaar,
+}: {
+  index: number;
+  label: string;
+  actief?: boolean;
+  klaar?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <div
+        className={cn(
+          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 transition-colors',
+          actief
+            ? 'bg-primary/10 ring-primary/25 text-primary'
+            : klaar
+              ? 'bg-primary/10 ring-primary/20 text-primary'
+              : 'bg-muted/35 ring-border text-muted-foreground'
+        )}
+      >
+        {klaar ? <Check className="h-4 w-4" /> : <span className="text-xs font-semibold">{index}</span>}
+      </div>
+      <div
+        className={cn(
+          'truncate text-xs',
+          actief ? 'text-foreground/85' : klaar ? 'text-foreground/70' : 'text-muted-foreground'
+        )}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
 
 export default function NewJobPage() {
-    const params = useParams();
-    const quoteId = params.id as string;
-    const [quote, setQuote] = useState<Quote | null>(null);
-    const [loading, setLoading] = useState(true);
+  const params = useParams();
 
-    useEffect(() => {
-        async function fetchQuote() {
-            if (!quoteId) return;
-            setLoading(true);
-            const quoteData = await getQuoteById(quoteId);
-            setQuote(quoteData || null);
-            setLoading(false);
-        }
-        fetchQuote();
-    }, [quoteId]);
+  const [isMounted, setIsMounted] = useState(false);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [zoekterm, setZoekterm] = useState('');
+  const [selectedName, setSelectedName] = useState<string | null>(null);
 
-    const updatedCategories = categories.map(category => {
-        if (category.name === "Dakramen") {
-            return { ...category, name: "Dakramen / Lichtkoepel" as JobCategory };
-        }
-        return category;
-    });
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
-    const progressValue = (2 / 6) * 100;
+  const quoteId = isMounted ? (params.id as string) : '';
 
-    return (
-        <main className="flex flex-1 flex-col">
-            <header className="sticky top-0 z-10 grid h-auto w-full grid-cols-3 items-center border-b bg-background/95 px-4 pt-3 pb-2 backdrop-blur-sm sm:px-6">
-                <div className="flex items-center justify-start">
-                    <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                        <Link href={`/offertes/${quoteId}/edit`}>
-                            <ArrowLeft className="h-4 w-4" />
-                            <span className="sr-only">Terug</span>
-                        </Link>
-                    </Button>
-                </div>
-                <div className="text-center flex flex-col items-center">
-                    <h1 className="font-semibold text-lg">Kies een klus</h1>
-                    <Progress value={progressValue} className="h-1 w-1/2 mt-1" />
-                </div>
-                <div className="flex items-center justify-end">
-                    {loading ? (
-                         <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
-                    ) : quote ? (
-                        <p className="text-sm text-muted-foreground truncate"></p>
-                    ) : null}
-                </div>
-            </header>
+  useEffect(() => {
+    async function fetchQuote() {
+      if (!quoteId) return;
+      setLoading(true);
+      const quoteData = await getQuoteById(quoteId);
+      setQuote(quoteData || null);
+      setLoading(false);
+    }
+    fetchQuote();
+  }, [quoteId]);
 
-            <div className="flex-1 p-4 md:p-6">
-                <div className="mx-auto max-w-4xl w-full">
-                    <div className="text-center mb-8">
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                        {updatedCategories.map(category => {
-                            const cardCategory = {name: category.name, description: category.description, iconName: category.icon};
-                            return (
-                                <CategoryCard key={category.name} quoteId={quoteId} category={cardCategory} />
-                            )
-                        })}
-                    </div>
-                </div>
-            </div>
-        </main>
+  const progressValue = (2 / 6) * 100;
+
+  const filteredCategories = useMemo(() => {
+    const q = zoekterm.trim().toLowerCase();
+    if (!q) return categories;
+    return categories.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q)
     );
+  }, [zoekterm]);
+
+  if (!isMounted) return null;
+
+  return (
+    <main className="relative min-h-screen bg-background">
+      {/* Header (scrolls away) */}
+      <header className="border-b bg-background/80 backdrop-blur-xl">
+      <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <Button asChild variant="outline" size="icon" className="h-9 w-9 rounded-xl">
+              <Link href={`/offertes/${quoteId}/edit`}>
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+
+            <div className="flex-1 text-center">
+              <div className="text-sm font-semibold">Kies een klus</div>
+
+              <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
+                <div
+                  className="h-full rounded-full bg-primary/65 transition-all"
+                  style={{ width: `${progressValue}%` }}
+                />
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <StapPunt index={1} label="Klant" klaar />
+                <StapPunt index={2} label="Klus" actief />
+                <StapPunt index={3} label="Maten" />
+                <StapPunt index={4} label="Materialen" />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 flex justify-end">
+            <div className="relative w-full sm:w-[320px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={zoekterm}
+                onChange={(e) => setZoekterm(e.target.value)}
+                placeholder="Zoek klus…"
+                className="w-full rounded-2xl border bg-background/20 px-9 py-2 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="px-4 py-6 max-w-5xl mx-auto">
+        <div className="rounded-3xl border bg-card/50 p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filteredCategories.map((category) => (
+              <div
+                key={category.name}
+                className={cn(
+                  'relative rounded-2xl',
+                  selectedName === category.name && 'ring-2 ring-primary/25'
+                )}
+                onPointerDown={() => setSelectedName(category.name)}
+                onPointerUp={() => setSelectedName(null)}
+                onPointerCancel={() => setSelectedName(null)}
+              >
+                <CategoryCard
+                  quoteId={quoteId}
+                  category={{
+                    name: category.name,
+                    description: category.description,
+                    iconName: category.icon,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {filteredCategories.length === 0 && (
+            <div className="mt-6 rounded-2xl border bg-background/20 p-4 text-sm text-muted-foreground">
+              Geen resultaten.
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  );
 }
