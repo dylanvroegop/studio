@@ -14,8 +14,8 @@ import {
   AlertTriangle,
   ClipboardList,
   Truck,
-  Wrench,
-  Sparkles,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -79,30 +79,22 @@ function jobIsComplete(job: any): boolean {
 --------------------------------------------- */
 
 function formatEuroNL(raw: string): string {
-  // 1) laat alleen cijfers en komma toe
   let v = raw.replace(/[^\d,]/g, '');
 
-  // 2) max 1 komma
   const firstComma = v.indexOf(',');
   if (firstComma !== -1) {
     const before = v.slice(0, firstComma + 1);
-    const after = v
-      .slice(firstComma + 1)
-      .replace(/,/g, ''); // alle extra komma’s weg
+    const after = v.slice(firstComma + 1).replace(/,/g, '');
     v = before + after;
   }
 
-  // 3) split integer/decimal
   const [intRaw, decRaw] = v.split(',');
 
-  // 4) integer: leading zeros trimmen (maar laat 0 staan)
   let intPart = (intRaw ?? '').replace(/^0+(?=\d)/, '');
   if (intPart === '') intPart = '0';
 
-  // 5) duizendtallen punten
   const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-  // 6) decimal: max 2
   if (decRaw !== undefined) {
     const dec = decRaw.slice(0, 2);
     return `${intFormatted},${dec}`;
@@ -112,22 +104,16 @@ function formatEuroNL(raw: string): string {
 }
 
 function euroNLToNumberOrNull(v: string) {
-  // "" of "0" of "1.000" of "1.000,50"
   const s = (v ?? '').trim();
   if (!s) return null;
 
-  // remove thousand dots, convert comma to dot
   const normalized = s.replace(/\./g, '').replace(',', '.');
-
-  // edge: "0," or "1," -> Number("0.") ok
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 
 /* ---------------------------------------------
  UI component: € prefix that never disappears
-- We keep the value numeric-ish (no € in value)
-- Prefix is visual only
 --------------------------------------------- */
 
 function EuroInput(props: {
@@ -183,13 +169,36 @@ function EuroInput(props: {
  Types
 --------------------------------------------- */
 
+type MaterieelPer = 'dag' | 'week' | 'klus';
+
 type MaterieelItem = {
+  id: string;
   naam: string;
   prijs: string;
-  per: 'dag' | 'week' | 'klus';
+  per: MaterieelPer;
+  isVast: boolean;
 };
 
 type TransportMode = 'perKm' | 'fixed' | 'none';
+
+// Winstmarge mode met "none"
+type WinstMargeMode = 'percentage' | 'fixed' | 'none';
+
+/* ---------------------------------------------
+ Materieel helpers
+--------------------------------------------- */
+
+function maakMaterieelId() {
+  return `mat_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function defaultMaterieel(): MaterieelItem[] {
+  return [
+    { id: 'steiger', naam: 'Steiger', prijs: '', per: 'dag', isVast: true },
+    { id: 'container', naam: 'Container', prijs: '', per: 'klus', isVast: true },
+    { id: 'aanhanger', naam: 'Aanhanger', prijs: '', per: 'dag', isVast: true },
+  ];
+}
 
 /* ---------------------------------------------
  Page
@@ -216,15 +225,11 @@ export default function OverzichtPage() {
   const [prijsPerKm, setPrijsPerKm] = useState('');
   const [vasteTransportkosten, setVasteTransportkosten] = useState('');
 
-  // Materieel
-  const [materieel, setMaterieel] = useState<MaterieelItem[]>([
-    { naam: 'Steiger', prijs: '', per: 'dag' },
-    { naam: 'Container', prijs: '', per: 'klus' },
-    { naam: 'Aanhanger', prijs: '', per: 'dag' },
-  ]);
+  // Materieel (optioneel)
+  const [materieel, setMaterieel] = useState<MaterieelItem[]>(defaultMaterieel);
 
-  // Onvoorzien
-  const [onvoorzien, setOnvoorzien] = useState<KleinMateriaalConfig>({
+  // Winstmarge (optioneel door "none")
+  const [winstMarge, setWinstMarge] = useState<KleinMateriaalConfig>({
     mode: 'percentage',
     percentage: 10,
     fixedAmount: null,
@@ -316,6 +321,42 @@ export default function OverzichtPage() {
   }, [quoteId, firestore, user, isUserLoading]);
 
   /* ---------------------------------------------
+   Validatie helpers
+  --------------------------------------------- */
+
+  const prijsPerKmNum = useMemo(() => euroNLToNumberOrNull(prijsPerKm), [prijsPerKm]);
+  const vasteTransportNum = useMemo(
+    () => euroNLToNumberOrNull(vasteTransportkosten),
+    [vasteTransportkosten]
+  );
+
+  const transportIsValid = useMemo(() => {
+    if (transportMode === 'none') return true;
+    if (transportMode === 'perKm') return prijsPerKmNum !== null && prijsPerKmNum > 0;
+    if (transportMode === 'fixed') return vasteTransportNum !== null && vasteTransportNum > 0;
+    return false;
+  }, [transportMode, prijsPerKmNum, vasteTransportNum]);
+
+  // winst mode afleiden + "none" support
+  const winstMode = (winstMarge?.mode as WinstMargeMode) ?? 'percentage';
+
+  const winstMargeIsValid = useMemo(() => {
+    if (winstMode === 'none') return true;
+
+    if (winstMode === 'percentage') {
+      const p = (winstMarge as any)?.percentage;
+      return typeof p === 'number' && Number.isFinite(p) && p > 0;
+    }
+
+    if (winstMode === 'fixed') {
+      const a = (winstMarge as any)?.fixedAmount;
+      return typeof a === 'number' && Number.isFinite(a) && a > 0;
+    }
+
+    return false;
+  }, [winstMarge, winstMode]);
+
+  /* ---------------------------------------------
    Derived UI
   --------------------------------------------- */
 
@@ -324,28 +365,32 @@ export default function OverzichtPage() {
     const compleet = jobs.filter((j: any) => jobIsComplete(j)).length;
     const incompleet = Math.max(0, totaal - compleet);
 
-    const prijsPerKmNum = euroNLToNumberOrNull(prijsPerKm);
-    const vasteTransportNum = euroNLToNumberOrNull(vasteTransportkosten);
-
-    const heeftTransport =
-      transportMode !== 'none' &&
-      ((transportMode === 'perKm' && prijsPerKmNum !== null && prijsPerKmNum !== 0) ||
-        (transportMode === 'fixed' &&
-          vasteTransportNum !== null &&
-          vasteTransportNum !== 0));
-
-    const heeftMaterieel = materieel.some((m) => {
-      const n = euroNLToNumberOrNull(m.prijs);
-      return n !== null && n !== 0;
-    });
-
-    return { totaal, compleet, incompleet, heeftTransport, heeftMaterieel };
-  }, [jobs, transportMode, prijsPerKm, vasteTransportkosten, materieel]);
+    return {
+      totaal,
+      compleet,
+      incompleet,
+      transportIsValid,
+      winstMargeIsValid,
+      isReady: totaal > 0 && incompleet === 0 && transportIsValid && winstMargeIsValid,
+    };
+  }, [jobs, transportIsValid, winstMargeIsValid]);
 
   const primaryHint = useMemo(() => {
     if (stats.totaal === 0) return 'Voeg minimaal 1 klus toe.';
-    if (stats.incompleet > 0) return 'Werk de onvolledige klussen af of genereer toch.';
+    if (stats.incompleet > 0) return 'Er zijn nog onvolledige klussen. Werk ze eerst af.';
+    if (!stats.transportIsValid)
+      return 'Transport is niet ingevuld. Kies “Geen” of vul een bedrag in.';
+    if (!stats.winstMargeIsValid)
+      return 'Winstmarge is niet ingevuld. Kies “Geen” of vul een bedrag/percentage in.';
     return 'Alles staat goed. Je kunt de offerte genereren.';
+  }, [stats]);
+
+  const statusVariant = useMemo(() => {
+    if (stats.totaal === 0) return 'warn';
+    if (stats.incompleet > 0) return 'error';
+    if (!stats.transportIsValid) return 'error';
+    if (!stats.winstMargeIsValid) return 'error';
+    return 'success';
   }, [stats]);
 
   /* ---------------------------------------------
@@ -353,13 +398,30 @@ export default function OverzichtPage() {
   --------------------------------------------- */
 
   const handleMaterieelChange = (
-    index: number,
-    field: keyof MaterieelItem,
+    id: string,
+    field: keyof Pick<MaterieelItem, 'naam' | 'prijs' | 'per'>,
     value: string
   ) => {
-    const copy = [...materieel];
-    copy[index] = { ...copy[index], [field]: value };
-    setMaterieel(copy);
+    setMaterieel((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m))
+    );
+  };
+
+  const handleAddExtraMaterieel = () => {
+    setMaterieel((prev) => [
+      ...prev,
+      {
+        id: maakMaterieelId(),
+        naam: '',
+        prijs: '',
+        per: 'klus',
+        isVast: false,
+      },
+    ]);
+  };
+
+  const handleRemoveMaterieel = (id: string) => {
+    setMaterieel((prev) => prev.filter((m) => m.id !== id));
   };
 
   const handleFinishQuote = async () => {
@@ -374,11 +436,11 @@ export default function OverzichtPage() {
 
     if (isSubmitting) return;
 
-    if (stats.totaal === 0) {
+    if (!stats.isReady) {
       toast({
         variant: 'destructive',
-        title: 'Geen klussen',
-        description: 'Voeg eerst minimaal 1 klus toe.',
+        title: 'Niet compleet',
+        description: primaryHint,
       });
       return;
     }
@@ -386,15 +448,32 @@ export default function OverzichtPage() {
     setIsSubmitting(true);
 
     try {
-      const prijsPerKmNum = euroNLToNumberOrNull(prijsPerKm);
-      const vasteTransportNum = euroNLToNumberOrNull(vasteTransportkosten);
-
       const transportPayload =
         transportMode === 'none'
           ? { prijsPerKm: null, vasteTransportkosten: null, mode: 'none' }
           : transportMode === 'perKm'
           ? { prijsPerKm: prijsPerKmNum, vasteTransportkosten: null, mode: 'perKm' }
           : { prijsPerKm: null, vasteTransportkosten: vasteTransportNum, mode: 'fixed' };
+
+      const materieelPayload = materieel
+        .filter((m) => {
+          const naamOk = (m.naam ?? '').trim() !== '';
+          const prijsNum = euroNLToNumberOrNull(m.prijs);
+          const prijsOk = prijsNum !== null && prijsNum !== 0;
+          return naamOk || prijsOk;
+        })
+        .map((m) => ({
+          naam: (m.naam ?? '').trim() || 'Extra materieel',
+          per: m.per,
+          prijs: euroNLToNumberOrNull(m.prijs),
+          isVast: m.isVast,
+        }));
+
+      // Als winstMode === 'none' -> stuur expliciet "none" + null velden
+      const winstPayload =
+        winstMode === 'none'
+          ? { mode: 'none', percentage: null, fixedAmount: null }
+          : winstMarge;
 
       const response = await fetch(
         'https://n8n.dylan8n.org/webhook-test/offerte-test',
@@ -406,11 +485,9 @@ export default function OverzichtPage() {
             quote,
             extras: {
               transport: transportPayload,
-              materieel: materieel.map((m) => ({
-                ...m,
-                prijs: euroNLToNumberOrNull(m.prijs), // keep numeric for backend if needed later
-              })),
-              onvoorzien,
+              materieel: materieelPayload,
+              winstMarge: winstPayload,
+              onvoorzien: winstPayload, // backward compat
             },
             triggeredAt: new Date().toISOString(),
           }),
@@ -488,7 +565,7 @@ export default function OverzichtPage() {
     <main className="flex min-h-screen flex-col">
       <div className="flex-1 px-4 py-6 md:py-10">
         <div className="mx-auto max-w-3xl space-y-6">
-          {/* Page top row (part of page, scrolls away normally) */}
+          {/* Page top row */}
           <div className="grid grid-cols-3 items-center">
             <div>
               <Button
@@ -505,107 +582,29 @@ export default function OverzichtPage() {
               <h1 className="font-semibold text-lg">Overzicht & extra’s</h1>
             </div>
 
-            <div className="flex justify-end">
-              <span
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs',
-                  stats.incompleet === 0
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                    : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-                )}
-              >
-                {stats.incompleet === 0 ? (
-                  <>
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Klaar
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    {stats.incompleet} onvolledig
-                  </>
-                )}
-              </span>
-            </div>
+            <div />
           </div>
 
-          {/* Top summary */}
-          <Card className="border-muted/60">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-emerald-400" />
-                Eindcheck
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-lg border p-3">
-                  <div className="text-xs text-muted-foreground">Klussen</div>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <div className="text-xl font-semibold">{stats.totaal}</div>
-                    <div className="text-xs text-muted-foreground">totaal</div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border p-3">
-                  <div className="text-xs text-muted-foreground">Compleet</div>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <div className="text-xl font-semibold text-emerald-400">
-                      {stats.compleet}
-                    </div>
-                    <div className="text-xs text-muted-foreground">ingesteld</div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border p-3">
-                  <div className="text-xs text-muted-foreground">Extra’s</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span
-                      className={cn(
-                        'rounded-full border px-2 py-1 text-xs',
-                        stats.heeftTransport
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                          : 'text-muted-foreground'
-                      )}
-                    >
-                      <Truck className="mr-1 inline h-3.5 w-3.5" />
-                      Transport
-                    </span>
-                    <span
-                      className={cn(
-                        'rounded-full border px-2 py-1 text-xs',
-                        stats.heeftMaterieel
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                          : 'text-muted-foreground'
-                      )}
-                    >
-                      <Wrench className="mr-1 inline h-3.5 w-3.5" />
-                      Materieel
-                    </span>
-                  </div>
-                </div>
+          {/* Status-only */}
+          <div
+            className={cn(
+              'rounded-lg border px-4 py-3 text-sm',
+              statusVariant === 'success' &&
+                'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+              statusVariant === 'warn' &&
+                'border-amber-500/30 bg-amber-500/10 text-amber-200',
+              statusVariant === 'error' &&
+                'border-red-500/30 bg-red-500/10 text-red-200'
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <ClipboardList className="mt-0.5 h-4 w-4 opacity-80" />
+              <div>
+                <div className="font-medium">Status</div>
+                <div className="text-xs opacity-90">{primaryHint}</div>
               </div>
-
-              <div
-                className={cn(
-                  'rounded-lg border px-4 py-3 text-sm',
-                  stats.totaal === 0
-                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                    : stats.incompleet > 0
-                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <ClipboardList className="mt-0.5 h-4 w-4 opacity-80" />
-                  <div>
-                    <div className="font-medium">Status</div>
-                    <div className="text-xs opacity-90">{primaryHint}</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Jobs */}
           <Card className="border-muted/60">
@@ -668,7 +667,7 @@ export default function OverzichtPage() {
                           'inline-flex items-center rounded-full border px-2.5 py-1 text-xs',
                           isComplete
                             ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                            : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                            : 'border-red-500/30 bg-red-500/10 text-red-300'
                         )}
                       >
                         {isComplete ? (
@@ -708,19 +707,18 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Transport (choose one) */}
+          {/* Transport (verplicht tenzij "Geen") */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Transport</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Per km */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'perKm'
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
-                    : 'hover:border-muted-foreground/30'
+                  transportMode === 'perKm' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  transportMode === 'perKm' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
+                  transportMode !== 'perKm' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setTransportMode('perKm')}
                 role="button"
@@ -742,17 +740,21 @@ export default function OverzichtPage() {
                       className="mt-1"
                       placeholder="0,00"
                     />
+                    {!transportIsValid && (
+                      <p className="mt-2 text-xs text-red-300">
+                        Vul een tarief in of kies “Geen”.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Vast bedrag */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'fixed'
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
-                    : 'hover:border-muted-foreground/30'
+                  transportMode === 'fixed' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  transportMode === 'fixed' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
+                  transportMode !== 'fixed' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setTransportMode('fixed')}
                 role="button"
@@ -774,11 +776,15 @@ export default function OverzichtPage() {
                       className="mt-1"
                       placeholder="0,00"
                     />
+                    {!transportIsValid && (
+                      <p className="mt-2 text-xs text-red-300">
+                        Vul een bedrag in of kies “Geen”.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Geen */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
@@ -798,59 +804,108 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Materieel */}
+          {/* Materieel (optioneel) */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
-              <CardTitle>Materieel</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {materieel.map((item, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-center"
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>Materieel</CardTitle>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'transition-colors',
+                    'hover:bg-emerald-600 hover:border-emerald-600 hover:text-white'
+                  )}
+                  onClick={handleAddExtraMaterieel}
                 >
-                  <span className="sm:col-span-2 text-sm">{item.naam}</span>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Extra materieel toevoegen
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {materieel.map((item) => (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center"
+                >
+                  <div className="sm:col-span-4">
+                    <Label className="text-xs sm:sr-only">Naam</Label>
+                    {item.isVast ? (
+                      <span className="text-sm">{item.naam}</span>
+                    ) : (
+                      <Input
+                        value={item.naam}
+                        onChange={(e) =>
+                          handleMaterieelChange(item.id, 'naam', e.target.value)
+                        }
+                        placeholder="Bijv. Hoogwerker / Gereedschap huur"
+                      />
+                    )}
+                  </div>
 
                   <EuroInput
                     value={item.prijs}
-                    onChange={(v) => handleMaterieelChange(i, 'prijs', v)}
-                    className="sm:col-span-2"
+                    onChange={(v) => handleMaterieelChange(item.id, 'prijs', v)}
+                    className="sm:col-span-5"
                     placeholder="0,00"
                   />
 
-                  <Select
-                    value={item.per}
-                    onValueChange={(v) => handleMaterieelChange(i, 'per', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dag">dag</SelectItem>
-                      <SelectItem value="week">week</SelectItem>
-                      <SelectItem value="klus">klus</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="sm:col-span-2">
+                    <Select
+                      value={item.per}
+                      onValueChange={(v) => handleMaterieelChange(item.id, 'per', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dag">dag</SelectItem>
+                        <SelectItem value="week">week</SelectItem>
+                        <SelectItem value="klus">klus</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="sm:col-span-1 flex sm:justify-end">
+                    {!item.isVast && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRemoveMaterieel(item.id)}
+                        aria-label="Verwijderen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </CardContent>
           </Card>
 
-          {/* Onvoorzien */}
+          {/* Winstmarge (nu met "Geen") */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
-              <CardTitle>Onvoorzien</CardTitle>
+              <CardTitle>Winstmarge</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Percentage */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
-                  onvoorzien.mode === 'percentage'
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
-                    : 'hover:border-muted-foreground/30'
+                  winstMode === 'percentage' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  winstMode === 'percentage' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
+                  winstMode !== 'percentage' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() =>
-                  setOnvoorzien({ ...onvoorzien, mode: 'percentage' })
+                  setWinstMarge({ ...winstMarge, mode: 'percentage' } as any)
                 }
                 role="button"
                 tabIndex={0}
@@ -859,38 +914,52 @@ export default function OverzichtPage() {
                   <Percent className="mr-2 h-4 w-4" /> Percentage
                 </h4>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Reken een percentage van de totale materiaalkosten.
+                  Reken een percentage over de totale offerteprijs.
                 </p>
-                {onvoorzien.mode === 'percentage' && (
+
+                {winstMode === 'percentage' && (
                   <div className="mt-3">
                     <Label className="text-xs">Percentage</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <Input
                         type="number"
-                        value={onvoorzien.percentage ?? ''}
-                        onChange={(e) =>
-                          setOnvoorzien({
-                            ...onvoorzien,
-                            percentage: Number(e.target.value),
-                          })
-                        }
+                        value={(winstMarge as any).percentage ?? ''}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw.trim() === '') {
+                            setWinstMarge({ ...winstMarge, percentage: null as any } as any);
+                            return;
+                          }
+                          const n = Number(raw);
+                          setWinstMarge({
+                            ...winstMarge,
+                            percentage: Number.isFinite(n) ? n : null,
+                          } as any);
+                        }}
                         inputMode="decimal"
                         placeholder=""
                       />
                       <span className="text-sm text-muted-foreground">%</span>
                     </div>
+
+                    {!winstMargeIsValid && (
+                      <p className="mt-2 text-xs text-red-300">
+                        Vul een percentage groter dan 0 in of kies “Geen”.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
 
+              {/* Vast bedrag */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
-                  onvoorzien.mode === 'fixed'
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
-                    : 'hover:border-muted-foreground/30'
+                  winstMode === 'fixed' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  winstMode === 'fixed' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
+                  winstMode !== 'fixed' && 'hover:border-muted-foreground/30'
                 )}
-                onClick={() => setOnvoorzien({ ...onvoorzien, mode: 'fixed' })}
+                onClick={() => setWinstMarge({ ...winstMarge, mode: 'fixed' } as any)}
                 role="button"
                 tabIndex={0}
               >
@@ -898,30 +967,62 @@ export default function OverzichtPage() {
                   <Euro className="mr-2 h-4 w-4" /> Vast bedrag
                 </h4>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Voeg één vast bedrag toe voor kleine/onvoorziene materialen.
+                  Voeg één vast bedrag toe als marge.
                 </p>
-                {onvoorzien.mode === 'fixed' && (
+
+                {winstMode === 'fixed' && (
                   <div className="mt-3">
                     <Label className="text-xs">Bedrag</Label>
                     <EuroInput
-  value={
-    onvoorzien.fixedAmount === null
-      ? ''
-      : formatEuroNL(String(onvoorzien.fixedAmount).replace('.', ','))
-  }
-  onChange={(v) => {
-    const n = euroNLToNumberOrNull(v);
-    setOnvoorzien({
-      ...onvoorzien,
-      fixedAmount: n === null ? null : n,
-    });
-  }}
-  className="mt-1"
-  placeholder="0,00"
-/>
+                      value={
+                        (winstMarge as any).fixedAmount === null
+                          ? ''
+                          : formatEuroNL(
+                              String((winstMarge as any).fixedAmount).replace('.', ',')
+                            )
+                      }
+                      onChange={(v) => {
+                        const n = euroNLToNumberOrNull(v);
+                        setWinstMarge({
+                          ...winstMarge,
+                          fixedAmount: n === null ? null : n,
+                        } as any);
+                      }}
+                      className="mt-1"
+                      placeholder="0,00"
+                    />
 
+                    {!winstMargeIsValid && (
+                      <p className="mt-2 text-xs text-red-300">
+                        Vul een bedrag groter dan 0 in of kies “Geen”.
+                      </p>
+                    )}
                   </div>
                 )}
+              </div>
+
+              {/* Geen */}
+              <div
+                className={cn(
+                  'p-4 rounded-lg border cursor-pointer transition-colors',
+                  winstMode === 'none'
+                    ? 'border-emerald-500/40 bg-emerald-500/10'
+                    : 'hover:border-muted-foreground/30'
+                )}
+                onClick={() =>
+                  setWinstMarge({
+                    mode: 'none' as any,
+                    percentage: null,
+                    fixedAmount: null,
+                  } as any)
+                }
+                role="button"
+                tabIndex={0}
+              >
+                <h4 className="font-semibold">Geen</h4>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Geen winstmarge toevoegen.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -938,10 +1039,11 @@ export default function OverzichtPage() {
 
               <Button
                 onClick={handleFinishQuote}
-                disabled={isSubmitting || stats.totaal === 0}
+                disabled={isSubmitting || !stats.isReady}
                 className={cn(
                   'w-full sm:w-auto',
-                  'bg-emerald-600 text-white hover:bg-emerald-700'
+                  'bg-emerald-600 text-white hover:bg-emerald-700',
+                  (!stats.isReady || isSubmitting) && 'opacity-60'
                 )}
               >
                 {isSubmitting ? (
