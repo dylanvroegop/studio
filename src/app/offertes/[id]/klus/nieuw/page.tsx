@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Check, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { QuoteStapHeader } from '@/components/quote/QuoteStapHeader';
 import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
@@ -28,43 +28,6 @@ const categories: { name: JobCategory; description: string; icon: IconName }[] =
   { name: 'Overkapping / Pergola', description: 'Houtconstructies voor in de tuin', icon: 'pergola' },
   { name: 'Overige werkzaamheden', description: 'Specifiek timmerwerk', icon: 'plus' },
 ];
-
-function StapPunt({
-  index,
-  label,
-  actief,
-  klaar,
-}: {
-  index: number;
-  label: string;
-  actief?: boolean;
-  klaar?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2 min-w-0">
-      <div
-        className={cn(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 transition-colors',
-          actief
-            ? 'bg-primary/10 ring-primary/25 text-primary'
-            : klaar
-              ? 'bg-primary/10 ring-primary/20 text-primary'
-              : 'bg-muted/35 ring-border text-muted-foreground'
-        )}
-      >
-        {klaar ? <Check className="h-4 w-4" /> : <span className="text-xs font-semibold">{index}</span>}
-      </div>
-      <div
-        className={cn(
-          'truncate text-xs',
-          actief ? 'text-foreground/85' : klaar ? 'text-foreground/70' : 'text-muted-foreground'
-        )}
-      >
-        {label}
-      </div>
-    </div>
-  );
-}
 
 export default function NewJobPage() {
   const params = useParams();
@@ -93,8 +56,6 @@ export default function NewJobPage() {
     fetchQuote();
   }, [quoteId]);
 
-  const progressValue = (2 / 6) * 100;
-
   const filteredCategories = useMemo(() => {
     const q = zoekterm.trim().toLowerCase();
     if (!q) return categories;
@@ -107,53 +68,29 @@ export default function NewJobPage() {
 
   return (
     <main className="relative min-h-screen bg-background">
-      {/* Header (scrolls away) */}
-      <header className="border-b bg-background/80 backdrop-blur-xl">
-        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="h-9 w-9 rounded-xl">
-              <Link href={`/offertes/${quoteId}/edit`}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
+      {/* ✅ Header component is nu "alleen progress bar" -> gebruik progressValue i.p.v. stappen/actieveStap */}
+      <QuoteStapHeader
+        titel="Kies een klus"
+        terugHref={`/offertes/${quoteId}/edit`}
+        isPaginaLaden={loading}
+        progressKleur="bg-primary"
+        progressValue={33.3333}
+      />
 
-            <div className="flex-1 text-center">
-              <div className="text-sm font-semibold">Kies een klus</div>
-
-              <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
-                <div
-                  className="h-full rounded-full bg-primary/65 transition-all"
-                  style={{ width: `${progressValue}%` }}
-                />
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <StapPunt index={1} label="Klant" klaar />
-                <StapPunt index={2} label="Klus" actief />
-                <StapPunt index={3} label="Maten" />
-                <StapPunt index={4} label="Materialen" />
-              </div>
-            </div>
-
-            {/* rechter spacer zoals bij de andere pagina's */}
-            <div className="w-9">
-              {loading ? <div className="h-9 w-9 animate-pulse rounded-xl bg-muted/30" /> : quote ? null : null}
-            </div>
-          </div>
-
-          <div className="mt-2 flex justify-end">
-            <div className="relative w-full sm:w-[320px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={zoekterm}
-                onChange={(e) => setZoekterm(e.target.value)}
-                placeholder="Zoek klus…"
-                className="w-full rounded-2xl border bg-background/20 px-9 py-2 text-sm"
-              />
-            </div>
+      {/* Zoekbalk los onder header (niet in header zelf) */}
+      <div className="px-4 pt-4 max-w-5xl mx-auto">
+        <div className="flex justify-end">
+          <div className="relative w-full sm:w-[320px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={zoekterm}
+              onChange={(e) => setZoekterm(e.target.value)}
+              placeholder="Zoek klus…"
+              className="w-full rounded-2xl border bg-background/20 px-9 py-2 text-sm"
+            />
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Content */}
       <div className="px-4 py-6 max-w-5xl mx-auto">

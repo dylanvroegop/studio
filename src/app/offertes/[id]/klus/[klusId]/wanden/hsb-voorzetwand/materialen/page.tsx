@@ -1,6 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, forwardRef, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  forwardRef,
+  useRef,
+} from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -19,9 +26,20 @@ import {
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
+import type {
+  Quote,
+  Preset as PresetType,
+  KleinMateriaalConfig,
+  ExtraMaterial,
+} from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,11 +52,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
-import { collection, query, where, getDocs, writeBatch, serverTimestamp, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+  serverTimestamp,
+  doc,
+  deleteDoc,
+  updateDoc,
+  getDoc,
+} from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -52,33 +94,24 @@ import { Separator } from '@/components/ui/separator';
 const POSITIVE_BTN =
   'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600 focus-visible:ring-offset-0';
 
-  const SELECT_ITEM_GREEN =
+const SELECT_ITEM_GREEN =
   'text-foreground ' +
   'focus:bg-emerald-600/15 focus:text-foreground ' +
   'data-[highlighted]:bg-emerald-600/15 data-[highlighted]:text-foreground ' +
   'data-[state=checked]:bg-emerald-600/15 data-[state=checked]:text-foreground';
 
-
-// ✅ 1) Geselecteerde materiaal-tekst moet groen zijn (zelfde familie als Toevoegen)
 const SELECTED_MATERIAL_TEXT = 'text-emerald-400';
-
-// ✅ 2) Oranje overal weg (buttons/hover) -> neutrale hover voor icon knoppen
 const ICON_BUTTON_NO_ORANGE = 'hover:bg-muted/50 hover:text-foreground focus-visible:ring-0';
 
-// ✅ 6) Werkwijze (SelectTrigger) text mag niet zwart worden
 const SELECT_TRIGGER_KEEP_WHITE =
   'text-foreground data-[state=open]:text-foreground data-[state=open]:bg-muted/40';
 
-// ✅ 5) Terug hover rood
 const TERUG_HOVER_RED =
   'hover:bg-destructive hover:text-destructive-foreground hover:border-destructive focus-visible:ring-destructive';
 
-// ✅ 7) Sluiten hover rood (Dialog-footer outline knoppen)
 const SLUITEN_HOVER_RED =
   'hover:bg-destructive hover:text-destructive-foreground hover:border-destructive focus-visible:ring-destructive';
 
-// Dialog close (X) grotere tap-target (phone-first) — werkt met aria-label Close/Sluiten
-// ✅ 7) X hover geen oranje, gewoon neutraal (en tekst blijft wit)
 const DIALOG_CLOSE_TAP =
   '[&_button[aria-label="Close"]]:h-11 [&_button[aria-label="Close"]]:w-11 [&_button[aria-label="Close"]]:p-0 ' +
   '[&_button[aria-label="Close"]]:opacity-100 [&_button[aria-label="Close"]]:hover:bg-muted/50 [&_button[aria-label="Close"]]:hover:text-foreground ' +
@@ -88,6 +121,14 @@ const DIALOG_CLOSE_TAP =
   '[&_button[aria-label="Sluiten"]]:opacity-100 [&_button[aria-label="Sluiten"]]:hover:bg-muted/50 [&_button[aria-label="Sluiten"]]:hover:text-foreground ' +
   '[&_button[aria-label="Sluiten"]]:focus-visible:ring-0 ' +
   '[&_button[aria-label="Sluiten"]_svg]:h-6 [&_button[aria-label="Sluiten"]_svg]:w-6';
+
+// ==================================
+// ID helper (veilig)
+// ==================================
+const maakId = () =>
+  typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function'
+    ? (crypto as any).randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 // ==================================
 // NL nummer/€ helpers
@@ -116,10 +157,44 @@ function sanitizeNlMoneyInput(raw: string): string {
   return `${withDots},${decPartRaw || ''}`;
 }
 
-function parseNlMoneyToNumber(raw: string): number | null {
+function formatEuroNl(n: number): string {
+  return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
+}
+
+function parseNLMoneyToNumber(raw: string): number | null {
   if (!raw) return null;
-  const cleaned = raw.replace(/\./g, '').replace(',', '.');
-  const n = Number(cleaned);
+
+  let s = raw.replace(/\s/g, '').replace('€', '');
+
+  const hasDot = s.includes('.');
+  const hasComma = s.includes(',');
+
+  if (hasDot && hasComma) {
+    const lastDot = s.lastIndexOf('.');
+    const lastComma = s.lastIndexOf(',');
+
+    const decimalSep = lastDot > lastComma ? '.' : ',';
+    const thousandSep = decimalSep === '.' ? ',' : '.';
+
+    s = s.split(thousandSep).join('');
+    s = decimalSep === ',' ? s.replace(',', '.') : s;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (hasComma) {
+    s = s.replace(/\./g, '');
+    s = s.replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (hasDot) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -175,7 +250,7 @@ function EuroInput({
 }
 
 // ==================================
-// Clickable text acties (geen hover-kleur, wel grote tap-target)
+// Clickable text acties
 // ==================================
 function TekstActie({
   onClick,
@@ -209,22 +284,11 @@ function TekstActie({
   );
 }
 
-// ✅ 4) Consistente "+ Toevoegen" (geen wrapping op mobiel)
-function ToevoegenActie({
-  onClick,
-  className,
-}: {
-  onClick: () => void;
-  className?: string;
-}) {
+function ToevoegenActie({ onClick, className }: { onClick: () => void; className?: string }) {
   return (
     <TekstActie
       onClick={onClick}
-      className={cn(
-        'text-emerald-500 whitespace-nowrap',
-        'inline-flex items-center gap-1',
-        className
-      )}
+      className={cn('text-emerald-500 whitespace-nowrap inline-flex items-center gap-1', className)}
       ariaLabel="Toevoegen"
     >
       <Plus className="h-4 w-4" />
@@ -233,14 +297,7 @@ function ToevoegenActie({
   );
 }
 
-// ✅ 4) Consistente "Wijzigen" stijl
-function WijzigenActie({
-  onClick,
-  className,
-}: {
-  onClick: () => void;
-  className?: string;
-}) {
+function WijzigenActie({ onClick, className }: { onClick: () => void; className?: string }) {
   return (
     <TekstActie
       onClick={onClick}
@@ -444,11 +501,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
           </DialogHeader>
           <p className="text-muted-foreground text-sm py-8 text-center">Er zijn geen werkwijzen om te beheren.</p>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className={cn(SLUITEN_HOVER_RED)}
-            >
+            <Button variant="outline" onClick={() => onOpenChange(false)} className={cn(SLUITEN_HOVER_RED)}>
               Sluiten
             </Button>
           </DialogFooter>
@@ -500,11 +553,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className={cn(SLUITEN_HOVER_RED)}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} className={cn(SLUITEN_HOVER_RED)}>
             Sluiten
           </Button>
         </DialogFooter>
@@ -655,7 +704,9 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       let filtered = initialMaterials;
 
       if (zoekterm) {
-        filtered = filtered.filter((m) => m.materiaalnaam.toLowerCase().includes(zoekterm.toLowerCase()));
+        filtered = filtered.filter((m) =>
+          (m.materiaalnaam || '').toLowerCase().includes(zoekterm.toLowerCase())
+        );
       }
 
       const favorieteResultaten = filtered.filter((m) => isFavoriet(m.id));
@@ -669,7 +720,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
     const handleSelect = (materiaal: MateriaalKeuze) => {
       if (isExtraMateriaal) {
         const newExtra: ExtraMaterial = {
-          id: crypto.randomUUID(),
+          id: maakId(),
           naam: materiaal.materiaalnaam,
           eenheid: materiaal.eenheid as any,
           prijsPerEenheid: materiaal.prijs,
@@ -697,7 +748,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
         hasError = true;
       }
 
-      const prijsNum = parseNlMoneyToNumber(eigenPrijs);
+      const prijsNum = parseNLMoneyToNumber(eigenPrijs);
       if (prijsNum === null || prijsNum < 0) {
         errors.prijs = 'Geldige prijs is verplicht';
         hasError = true;
@@ -712,7 +763,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       if (hasError || prijsNum === null) return;
 
       const payload: ExtraMaterial = {
-        id: editExtra?.id || crypto.randomUUID(),
+        id: editExtra?.id || maakId(),
         naam: eigenNaam.trim(),
         eenheid: eigenEenheid as any,
         prijsPerEenheid: prijsNum,
@@ -773,9 +824,12 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
             >
               {materiaal.materiaalnaam}
             </p>
+
+            {/* ✅ één formatter (nl-NL) => komma in UI */}
             <p className="text-xs text-muted-foreground mt-1">
-              €{materiaal.prijs.toFixed(2)} • {materiaal.eenheid}
+              {formatEuroNl(materiaal.prijs)} • {materiaal.eenheid}
             </p>
+
             {materiaal.categorie && <p className="text-xs text-muted-foreground">{materiaal.categorie}</p>}
           </div>
         </li>
@@ -787,7 +841,12 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
     );
 
     return (
-      <Dialog open={open} onOpenChange={onSluiten}>
+      <Dialog
+        open={open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) onSluiten();
+        }}
+      >
         <DialogContent className={cn(dialogClass, DIALOG_CLOSE_TAP)}>
           <DialogHeader>
             <DialogTitle>
@@ -797,7 +856,9 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                   : 'Kies materiaal voor: Extra Materiaal'
                 : 'Kies materiaal'}
             </DialogTitle>
-            {isExtraMateriaal ? <DialogDescription>Voeg extra materiaal toe of kies uit uw lijst.</DialogDescription> : null}
+            {isExtraMateriaal ? (
+              <DialogDescription>Voeg extra materiaal toe of kies uit uw lijst.</DialogDescription>
+            ) : null}
           </DialogHeader>
 
           {isExtraMateriaal ? (
@@ -822,24 +883,12 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                         <SelectValue placeholder="Kies eenheid" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem className={SELECT_ITEM_GREEN} value="m1">
-                          m¹
-                        </SelectItem>
-                        <SelectItem className={SELECT_ITEM_GREEN} value="m2">
-                          m²
-                        </SelectItem>
-                        <SelectItem className={SELECT_ITEM_GREEN} value="m3">
-                          m³
-                        </SelectItem>
-                        <SelectItem className={SELECT_ITEM_GREEN} value="stuk">
-                          stuk
-                        </SelectItem>
-                        <SelectItem className={SELECT_ITEM_GREEN} value="doos">
-                          doos
-                        </SelectItem>
-                        <SelectItem className={SELECT_ITEM_GREEN} value="set">
-                          set
-                        </SelectItem>
+                        <SelectItem className={SELECT_ITEM_GREEN} value="m1">m¹</SelectItem>
+                        <SelectItem className={SELECT_ITEM_GREEN} value="m2">m²</SelectItem>
+                        <SelectItem className={SELECT_ITEM_GREEN} value="m3">m³</SelectItem>
+                        <SelectItem className={SELECT_ITEM_GREEN} value="stuk">stuk</SelectItem>
+                        <SelectItem className={SELECT_ITEM_GREEN} value="doos">doos</SelectItem>
+                        <SelectItem className={SELECT_ITEM_GREEN} value="set">set</SelectItem>
                       </SelectContent>
                     </Select>
                     {formErrors.eenheid && <p className="text-sm text-destructive">{formErrors.eenheid}</p>}
@@ -916,7 +965,9 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                       onChange={(e) => setUsageDescription(e.target.value)}
                       placeholder="Waar wordt dit materiaal voor gebruikt?"
                     />
-                    {formErrors.usageDescription && <p className="text-sm text-destructive">{formErrors.usageDescription}</p>}
+                    {formErrors.usageDescription && (
+                      <p className="text-sm text-destructive">{formErrors.usageDescription}</p>
+                    )}
                   </div>
                 )}
               </TabsContent>
@@ -948,7 +999,9 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                     {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
 
                     {initialMaterials.length === 0 && (
-                      <li className="p-8 text-center text-muted-foreground">Geen materialen gevonden die voldoen aan de criteria.</li>
+                      <li className="p-8 text-center text-muted-foreground">
+                        Geen materialen gevonden die voldoen aan de criteria.
+                      </li>
                     )}
                   </ul>
                 </div>
@@ -982,7 +1035,9 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
                   {renderMaterialList(gefilterdeMaterialen.overigeResultaten)}
 
                   {initialMaterials.length === 0 && (
-                    <li className="p-8 text-center text-muted-foreground">Geen materialen gevonden die voldoen aan de criteria.</li>
+                    <li className="p-8 text-center text-muted-foreground">
+                      Geen materialen gevonden die voldoen aan de criteria.
+                    </li>
                   )}
                 </ul>
               </div>
@@ -1025,11 +1080,7 @@ export default function HsbWandMaterialenPage() {
   const JOB_TITEL = 'HSB Voorzetwand';
 
   const [isMounted, setIsMounted] = useState(false);
-
-    useEffect(() => {
-      setIsMounted(true);
-    }, []);
-  
+  useEffect(() => setIsMounted(true), []);
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -1083,11 +1134,15 @@ export default function HsbWandMaterialenPage() {
     fetchQuote();
   }, [quoteId]);
 
+  // ✅ Supabase materialen ophalen + prijs normaliseren naar number
   useEffect(() => {
     if (!user?.uid) return;
 
     const fetchMaterials = async () => {
       setMaterialenLaden(true);
+      setFoutMaterialen(null);
+
+      // LET OP: hier filter je op 'gebruikerid' (moet echt zo heten in je tabel)
       const { data, error } = await supabase.from('materialen').select('*').eq('gebruikerid', user.uid);
 
       if (error) {
@@ -1098,20 +1153,34 @@ export default function HsbWandMaterialenPage() {
         return;
       }
 
-      const getCorrectPrice = (p: string | number | null) => {
-        if (typeof p === 'number') return p;
+      // Sanity check (alleen console) — helpt als kolomnamen ooit anders blijken
+      if ((data || []).length && !(data![0] as any).row_id) {
+        console.warn('Supabase: verwacht row_id maar niet gevonden. Kolommen:', Object.keys(data![0] as any));
+      }
+
+      const getCorrectPrice = (p: unknown): number => {
+        if (p === null || p === undefined) return 0;
+
+        if (typeof p === 'number') return Number.isFinite(p) ? p : 0;
+
         if (typeof p === 'string') {
-          const parsed = parseNlMoneyToNumber(p.replace(/\s/g, ''));
-          return parsed ?? 0;
+          const parsed = parseNLMoneyToNumber(p);
+          if (parsed === null) {
+            console.warn('Ongeldige prijs string uit DB:', p);
+            return 0;
+          }
+          return parsed;
         }
+
+        console.warn('Onverwacht prijs type uit DB:', typeof p, p);
         return 0;
       };
 
       const materialenData = (data || []).map((m: any) => ({
         ...m,
-        id: m.row_id,
+        id: m.row_id ?? m.id, // ✅ fallback als je ooit id ipv row_id hebt
         prijs: getCorrectPrice(m.prijs),
-        categorie: m.subsectie ?? null,
+        categorie: m.subsectie ?? m.categorie ?? null,
       })) as MateriaalKeuze[];
 
       setAlleMaterialen(materialenData);
@@ -1212,6 +1281,7 @@ export default function HsbWandMaterialenPage() {
     setKleinVastBedragStr(typeof n === 'number' && n > 0 ? formatNlMoneyFromNumber(n) : '');
   }, [kleinMateriaalConfig.fixedAmount]);
 
+  // ✅ Mapping selections uit Firestore => alleen IDs in Firestore, hier terug mappen naar object
   useEffect(() => {
     if (!alleMaterialen || alleMaterialen.length === 0) return;
 
@@ -1242,7 +1312,12 @@ export default function HsbWandMaterialenPage() {
           if (!toegestaneKeys.has(key as any)) continue;
           if (key === 'extra' || key === 'klein_materiaal') continue;
 
-          const id = (val as any)?.id || (val as any)?.row_id || (val as any);
+          // ondersteunt: {id}, {row_id}, of directe string id
+          const id =
+            (val as any)?.id ||
+            (val as any)?.row_id ||
+            (typeof val === 'string' ? val : null);
+
           if (!id) continue;
 
           const gevonden = alleMaterialen.find((m) => m.id === id);
@@ -1263,7 +1338,7 @@ export default function HsbWandMaterialenPage() {
                   : 0;
 
             return {
-              id: m?.id || crypto.randomUUID(),
+              id: m?.id || maakId(),
               naam,
               eenheid,
               prijsPerEenheid,
@@ -1291,7 +1366,8 @@ export default function HsbWandMaterialenPage() {
     if (gekozenPresetId !== 'default') return;
 
     const defaultPreset =
-      presets.find((p) => p.isDefault) || presets.find((p) => (p.name || '').toLowerCase().includes('standaard'));
+      presets.find((p) => p.isDefault) ||
+      presets.find((p) => (p.name || '').toLowerCase().includes('standaard'));
 
     if (!defaultPreset) return;
 
@@ -1391,7 +1467,7 @@ export default function HsbWandMaterialenPage() {
   const handleMateriaalSelectie = (_sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
     if (_sectieSleutel === 'extra') {
       const newExtra: ExtraMaterial = {
-        id: crypto.randomUUID(),
+        id: maakId(),
         naam: materiaal.materiaalnaam,
         eenheid: materiaal.eenheid as any,
         prijsPerEenheid: materiaal.prijs,
@@ -1548,7 +1624,7 @@ export default function HsbWandMaterialenPage() {
   };
 
   // ==================================
-  // Completeness (UI-only) — geen blokkade op Volgende
+  // Completeness (UI-only)
   // ==================================
   const isMaterialenComplete = useMemo(() => {
     const heeftKeuze = (k: SectieKey) => !!gekozenMaterialen[k]?.id;
@@ -1587,14 +1663,17 @@ export default function HsbWandMaterialenPage() {
 
       const toegestaneKeys = new Set(sectieSleutels);
 
+      // ✅ BELANGRIJK: Firestore payload klein houden => alleen {id} opslaan
       const schoneSelecties = Object.fromEntries(
-        Object.entries(gekozenMaterialen || {}).filter(([k, v]: any) => {
-          if (!toegestaneKeys.has(k as any)) return false;
-          if (k === 'extra' || k === 'klein_materiaal') return false;
-          if (!v || typeof v !== 'object') return false;
-          if (!v.id) return false;
-          return true;
-        })
+        Object.entries(gekozenMaterialen || {})
+          .filter(([k, v]: any) => {
+            if (!toegestaneKeys.has(k as any)) return false;
+            if (k === 'extra' || k === 'klein_materiaal') return false;
+            if (!v || typeof v !== 'object') return false;
+            if (!v.id) return false;
+            return true;
+          })
+          .map(([k, v]: any) => [k, { id: v.id }])
       );
 
       const schoneExtra = Array.isArray(extraMaterials)
@@ -1690,7 +1769,10 @@ export default function HsbWandMaterialenPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleMateriaalVerwijderen('naden_vullen')}
-                      className={cn('h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent', ICON_BUTTON_NO_ORANGE)}
+                      className={cn(
+                        'h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent',
+                        ICON_BUTTON_NO_ORANGE
+                      )}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -1718,7 +1800,10 @@ export default function HsbWandMaterialenPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleMateriaalVerwijderen('naden_vullen_2')}
-                      className={cn('h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent', ICON_BUTTON_NO_ORANGE)}
+                      className={cn(
+                        'h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent',
+                        ICON_BUTTON_NO_ORANGE
+                      )}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -1772,8 +1857,9 @@ export default function HsbWandMaterialenPage() {
                   {extraMaterials.map((mat) => (
                     <li key={mat.id} className="flex items-start justify-between text-sm">
                       <div className="min-w-0">
+                        {/* ✅ GEEN toFixed => nl-NL formatter => komma */}
                         <p className="font-medium break-words">
-                          {mat.naam} – €{mat.prijsPerEenheid.toFixed(2)} / {mat.eenheid}
+                          {mat.naam} – {formatEuroNl(mat.prijsPerEenheid)} / {mat.eenheid}
                         </p>
                         {typeof (mat as any).aantal === 'number' ? (
                           <p className="text-xs text-muted-foreground">Aantal: {(mat as any).aantal}</p>
@@ -1799,7 +1885,10 @@ export default function HsbWandMaterialenPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleRemoveExtraMaterial(mat.id)}
-                          className={cn('h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent', ICON_BUTTON_NO_ORANGE)}
+                          className={cn(
+                            'h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent',
+                            ICON_BUTTON_NO_ORANGE
+                          )}
                           aria-label="Verwijder extra materiaal"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1849,7 +1938,10 @@ export default function HsbWandMaterialenPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleMateriaalVerwijderen(sectieSleutel)}
-                      className={cn('h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent', ICON_BUTTON_NO_ORANGE)}
+                      className={cn(
+                        'h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent',
+                        ICON_BUTTON_NO_ORANGE
+                      )}
                       aria-label="Verwijder materiaal"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -1906,7 +1998,6 @@ export default function HsbWandMaterialenPage() {
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
           <div className="space-y-1.5">
             <CardTitle className="text-lg">Klein materiaal</CardTitle>
-            {/* ✅ 3) helper tekst weg */}
           </div>
 
           <TekstActie onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
@@ -1917,7 +2008,6 @@ export default function HsbWandMaterialenPage() {
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Percentage */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
@@ -1967,7 +2057,6 @@ export default function HsbWandMaterialenPage() {
                 )}
               </div>
 
-              {/* Vast bedrag */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
@@ -1994,7 +2083,7 @@ export default function HsbWandMaterialenPage() {
                       value={kleinVastBedragStr}
                       onChange={(v) => {
                         setKleinVastBedragStr(v);
-                        const n = parseNlMoneyToNumber(v);
+                        const n = parseNLMoneyToNumber(v);
                         setKleinMateriaalConfig({
                           ...kleinMateriaalConfig,
                           mode: 'fixed',
@@ -2012,7 +2101,6 @@ export default function HsbWandMaterialenPage() {
                 )}
               </div>
 
-              {/* Geen */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
@@ -2034,13 +2122,12 @@ export default function HsbWandMaterialenPage() {
   };
 
   const progressValue = isMaterialenComplete ? 100 : 75;
-  const progressKleur = isMaterialenComplete ? 'bg-emerald-600' : 'bg-destructive';
+  const progressKleur = isMaterialenComplete ? 'bg-emerald-600' : 'bg-primary';
 
   if (!isMounted) return null;
 
   return (
     <>
-
       <main className="flex flex-1 flex-col">
         <header className="border-b bg-background/80 backdrop-blur-xl">
           <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
@@ -2055,22 +2142,8 @@ export default function HsbWandMaterialenPage() {
                 <div className="text-sm font-semibold">{JOB_TITEL}</div>
 
                 <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
-                  <div className={cn('h-full rounded-full transition-all', progressKleur)} style={{ width: `${progressValue}%` }} />
+                <div className={cn('h-full rounded-full transition-all', progressKleur)} style={{ width: `${progressValue}%` }} />
                 </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <StapPunt index={1} label="Klant" klaar />
-                  <StapPunt index={2} label="Klus" klaar />
-                  <StapPunt index={3} label="Maten" klaar />
-                  <StapPunt
-                    index={4}
-                    label="Materialen"
-                    klaar={isMaterialenComplete}
-                    fout={!isMaterialenComplete}
-                    actief={!isMaterialenComplete}
-                  />
-                </div>
-              </div>
 
               <div className="w-11">{isPaginaLaden ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}</div>
             </div>
@@ -2089,13 +2162,12 @@ export default function HsbWandMaterialenPage() {
               <Label htmlFor="preset-select">Gekozen werkwijze</Label>
               <div className="flex items-center gap-2">
                 <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
-                                 <SelectTrigger
+                  <SelectTrigger
                     id="preset-select"
                     className="hover:bg-muted/40 hover:text-foreground data-[state=open]:bg-muted/40 data-[state=open]:text-foreground"
                   >
                     <SelectValue placeholder="Kies een werkwijze..." />
                   </SelectTrigger>
-
 
                   <SelectContent>
                     <SelectItem className={SELECT_ITEM_GREEN} value="default">
@@ -2149,11 +2221,7 @@ export default function HsbWandMaterialenPage() {
             </div>
 
             <div className="mt-8 flex justify-between items-center">
-              <Button
-                variant="outline"
-                asChild
-                className={cn(TERUG_HOVER_RED)}
-              >
+              <Button variant="outline" asChild className={cn(TERUG_HOVER_RED)}>
                 <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>Terug</Link>
               </Button>
 
@@ -2188,10 +2256,7 @@ export default function HsbWandMaterialenPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className={cn(SLUITEN_HOVER_RED)}>Annuleren</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void handleDeletePreset()}
-              className={buttonVariants({ variant: 'destructive' })}
-            >
+            <AlertDialogAction onClick={() => void handleDeletePreset()} className={buttonVariants({ variant: 'destructive' })}>
               Verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>

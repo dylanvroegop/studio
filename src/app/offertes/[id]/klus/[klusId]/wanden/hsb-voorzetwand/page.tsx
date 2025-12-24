@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,43 +48,6 @@ function toIntOrNull(waarde: string): number | null {
   return Math.trunc(n);
 }
 
-function StapPunt({
-  index,
-  label,
-  actief,
-  klaar,
-}: {
-  index: number;
-  label: string;
-  actief?: boolean;
-  klaar?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2 min-w-0">
-      <div
-        className={cn(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 transition-colors',
-          actief
-            ? 'bg-primary/10 ring-primary/25 text-primary'
-            : klaar
-              ? 'bg-primary/10 ring-primary/20 text-primary'
-              : 'bg-muted/35 ring-border text-muted-foreground'
-        )}
-      >
-        {klaar ? <Check className="h-4 w-4" /> : <span className="text-xs font-semibold">{index}</span>}
-      </div>
-      <div
-        className={cn(
-          'truncate text-xs',
-          actief ? 'text-foreground/85' : klaar ? 'text-foreground/70' : 'text-muted-foreground'
-        )}
-      >
-        {label}
-      </div>
-    </div>
-  );
-}
-
 export default function HsbWandPage() {
   const params = useParams();
   const router = useRouter();
@@ -97,10 +60,9 @@ export default function HsbWandPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
   const [wanden, setWanden] = useState<WandForm[]>([standaardWand]);
-
+  const [saving, setSaving] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const opslagSleutel = `quote-${quoteId}-klus-${klusId}-hsb-wand`;
@@ -124,6 +86,7 @@ export default function HsbWandPage() {
     async function prefill() {
       if (!quoteId || !klusId || !firestore) return;
 
+      // 1) Eerst Firestore (bron van waarheid)
       try {
         const ref = doc(firestore, 'quotes', quoteId);
         const snap = await getDoc(ref);
@@ -149,6 +112,7 @@ export default function HsbWandPage() {
         console.error('Prefill Firestore mislukt:', e);
       }
 
+      // 2) Fallback: localStorage
       const savedWalls = localStorage.getItem(opslagSleutel);
       if (savedWalls) {
         try {
@@ -162,6 +126,9 @@ export default function HsbWandPage() {
 
     prefill();
   }, [quoteId, klusId, firestore, opslagSleutel]);
+
+  const disabledAll = saving || isPending;
+  const isNextDisabled = disabledAll || wanden.some((w) => !w.lengte || !w.hoogte);
 
   const handleAddWall = () => {
     setWanden((prev) => {
@@ -195,9 +162,6 @@ export default function HsbWandPage() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'e' || e.key === 'E') e.preventDefault();
   };
-
-  const disabledAll = saving || isPending;
-  const isNextDisabled = disabledAll || wanden.some((w) => !w.lengte || !w.hoogte);
 
   async function saveToFirestoreOrThrow() {
     if (!firestore) throw new Error('Firestore ontbreekt.');
@@ -260,42 +224,39 @@ export default function HsbWandPage() {
     }
   };
 
-  // 1=Klant, 2=Klus, 3=Maten, 4=Materialen
-  const progressValue = (3 / 6) * 100;
-
   if (!isMounted) return null;
+
+  // Progress bar: jij bepaalt deze (voor Maten stap was eerder ~66%).
+  const progressValue = 66.6667;
 
   return (
     <main className="relative min-h-screen bg-background">
+      {/* INLINE HEADER (geen component) */}
       <header className="border-b bg-background/80 backdrop-blur-xl">
         <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="h-9 w-9 rounded-xl">
-              <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden`}>
+            <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
+              <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
 
-            <div className="flex-1 text-center">
-              <div className="text-sm font-semibold">HSB Wand</div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-center">HSB Voorzetwand</div>
 
-              <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
-                <div
-                  className="h-full rounded-full bg-primary/65 transition-all"
-                  style={{ width: `${progressValue}%` }}
-                />
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <StapPunt index={1} label="Klant" klaar />
-                <StapPunt index={2} label="Klus" klaar />
-                <StapPunt index={3} label="Maten" actief />
-                <StapPunt index={4} label="Materialen" />
+              <div className="mt-3">
+                <div className="h-1.5 rounded-full bg-muted/40">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${progressValue}%` }}
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="w-9">
-              {loading ? <div className="h-9 w-9 animate-pulse rounded-xl bg-muted/30" /> : quote ? null : null}
+            {/* rechter spacer zodat titel écht gecentreerd blijft */}
+            <div className="w-11">
+              {loading ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}
             </div>
           </div>
         </div>
@@ -391,7 +352,6 @@ export default function HsbWandPage() {
               ))}
             </div>
 
-            {/* Wand toevoegen = neutraal, groen alleen op hover */}
             <Button
               type="button"
               variant="outline"
@@ -411,7 +371,6 @@ export default function HsbWandPage() {
                 <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden`}>Terug</Link>
               </Button>
 
-              {/* ✅ Volgende = altijd groen */}
               <Button
                 type="submit"
                 disabled={isNextDisabled}

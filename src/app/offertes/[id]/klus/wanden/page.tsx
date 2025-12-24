@@ -1,17 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Check } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
+import { doc, updateDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
-
-import { doc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
 type Subcategory = {
@@ -22,43 +21,6 @@ type Subcategory = {
   href: string;
   slug: string;
 };
-
-function StapPunt({
-  index,
-  label,
-  actief,
-  klaar,
-}: {
-  index: number;
-  label: string;
-  actief?: boolean;
-  klaar?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2 min-w-0">
-      <div
-        className={cn(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 transition-colors',
-          actief
-            ? 'bg-primary/10 ring-primary/25 text-primary'
-            : klaar
-              ? 'bg-primary/10 ring-primary/20 text-primary'
-              : 'bg-muted/35 ring-border text-muted-foreground'
-        )}
-      >
-        {klaar ? <Check className="h-4 w-4" /> : <span className="text-xs font-semibold">{index}</span>}
-      </div>
-      <div
-        className={cn(
-          'truncate text-xs',
-          actief ? 'text-foreground/85' : klaar ? 'text-foreground/70' : 'text-muted-foreground'
-        )}
-      >
-        {label}
-      </div>
-    </div>
-  );
-}
 
 export default function WandenPage() {
   const params = useParams();
@@ -92,8 +54,8 @@ export default function WandenPage() {
     fetchQuote();
   }, [quoteId]);
 
-  // Zelfde progress-bar als hoofd pagina
-  const progressValue = (2 / 6) * 100;
+  // Progress bar: jij bepaalt deze. Voor "Klus" stap was eerder ~33%.
+  const progressValue = 33.3333;
 
   const subcategories: Subcategory[] = useMemo(
     () => [
@@ -176,11 +138,9 @@ export default function WandenPage() {
             },
           });
 
-          // ✅ Belangrijk: we blijven qua “stap” op Klus
           router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/wanden/${item.slug}`);
         } catch (err) {
           console.error('Fout bij opslaan klussen.*.klusomschrijving:', err);
-          // Alleen bij fout unlocken zodat user opnieuw kan proberen
           klusAanmakenRef.current = false;
           setIsKlusAanmaken(false);
         }
@@ -194,43 +154,38 @@ export default function WandenPage() {
 
   return (
     <main className="relative min-h-screen bg-background">
-      {/* Header = exact zoals hoofd klus pagina, maar ZONDER zoekbalk */}
+      {/* INLINE HEADER (geen component) */}
       <header className="border-b bg-background/80 backdrop-blur-xl">
         <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="h-9 w-9 rounded-xl">
+            <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
               <Link href={`/offertes/${quoteId}/klus/nieuw`}>
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
 
-            <div className="flex-1 text-center">
-              <div className="text-sm font-semibold">Kies een klus</div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-center">Kies een klus</div>
 
-              <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
-                <div
-                  className="h-full rounded-full bg-primary/65 transition-all"
-                  style={{ width: `${progressValue}%` }}
-                />
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <StapPunt index={1} label="Klant" klaar />
-                <StapPunt index={2} label="Klus" actief />
-                <StapPunt index={3} label="Maten" />
-                <StapPunt index={4} label="Materialen" />
+              <div className="mt-3">
+                <div className="h-1.5 rounded-full bg-muted/40">
+                  <div
+                    className="h-full rounded-full bg-primary/65 transition-all"
+                    style={{ width: `${progressValue}%` }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Zelfde “rechterkolom” als hoofd pagina (alleen voor uitlijning) */}
-            <div className="w-9">
-              {loading ? <div className="h-9 w-9 animate-pulse rounded-xl bg-muted/30" /> : quote ? null : null}
+            {/* rechter spacer zodat titel écht gecentreerd blijft */}
+            <div className="w-11">
+              {loading ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Content = exact hetzelfde frame als hoofd klus pagina */}
+      {/* Content */}
       <div className="px-4 py-6 max-w-5xl mx-auto">
         <div className="rounded-3xl border bg-card/50 p-4 sm:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -242,7 +197,6 @@ export default function WandenPage() {
                 onPointerUp={() => setSelectedSlug(null)}
                 onPointerCancel={() => setSelectedSlug(null)}
               >
-                {/* Kaart = dezelfde look/feel als hoofd kaart (hoogte, padding, border, hover) */}
                 <button
                   type="button"
                   onClick={() => slaKaartOpEnNavigeer(item)}

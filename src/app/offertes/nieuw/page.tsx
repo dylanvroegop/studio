@@ -3,12 +3,11 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
 import { useUser } from '@/firebase';
-import { cn } from '@/lib/utils';
 
 function PaginaLaden() {
   return (
@@ -20,14 +19,7 @@ function PaginaLaden() {
           fill="none"
           viewBox="0 0 24 24"
         >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path
             className="opacity-75"
             fill="currentColor"
@@ -35,39 +27,6 @@ function PaginaLaden() {
           />
         </svg>
         Laden...
-      </div>
-    </div>
-  );
-}
-
-function StapPunt({
-  index,
-  label,
-  actief,
-  klaar,
-}: {
-  index: number;
-  label: string;
-  actief?: boolean;
-  klaar?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2 min-w-0">
-      <div
-        className={cn(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1',
-          actief
-            ? 'bg-primary/12 ring-primary/30 text-primary'
-            : klaar
-              ? 'bg-primary/10 ring-primary/20 text-primary'
-              : 'bg-muted/35 ring-border text-muted-foreground'
-        )}
-        aria-hidden="true"
-      >
-        {klaar ? <Check className="h-4 w-4" /> : <span className="text-xs font-semibold">{index}</span>}
-      </div>
-      <div className={cn('truncate text-xs', actief ? 'text-foreground/90' : 'text-muted-foreground')}>
-        {label}
       </div>
     </div>
   );
@@ -81,6 +40,7 @@ export default function NewQuotePage() {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
 
+  // Alleen progress bar, geen stappen/icoontjes
   const totaalStappen = 6;
   const huidigeStap = 1;
   const progressValue = (huidigeStap / totaalStappen) * 100;
@@ -114,7 +74,7 @@ export default function NewQuotePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.05),transparent_60%)] opacity-70" />
       </div>
 
-      {/* TOP BAR: NIET sticky/fixed -> scrollt weg */}
+      {/* TOP BAR: alleen titel + progress bar */}
       <header className="border-b bg-background/80 backdrop-blur-xl">
         <div className="pt-[env(safe-area-inset-top)]">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -135,22 +95,15 @@ export default function NewQuotePage() {
                   aria-hidden="true"
                 />
               </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
-                <StapPunt index={1} label="Klant" actief />
-                <StapPunt index={2} label="Klus" />
-                <StapPunt index={3} label="Maten" />
-                <StapPunt index={4} label="Materialen" />
-              </div>
             </div>
 
+            {/* rechter spacer voor perfecte centrering */}
             <div className="h-9 w-9" aria-hidden="true" />
           </div>
         </div>
       </header>
 
-      {/* Content: GEEN extra "Klantinformatie" header hier.
-          Alleen de form zelf mag die titel tonen. */}
+      {/* Content */}
       <div className="px-4 py-6 sm:px-6 sm:py-8">
         <div className="mx-auto w-full max-w-5xl">
           <div className="rounded-3xl border bg-card/55 shadow-sm backdrop-blur-xl">

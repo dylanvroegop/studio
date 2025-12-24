@@ -200,6 +200,15 @@ function defaultMaterieel(): MaterieelItem[] {
   ];
 }
 
+function slugify(value: string) {
+  return (value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-');
+}
+
 /* ---------------------------------------------
  Page
 --------------------------------------------- */
@@ -620,11 +629,16 @@ export default function OverzichtPage() {
               )}
 
               {jobs.map((job: any) => {
-                const title =
-                  job?.klusinformatie?.title?.trim?.() ||
-                  job?.meta?.title?.trim?.() ||
-                  job?.materialen?.jobKey?.trim?.() ||
-                  humanizeJobKey(job?.jobKey);
+               const rawKey =
+               job?.klusinformatie?.title?.trim?.() ||
+               job?.meta?.title?.trim?.() ||
+               job?.materialen?.jobKey?.trim?.() ||
+               job?.jobKey ||
+               '';
+             
+             const title = humanizeJobKey(rawKey);
+             
+
 
                 const preset = resolvePresetLabelForUI(
                   job?.werkwijze?.presetLabel ?? null
@@ -638,11 +652,11 @@ export default function OverzichtPage() {
                   job?.meta?.type ||
                   'wanden';
 
-                const slug =
+                  const slug =
                   job?.materialen?.jobSlug ||
                   job?.meta?.slug ||
-                  job?.jobKey ||
-                  'hsb-voorzetwand';
+                  slugify(title);
+                
 
                 const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
 
