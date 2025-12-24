@@ -19,7 +19,14 @@ function PaginaLaden() {
           fill="none"
           viewBox="0 0 24 24"
         >
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
           <path
             className="opacity-75"
             fill="currentColor"
@@ -40,7 +47,6 @@ export default function NewQuotePage() {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
 
-  // Alleen progress bar, geen stappen/icoontjes
   const totaalStappen = 6;
   const huidigeStap = 1;
   const progressValue = (huidigeStap / totaalStappen) * 100;
@@ -49,22 +55,35 @@ export default function NewQuotePage() {
 
   return (
     <main className="relative min-h-screen bg-background">
-      {/* Forceer CTA (submit) groen binnen deze pagina */}
+      {/* ✅ FORCE GREEN UI (CTA + radio + switch, including inner dot) */}
       <style jsx global>{`
-        .oh-cta-green button[type='submit'] {
-          background-color: hsl(142 71% 45%) !important;
-          color: white !important;
-          border-color: transparent !important;
-        }
-        .oh-cta-green button[type='submit']:hover {
-          background-color: hsl(142 71% 40%) !important;
-        }
-        .oh-cta-green button[type='submit']:disabled {
-          opacity: 0.6 !important;
-        }
-      `}</style>
+  /* SUBMIT BUTTON — toned down green */
+  .oh-cta-green button[type='submit'] {
+    background-color: hsl(142 45% 38%) !important;
+    color: white !important;
+    border-color: transparent !important;
+  }
+  .oh-cta-green button[type='submit']:hover {
+    background-color: hsl(142 45% 34%) !important;
+  }
+  .oh-cta-green button[type='submit']:disabled {
+    opacity: 0.6 !important;
+  }
 
-      {/* ambience zoals landing */}
+  /* RADIO — outer + inner dot */
+  .oh-cta-green [role='radio'][data-state='checked'] {
+    border-color: hsl(142 71% 45%) !important;
+    color: hsl(142 71% 45%) !important;
+  }
+
+  /* SWITCH */
+  .oh-cta-green button[role='switch'][data-state='checked'] {
+    background-color: hsl(142 71% 45%) !important;
+  }
+`}</style>
+
+
+      {/* ambience */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-background" />
         <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/10 to-background" />
@@ -74,11 +93,16 @@ export default function NewQuotePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.05),transparent_60%)] opacity-70" />
       </div>
 
-      {/* TOP BAR: alleen titel + progress bar */}
+      {/* TOP BAR */}
       <header className="border-b bg-background/80 backdrop-blur-xl">
         <div className="pt-[env(safe-area-inset-top)]">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <Button asChild variant="outline" size="icon" className="h-9 w-9 rounded-xl">
+            <Button
+              asChild
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 rounded-xl"
+            >
               <Link href="/landing">
                 <ArrowLeft className="h-4 w-4" />
                 <span className="sr-only">Terug</span>
@@ -86,19 +110,19 @@ export default function NewQuotePage() {
             </Button>
 
             <div className="min-w-0 flex-1 text-center">
-              <div className="text-sm font-semibold text-foreground/90 leading-5">Nieuwe offerte</div>
+              <div className="text-sm font-semibold text-foreground/90 leading-5">
+                Nieuwe offerte
+              </div>
 
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted/40 ring-1 ring-border">
                 <div
                   className="h-full rounded-full bg-primary/70 transition-[width] duration-300"
                   style={{ width: `${progressValue}%` }}
-                  aria-hidden="true"
                 />
               </div>
             </div>
 
-            {/* rechter spacer voor perfecte centrering */}
-            <div className="h-9 w-9" aria-hidden="true" />
+            <div className="h-9 w-9" aria-hidden />
           </div>
         </div>
       </header>

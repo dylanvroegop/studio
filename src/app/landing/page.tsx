@@ -165,6 +165,21 @@ export default function LandingPage() {
       </div>
 
       <main className="relative min-h-screen p-4 sm:p-6">
+        {/* ✅ Maak "Starten" dezelfde (gedempte) groen als "Volgende" */}
+        <style jsx global>{`
+          .oh-landing-green a.oh-starten-green > button {
+            background-color: hsl(142 45% 38%) !important;
+            color: white !important;
+            border-color: transparent !important;
+          }
+          .oh-landing-green a.oh-starten-green > button:hover {
+            background-color: hsl(142 45% 34%) !important;
+          }
+          .oh-landing-green a.oh-starten-green > button:disabled {
+            opacity: 0.6 !important;
+          }
+        `}</style>
+
         {/* Fix: ensure the whole canvas has background + ambience (no black lower section) */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute inset-0 bg-background" />
@@ -175,7 +190,7 @@ export default function LandingPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.05),transparent_60%)] opacity-70" />
         </div>
 
-        <div className="mx-auto w-full max-w-5xl">
+        <div className="mx-auto w-full max-w-5xl oh-landing-green">
           {/* In-page header with real logo + existing logout (DashboardHeader renders it) */}
           <DashboardHeader user={user} />
 
@@ -209,7 +224,7 @@ export default function LandingPage() {
                     </CardDescription>
                   </div>
 
-                  <Link href="/offertes/nieuw" className="shrink-0">
+                  <Link href="/offertes/nieuw" className="shrink-0 oh-starten-green">
                     <Button className="gap-2">
                       Starten <ArrowRight className="h-4 w-4" />
                     </Button>
@@ -252,8 +267,6 @@ export default function LandingPage() {
                     tone="neutral"
                   />
                 </div>
-
-                {/* VERWIJDERD: extra regel "Jij voert in — wij rekenen uit." + "Klaar om te starten" */}
               </CardContent>
             </Card>
 
