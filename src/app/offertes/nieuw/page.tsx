@@ -55,33 +55,38 @@ export default function NewQuotePage() {
 
   return (
     <main className="relative min-h-screen bg-background">
-      {/* ✅ FORCE GREEN UI (CTA + radio + switch, including inner dot) */}
       <style jsx global>{`
-  /* SUBMIT BUTTON — toned down green */
-  .oh-cta-green button[type='submit'] {
-    background-color: hsl(142 45% 38%) !important;
-    color: white !important;
-    border-color: transparent !important;
-  }
-  .oh-cta-green button[type='submit']:hover {
-    background-color: hsl(142 45% 34%) !important;
-  }
-  .oh-cta-green button[type='submit']:disabled {
-    opacity: 0.6 !important;
-  }
+        /* SUBMIT BUTTON — toned down green */
+        .oh-cta-green button[type='submit'] {
+          background-color: hsl(142 45% 38%) !important;
+          color: white !important;
+          border-color: transparent !important;
+        }
+        .oh-cta-green button[type='submit']:hover {
+          background-color: hsl(142 45% 34%) !important;
+        }
+        .oh-cta-green button[type='submit']:disabled {
+          opacity: 0.6 !important;
+        }
 
-  /* RADIO — outer + inner dot */
-  .oh-cta-green [role='radio'][data-state='checked'] {
-    border-color: hsl(142 71% 45%) !important;
-    color: hsl(142 71% 45%) !important;
-  }
+        /* RADIO — outer + inner dot */
+        .oh-cta-green [role='radio'][data-state='checked'] {
+          border-color: hsl(142 71% 45%) !important;
+          color: hsl(142 71% 45%) !important;
+        }
 
-  /* SWITCH */
-  .oh-cta-green button[role='switch'][data-state='checked'] {
-    background-color: hsl(142 71% 45%) !important;
-  }
-`}</style>
+        /* SWITCH */
+        .oh-cta-green button[role='switch'][data-state='checked'] {
+          background-color: hsl(142 71% 45%) !important;
+        }
 
+        /* ✅ Annuleren hover rood — werkt alleen als de knop className="oh-annuleren" krijgt */
+        .oh-cta-green .oh-annuleren:hover {
+          background-color: hsl(0 72% 46%) !important;
+          border-color: transparent !important;
+          color: white !important;
+        }
+      `}</style>
 
       {/* ambience */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">

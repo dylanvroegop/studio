@@ -536,19 +536,24 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           </div>
 
           <div className="flex justify-end gap-4 pt-4">
-            <Button variant="outline" asChild>
-              <Link href={quoteId ? `/offertes/${quoteId}` : '/'}>Annuleren</Link>
-            </Button>
+  <Button
+    variant="outline"
+    asChild
+    className="hover:bg-destructive hover:text-destructive-foreground"
+  >
+    <Link href={quoteId ? `/offertes/${quoteId}` : '/'}>Annuleren</Link>
+  </Button>
 
-            <Button
-              type="submit"
-              disabled={isPending || !user}
-              className="bg-accent text-accent-foreground hover:bg-accent/hover"
-            >
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isPending ? 'Bezig...' : 'Volgende'}
-            </Button>
-          </div>
+  <Button
+    type="submit"
+    disabled={isPending || !user}
+    className="bg-accent text-accent-foreground hover:bg-accent/hover"
+  >
+    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+    {isPending ? 'Bezig...' : 'Volgende'}
+  </Button>
+</div>
+
         </form>
       </CardContent>
     </Card>

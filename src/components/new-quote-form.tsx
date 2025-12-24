@@ -35,11 +35,11 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
           'Controleer de ingevulde velden.',
       });
     } else if (result.message) {
-        toast({
-            variant: 'destructive',
-            title: 'Fout',
-            description: result.message,
-        });
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: result.message,
+      });
     } else if (result.redirect) {
       router.push(result.redirect);
     }
@@ -67,6 +67,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
           <TabsTrigger value="existing">Bestaande klant</TabsTrigger>
           <TabsTrigger value="new">Nieuwe klant</TabsTrigger>
         </TabsList>
+
         <TabsContent value="existing" className="pt-4">
           <div className="space-y-2">
             <Label htmlFor="existingClientId">Kies een klant</Label>
@@ -88,6 +89,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
             </Select>
           </div>
         </TabsContent>
+
         <TabsContent value="new" className="pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -100,6 +102,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                 required={clientSource === 'new'}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="telefoon">Telefoon</Label>
               <Input
@@ -109,6 +112,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                 disabled={clientSource !== 'new'}
               />
             </div>
+
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -119,6 +123,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                 disabled={clientSource !== 'new'}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="adres">Adres</Label>
               <Input
@@ -129,6 +134,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                 required={clientSource === 'new'}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="postcode">Postcode</Label>
               <Input
@@ -139,6 +145,7 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
                 required={clientSource === 'new'}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="plaats">Plaats</Label>
               <Input
@@ -152,10 +159,12 @@ export function NewQuoteForm({ clients }: { clients: Client[] }) {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* ✅ CTA styling: green base, but NO global changes elsewhere */}
       <div className="flex justify-end">
         <Button
           type="submit"
-          className="bg-accent text-accent-foreground hover:bg-accent/90"
+          className="bg-[hsl(142_45%_38%)] text-white hover:bg-[hsl(142_45%_34%)]"
         >
           Offerte aanmaken en verder
         </Button>

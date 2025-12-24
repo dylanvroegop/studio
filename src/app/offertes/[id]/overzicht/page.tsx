@@ -30,11 +30,28 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
 import type { Quote, Job, KleinMateriaalConfig } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  deleteField,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 /* ---------------------------------------------
  Helpers
@@ -229,6 +246,14 @@ export default function OverzichtPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Job delete
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [isDeletingJob, setIsDeletingJob] = useState(false);
+
   // Transport
   const [transportMode, setTransportMode] = useState<TransportMode>('perKm');
   const [prijsPerKm, setPrijsPerKm] = useState('');
@@ -333,7 +358,10 @@ export default function OverzichtPage() {
    Validatie helpers
   --------------------------------------------- */
 
-  const prijsPerKmNum = useMemo(() => euroNLToNumberOrNull(prijsPerKm), [prijsPerKm]);
+  const prijsPerKmNum = useMemo(
+    () => euroNLToNumberOrNull(prijsPerKm),
+    [prijsPerKm]
+  );
   const vasteTransportNum = useMemo(
     () => euroNLToNumberOrNull(vasteTransportkosten),
     [vasteTransportkosten]
@@ -346,7 +374,6 @@ export default function OverzichtPage() {
     return false;
   }, [transportMode, prijsPerKmNum, vasteTransportNum]);
 
-  // winst mode afleiden + "none" support
   const winstMode = (winstMarge?.mode as WinstMargeMode) ?? 'percentage';
 
   const winstMargeIsValid = useMemo(() => {
@@ -478,7 +505,6 @@ export default function OverzichtPage() {
           isVast: m.isVast,
         }));
 
-      // Als winstMode === 'none' -> stuur expliciet "none" + null velden
       const winstPayload =
         winstMode === 'none'
           ? { mode: 'none', percentage: null, fixedAmount: null }
@@ -533,6 +559,56 @@ export default function OverzichtPage() {
     router.push(`/offertes/${quoteId}/klus/nieuw`);
   };
 
+  const openDeleteDialogForJob = (job: any) => {
+    const rawKey =
+      job?.klusinformatie?.title?.trim?.() ||
+      job?.meta?.title?.trim?.() ||
+      job?.materialen?.jobKey?.trim?.() ||
+      job?.jobKey ||
+      '';
+
+    const title = humanizeJobKey(rawKey);
+
+    setJobToDelete({ id: job.id, title });
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteJob = async () => {
+    if (!firestore || !user || !quoteId || !jobToDelete) return;
+    if (isDeletingJob) return;
+
+    setIsDeletingJob(true);
+
+    try {
+      // hard-delete de klus uit de map: quotes/{quoteId}.klussen.{klusId}
+      const ref = doc(firestore, 'quotes', quoteId);
+
+      await updateDoc(ref, {
+        [`klussen.${jobToDelete.id}`]: deleteField(),
+        updatedAt: serverTimestamp(),
+      } as any);
+
+      setJobs((prev) => prev.filter((j: any) => j.id !== jobToDelete.id));
+
+      toast({
+        title: 'Klus verwijderd',
+        description: 'De klus is definitief verwijderd uit de offerte.',
+      });
+
+      setDeleteDialogOpen(false);
+      setJobToDelete(null);
+    } catch (err: any) {
+      console.error('Delete job error:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Verwijderen mislukt',
+        description: err?.message || 'Kon de klus niet verwijderen.',
+      });
+    } finally {
+      setIsDeletingJob(false);
+    }
+  };
+
   /* ---------------------------------------------
    Render states
   --------------------------------------------- */
@@ -572,6 +648,44 @@ export default function OverzichtPage() {
 
   return (
     <main className="flex min-h-screen flex-col">
+      {/* Confirm delete dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Klus verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Je staat op het punt om{' '}
+              <span className="font-medium">{jobToDelete?.title ?? 'deze klus'}</span>{' '}
+              definitief te verwijderen. Dit kan niet ongedaan gemaakt worden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingJob}>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmDeleteJob();
+              }}
+              disabled={isDeletingJob}
+              className={cn(
+                'bg-red-600 text-white hover:bg-red-700',
+                isDeletingJob && 'opacity-70'
+              )}
+            >
+              {isDeletingJob ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verwijderen…
+                </>
+              ) : (
+                'Ja, verwijderen'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex-1 px-4 py-6 md:py-10">
         <div className="mx-auto max-w-3xl space-y-6">
           {/* Page top row */}
@@ -629,16 +743,14 @@ export default function OverzichtPage() {
               )}
 
               {jobs.map((job: any) => {
-               const rawKey =
-               job?.klusinformatie?.title?.trim?.() ||
-               job?.meta?.title?.trim?.() ||
-               job?.materialen?.jobKey?.trim?.() ||
-               job?.jobKey ||
-               '';
-             
-             const title = humanizeJobKey(rawKey);
-             
+                const rawKey =
+                  job?.klusinformatie?.title?.trim?.() ||
+                  job?.meta?.title?.trim?.() ||
+                  job?.materialen?.jobKey?.trim?.() ||
+                  job?.jobKey ||
+                  '';
 
+                const title = humanizeJobKey(rawKey);
 
                 const preset = resolvePresetLabelForUI(
                   job?.werkwijze?.presetLabel ?? null
@@ -652,11 +764,10 @@ export default function OverzichtPage() {
                   job?.meta?.type ||
                   'wanden';
 
-                  const slug =
+                const slug =
                   job?.materialen?.jobSlug ||
                   job?.meta?.slug ||
                   slugify(title);
-                
 
                 const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
 
@@ -702,6 +813,17 @@ export default function OverzichtPage() {
                           Bewerken
                         </Button>
                       </Link>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => openDeleteDialogForJob(job)}
+                        aria-label="Klus verwijderen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 );
@@ -730,8 +852,12 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'perKm' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  transportMode === 'perKm' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
+                  transportMode === 'perKm' &&
+                    transportIsValid &&
+                    'border-emerald-500/40 bg-emerald-500/10',
+                  transportMode === 'perKm' &&
+                    !transportIsValid &&
+                    'border-red-500/40 bg-red-500/10',
                   transportMode !== 'perKm' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setTransportMode('perKm')}
@@ -766,8 +892,12 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'fixed' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  transportMode === 'fixed' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
+                  transportMode === 'fixed' &&
+                    transportIsValid &&
+                    'border-emerald-500/40 bg-emerald-500/10',
+                  transportMode === 'fixed' &&
+                    !transportIsValid &&
+                    'border-red-500/40 bg-red-500/10',
                   transportMode !== 'fixed' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setTransportMode('fixed')}
@@ -914,8 +1044,12 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'percentage' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  winstMode === 'percentage' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
+                  winstMode === 'percentage' &&
+                    winstMargeIsValid &&
+                    'border-emerald-500/40 bg-emerald-500/10',
+                  winstMode === 'percentage' &&
+                    !winstMargeIsValid &&
+                    'border-red-500/40 bg-red-500/10',
                   winstMode !== 'percentage' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() =>
@@ -941,7 +1075,9 @@ export default function OverzichtPage() {
                         onChange={(e) => {
                           const raw = e.target.value;
                           if (raw.trim() === '') {
-                            setWinstMarge({ ...winstMarge, percentage: null as any } as any);
+                            setWinstMarge(
+                              { ...winstMarge, percentage: null as any } as any
+                            );
                             return;
                           }
                           const n = Number(raw);
@@ -969,8 +1105,12 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'fixed' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  winstMode === 'fixed' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
+                  winstMode === 'fixed' &&
+                    winstMargeIsValid &&
+                    'border-emerald-500/40 bg-emerald-500/10',
+                  winstMode === 'fixed' &&
+                    !winstMargeIsValid &&
+                    'border-red-500/40 bg-red-500/10',
                   winstMode !== 'fixed' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setWinstMarge({ ...winstMarge, mode: 'fixed' } as any)}

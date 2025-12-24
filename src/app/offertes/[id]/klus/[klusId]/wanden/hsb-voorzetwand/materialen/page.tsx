@@ -1717,7 +1717,21 @@ export default function HsbWandMaterialenPage() {
       setIsOpslaan(false);
     }
   };
-
+  const renderExtraMateriaalCompact = () => (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between p-4">
+        <CardTitle className="text-lg">Extra materiaal</CardTitle>
+  
+        <ToevoegenActie
+          onClick={() => {
+            setEditExtra(null);
+            openMateriaalKiezer('extra');
+          }}
+        />
+      </CardHeader>
+    </Card>
+  );
+  
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
@@ -2205,15 +2219,19 @@ export default function HsbWandMaterialenPage() {
             </div>
 
             <div className="space-y-4">
-              {renderSelectieRij('balkhout', 'Balkhout')}
-              {renderSelectieRij('isolatie', 'Isolatie')}
-              {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
-              {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
-              {renderSelectieRij('naden_vullen', 'Naden vullen')}
-              {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
-              {renderSelectieRij('extra', 'Extra materiaal')}
-              {renderKleinMateriaalSectie()}
-            </div>
+  {renderSelectieRij('balkhout', 'Balkhout')}
+  {renderSelectieRij('isolatie', 'Isolatie')}
+  {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
+  {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
+  {renderSelectieRij('naden_vullen', 'Naden vullen')}
+  {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
+
+  {/* Optioneel materiaal */}
+  <div className="mt-8 space-y-6">
+  {renderExtraMateriaalCompact()}
+    {renderKleinMateriaalSectie()}
+  </div>
+</div>
 
             <div className="mt-8">
               <Button
