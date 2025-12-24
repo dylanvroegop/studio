@@ -2129,26 +2129,35 @@ export default function HsbWandMaterialenPage() {
   return (
     <>
       <main className="flex flex-1 flex-col">
-        <header className="border-b bg-background/80 backdrop-blur-xl">
-          <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-            <div className="flex items-center gap-3">
-              <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
-                <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
+      <header className="border-b bg-background/80 backdrop-blur-xl">
+  <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+    <div className="flex items-center gap-3">
+      <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
+        <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+      </Button>
 
-              <div className="flex-1 text-center">
-                <div className="text-sm font-semibold">{JOB_TITEL}</div>
+      <div className="flex-1 text-center">
+        <div className="text-sm font-semibold">{JOB_TITEL}</div>
 
-                <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
-                <div className={cn('h-full rounded-full transition-all', progressKleur)} style={{ width: `${progressValue}%` }} />
-                </div>
+        <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
+          <div
+            className="h-full rounded-full bg-primary transition-all"
+            style={{ width: '80%' }}
+          />
+        </div>
+      </div>
 
-              <div className="w-11">{isPaginaLaden ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}</div>
-            </div>
-          </div>
-        </header>
+      <div className="w-11">
+        {isPaginaLaden ? (
+          <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+        ) : null}
+      </div>
+    </div>
+  </div>
+</header>
+
 
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
