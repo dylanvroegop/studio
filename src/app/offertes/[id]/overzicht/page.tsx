@@ -227,6 +227,32 @@ function slugify(value: string) {
 }
 
 /* ---------------------------------------------
+ n8n webhook helper
+--------------------------------------------- */
+
+// ✅ Standaard naar PRODUCTION (werkt altijd als workflow actief is)
+const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n.dylan8n.org/webhook/offerte-test';
+
+// ✅ Zet in je env (Firebase Studio / Vercel / etc.):
+// NEXT_PUBLIC_N8N_WEBHOOK_URL=https://n8n.dylan8n.org/webhook/offerte-test
+// of voor test:
+// NEXT_PUBLIC_N8N_WEBHOOK_URL=https://n8n.dylan8n.org/webhook-test/offerte-test
+function getN8nWebhookUrl() {
+  const envUrl = (process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || '').trim();
+  return envUrl || DEFAULT_N8N_WEBHOOK_URL;
+}
+
+async function readResponseBodySafe(res: Response) {
+  const ct = res.headers.get('content-type') || '';
+  try {
+    if (ct.includes('application/json')) return JSON.stringify(await res.json());
+    return await res.text();
+  } catch {
+    return '';
+  }
+}
+
+/* ---------------------------------------------
  Page
 --------------------------------------------- */
 
@@ -510,29 +536,28 @@ export default function OverzichtPage() {
           ? { mode: 'none', percentage: null, fixedAmount: null }
           : winstMarge;
 
-      const response = await fetch(
-        'https://n8n.dylan8n.org/webhook-test/offerte-test',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            quoteId,
-            quote,
-            extras: {
-              transport: transportPayload,
-              materieel: materieelPayload,
-              winstMarge: winstPayload,
-              onvoorzien: winstPayload, // backward compat
-            },
-            triggeredAt: new Date().toISOString(),
-          }),
-        }
-      );
+      const webhookUrl = getN8nWebhookUrl();
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quoteId,
+          quote,
+          extras: {
+            transport: transportPayload,
+            materieel: materieelPayload,
+            winstMarge: winstPayload,
+            onvoorzien: winstPayload, // backward compat
+          },
+          triggeredAt: new Date().toISOString(),
+        }),
+      });
 
       if (!response.ok) {
-        const text = await response.text().catch(() => '');
+        const body = await readResponseBodySafe(response);
         throw new Error(
-          `Webhook fout: ${response.status}${text ? ` - ${text}` : ''}`
+          `Webhook fout: ${response.status}${body ? ` - ${body}` : ''}`
         );
       }
 
@@ -580,7 +605,6 @@ export default function OverzichtPage() {
     setIsDeletingJob(true);
 
     try {
-      // hard-delete de klus uit de map: quotes/{quoteId}.klussen.{klusId}
       const ref = doc(firestore, 'quotes', quoteId);
 
       await updateDoc(ref, {
@@ -648,7 +672,6 @@ export default function OverzichtPage() {
 
   return (
     <main className="flex min-h-screen flex-col">
-      {/* Confirm delete dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -688,7 +711,6 @@ export default function OverzichtPage() {
 
       <div className="flex-1 px-4 py-6 md:py-10">
         <div className="mx-auto max-w-3xl space-y-6">
-          {/* Page top row */}
           <div className="grid grid-cols-3 items-center">
             <div>
               <Button
@@ -708,7 +730,6 @@ export default function OverzichtPage() {
             <div />
           </div>
 
-          {/* Status-only */}
           <div
             className={cn(
               'rounded-lg border px-4 py-3 text-sm',
@@ -729,7 +750,6 @@ export default function OverzichtPage() {
             </div>
           </div>
 
-          {/* Jobs */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Huidige klussen</CardTitle>
@@ -843,7 +863,6 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Transport (verplicht tenzij "Geen") */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Transport</CardTitle>
@@ -948,7 +967,6 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Materieel (optioneel) */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
@@ -1033,14 +1051,12 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Winstmarge (nu met "Geen") */}
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <CardTitle>Winstmarge</CardTitle>
             </CardHeader>
 
             <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Percentage */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
@@ -1101,7 +1117,6 @@ export default function OverzichtPage() {
                 )}
               </div>
 
-              {/* Vast bedrag */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
@@ -1155,7 +1170,6 @@ export default function OverzichtPage() {
                 )}
               </div>
 
-              {/* Geen */}
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
@@ -1181,7 +1195,6 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Sticky footer CTA */}
           <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 backdrop-blur-sm">
             <div className="mx-auto max-w-3xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">

@@ -359,7 +359,7 @@ type FirestoreWerkwijzePayload = {
 };
 
 // Klein materiaal met "Geen"
-type KleinMateriaalMode = 'percentage' | 'fixed' | 'none';
+type KleinMateriaalMode = 'percentage' | 'fixed' | 'none'| 'inschatting';
 type KleinMateriaalConfigLocal = Omit<KleinMateriaalConfig, 'mode'> & { mode: KleinMateriaalMode };
 
 // ==================================
@@ -1250,7 +1250,14 @@ export default function HsbWandMaterialenPage() {
 
         if (kmAny && typeof kmAny === 'object') {
           const mode: KleinMateriaalMode =
-            kmAny.mode === 'none' ? 'none' : kmAny.mode === 'fixed' ? 'fixed' : 'percentage';
+          kmAny.mode === 'none'
+            ? 'none'
+            : kmAny.mode === 'fixed'
+              ? 'fixed'
+              : kmAny.mode === 'inschatting'
+                ? 'inschatting'
+                : 'percentage';
+        
 
           setKleinMateriaalConfig({
             mode,
@@ -1412,7 +1419,14 @@ export default function HsbWandMaterialenPage() {
     const kmPreset: any = (preset as any).kleinMateriaalConfig;
     if (kmPreset && typeof kmPreset === 'object') {
       const mode: KleinMateriaalMode =
-        kmPreset.mode === 'none' ? 'none' : kmPreset.mode === 'fixed' ? 'fixed' : 'percentage';
+  kmPreset.mode === 'none'
+    ? 'none'
+    : kmPreset.mode === 'fixed'
+      ? 'fixed'
+      : kmPreset.mode === 'inschatting'
+        ? 'inschatting'
+        : 'percentage';
+
 
       setKleinMateriaalConfig({
         mode,
@@ -1983,6 +1997,8 @@ export default function HsbWandMaterialenPage() {
     const isNone = kleinMateriaalConfig.mode === 'none';
     const isPercentage = kleinMateriaalConfig.mode === 'percentage';
     const isFixed = kleinMateriaalConfig.mode === 'fixed';
+    const isInschatting = kleinMateriaalConfig.mode === 'inschatting';
+
 
     const p = (kleinMateriaalConfig as any)?.percentage;
     const percentageIsValid = typeof p === 'number' && Number.isFinite(p) && p > 0;
@@ -2021,7 +2037,30 @@ export default function HsbWandMaterialenPage() {
 
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div
+          
+  className={cn(
+    'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
+    kleinMateriaalConfig.mode === 'inschatting'
+      ? 'border-emerald-500/40 bg-emerald-500/10'
+      : 'hover:border-muted-foreground/30 hover:bg-muted/20'
+  )}
+  onClick={() => {
+    setKleinMateriaalConfig({
+      mode: 'inschatting',
+      percentage: null as any,
+      fixedAmount: null,
+    } as any);
+    setKleinVastBedragStr('');
+  }}
+>
+  <h4 className="font-semibold">Laat door ons inschatten</h4>
+  <p className="text-sm text-muted-foreground">
+    We schatten alleen de kosten voor klein materiaal. Hoofdmaterialen worden exact berekend.
+  </p>
+</div>
+
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
