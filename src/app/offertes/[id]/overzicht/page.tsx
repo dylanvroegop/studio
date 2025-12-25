@@ -227,32 +227,6 @@ function slugify(value: string) {
 }
 
 /* ---------------------------------------------
- n8n webhook helper
---------------------------------------------- */
-
-// ✅ Standaard naar PRODUCTION (werkt altijd als workflow actief is)
-const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n.dylan8n.org/webhook/offerte-test';
-
-// ✅ Zet in je env (Firebase Studio / Vercel / etc.):
-// NEXT_PUBLIC_N8N_WEBHOOK_URL=https://n8n.dylan8n.org/webhook/offerte-test
-// of voor test:
-// NEXT_PUBLIC_N8N_WEBHOOK_URL=https://n8n.dylan8n.org/webhook-test/offerte-test
-function getN8nWebhookUrl() {
-  const envUrl = (process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || '').trim();
-  return envUrl || DEFAULT_N8N_WEBHOOK_URL;
-}
-
-async function readResponseBodySafe(res: Response) {
-  const ct = res.headers.get('content-type') || '';
-  try {
-    if (ct.includes('application/json')) return JSON.stringify(await res.json());
-    return await res.text();
-  } catch {
-    return '';
-  }
-}
-
-/* ---------------------------------------------
  Page
 --------------------------------------------- */
 
@@ -495,9 +469,9 @@ export default function OverzichtPage() {
       });
       return;
     }
-
+  
     if (isSubmitting) return;
-
+  
     if (!stats.isReady) {
       toast({
         variant: 'destructive',
@@ -506,9 +480,9 @@ export default function OverzichtPage() {
       });
       return;
     }
-
+  
     setIsSubmitting(true);
-
+  
     try {
       const transportPayload =
         transportMode === 'none'
@@ -516,7 +490,7 @@ export default function OverzichtPage() {
           : transportMode === 'perKm'
           ? { prijsPerKm: prijsPerKmNum, vasteTransportkosten: null, mode: 'perKm' }
           : { prijsPerKm: null, vasteTransportkosten: vasteTransportNum, mode: 'fixed' };
-
+  
       const materieelPayload = materieel
         .filter((m) => {
           const naamOk = (m.naam ?? '').trim() !== '';
@@ -530,54 +504,64 @@ export default function OverzichtPage() {
           prijs: euroNLToNumberOrNull(m.prijs),
           isVast: m.isVast,
         }));
-
+  
       const winstPayload =
         winstMode === 'none'
           ? { mode: 'none', percentage: null, fixedAmount: null }
           : winstMarge;
-
-      const webhookUrl = getN8nWebhookUrl();
-
-      const response = await fetch(webhookUrl, {
+  
+      const idToken = await user?.getIdToken?.().catch(() => null);
+  
+      const response = await fetch('/api/offerte/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
         body: JSON.stringify({
           quoteId,
-          quote,
           extras: {
             transport: transportPayload,
             materieel: materieelPayload,
             winstMarge: winstPayload,
-            onvoorzien: winstPayload, // backward compat
           },
-          triggeredAt: new Date().toISOString(),
         }),
       });
-
-      if (!response.ok) {
-        const body = await readResponseBodySafe(response);
-        throw new Error(
-          `Webhook fout: ${response.status}${body ? ` - ${body}` : ''}`
-        );
+  
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
       }
-
+  
+      if (!response.ok) {
+        const msg =
+          data?.error
+            ? `${data.error}${data?.detail ? ` - ${data.detail}` : ''}`
+            : `Server fout: ${response.status}`;
+        throw new Error(msg);
+      }
+  
       toast({
         title: 'Offerte verzonden',
         description: 'De offerte is doorgestuurd naar verwerking.',
       });
-
+  
       router.push('/landing');
     } catch (err: any) {
-      console.error('Webhook error:', err);
+      console.error('Generate error:', err);
       toast({
         variant: 'destructive',
-        title: 'Webhook fout',
+        title: 'Genereren mislukt',
         description: err?.message || 'Kon offerte niet versturen.',
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+  
+  
 
   const handleAddJob = () => {
     if (!quoteId) return;
