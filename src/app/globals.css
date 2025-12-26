@@ -2,37 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
+/* ✅ Zet font in dezelfde @layer base als de rest (netter + consistent) */
 @layer base {
   :root {
     --background: 0 0% 13%;
     --foreground: 0 0% 98%;
+
     --card: 0 0% 15%;
     --card-foreground: 0 0% 98%;
+
     --popover: 0 0% 13%;
     --popover-foreground: 0 0% 98%;
+
     --primary: 343 100% 38.2%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 20%;
-    --secondary-foreground: 0 0% 98%;
+
+    --secondary: 240 4% 18%;
+    --secondary-foreground: 0 0% 90%;
+
     --muted: 0 0% 20%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 12 100% 60%;
-    --accent-foreground: 0 0% 13%;
+
+    --accent: 240 4% 20%;
+    --accent-foreground: 0 0% 98%;
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
+
+    /* ✅ Premium groen als token (zodat Button success niet meer emerald hardcoded is) */
+    --success: 158 45% 35%;
+    --success-foreground: 0 0% 98%;
+
     --border: 0 0% 20%;
     --input: 0 0% 20%;
     --ring: 12 100% 60%;
+
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
     --radius: 0.5rem;
+
     --sidebar-background: 0 0% 11%;
     --sidebar-foreground: 0 0% 80%;
     --sidebar-primary: 343 100% 38.2%;
@@ -46,28 +58,41 @@ body {
   .dark {
     --background: 0 0% 13%;
     --foreground: 0 0% 98%;
+
     --card: 0 0% 15%;
     --card-foreground: 0 0% 98%;
+
     --popover: 0 0% 13%;
     --popover-foreground: 0 0% 98%;
+
     --primary: 343 100% 38.2%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 20%;
-    --secondary-foreground: 0 0% 98%;
+
+    --secondary: 240 4% 18%;
+    --secondary-foreground: 0 0% 90%;
+
     --muted: 0 0% 20%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 12 100% 60%;
-    --accent-foreground: 0 0% 13%;
+
+    --accent: 240 4% 20%;
+    --accent-foreground: 0 0% 98%;
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
+
+    --success: 158 45% 35%;
+    --success-foreground: 0 0% 98%;
+
     --border: 0 0% 20%;
     --input: 0 0% 20%;
     --ring: 12 100% 60%;
+
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
     --sidebar-background: 0 0% 11%;
     --sidebar-foreground: 0 0% 80%;
     --sidebar-primary: 343 100% 38.2%;
@@ -77,25 +102,27 @@ body {
     --sidebar-border: 0 0% 20%;
     --sidebar-ring: 12 100% 60%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: Arial, Helvetica, sans-serif;
   }
 }
 
 @layer utilities {
   /* Hide arrows from number inputs */
-  input[type=number]::-webkit-inner-spin-button,
-  input[type=number]::-webkit-outer-spin-button {
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
-  input[type=number] {
+
+  input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield; /* ✅ helpt ook buiten firefox */
   }
 }

@@ -555,10 +555,14 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className={cn(SLUITEN_HOVER_RED)}>
-            Sluiten
-          </Button>
-        </DialogFooter>
+  <Button
+    variant="secondary"
+    onClick={() => onOpenChange(false)}
+  >
+    Sluiten
+  </Button>
+</DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
@@ -688,17 +692,22 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
         setEigenPrijs(formatNlMoneyFromNumber(editExtra.prijsPerEenheid ?? null));
         setUsageDescription(editExtra.usageDescription || '');
         setAantal(editExtra.aantal ?? undefined);
+        setLengte(typeof (editExtra as any).lengte === 'number' ? String((editExtra as any).lengte) : '');
+        setBreedte(typeof (editExtra as any).breedte === 'number' ? String((editExtra as any).breedte) : '');
+        setHoogte(typeof (editExtra as any).hoogte === 'number' ? String((editExtra as any).hoogte) : '');
+
       } else {
         setEigenNaam('');
         setEigenEenheid('');
         setEigenPrijs('');
         setUsageDescription('');
         setAantal(undefined);
+
+        setLengte('');
+        setBreedte('');
+        setHoogte('');
       }
 
-      setLengte('');
-      setBreedte('');
-      setHoogte('');
       setFormErrors({ naam: '', eenheid: '', prijs: '', usageDescription: '' });
     }, [open, isExtraMateriaal, editExtra]);
 
@@ -740,7 +749,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
     const handleSaveEigen = () => {
       const errors = { naam: '', eenheid: '', prijs: '', usageDescription: '' };
       let hasError = false;
-
+    
       if (!eigenNaam.trim()) {
         errors.naam = 'Naam is verplicht';
         hasError = true;
@@ -749,22 +758,30 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
         errors.eenheid = 'Eenheid is verplicht';
         hasError = true;
       }
-
+    
       const prijsNum = parseNLMoneyToNumber(eigenPrijs);
       if (prijsNum === null || prijsNum < 0) {
         errors.prijs = 'Geldige prijs is verplicht';
         hasError = true;
       }
-
+    
       if (requiresDescription && !usageDescription.trim()) {
         errors.usageDescription = 'Beschrijf kort waar dit materiaal voor gebruikt wordt.';
         hasError = true;
       }
-
+    
       setFormErrors(errors);
       if (hasError || prijsNum === null) return;
-
-      const payload: ExtraMaterial = {
+    
+      // ✅ meetwaarden uit inputs halen (alleen als gevuld)
+      const lengteNum = lengte.trim() === '' ? undefined : Number(lengte);
+      const breedteNum = breedte.trim() === '' ? undefined : Number(breedte);
+      const hoogteNum = hoogte.trim() === '' ? undefined : Number(hoogte);
+    
+      // ✅ alleen meenemen als het valide numbers zijn
+      const isValidNum = (n: any) => typeof n === 'number' && Number.isFinite(n) && n > 0;
+    
+      const payload: any = {
         id: editExtra?.id || maakId(),
         naam: eigenNaam.trim(),
         eenheid: eigenEenheid as any,
@@ -772,12 +789,29 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
         aantal,
         usageDescription: requiresDescription ? usageDescription.trim() : '',
       };
-
+    
+      // ✅ m1 => lengte
+      if (eigenEenheid === 'm1' && isValidNum(lengteNum)) payload.lengte = lengteNum;
+    
+      // ✅ m2 => lengte + breedte
+      if (eigenEenheid === 'm2') {
+        if (isValidNum(lengteNum)) payload.lengte = lengteNum;
+        if (isValidNum(breedteNum)) payload.breedte = breedteNum;
+      }
+    
+      // ✅ m3 => lengte + breedte + hoogte
+      if (eigenEenheid === 'm3') {
+        if (isValidNum(lengteNum)) payload.lengte = lengteNum;
+        if (isValidNum(breedteNum)) payload.breedte = breedteNum;
+        if (isValidNum(hoogteNum)) payload.hoogte = hoogteNum;
+      }
+    
       if (isEditMode) onUpdateExtra(payload);
       else onAddExtra(payload);
-
+    
       onSluiten();
     };
+    
 
     const eenheidLabel: Record<string, string> = {
       m1: 'Prijs per meter (€)',
@@ -1693,8 +1727,25 @@ export default function HsbWandMaterialenPage() {
       );
 
       const schoneExtra = Array.isArray(extraMaterials)
-        ? extraMaterials.filter((m: any) => m && (m.id || m.naam))
-        : [];
+  ? extraMaterials
+      .filter((m: any) => m && (m.naam || m.id))
+      .map((m: any) => {
+        const c: any = { ...m };
+
+        // 1) Custom materiaal krijgt soms een random UUID → NIET opslaan als id
+        if (typeof c.id === 'string' && c.id.includes('-')) {
+          delete c.id;
+        }
+
+        // 2) haal lege/undefined velden weg (Firestore haat undefined)
+        if (c.lengte === '' || c.lengte == null) delete c.lengte;
+        if (c.breedte === '' || c.breedte == null) delete c.breedte;
+        if (c.aantal === '' || c.aantal == null) delete c.aantal;
+
+        return c;
+      })
+  : [];
+
 
       const ref = doc(firestore, 'quotes', quoteId);
 
@@ -1732,7 +1783,25 @@ export default function HsbWandMaterialenPage() {
         };
       }
       
-      await updateDoc(ref, updatePayload);
+      function stripUndefinedDiep(waarde: any): any {
+        if (Array.isArray(waarde)) {
+          return waarde.map(stripUndefinedDiep);
+        }
+      
+        if (waarde && typeof waarde === 'object') {
+          const schoon: any = {};
+          for (const [k, v] of Object.entries(waarde)) {
+            if (v === undefined) continue;
+            schoon[k] = stripUndefinedDiep(v);
+          }
+          return schoon;
+        }
+      
+        return waarde;
+      }
+
+
+      await updateDoc(ref, stripUndefinedDiep(updatePayload));
 
       toast({ title: 'Materialen opgeslagen!' });
       router.push(`/offertes/${quoteId}/overzicht`);
@@ -1872,76 +1941,73 @@ export default function HsbWandMaterialenPage() {
       return (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
-            <div className="space-y-1.5">
-              <CardTitle className="text-lg">{titel}</CardTitle>
-            </div>
+  <div className="space-y-1.5">
+    <CardTitle className="text-lg">{titel}</CardTitle>
+  </div>
 
-            <div className="flex items-center gap-2">
-              <TekstActie onClick={() => toggleSection(sectieSleutel)} className="text-muted-foreground">
-                <ChevronUp className="h-5 w-5" />
-              </TekstActie>
-            </div>
-          </CardHeader>
+  <ToevoegenActie
+    onClick={() => {
+      setEditExtra(null);
+      openMateriaalKiezer('extra');
+    }}
+  />
+</CardHeader>
+
 
           <CardContent className="p-4 pt-0">
             <div className="border-t pt-4">
-              {extraMaterials.length === 0 ? (
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-muted-foreground italic">Nog geen extra materiaal toegevoegd</p>
+            {extraMaterials.length > 0 && (
+  <ul className="space-y-3">
+    {extraMaterials.map((mat) => (
+      <li key={mat.id} className="flex items-center justify-between text-sm">
+      <div className="min-w-0 flex flex-col justify-center">
+        <p className={cn('text-sm leading-snug', SELECTED_MATERIAL_TEXT)}>
+        {mat.naam}
+{typeof (mat as any).lengte === 'number' && typeof (mat as any).breedte === 'number'
+  ? ` (${(mat as any).lengte}×${(mat as any).breedte})`
+  : null}
 
-                  <ToevoegenActie
-                    onClick={() => {
-                      setEditExtra(null);
-                      openMateriaalKiezer('extra');
-                    }}
-                  />
-                </div>
-              ) : (
-                <ul className="space-y-3">
-                  {extraMaterials.map((mat) => (
-                    <li key={mat.id} className="flex items-start justify-between text-sm">
-                      <div className="min-w-0">
-                        {/* ✅ GEEN toFixed => nl-NL formatter => komma */}
-                        <p className="font-medium break-words">
-                          {mat.naam} – {formatEuroNl(mat.prijsPerEenheid)} / {mat.eenheid}
-                        </p>
-                        {typeof (mat as any).aantal === 'number' ? (
-                          <p className="text-xs text-muted-foreground">Aantal: {(mat as any).aantal}</p>
-                        ) : null}
-                        {(mat as any).usageDescription ? (
-                          <p className="text-xs text-muted-foreground">{(mat as any).usageDescription}</p>
-                        ) : null}
-                      </div>
+        </p>
+    
+        {typeof (mat as any).aantal === 'number' && (
+          <p className="text-xs text-muted-foreground leading-tight">
+            Aantal: {(mat as any).aantal}
+          </p>
+        )}
+      </div>
+    
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <TekstActie
-                          onClick={() => {
-                            setEditExtra(mat);
-                            openMateriaalKiezer('extra');
-                          }}
-                          className="text-foreground/80"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Bewerken
-                        </TekstActie>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <TekstActie
+            onClick={() => {
+              setEditExtra(mat);
+              openMateriaalKiezer('extra');
+            }}
+            className="text-foreground/80"
+          >
+            <Pencil className="h-4 w-4" />
+            Bewerken
+          </TekstActie>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveExtraMaterial(mat.id)}
-                          className={cn(
-                            'h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent',
-                            ICON_BUTTON_NO_ORANGE
-                          )}
-                          aria-label="Verwijder extra materiaal"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleRemoveExtraMaterial(mat.id)}
+            className={cn(
+              'h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent',
+              ICON_BUTTON_NO_ORANGE
+            )}
+            aria-label="Verwijder extra materiaal"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </li>
+    ))}
+  </ul>
+)}
+
+
             </div>
           </CardContent>
         </Card>
@@ -2281,11 +2347,11 @@ export default function HsbWandMaterialenPage() {
   {renderSelectieRij('naden_vullen', 'Naden vullen')}
   {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
 
-  {/* Optioneel materiaal */}
-  <div className="mt-8 space-y-6">
-  {renderExtraMateriaalCompact()}
-    {renderKleinMateriaalSectie()}
-  </div>
+ {/* Optioneel materiaal */}
+<div className="mt-8 space-y-6">
+  {renderSelectieRij('extra', 'Extra materiaal')}
+  {renderKleinMateriaalSectie()}
+</div>
 </div>
 
             <div className="mt-8">
