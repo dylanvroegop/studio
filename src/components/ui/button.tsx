@@ -21,9 +21,15 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground hover:bg-primary/90",
 
-        // “Oké / Bevestigen”
-        success:
-         "bg-emerald-700 text-white hover:bg-emerald-600",
+// volgende / opslaan
+success:
+  "border border-emerald-500/50 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 hover:border-emerald-500/65 focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
+
+  successGhost:
+  "border border-input bg-transparent text-foreground " +
+  "hover:bg-emerald-500/14 hover:border-emerald-500/55 hover:text-emerald-100 " +
+  "focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
+
 
         // “Sluiten / Annuleren / Verwijderen”
         destructive:

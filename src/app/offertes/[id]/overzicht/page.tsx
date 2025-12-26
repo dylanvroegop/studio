@@ -254,11 +254,7 @@ function maakBouwplaatsId() {
 }
 
 function defaultBouwplaatskosten(): BouwplaatsItem[] {
-  return [
-    { id: 'steiger', naam: 'Steiger', prijs: '', per: 'dag', isVast: true },
-    { id: 'container', naam: 'Container', prijs: '', per: 'klus', isVast: true },
-    { id: 'aanhanger', naam: 'Aanhanger', prijs: '', per: 'dag', isVast: true },
-  ];
+  return [];
 }
 
 function slugify(value: string) {
@@ -355,7 +351,8 @@ export default function OverzichtPage() {
   const [vasteTransportkosten, setVasteTransportkosten] = useState('');
 
   // Bouwplaatskosten
-  const [bouwplaatskosten, setBouwplaatskosten] = useState<BouwplaatsItem[]>(defaultBouwplaatskosten);
+  const [bouwplaatskosten, setBouwplaatskosten] = useState<BouwplaatsItem[]>([]);
+
 
   // Packs (user-level)
   const [pakketten, setPakketten] = useState<BouwplaatsKostenPakket[]>([]);
@@ -582,7 +579,7 @@ export default function OverzichtPage() {
         setTransportMode('perKm');
         setPrijsPerKm('');
         setVasteTransportkosten('');
-        setBouwplaatskosten(defaultBouwplaatskosten());
+        setBouwplaatskosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null });
 
         const heeftTransportInQuote = !!extras?.transport;
@@ -707,7 +704,7 @@ export default function OverzichtPage() {
     if (stats.incompleet > 0) return 'Er zijn nog onvolledige klussen. Werk ze eerst af.';
     if (!stats.transportIsValid) return 'Transport is niet ingevuld. Kies “Geen” of vul een bedrag in.';
     if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies “Geen” of vul een bedrag/percentage in.';
-    return 'Alles staat goed. Je kunt de offerte genereren.';
+    return 'Je kunt de offerte indienen voor berekening.';
   }, [stats]);
 
   const statusVariant = useMemo(() => {
@@ -1582,35 +1579,40 @@ export default function OverzichtPage() {
             </div>
           </div>
 
-          <AlertDialogFooter>
-            <AlertDialogCancel>Sluiten</AlertDialogCancel>
 
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                opslaanBouwplaatsAlsNieuw().catch(() => {});
-              }}
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
-            >
-              Opslaan als nieuw
-            </AlertDialogAction>
+          <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+  <AlertDialogCancel asChild>
+    <Button variant="secondary">Sluiten</Button>
+  </AlertDialogCancel>
 
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                overschrijfHuidigPakketNu().catch(() => {});
-              }}
-              disabled={!geselecteerdPakketId || !overschrijfHuidigPakket}
-              className={cn(
-                'bg-foreground text-background hover:bg-foreground/90',
-                (!geselecteerdPakketId || !overschrijfHuidigPakket) && 'opacity-60'
-              )}
-            >
-              Overschrijven
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+  <AlertDialogAction asChild>
+    <Button
+      variant="success"
+      onClick={(e) => {
+        e.preventDefault();
+        opslaanBouwplaatsAlsNieuw().catch(() => {});
+      }}
+    >
+      Opslaan als nieuw
+    </Button>
+  </AlertDialogAction>
+
+  <AlertDialogAction asChild>
+    <Button
+      variant="outline"
+      disabled={!geselecteerdPakketId || !overschrijfHuidigPakket}
+      onClick={(e) => {
+        e.preventDefault();
+        overschrijfHuidigPakketNu().catch(() => {});
+      }}
+    >
+      Overschrijven
+    </Button>
+  </AlertDialogAction>
+</AlertDialogFooter>
+</AlertDialogContent>
+</AlertDialog>
+
 
       {/* Bouwplaats: Beheer pakketten (alleen bouwplaatskosten) */}
       <AlertDialog open={bouwplaatsBeheerOpen} onOpenChange={setBouwplaatsBeheerOpen}>
@@ -1853,14 +1855,15 @@ export default function OverzichtPage() {
                 );
               })}
 
-              <Button
-                variant="outline"
-                className={cn('w-full transition-colors', 'hover:bg-emerald-600 hover:border-emerald-600 hover:text-white')}
-                onClick={handleAddJob}
-              >
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Nog een klus toevoegen
-              </Button>
+<Button
+  variant="successGhost"
+  onClick={handleAddJob}
+  className="w-full transition-colors duration-150 ease-out"
+>
+  <PlusCircle className="mr-2 h-4 w-4" />
+  Nog een klus toevoegen
+</Button>
+
             </CardContent>
           </Card>
 
@@ -1956,8 +1959,11 @@ export default function OverzichtPage() {
           <Card className="border-muted/60">
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle>Bouwplaatskosten</CardTitle>
+              <div className="flex flex-col gap-1">
+  <CardTitle>Bouwplaatskosten</CardTitle>
+  <p className="text-xs text-muted-foreground max-w-[420px]">
+    Voor kosten zoals steigerhuur, container, aanhanger, parkeer- of overige bouwplaatskosten.
+  </p>
 
                   <Button
                     type="button"
@@ -1976,14 +1982,31 @@ export default function OverzichtPage() {
                     <Select
                       value={geselecteerdPakketId || ''}
                       onValueChange={(v) => {
-                        if (!v) return;
+                        // cleared (Select can set "" to clear)
+                        if (!v) {
+                          setGeselecteerdPakketId('');
+                          setBouwplaatskosten([]); // clean slate
+                          return;
+                        }
+                      
+                        // explicit "Leeg (handmatig)"
+                        if (v === 'LEEG') {
+                          setGeselecteerdPakketId('');
+                          setBouwplaatskosten([]); // clean slate
+                          return;
+                        }
+                      
+                        // pakket gekozen
                         handleSelectPakket(v);
                       }}
+                      
+                      
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Kies pakket" />
+                        <SelectValue placeholder="Leeg (handmatig)" />
                       </SelectTrigger>
                       <SelectContent>
+                      <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
                         {pakketten.length === 0 && (
                           <div className="px-3 py-2 text-xs text-muted-foreground">
                             Nog geen pakketten
@@ -2000,15 +2023,15 @@ export default function OverzichtPage() {
 
                   {/* Preset opslaan button (vervangt oude “Extra toevoegen” in header) */}
                   <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className={cn('transition-colors', 'hover:bg-emerald-600 hover:border-emerald-600 hover:text-white')}
-                    onClick={openBouwplaatsOpslaan}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Opslaan
-                  </Button>
+  type="button"
+  variant="success"
+  size="sm"
+  onClick={openBouwplaatsOpslaan}
+>
+  <Save className="mr-2 h-4 w-4" />
+  Opslaan
+</Button>
+
 
                   {/* Settings voor alleen bouwplaats (beheer pakketten) */}
                   <Button
@@ -2078,14 +2101,15 @@ export default function OverzichtPage() {
 
               {/* Consistente “+ Toevoegen” (altijd: nieuwe regel) */}
               <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-center"
-                onClick={handleAddExtraBouwplaats}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Toevoegen
-              </Button>
+  type="button"
+  variant="successGhost"
+  onClick={handleAddExtraBouwplaats}
+  className="w-full justify-center"
+>
+  <Plus className="mr-2 h-4 w-4" />
+  Toevoegen
+</Button>
+
             </CardContent>
           </Card>
 
@@ -2206,10 +2230,18 @@ export default function OverzichtPage() {
           {/* Sticky bottom bar (geen globale settings knop meer) */}
           <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 backdrop-blur-sm">
             <div className="mx-auto max-w-3xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm">
-                <div className="font-medium">Offerte genereren</div>
-                <div className="text-xs text-muted-foreground">Controleer je extra’s, daarna kun je direct genereren.</div>
-              </div>
+            <div className="text-sm">
+            <div className="font-medium">
+  Na indienen wordt de offerte berekend
+</div>
+
+
+  <div className="text-xs text-muted-foreground">
+  Verwachte tijd: 30–60 min • Verstuurd via e-mail of WhatsApp
+
+  </div>
+</div>
+
 
               <Button
                 onClick={handleFinishQuote}
@@ -2220,8 +2252,14 @@ export default function OverzichtPage() {
                   (!stats.isReady || isSubmitting) && 'opacity-60'
                 )}
               >
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                {isSubmitting ? 'Genereren…' : 'Offerte genereren'}
+                {isSubmitting ? (
+  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+) : (
+  <Send className="mr-2 h-4 w-4" />
+)}
+{isSubmitting ? 'Indienen…' : 'Offerte indienen'}
+
+
               </Button>
             </div>
           </div>

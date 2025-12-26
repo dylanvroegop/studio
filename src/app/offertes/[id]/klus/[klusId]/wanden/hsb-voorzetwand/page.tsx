@@ -353,18 +353,16 @@ export default function HsbWandPage() {
             </div>
 
             <Button
-              type="button"
-              variant="outline"
-              onClick={handleAddWall}
-              disabled={disabledAll}
-              className={cn(
-                'w-full mt-6 rounded-xl transition-colors',
-                'hover:bg-emerald-600 hover:text-white hover:border-emerald-600'
-              )}
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Wand toevoegen
-            </Button>
+  type="button"
+  variant="successGhost"
+  onClick={handleAddWall}
+  disabled={disabledAll}
+  className={cn("w-full mt-6 rounded-xl transition-colors")}
+>
+  <PlusCircle className="mr-2 h-4 w-4" />
+  Wand toevoegen
+</Button>
+
 
             <div className="mt-6 flex justify-between items-center">
               <Button variant="outline" asChild disabled={disabledAll}>
@@ -372,17 +370,14 @@ export default function HsbWandPage() {
               </Button>
 
               <Button
-                type="submit"
-                disabled={isNextDisabled}
-                onClick={handleSubmit}
-                className={cn(
-                  'rounded-xl text-white',
-                  'bg-emerald-600 hover:bg-emerald-700',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
-                )}
-              >
-                {saving ? 'Opslaan…' : 'Volgende'}
-              </Button>
+  type="submit"
+  variant="success"
+  disabled={isNextDisabled}
+  onClick={handleSubmit}
+>
+  {saving ? 'Opslaan...' : 'Volgende'}
+</Button>
+
             </div>
           </form>
         </div>

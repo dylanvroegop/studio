@@ -539,20 +539,21 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
   <Button
     variant="outline"
     asChild
-    className="hover:bg-destructive hover:text-destructive-foreground"
+    className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
   >
     <Link href={quoteId ? `/offertes/${quoteId}` : '/'}>Annuleren</Link>
   </Button>
 
   <Button
     type="submit"
+    variant="success"
     disabled={isPending || !user}
-    className="bg-accent text-accent-foreground hover:bg-accent/hover"
   >
     {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
     {isPending ? 'Bezig...' : 'Volgende'}
   </Button>
 </div>
+
 
         </form>
       </CardContent>
