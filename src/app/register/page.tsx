@@ -95,9 +95,14 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      if (!auth || !firestore) {
+        setError('Firebase services zijn nog niet beschikbaar. Probeer opnieuw.');
+        return;
+      }
+    
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const newUser = userCredential.user;
-
+    
       const businessData = {
         email: newUser.email,
         bedrijfsnaam,
@@ -108,32 +113,37 @@ export default function RegisterPage() {
         offertesPerMaand,
         createdAt: serverTimestamp(),
       };
-      
+    
       const businessDocRef = doc(firestore, 'businesses', newUser.uid);
       setDocumentNonBlocking(businessDocRef, businessData, { merge: true });
-
+    
       router.push('/landing');
-
     } catch (e) {
       const authError = e as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';
+    
       switch (authError.code) {
         case 'auth/invalid-email':
           errorMessage = 'Ongeldig emailadres formaat.';
           break;
-        case 'auth/weak-password':
-          errorMessage = 'Het wachtwoord is te zwak. Gebruik minimaal 6 tekens.';
-          break;
+    
         case 'auth/email-already-in-use':
-          errorMessage = 'Er bestaat al een account met dit e-mailadres.';
+          errorMessage = 'Dit emailadres is al in gebruik.';
           break;
+    
+        case 'auth/weak-password':
+          errorMessage = 'Wachtwoord is te zwak. Gebruik minimaal 6 tekens.';
+          break;
+    
         default:
-          errorMessage = `Registratie mislukt. Probeer het opnieuw.`;
+          errorMessage = 'Registratie mislukt. Probeer het opnieuw.';
       }
+    
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
+    
   };
 
   if (isUserLoading || user) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-import type { Quote, Job, KleinMateriaalConfig } from '@/lib/types';
+import type { Quote, Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
@@ -90,9 +90,6 @@ function jobIsComplete(job: any): boolean {
 
 /* ---------------------------------------------
  EURO input helpers (NL style)
-- Alleen cijfers + komma
-- Duizendtallen met punt
-- Max 2 decimalen
 --------------------------------------------- */
 
 function formatEuroNL(raw: string): string {
@@ -127,6 +124,12 @@ function euroNLToNumberOrNull(v: string) {
   const normalized = s.replace(/\./g, '').replace(',', '.');
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
+}
+
+function numberToEuroInputString(n: number | null | undefined) {
+  if (n === null || n === undefined) return '';
+  if (!Number.isFinite(n)) return '';
+  return formatEuroNL(String(n).replace('.', ','));
 }
 
 /* ---------------------------------------------
@@ -191,15 +194,19 @@ type MaterieelPer = 'dag' | 'week' | 'klus';
 type MaterieelItem = {
   id: string;
   naam: string;
-  prijs: string;
+  prijs: string; // input string
   per: MaterieelPer;
   isVast: boolean;
 };
 
 type TransportMode = 'perKm' | 'fixed' | 'none';
-
-// Winstmarge mode met "none"
 type WinstMargeMode = 'percentage' | 'fixed' | 'none';
+
+type WinstMargeState = {
+  mode: WinstMargeMode;
+  percentage: number | null;
+  fixedAmount: number | null;
+};
 
 /* ---------------------------------------------
  Materieel helpers
@@ -248,10 +255,7 @@ export default function OverzichtPage() {
 
   // Job delete
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [jobToDelete, setJobToDelete] = useState<{
-    id: string;
-    title: string;
-  } | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingJob, setIsDeletingJob] = useState(false);
 
   // Transport
@@ -259,18 +263,23 @@ export default function OverzichtPage() {
   const [prijsPerKm, setPrijsPerKm] = useState('');
   const [vasteTransportkosten, setVasteTransportkosten] = useState('');
 
-  // Materieel (optioneel)
+  // Materieel
   const [materieel, setMaterieel] = useState<MaterieelItem[]>(defaultMaterieel);
 
-  // Winstmarge (optioneel door "none")
-  const [winstMarge, setWinstMarge] = useState<KleinMateriaalConfig>({
+  // Winstmarge
+  const [winstMarge, setWinstMarge] = useState<WinstMargeState>({
     mode: 'percentage',
     percentage: 10,
     fixedAmount: null,
   });
 
+  // Auto-save control
+  const isHydratingRef = useRef(true);
+  const lastSavedJsonRef = useRef<string>('');
+  const saveTimerRef = useRef<any>(null);
+
   /* ---------------------------------------------
-   Fetch quote
+   Fetch quote + hydrate extras (sparse)
   --------------------------------------------- */
 
   useEffect(() => {
@@ -292,19 +301,19 @@ export default function OverzichtPage() {
         const data = snap.data() as Quote;
 
         const ownerUid = (data as any)?.klantinformatie?.userId;
-
         if (!ownerUid) {
           setError('Geen eigenaar gevonden bij deze offerte.');
           return;
         }
 
-        if (ownerUid !== user.uid) {
+        if (ownerUid !== (user as any).uid) {
           setError('Geen toegang tot deze offerte.');
           return;
         }
 
         setQuote(data);
 
+        // Jobs
         const extractedJobs: any[] = [];
         const klussen: any = (data as any).klussen;
 
@@ -343,6 +352,74 @@ export default function OverzichtPage() {
         }
 
         setJobs(extractedJobs as any);
+
+        // Extras (sparse)
+        const extras: any = (data as any)?.extras ?? null;
+
+        // Defaults in UI
+        setTransportMode('perKm');
+        setPrijsPerKm('');
+        setVasteTransportkosten('');
+        setMaterieel(defaultMaterieel());
+        setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null });
+
+        if (extras && typeof extras === 'object') {
+          // Transport
+          const t = extras.transport ?? null;
+          if (t && typeof t === 'object') {
+            const mode = (t.mode as TransportMode) ?? 'perKm';
+            if (mode === 'perKm') {
+              setTransportMode('perKm');
+              setPrijsPerKm(numberToEuroInputString(t.prijsPerKm ?? null));
+              setVasteTransportkosten('');
+            } else if (mode === 'fixed') {
+              setTransportMode('fixed');
+              setVasteTransportkosten(numberToEuroInputString(t.vasteTransportkosten ?? null));
+              setPrijsPerKm('');
+            } else {
+              setTransportMode('none');
+              setPrijsPerKm('');
+              setVasteTransportkosten('');
+            }
+          }
+
+          // Materieel
+          const mArr: any[] = Array.isArray(extras.materieel) ? extras.materieel : [];
+          if (mArr.length > 0) {
+            const mapped: MaterieelItem[] = mArr.map((m: any, idx: number) => ({
+              id: String(m.id ?? `mat_saved_${idx}_${Date.now()}`),
+              naam: String(m.naam ?? '').trim(),
+              per: (m.per as MaterieelPer) || 'klus',
+              isVast: !!m.isVast,
+              prijs: numberToEuroInputString(typeof m.prijs === 'number' ? m.prijs : null),
+            }));
+
+            const basis = defaultMaterieel();
+            const has = new Set(mapped.map((x) => x.id));
+            const merged = [
+              ...basis.map((b) => (has.has(b.id) ? (mapped.find((x) => x.id === b.id) as MaterieelItem) : b)),
+              ...mapped.filter((x) => !['steiger', 'container', 'aanhanger'].includes(x.id)),
+            ];
+            setMaterieel(merged);
+          }
+
+          // Winstmarge
+          const w = extras.winstMarge ?? null;
+          if (w && typeof w === 'object') {
+            const mode = (w.mode as WinstMargeMode) ?? 'percentage';
+            if (mode === 'percentage') {
+              const p = typeof w.percentage === 'number' ? w.percentage : 10;
+              setWinstMarge({ mode: 'percentage', percentage: p, fixedAmount: null });
+            } else if (mode === 'fixed') {
+              const f = typeof w.fixedAmount === 'number' ? w.fixedAmount : null;
+              setWinstMarge({ mode: 'fixed', percentage: null, fixedAmount: f });
+            } else {
+              setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null });
+            }
+          }
+        }
+
+        isHydratingRef.current = false;
       } catch (err: any) {
         console.error(err);
         setError('Kon offerte niet laden.');
@@ -355,17 +432,11 @@ export default function OverzichtPage() {
   }, [quoteId, firestore, user, isUserLoading]);
 
   /* ---------------------------------------------
-   Validatie helpers
+   Validatie
   --------------------------------------------- */
 
-  const prijsPerKmNum = useMemo(
-    () => euroNLToNumberOrNull(prijsPerKm),
-    [prijsPerKm]
-  );
-  const vasteTransportNum = useMemo(
-    () => euroNLToNumberOrNull(vasteTransportkosten),
-    [vasteTransportkosten]
-  );
+  const prijsPerKmNum = useMemo(() => euroNLToNumberOrNull(prijsPerKm), [prijsPerKm]);
+  const vasteTransportNum = useMemo(() => euroNLToNumberOrNull(vasteTransportkosten), [vasteTransportkosten]);
 
   const transportIsValid = useMemo(() => {
     if (transportMode === 'none') return true;
@@ -374,27 +445,14 @@ export default function OverzichtPage() {
     return false;
   }, [transportMode, prijsPerKmNum, vasteTransportNum]);
 
-  const winstMode = (winstMarge?.mode as WinstMargeMode) ?? 'percentage';
+  const winstMode = winstMarge.mode;
 
   const winstMargeIsValid = useMemo(() => {
     if (winstMode === 'none') return true;
-
-    if (winstMode === 'percentage') {
-      const p = (winstMarge as any)?.percentage;
-      return typeof p === 'number' && Number.isFinite(p) && p > 0;
-    }
-
-    if (winstMode === 'fixed') {
-      const a = (winstMarge as any)?.fixedAmount;
-      return typeof a === 'number' && Number.isFinite(a) && a > 0;
-    }
-
+    if (winstMode === 'percentage') return typeof winstMarge.percentage === 'number' && winstMarge.percentage > 0;
+    if (winstMode === 'fixed') return typeof winstMarge.fixedAmount === 'number' && winstMarge.fixedAmount > 0;
     return false;
   }, [winstMarge, winstMode]);
-
-  /* ---------------------------------------------
-   Derived UI
-  --------------------------------------------- */
 
   const stats = useMemo(() => {
     const totaal = jobs.length;
@@ -414,10 +472,8 @@ export default function OverzichtPage() {
   const primaryHint = useMemo(() => {
     if (stats.totaal === 0) return 'Voeg minimaal 1 klus toe.';
     if (stats.incompleet > 0) return 'Er zijn nog onvolledige klussen. Werk ze eerst af.';
-    if (!stats.transportIsValid)
-      return 'Transport is niet ingevuld. Kies “Geen” of vul een bedrag in.';
-    if (!stats.winstMargeIsValid)
-      return 'Winstmarge is niet ingevuld. Kies “Geen” of vul een bedrag/percentage in.';
+    if (!stats.transportIsValid) return 'Transport is niet ingevuld. Kies “Geen” of vul een bedrag in.';
+    if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies “Geen” of vul een bedrag/percentage in.';
     return 'Alles staat goed. Je kunt de offerte genereren.';
   }, [stats]);
 
@@ -430,6 +486,146 @@ export default function OverzichtPage() {
   }, [stats]);
 
   /* ---------------------------------------------
+   Sparse payload builders (GEEN null velden opslaan)
+  --------------------------------------------- */
+
+  function buildTransportSparse() {
+    if (transportMode === 'none') return null;
+
+    if (transportMode === 'perKm') {
+      if (prijsPerKmNum === null || prijsPerKmNum <= 0) return null;
+      return { mode: 'perKm', prijsPerKm: prijsPerKmNum };
+    }
+
+    // fixed
+    if (vasteTransportNum === null || vasteTransportNum <= 0) return null;
+    return { mode: 'fixed', vasteTransportkosten: vasteTransportNum };
+  }
+
+  function buildWinstSparse() {
+    if (winstMode === 'none') return null;
+
+    if (winstMode === 'percentage') {
+      const p = winstMarge.percentage;
+      if (typeof p !== 'number' || p <= 0) return null;
+      return { mode: 'percentage', percentage: p };
+    }
+
+    // fixed
+    const f = winstMarge.fixedAmount;
+    if (typeof f !== 'number' || f <= 0) return null;
+    return { mode: 'fixed', fixedAmount: f };
+  }
+
+  function buildMaterieelSparse() {
+    const items = materieel
+      .map((m) => {
+        const naam = (m.naam ?? '').trim();
+        const prijs = euroNLToNumberOrNull(m.prijs);
+
+        const naamOk = naam !== '';
+        const prijsOk = prijs !== null && prijs > 0;
+
+        if (!naamOk && !prijsOk) return null;
+
+        // Als prijs niet geldig is, dan item niet opslaan (geen null prijs)
+        if (!prijsOk) return null;
+
+        return {
+          id: m.id,
+          naam: naamOk ? naam : 'Extra materieel',
+          per: m.per,
+          prijs,
+          isVast: m.isVast,
+        };
+      })
+      .filter(Boolean) as any[];
+
+    return items.length > 0 ? items : null;
+  }
+
+  /* ---------------------------------------------
+   Firestore save (debounced) - sparse + deleteField
+  --------------------------------------------- */
+
+  const saveExtrasToFirestore = async (forceToast: boolean) => {
+    if (!firestore || !user || !quoteId) return;
+    if (isHydratingRef.current) return;
+
+    const transport = buildTransportSparse();
+    const winstMargeSparse = buildWinstSparse();
+    const materieelSparse = buildMaterieelSparse();
+
+    // Build updates: only store what exists, otherwise delete the fields
+    const updates: any = {
+      updatedAt: serverTimestamp(),
+    };
+
+    // If nothing exists at all => delete extras entirely
+    const hasAny = !!transport || !!winstMargeSparse || !!materieelSparse;
+
+    if (!hasAny) {
+      updates.extras = deleteField();
+    } else {
+      // ensure extras map exists in doc (Firestore will create it)
+      // but we also delete subfields we don't want
+      if (transport) updates['extras.transport'] = transport;
+      else updates['extras.transport'] = deleteField();
+
+      if (winstMargeSparse) updates['extras.winstMarge'] = winstMargeSparse;
+      else updates['extras.winstMarge'] = deleteField();
+
+      if (materieelSparse) updates['extras.materieel'] = materieelSparse;
+      else updates['extras.materieel'] = deleteField();
+    }
+
+    // prevent pointless writes (compare stable JSON state)
+    const stateForCompare = JSON.stringify({
+      transport: transport ?? undefined,
+      winstMarge: winstMargeSparse ?? undefined,
+      materieel: materieelSparse ?? undefined,
+      hasAny,
+    });
+
+    if (!forceToast && stateForCompare === lastSavedJsonRef.current) return;
+
+    const ref = doc(firestore, 'quotes', quoteId);
+    await updateDoc(ref, updates);
+
+    lastSavedJsonRef.current = stateForCompare;
+
+    if (forceToast) {
+      toast({ title: 'Opgeslagen', description: 'Extra’s zijn opgeslagen.' });
+    }
+  };
+
+  useEffect(() => {
+    if (!quote) return;
+    if (!firestore || !user) return;
+    if (isHydratingRef.current) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveExtrasToFirestore(false).catch((err) => console.error('Autosave extras error:', err));
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    quoteId,
+    quote,
+    transportMode,
+    prijsPerKm,
+    vasteTransportkosten,
+    JSON.stringify(materieel),
+    winstMarge.mode,
+    winstMarge.percentage,
+    winstMarge.fixedAmount,
+  ]);
+
+  /* ---------------------------------------------
    Handlers
   --------------------------------------------- */
 
@@ -438,21 +634,13 @@ export default function OverzichtPage() {
     field: keyof Pick<MaterieelItem, 'naam' | 'prijs' | 'per'>,
     value: string
   ) => {
-    setMaterieel((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m))
-    );
+    setMaterieel((prev) => prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
   };
 
   const handleAddExtraMaterieel = () => {
     setMaterieel((prev) => [
       ...prev,
-      {
-        id: maakMaterieelId(),
-        naam: '',
-        prijs: '',
-        per: 'klus',
-        isVast: false,
-      },
+      { id: maakMaterieelId(), naam: '', prijs: '', per: 'klus', isVast: false },
     ]);
   };
 
@@ -462,57 +650,38 @@ export default function OverzichtPage() {
 
   const handleFinishQuote = async () => {
     if (!quote) {
-      toast({
-        variant: 'destructive',
-        title: 'Fout',
-        description: 'Geen offerte gevonden om te versturen.',
-      });
+      toast({ variant: 'destructive', title: 'Fout', description: 'Geen offerte gevonden om te versturen.' });
       return;
     }
-  
     if (isSubmitting) return;
-  
+
     if (!stats.isReady) {
-      toast({
-        variant: 'destructive',
-        title: 'Niet compleet',
-        description: primaryHint,
-      });
+      toast({ variant: 'destructive', title: 'Niet compleet', description: primaryHint });
       return;
     }
-  
+
     setIsSubmitting(true);
-  
+
     try {
-      const transportPayload =
-        transportMode === 'none'
-          ? { prijsPerKm: null, vasteTransportkosten: null, mode: 'none' }
-          : transportMode === 'perKm'
-          ? { prijsPerKm: prijsPerKmNum, vasteTransportkosten: null, mode: 'perKm' }
-          : { prijsPerKm: null, vasteTransportkosten: vasteTransportNum, mode: 'fixed' };
-  
-      const materieelPayload = materieel
-        .filter((m) => {
-          const naamOk = (m.naam ?? '').trim() !== '';
-          const prijsNum = euroNLToNumberOrNull(m.prijs);
-          const prijsOk = prijsNum !== null && prijsNum !== 0;
-          return naamOk || prijsOk;
-        })
-        .map((m) => ({
-          naam: (m.naam ?? '').trim() || 'Extra materieel',
-          per: m.per,
-          prijs: euroNLToNumberOrNull(m.prijs),
-          isVast: m.isVast,
-        }));
-  
-      const winstPayload =
-        winstMode === 'none'
-          ? { mode: 'none', percentage: null, fixedAmount: null }
-          : winstMarge;
-  
-      const idToken = await user?.getIdToken?.().catch(() => null);
-  
-      const response = await fetch('/api/offerte/generate', {
+      // Force save sparse extras
+      await saveExtrasToFirestore(false);
+
+      // Send to API (also sparse)
+      const transport = buildTransportSparse();
+      const winstMargeSparse = buildWinstSparse();
+      const materieelSparse = buildMaterieelSparse();
+
+      const extras: any = {};
+      if (transport) extras.transport = transport;
+      if (winstMargeSparse) extras.winstMarge = winstMargeSparse;
+      if (materieelSparse) extras.materieel = materieelSparse;
+
+      const idToken =
+        typeof (user as any)?.getIdToken === 'function'
+          ? await (user as any).getIdToken().catch(() => null)
+          : null;
+
+      const res = await fetch('/api/offerte/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -520,48 +689,35 @@ export default function OverzichtPage() {
         },
         body: JSON.stringify({
           quoteId,
-          extras: {
-            transport: transportPayload,
-            materieel: materieelPayload,
-            winstMarge: winstPayload,
-          },
+          extras,
         }),
       });
-  
+
+      const text = await res.text().catch(() => '');
       let data: any = null;
       try {
-        data = await response.json();
+        data = text ? JSON.parse(text) : null;
       } catch {
-        data = null;
+        data = text;
       }
-  
-      if (!response.ok) {
+
+      if (!res.ok) {
         const msg =
-          data?.error
-            ? `${data.error}${data?.detail ? ` - ${data.detail}` : ''}`
-            : `Server fout: ${response.status}`;
+          (data && typeof data === 'object' && (data.error || data.detail))
+            ? `${data.error ?? 'Fout'}${data.detail ? ` - ${data.detail}` : ''}`
+            : `Server fout: ${res.status}${text ? ` - ${String(text).slice(0, 200)}` : ''}`;
         throw new Error(msg);
       }
-  
-      toast({
-        title: 'Offerte verzonden',
-        description: 'De offerte is doorgestuurd naar verwerking.',
-      });
-  
+
+      toast({ title: 'Offerte verzonden', description: 'De offerte is doorgestuurd naar verwerking.' });
       router.push('/landing');
     } catch (err: any) {
       console.error('Generate error:', err);
-      toast({
-        variant: 'destructive',
-        title: 'Genereren mislukt',
-        description: err?.message || 'Kon offerte niet versturen.',
-      });
+      toast({ variant: 'destructive', title: 'Genereren mislukt', description: err?.message || 'Kon offerte niet versturen.' });
     } finally {
       setIsSubmitting(false);
     }
   };
-  
-  
 
   const handleAddJob = () => {
     if (!quoteId) return;
@@ -575,9 +731,7 @@ export default function OverzichtPage() {
       job?.materialen?.jobKey?.trim?.() ||
       job?.jobKey ||
       '';
-
     const title = humanizeJobKey(rawKey);
-
     setJobToDelete({ id: job.id, title });
     setDeleteDialogOpen(true);
   };
@@ -598,20 +752,13 @@ export default function OverzichtPage() {
 
       setJobs((prev) => prev.filter((j: any) => j.id !== jobToDelete.id));
 
-      toast({
-        title: 'Klus verwijderd',
-        description: 'De klus is definitief verwijderd uit de offerte.',
-      });
+      toast({ title: 'Klus verwijderd', description: 'De klus is definitief verwijderd uit de offerte.' });
 
       setDeleteDialogOpen(false);
       setJobToDelete(null);
     } catch (err: any) {
       console.error('Delete job error:', err);
-      toast({
-        variant: 'destructive',
-        title: 'Verwijderen mislukt',
-        description: err?.message || 'Kon de klus niet verwijderen.',
-      });
+      toast({ variant: 'destructive', title: 'Verwijderen mislukt', description: err?.message || 'Kon de klus niet verwijderen.' });
     } finally {
       setIsDeletingJob(false);
     }
@@ -675,10 +822,7 @@ export default function OverzichtPage() {
                 confirmDeleteJob();
               }}
               disabled={isDeletingJob}
-              className={cn(
-                'bg-red-600 text-white hover:bg-red-700',
-                isDeletingJob && 'opacity-70'
-              )}
+              className={cn('bg-red-600 text-white hover:bg-red-700', isDeletingJob && 'opacity-70')}
             >
               {isDeletingJob ? (
                 <>
@@ -697,12 +841,7 @@ export default function OverzichtPage() {
         <div className="mx-auto max-w-3xl space-y-6">
           <div className="grid grid-cols-3 items-center">
             <div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => router.back()}
-                aria-label="Terug"
-              >
+              <Button variant="ghost" size="icon" onClick={() => router.back()} aria-label="Terug">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </div>
@@ -717,12 +856,9 @@ export default function OverzichtPage() {
           <div
             className={cn(
               'rounded-lg border px-4 py-3 text-sm',
-              statusVariant === 'success' &&
-                'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
-              statusVariant === 'warn' &&
-                'border-amber-500/30 bg-amber-500/10 text-amber-200',
-              statusVariant === 'error' &&
-                'border-red-500/30 bg-red-500/10 text-red-200'
+              statusVariant === 'success' && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+              statusVariant === 'warn' && 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+              statusVariant === 'error' && 'border-red-500/30 bg-red-500/10 text-red-200'
             )}
           >
             <div className="flex items-start gap-3">
@@ -755,11 +891,7 @@ export default function OverzichtPage() {
                   '';
 
                 const title = humanizeJobKey(rawKey);
-
-                const preset = resolvePresetLabelForUI(
-                  job?.werkwijze?.presetLabel ?? null
-                );
-
+                const preset = resolvePresetLabelForUI(job?.werkwijze?.presetLabel ?? null);
                 const isComplete = jobIsComplete(job);
 
                 const type =
@@ -813,9 +945,7 @@ export default function OverzichtPage() {
                       </span>
 
                       <Link href={bewerkenHref} prefetch={false}>
-                        <Button variant="outline" size="sm">
-                          Bewerken
-                        </Button>
+                        <Button variant="outline" size="sm">Bewerken</Button>
                       </Link>
 
                       <Button
@@ -835,10 +965,7 @@ export default function OverzichtPage() {
 
               <Button
                 variant="outline"
-                className={cn(
-                  'w-full transition-colors',
-                  'hover:bg-emerald-600 hover:border-emerald-600 hover:text-white'
-                )}
+                className={cn('w-full transition-colors', 'hover:bg-emerald-600 hover:border-emerald-600 hover:text-white')}
                 onClick={handleAddJob}
               >
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -855,12 +982,8 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'perKm' &&
-                    transportIsValid &&
-                    'border-emerald-500/40 bg-emerald-500/10',
-                  transportMode === 'perKm' &&
-                    !transportIsValid &&
-                    'border-red-500/40 bg-red-500/10',
+                  transportMode === 'perKm' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  transportMode === 'perKm' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
                   transportMode !== 'perKm' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setTransportMode('perKm')}
@@ -870,23 +993,14 @@ export default function OverzichtPage() {
                 <h4 className="font-semibold flex items-center">
                   <Truck className="mr-2 h-4 w-4" /> Prijs per km
                 </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Afstand automatisch berekend.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Afstand automatisch berekend.</p>
 
                 {transportMode === 'perKm' && (
                   <div className="mt-3">
                     <Label className="text-xs">Tarief per km</Label>
-                    <EuroInput
-                      value={prijsPerKm}
-                      onChange={setPrijsPerKm}
-                      className="mt-1"
-                      placeholder="0,00"
-                    />
+                    <EuroInput value={prijsPerKm} onChange={setPrijsPerKm} className="mt-1" placeholder="0,00" />
                     {!transportIsValid && (
-                      <p className="mt-2 text-xs text-red-300">
-                        Vul een tarief in of kies “Geen”.
-                      </p>
+                      <p className="mt-2 text-xs text-red-300">Vul een tarief in of kies “Geen”.</p>
                     )}
                   </div>
                 )}
@@ -895,12 +1009,8 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'fixed' &&
-                    transportIsValid &&
-                    'border-emerald-500/40 bg-emerald-500/10',
-                  transportMode === 'fixed' &&
-                    !transportIsValid &&
-                    'border-red-500/40 bg-red-500/10',
+                  transportMode === 'fixed' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  transportMode === 'fixed' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
                   transportMode !== 'fixed' && 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setTransportMode('fixed')}
@@ -910,23 +1020,14 @@ export default function OverzichtPage() {
                 <h4 className="font-semibold flex items-center">
                   <Euro className="mr-2 h-4 w-4" /> Vast bedrag
                 </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Eén bedrag voor transport.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Eén bedrag voor transport.</p>
 
                 {transportMode === 'fixed' && (
                   <div className="mt-3">
                     <Label className="text-xs">Bedrag</Label>
-                    <EuroInput
-                      value={vasteTransportkosten}
-                      onChange={setVasteTransportkosten}
-                      className="mt-1"
-                      placeholder="0,00"
-                    />
+                    <EuroInput value={vasteTransportkosten} onChange={setVasteTransportkosten} className="mt-1" placeholder="0,00" />
                     {!transportIsValid && (
-                      <p className="mt-2 text-xs text-red-300">
-                        Vul een bedrag in of kies “Geen”.
-                      </p>
+                      <p className="mt-2 text-xs text-red-300">Vul een bedrag in of kies “Geen”.</p>
                     )}
                   </div>
                 )}
@@ -935,18 +1036,14 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'none'
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
-                    : 'hover:border-muted-foreground/30'
+                  transportMode === 'none' ? 'border-emerald-500/40 bg-emerald-500/10' : 'hover:border-muted-foreground/30'
                 )}
                 onClick={() => setTransportMode('none')}
                 role="button"
                 tabIndex={0}
               >
                 <h4 className="font-semibold">Geen</h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Geen transportkosten rekenen.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Geen transportkosten rekenen.</p>
               </div>
             </CardContent>
           </Card>
@@ -960,10 +1057,7 @@ export default function OverzichtPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className={cn(
-                    'transition-colors',
-                    'hover:bg-emerald-600 hover:border-emerald-600 hover:text-white'
-                  )}
+                  className={cn('transition-colors', 'hover:bg-emerald-600 hover:border-emerald-600 hover:text-white')}
                   onClick={handleAddExtraMaterieel}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -974,10 +1068,7 @@ export default function OverzichtPage() {
 
             <CardContent className="space-y-4">
               {materieel.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center"
-                >
+                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                   <div className="sm:col-span-4">
                     <Label className="text-xs sm:sr-only">Naam</Label>
                     {item.isVast ? (
@@ -985,9 +1076,7 @@ export default function OverzichtPage() {
                     ) : (
                       <Input
                         value={item.naam}
-                        onChange={(e) =>
-                          handleMaterieelChange(item.id, 'naam', e.target.value)
-                        }
+                        onChange={(e) => handleMaterieelChange(item.id, 'naam', e.target.value)}
                         placeholder="Bijv. Hoogwerker / Gereedschap huur"
                       />
                     )}
@@ -1001,13 +1090,8 @@ export default function OverzichtPage() {
                   />
 
                   <div className="sm:col-span-2">
-                    <Select
-                      value={item.per}
-                      onValueChange={(v) => handleMaterieelChange(item.id, 'per', v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                    <Select value={item.per} onValueChange={(v) => handleMaterieelChange(item.id, 'per', v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="dag">dag</SelectItem>
                         <SelectItem value="week">week</SelectItem>
@@ -1044,26 +1128,18 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'percentage' &&
-                    winstMargeIsValid &&
-                    'border-emerald-500/40 bg-emerald-500/10',
-                  winstMode === 'percentage' &&
-                    !winstMargeIsValid &&
-                    'border-red-500/40 bg-red-500/10',
+                  winstMode === 'percentage' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  winstMode === 'percentage' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
                   winstMode !== 'percentage' && 'hover:border-muted-foreground/30'
                 )}
-                onClick={() =>
-                  setWinstMarge({ ...winstMarge, mode: 'percentage' } as any)
-                }
+                onClick={() => setWinstMarge((p) => ({ ...p, mode: 'percentage' }))}
                 role="button"
                 tabIndex={0}
               >
                 <h4 className="font-semibold flex items-center">
                   <Percent className="mr-2 h-4 w-4" /> Percentage
                 </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Reken een percentage over de totale offerteprijs.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Reken een percentage over de totale offerteprijs.</p>
 
                 {winstMode === 'percentage' && (
                   <div className="mt-3">
@@ -1071,31 +1147,23 @@ export default function OverzichtPage() {
                     <div className="mt-1 flex items-center gap-2">
                       <Input
                         type="number"
-                        value={(winstMarge as any).percentage ?? ''}
+                        value={winstMarge.percentage ?? ''}
                         onChange={(e) => {
                           const raw = e.target.value;
                           if (raw.trim() === '') {
-                            setWinstMarge(
-                              { ...winstMarge, percentage: null as any } as any
-                            );
+                            setWinstMarge((p) => ({ ...p, percentage: null }));
                             return;
                           }
                           const n = Number(raw);
-                          setWinstMarge({
-                            ...winstMarge,
-                            percentage: Number.isFinite(n) ? n : null,
-                          } as any);
+                          setWinstMarge((p) => ({ ...p, percentage: Number.isFinite(n) ? n : null }));
                         }}
                         inputMode="decimal"
-                        placeholder=""
                       />
                       <span className="text-sm text-muted-foreground">%</span>
                     </div>
 
                     {!winstMargeIsValid && (
-                      <p className="mt-2 text-xs text-red-300">
-                        Vul een percentage groter dan 0 in of kies “Geen”.
-                      </p>
+                      <p className="mt-2 text-xs text-red-300">Vul een percentage groter dan 0 in of kies “Geen”.</p>
                     )}
                   </div>
                 )}
@@ -1104,51 +1172,34 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'fixed' &&
-                    winstMargeIsValid &&
-                    'border-emerald-500/40 bg-emerald-500/10',
-                  winstMode === 'fixed' &&
-                    !winstMargeIsValid &&
-                    'border-red-500/40 bg-red-500/10',
+                  winstMode === 'fixed' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
+                  winstMode === 'fixed' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
                   winstMode !== 'fixed' && 'hover:border-muted-foreground/30'
                 )}
-                onClick={() => setWinstMarge({ ...winstMarge, mode: 'fixed' } as any)}
+                onClick={() => setWinstMarge((p) => ({ ...p, mode: 'fixed' }))}
                 role="button"
                 tabIndex={0}
               >
                 <h4 className="font-semibold flex items-center">
                   <Euro className="mr-2 h-4 w-4" /> Vast bedrag
                 </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Voeg één vast bedrag toe als marge.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Voeg één vast bedrag toe als marge.</p>
 
                 {winstMode === 'fixed' && (
                   <div className="mt-3">
                     <Label className="text-xs">Bedrag</Label>
                     <EuroInput
-                      value={
-                        (winstMarge as any).fixedAmount === null
-                          ? ''
-                          : formatEuroNL(
-                              String((winstMarge as any).fixedAmount).replace('.', ',')
-                            )
-                      }
+                      value={numberToEuroInputString(winstMarge.fixedAmount)}
                       onChange={(v) => {
                         const n = euroNLToNumberOrNull(v);
-                        setWinstMarge({
-                          ...winstMarge,
-                          fixedAmount: n === null ? null : n,
-                        } as any);
+                        setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
                       }}
                       className="mt-1"
                       placeholder="0,00"
                     />
 
                     {!winstMargeIsValid && (
-                      <p className="mt-2 text-xs text-red-300">
-                        Vul een bedrag groter dan 0 in of kies “Geen”.
-                      </p>
+                      <p className="mt-2 text-xs text-red-300">Vul een bedrag groter dan 0 in of kies “Geen”.</p>
                     )}
                   </div>
                 )}
@@ -1157,24 +1208,14 @@ export default function OverzichtPage() {
               <div
                 className={cn(
                   'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'none'
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
-                    : 'hover:border-muted-foreground/30'
+                  winstMode === 'none' ? 'border-emerald-500/40 bg-emerald-500/10' : 'hover:border-muted-foreground/30'
                 )}
-                onClick={() =>
-                  setWinstMarge({
-                    mode: 'none' as any,
-                    percentage: null,
-                    fixedAmount: null,
-                  } as any)
-                }
+                onClick={() => setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null })}
                 role="button"
                 tabIndex={0}
               >
                 <h4 className="font-semibold">Geen</h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Geen winstmarge toevoegen.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Geen winstmarge toevoegen.</p>
               </div>
             </CardContent>
           </Card>
@@ -1183,9 +1224,7 @@ export default function OverzichtPage() {
             <div className="mx-auto max-w-3xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">
                 <div className="font-medium">Offerte genereren</div>
-                <div className="text-xs text-muted-foreground">
-                  Controleer je extra’s, daarna kun je direct genereren.
-                </div>
+                <div className="text-xs text-muted-foreground">Controleer je extra’s, daarna kun je direct genereren.</div>
               </div>
 
               <Button
@@ -1197,11 +1236,7 @@ export default function OverzichtPage() {
                   (!stats.isReady || isSubmitting) && 'opacity-60'
                 )}
               >
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 h-4 w-4" />
-                )}
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 {isSubmitting ? 'Genereren…' : 'Offerte genereren'}
               </Button>
             </div>

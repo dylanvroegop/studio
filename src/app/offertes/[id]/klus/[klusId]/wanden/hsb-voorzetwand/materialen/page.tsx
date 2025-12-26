@@ -80,6 +80,7 @@ import {
   deleteDoc,
   updateDoc,
   getDoc,
+  deleteField,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -87,6 +88,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
+
 
 // ==================================
 // Styling helpers
@@ -1711,12 +1713,26 @@ export default function HsbWandMaterialenPage() {
         savedByUid: user.uid,
         collapsedSections,
       };
-
-      await updateDoc(ref, {
+      const updatePayload: any = {
         [`klussen.${klusId}.materialen`]: materialenPayload,
         [`klussen.${klusId}.werkwijze`]: werkwijzePayload,
-        [`klussen.${klusId}.kleinMateriaal`]: (kleinMateriaalConfig as any) ?? null,
-      } as any);
+      };
+      
+      if (kleinMateriaalConfig.mode === 'none') {
+        updatePayload[`klussen.${klusId}.kleinMateriaal`] = deleteField();
+      } else {
+        updatePayload[`klussen.${klusId}.kleinMateriaal`] = {
+          mode: kleinMateriaalConfig.mode,
+          ...(kleinMateriaalConfig.mode === 'percentage'
+            ? { percentage: kleinMateriaalConfig.percentage }
+            : {}),
+          ...(kleinMateriaalConfig.mode === 'fixed'
+            ? { fixedAmount: kleinMateriaalConfig.fixedAmount }
+            : {}),
+        };
+      }
+      
+      await updateDoc(ref, updatePayload);
 
       toast({ title: 'Materialen opgeslagen!' });
       router.push(`/offertes/${quoteId}/overzicht`);

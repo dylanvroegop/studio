@@ -37,27 +37,37 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
     try {
+      if (!auth) {
+        setError('Authenticatie is nog niet beschikbaar. Probeer opnieuw.');
+        return;
+      }
+    
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/landing');
     } catch (e) {
       const authError = e as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';
+    
       switch (authError.code) {
         case 'auth/invalid-email':
           errorMessage = 'Ongeldig emailadres formaat.';
           break;
+    
         case 'auth/user-not-found':
         case 'auth/invalid-credential':
         case 'auth/wrong-password':
           errorMessage = 'Ongeldig emailadres of wachtwoord. Controleer uw gegevens.';
           break;
+    
         default:
-          errorMessage = `Authenticatie mislukt. Probeer het opnieuw.`;
+          errorMessage = 'Authenticatie mislukt. Probeer het opnieuw.';
       }
+    
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
+    
   };
 
   if (isUserLoading || user) {

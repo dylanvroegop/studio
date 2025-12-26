@@ -5,13 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getFullQuoteDetails, updateJob } from './data';
 import type { JobCategory } from './types';
-import {
-  addDoc,
-  serverTimestamp,
-  collection,
-  doc,
-  updateDoc,
-} from 'firebase/firestore';
+import { addDoc, serverTimestamp, collection, doc, updateDoc } from 'firebase/firestore';
 import { initializeFirebaseServer } from '@/firebase/server';
 
 /* ---------------------------------------------
@@ -22,24 +16,20 @@ const QuoteFormSchema = z.object({
   werkomschrijving: z.string().min(1).max(800),
   userId: z.string(),
 
-  // Klanttype en naam
   clientType: z.enum(['particulier', 'zakelijk']),
   bedrijfsnaam: z.string().optional(),
   contactpersoon: z.string().optional(),
   voornaam: z.string().min(1),
   achternaam: z.string().min(1),
 
-  // Contactgegevens
   email: z.string().email(),
   telefoon: z.string().min(1),
 
-  // Factuuradres / hoofdadres
   straat: z.string().min(1),
-  huisnummer: z.string().min(1), // incl. toevoeging
+  huisnummer: z.string().min(1),
   postcode: z.string().min(1),
   plaats: z.string().optional(),
 
-  // Afwijkend projectadres
   afwijkendProjectadres: z.preprocess((val) => val === 'on', z.boolean()).optional(),
   projectStraat: z.string().optional(),
   projectHuisnummer: z.string().optional(),
@@ -47,8 +37,12 @@ const QuoteFormSchema = z.object({
   projectPlaats: z.string().optional(),
 });
 
+/**
+ * ✅ FIX: errors-type moet exact matchen met `flatten().fieldErrors`
+ * `fieldErrors` is: Record<string, string[]>
+ */
 type CreateQuoteState = {
-  errors?: z.ZodError<typeof QuoteFormSchema>['formErrors']['fieldErrors'];
+  errors?: Record<string, string[]>;
   message?: string | null;
   redirect?: string | null;
 };
@@ -93,41 +87,33 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
     projectPlaats,
   } = validatedFields.data;
 
-  // Alles wat “klantinformatie” is gaat in één map: klantinformatie
-  // Velden zijn Nederlands en volgen de UI-namen.
   const quoteData = {
     userId,
     status: 'concept' as const,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
 
-    // Offerte meta
     werkomschrijving,
     titel: werkomschrijving,
 
-    // ✅ Nieuwe structuur
     klantinformatie: {
       klanttype: clientType === 'particulier' ? 'Particulier' : 'Zakelijk',
 
-      // Klanttype en naam
       bedrijfsnaam: bedrijfsnaam || null,
       contactpersoon: contactpersoon || null,
       voornaam,
       achternaam,
 
-      // Contactgegevens
       'e-mailadres': email,
       telefoonnummer: telefoon,
 
-      // Factuuradres / hoofdadres
       factuuradres: {
         straat,
-        huisnummer, // huisnummer + toev.
+        huisnummer,
         postcode,
         plaats: plaats || null,
       },
 
-      // Afwijkend projectadres
       afwijkendProjectadres: afwijkendProjectadres || false,
       projectadres: {
         straat: projectStraat || null,

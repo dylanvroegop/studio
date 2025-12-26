@@ -14,15 +14,29 @@ export function DashboardHeader({ user }: { user: User | null }) {
   const auth = useAuth();
 
   const handleLogout = async () => {
+    if (!auth) {
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Authenticatie is nog niet beschikbaar.',
+      });
+      return;
+    }
+  
     try {
       await signOut(auth);
       toast({ title: 'Succes', description: 'U bent uitgelogd.' });
       router.push('/login');
     } catch (error) {
-      console.error('Logout Fout:', error);
-      toast({ variant: 'destructive', title: 'Fout', description: 'Uitloggen mislukt.' });
+      console.error('Logout fout:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Uitloggen mislukt.',
+      });
     }
   };
+  
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-xl sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 sm:pt-8">
