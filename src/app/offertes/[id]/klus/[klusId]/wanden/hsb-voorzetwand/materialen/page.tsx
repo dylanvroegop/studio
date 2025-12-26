@@ -96,6 +96,18 @@ import { Separator } from '@/components/ui/separator';
 const POSITIVE_BTN =
   'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600 focus-visible:ring-offset-0';
 
+  const POSITIVE_BTN_SOFT =
+  'border border-emerald-500/50 bg-emerald-500/15 text-emerald-100 ' +
+  'hover:bg-emerald-500/25 hover:border-emerald-500/65 ' +
+  'focus-visible:ring-emerald-500 focus-visible:ring-offset-0';
+
+  const POSITIVE_SOFT_TABS =
+  'data-[state=active]:border-emerald-500/50 ' +
+  'data-[state=active]:bg-emerald-500/15 ' +
+  'data-[state=active]:text-emerald-100 ' +
+  'data-[state=active]:shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]';
+
+
 const SELECT_ITEM_GREEN =
   'text-foreground ' +
   'focus:bg-emerald-600/15 focus:text-foreground ' +
@@ -474,11 +486,19 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel }: SavePresetDi
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuleren
+
           </Button>
-          <Button onClick={handleSave} disabled={!name || isSaving} className={cn(POSITIVE_BTN)}>
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isSaving ? 'Opslaan...' : 'Opslaan'}
-          </Button>
+          <Button
+  onClick={handleSave}
+  disabled={!name || isSaving}
+  variant="outline"
+  className={cn(POSITIVE_BTN_SOFT)}
+>
+  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+  {isSaving ? 'Opslaan...' : 'Opslaan'}
+</Button>
+
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -900,9 +920,21 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
           {isExtraMateriaal ? (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mt-4">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="eigen">Eigen materiaal toevoegen</TabsTrigger>
-                <TabsTrigger value="lijst">Uit lijst kiezen</TabsTrigger>
-              </TabsList>
+  <TabsTrigger
+    value="eigen"
+    className={cn(POSITIVE_SOFT_TABS)}
+  >
+    Eigen materiaal toevoegen
+  </TabsTrigger>
+
+  <TabsTrigger
+    value="lijst"
+    className={cn(POSITIVE_SOFT_TABS)}
+  >
+    Uit lijst kiezen
+  </TabsTrigger>
+</TabsList>
+
 
               <TabsContent value="eigen" className="pt-4 space-y-4">
                 <div className="space-y-2 px-1">
@@ -1086,7 +1118,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
             </Button>
 
             {isExtraMateriaal && activeTab === 'eigen' && (
-              <Button onClick={handleSaveEigen} className={cn(POSITIVE_BTN)}>
+              <Button onClick={handleSaveEigen} variant="outline" className={cn(POSITIVE_BTN_SOFT)}>
                 {isEditMode ? 'Opslaan' : 'Materiaal toevoegen'}
               </Button>
             )}
@@ -1380,14 +1412,20 @@ export default function HsbWandMaterialenPage() {
                   ? m.prijs
                   : 0;
 
-            return {
-              id: m?.id || maakId(),
-              naam,
-              eenheid,
-              prijsPerEenheid,
-              aantal: m?.aantal ?? undefined,
-              usageDescription: m?.usageDescription ?? '',
-            } as ExtraMaterial;
+                  return {
+                    id: m?.id || maakId(),
+                    naam,
+                    eenheid,
+                    prijsPerEenheid,
+                    aantal: typeof m?.aantal === 'number' ? m.aantal : undefined,
+                    usageDescription: m?.usageDescription ?? '',
+                  
+                    // ✅ belangrijk: behoud meetwaarden uit Firestore bij bewerken
+                    lengte: typeof m?.lengte === 'number' ? m.lengte : undefined,
+                    breedte: typeof m?.breedte === 'number' ? m.breedte : undefined,
+                    hoogte: typeof m?.hoogte === 'number' ? m.hoogte : undefined,
+                  } as ExtraMaterial;
+                  
           })
           .filter((x) => x.naam);
 
@@ -1732,11 +1770,6 @@ export default function HsbWandMaterialenPage() {
       .map((m: any) => {
         const c: any = { ...m };
 
-        // 1) Custom materiaal krijgt soms een random UUID → NIET opslaan als id
-        if (typeof c.id === 'string' && c.id.includes('-')) {
-          delete c.id;
-        }
-
         // 2) haal lege/undefined velden weg (Firestore haat undefined)
         if (c.lengte === '' || c.lengte == null) delete c.lengte;
         if (c.breedte === '' || c.breedte == null) delete c.breedte;
@@ -1762,8 +1795,8 @@ export default function HsbWandMaterialenPage() {
         selections: schoneSelecties,
         extraMaterials: schoneExtra,
         savedByUid: user.uid,
-        collapsedSections,
       };
+
       const updatePayload: any = {
         [`klussen.${klusId}.materialen`]: materialenPayload,
         [`klussen.${klusId}.werkwijze`]: werkwijzePayload,
@@ -1801,7 +1834,21 @@ export default function HsbWandMaterialenPage() {
       }
 
 
-      await updateDoc(ref, stripUndefinedDiep(updatePayload));
+      
+// Quotes: UI state nooit opslaan
+if (updatePayload?.materialen && 'collapsedSections' in updatePayload.materialen) {
+  delete (updatePayload.materialen as any).collapsedSections;
+}
+
+const payloadSchoon: any = stripUndefinedDiep(updatePayload);
+
+// Firestore deleteField() mag NOOIT door stripUndefinedDiep heen
+await updateDoc(ref, {
+  ...payloadSchoon,
+  'materialen.collapsedSections': deleteField(),
+});
+
+
 
       toast({ title: 'Materialen opgeslagen!' });
       router.push(`/offertes/${quoteId}/overzicht`);
@@ -1961,13 +2008,17 @@ export default function HsbWandMaterialenPage() {
     {extraMaterials.map((mat) => (
       <li key={mat.id} className="flex items-center justify-between text-sm">
       <div className="min-w-0 flex flex-col justify-center">
-        <p className={cn('text-sm leading-snug', SELECTED_MATERIAL_TEXT)}>
-        {mat.naam}
-{typeof (mat as any).lengte === 'number' && typeof (mat as any).breedte === 'number'
-  ? ` (${(mat as any).lengte}×${(mat as any).breedte})`
-  : null}
+      <p className={cn('text-sm leading-snug', SELECTED_MATERIAL_TEXT)}>
+  {mat.naam}
+  {typeof (mat as any).lengte === 'number' && typeof (mat as any).breedte === 'number' && typeof (mat as any).hoogte === 'number'
+    ? ` (${(mat as any).lengte}×${(mat as any).breedte}×${(mat as any).hoogte})`
+    : typeof (mat as any).lengte === 'number' && typeof (mat as any).breedte === 'number'
+      ? ` (${(mat as any).lengte}×${(mat as any).breedte})`
+      : typeof (mat as any).lengte === 'number'
+        ? ` (${(mat as any).lengte})`
+        : null}
+</p>
 
-        </p>
     
         {typeof (mat as any).aantal === 'number' && (
           <p className="text-xs text-muted-foreground leading-tight">
@@ -2355,17 +2406,19 @@ export default function HsbWandMaterialenPage() {
 </div>
 
             <div className="mt-8">
-              <Button
-                variant="outline"
-                onClick={() => setSavePresetModalOpen(true)}
-                className={cn(
-                  'w-full',
-                  'hover:bg-emerald-600 hover:text-white hover:border-emerald-600',
-                  'focus-visible:ring-emerald-600'
-                )}
-              >
-                <Save className="mr-2 h-4 w-4" /> Huidige keuzes opslaan als werkwijze
-              </Button>
+            <Button
+  variant="outline"
+  onClick={() => setSavePresetModalOpen(true)}
+  className={cn(
+    'w-full transition-colors duration-150 ease-out',
+    'hover:bg-emerald-500/14 hover:border-emerald-500/55 hover:text-emerald-100',
+    'focus-visible:ring-emerald-500'
+  )}
+>
+  <Save className="mr-2 h-4 w-4" />
+  Huidige keuzes opslaan als werkwijze
+</Button>
+
             </div>
 
             <div className="mt-8 flex justify-between items-center">
@@ -2373,7 +2426,7 @@ export default function HsbWandMaterialenPage() {
                 <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>Terug</Link>
               </Button>
 
-              <Button onClick={handleNext} disabled={isOpslaan} className={cn(POSITIVE_BTN)}>
+              <Button onClick={handleNext} disabled={isOpslaan} className={cn(POSITIVE_BTN_SOFT)}>
                 {isOpslaan ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isOpslaan ? 'Opslaan...' : 'Volgende'}
               </Button>
