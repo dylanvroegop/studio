@@ -42,7 +42,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.push('/landing');
+      router.push('/dashboard');
     }
   }, [user, isUserLoading, router]);
 
