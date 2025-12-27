@@ -15,5 +15,5 @@ runConfig:
       availability: [RUNTIME]
 
     - variable: SUPABASE_SERVICE_ROLE_KEY
-      value: "sb_publishable_FVwRCa-Fr7GYNEE1z5CZdg_py61Y5cp"
+      value: "sb_secret_hjAEYzNIVJ0aJywJOjsL8g_kXTGkIoJ"
       availability: [RUNTIME]
