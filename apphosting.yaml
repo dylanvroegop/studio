@@ -1,31 +1,19 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
-
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
   maxInstances: 1
 
-env:
-  - variable: N8N_WEBHOOK_URL
-    value: "https://n8n.dylan8n.org/webhook-test/offerte-test"
-    availability:
-      - RUNTIME
+  env:
+    - variable: N8N_WEBHOOK_URL
+      value: "https://n8n.dylan8n.org/webhook-test/offerte-test"
+      availability: [RUNTIME]
 
-  - variable: N8N_HEADER_SECRET
-    value: "oh_9f4c2b1e6a7d4c77a3b2f8c1d0e9a6f3"
-    availability:
-      - RUNTIME
+    - variable: N8N_HEADER_SECRET
+      value: "oh_9f4c2b1e6a7d4c77a3b2f8c1d0e9a6f3"
+      availability: [RUNTIME]
 
-env:
-  - variable: SUPABASE_URL
-    value: "https://eihmvwieqwxvieqcpodh.supabase.co"
-    availability:
-      - RUNTIME
+    - variable: SUPABASE_URL
+      value: "https://eihmwvieqwxvieqcpodh.supabase.co"
+      availability: [RUNTIME]
 
-  - variable: SUPABASE_SERVICE_ROLE_KEY
-    value: "sb_publishable_FVwRCa-Fr7GYNEE1z5CZdg_py61Y5cp"
-    availability:
-      - RUNTIME
-
-      
+    - variable: SUPABASE_SERVICE_ROLE_KEY
+      value: "sb_publishable_..."
+      availability: [RUNTIME]
