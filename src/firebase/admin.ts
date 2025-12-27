@@ -1,5 +1,6 @@
 // src/firebase/admin.ts
 import { getApps, initializeApp, applicationDefault } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 export function initFirebaseAdmin() {
@@ -9,6 +10,8 @@ export function initFirebaseAdmin() {
     });
   }
 
+  const auth = getAuth();
   const firestore = getFirestore();
-  return { firestore };
+
+  return { auth, firestore };
 }

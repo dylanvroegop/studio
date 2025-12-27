@@ -96,7 +96,7 @@ export default function NewQuotePage() {
               size="icon"
               className="h-9 w-9 rounded-xl"
             >
-              <Link href="/landing">
+              <Link href="/dashboard">
                 <ArrowLeft className="h-4 w-4" />
                 <span className="sr-only">Terug</span>
               </Link>
@@ -104,7 +104,7 @@ export default function NewQuotePage() {
 
             <div className="min-w-0 flex-1 text-center">
               <div className="text-sm font-semibold text-foreground/90 leading-5">
-                Nieuwe offerte
+                Nieuwe klus
               </div>
 
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted/40 ring-1 ring-border">

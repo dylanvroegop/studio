@@ -130,9 +130,15 @@ export default function LoginPage() {
             )}
           </div>
           <div className="mt-6 flex flex-col gap-4">
-            <Button onClick={handleLogin} disabled={isLoading} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-              {isLoading ? 'Inloggen...' : 'Inloggen'}
-            </Button>
+          <Button
+  variant="success"
+  onClick={handleLogin}
+  disabled={isLoading}
+  className="w-full"
+>
+  {isLoading ? 'Inloggen...' : 'Inloggen'}
+</Button>
+
             <p className="text-center text-sm text-muted-foreground">
               Nog geen account?{' '}
               <Link href="/register" className="underline text-primary hover:text-primary/80">

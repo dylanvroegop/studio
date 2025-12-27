@@ -51,17 +51,17 @@ const DialogContent = React.forwardRef<
 
       {/* GLOBALE SLUITKNOP (mobiel-proof): grote hitbox */}
       <DialogPrimitive.Close
-        className={cn(
-          'absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-full',
-          'text-white/70 transition',
-          'hover:bg-white/10 hover:text-white',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60',
-          'active:scale-95'
-        )}
-        aria-label="Sluiten"
-      >
-        <X className="h-6 w-6" />
-      </DialogPrimitive.Close>
+  className={cn(
+    'absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full',
+    'text-white/70 transition hover:bg-white/10 hover:text-white',
+    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/40',
+    'active:scale-95'
+  )}
+  aria-label="Sluiten"
+>
+  <X className="h-3 w-3" />
+</DialogPrimitive.Close>
+
     </DialogPrimitive.Content>
   </DialogPortal>
 ));

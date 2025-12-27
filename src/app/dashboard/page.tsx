@@ -18,34 +18,10 @@ import type { Quote } from '@/lib/types';
 
 import { DashboardHeader } from '@/components/dashboard-header';
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 import {
   Tooltip,
@@ -55,25 +31,24 @@ import {
 } from '@/components/ui/tooltip';
 
 import {
-  ArrowLeft,
+  Plus,
+  Pencil,
   ArrowUpRight,
   Copy,
-  PlusCircle,
-  FilePen,
-  Send,
-  Clock,
-  CircleDollarSign,
-  AlertTriangle,
+  Settings,
+  Boxes,
+  Users,
 } from 'lucide-react';
 
-import { format, subDays, isBefore } from 'date-fns';
+import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
 type Status = Quote['status'];
-type SortOption = 'createdAt_desc' | 'createdAt_asc' | 'amount_desc' | 'amount_asc';
 
 type QuoteMetDatums = Quote & {
+  id: string;
   createdAtDate?: Date | null;
+  updatedAtDate?: Date | null;
   sentAtDate?: Date | null;
 };
 
@@ -92,17 +67,26 @@ function formatCurrency(amount?: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
 }
 
+function getTitel(q: any): string {
+  return (q?.titel ?? q?.title ?? q?.naam ?? '—') as string;
+}
+
+function getKlantNaam(q: any): string {
+  return (q?.klantNaam ?? q?.klantnaam ?? q?.clientName ?? q?.customerName ?? '—') as string;
+}
+
 function StatusBadge({ status }: { status: Status }) {
   const statusMap: Record<Status, { text: string; className: string }> = {
-    concept: { text: 'Concept', className: 'bg-gray-500/20 text-gray-300 border-gray-500/30' },
-    in_behandeling: { text: 'In behandeling', className: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-    verzonden: { text: 'Verzonden', className: 'bg-orange-500/20 text-orange-300 border-orange-500/30' },
-    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-green-500/20 text-green-300 border-green-500/30' },
-    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/20 text-red-300 border-red-500/30' },
+    concept: { text: 'Concept', className: 'bg-zinc-500/15 text-zinc-200 border-zinc-500/25' },
+    in_behandeling: { text: 'Bezig', className: 'bg-blue-500/15 text-blue-200 border-blue-500/25' },
+    verzonden: { text: 'Verzonden', className: 'bg-orange-500/15 text-orange-200 border-orange-500/25' },
+    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-green-500/15 text-green-200 border-green-500/25' },
+    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/15 text-red-200 border-red-500/25' },
     verlopen: { text: 'Verlopen', className: 'bg-zinc-700 text-zinc-300 border-zinc-600' },
   };
 
   const { text, className } = statusMap[status] || statusMap.concept;
+
   return (
     <Badge variant="outline" className={className}>
       {text}
@@ -112,45 +96,18 @@ function StatusBadge({ status }: { status: Status }) {
 
 function DashboardSkeleton() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <DashboardHeader user={null} />
       <main className="flex flex-1 items-center justify-center p-6">
-        <div className="rounded-3xl border bg-card/50 p-8 text-muted-foreground shadow-sm backdrop-blur-xl flex items-center gap-3">
-          <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div className="flex items-center gap-3 rounded-3xl border bg-card/50 p-8 text-muted-foreground shadow-sm backdrop-blur-xl">
+          <svg className="h-6 w-6 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
           </svg>
-          Dashboard laden...
+          Laden...
         </div>
       </main>
     </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  subtext,
-  icon,
-  valueClassName = '',
-}: {
-  title: string;
-  value: string | number;
-  subtext: string;
-  icon: React.ReactNode;
-  valueClassName?: string;
-}) {
-  return (
-    <Card className="bg-card/50">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {icon}
-      </CardHeader>
-      <CardContent>
-        <div className={`text-2xl font-bold ${valueClassName}`}>{value}</div>
-        <p className="text-xs text-muted-foreground">{subtext}</p>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -159,96 +116,63 @@ export default function Dashboard() {
   const firestore = useFirestore();
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [quotes, setQuotes] = useState<QuoteMetDatums[]>([]);
+  const begroeting = useMemo(() => {
+    const naam =
+      (user as any)?.displayName ||
+      (user as any)?.name ||
+      (user as any)?.email?.split('@')?.[0] ||
+      '';
+    return naam ? `Welkom, ${naam}` : 'Welkom';
+  }, [user]);
 
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
-  const [sortOption, setSortOption] = useState<SortOption>('createdAt_desc');
+  const [laden, setLaden] = useState(true);
+  const [offertes, setOffertes] = useState<QuoteMetDatums[]>([]);
+  const [zoek, setZoek] = useState('');
 
   // Auth redirect
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
 
-  // Live quotes
+  // Live offertes
   useEffect(() => {
     if (!user || !firestore) return;
 
-    setLoading(true);
+    setLaden(true);
 
-    const quotesRef = collection(firestore, 'quotes');
-    const q = query(quotesRef, where('userId', '==', user.uid));
+    const ref = collection(firestore, 'quotes');
+    const q = query(ref, where('userId', '==', user.uid));
 
     const unsub = onSnapshot(
       q,
       (snapshot) => {
         const data: QuoteMetDatums[] = snapshot.docs.map((doc) => {
-          const raw = doc.data() as Quote;
-
+          const raw = doc.data() as any;
           return {
-            ...raw,
-            createdAtDate: naarDate((raw as any).createdAt),
-            sentAtDate: naarDate((raw as any).sentAt),
+            ...(raw as Quote),
             id: doc.id,
+            createdAtDate: naarDate(raw?.createdAt),
+            updatedAtDate: naarDate(raw?.updatedAt),
+            sentAtDate: naarDate(raw?.sentAt),
           };
         });
 
-        setQuotes(data);
-        setLoading(false);
+        setOffertes(data);
+        setLaden(false);
       },
       (err) => {
-        console.error('Fout bij ophalen offertes:', err);
-        setLoading(false);
+        console.error('Fout bij ophalen klussen:', err);
+        setLaden(false);
       }
     );
 
     return () => unsub();
   }, [user, firestore]);
 
-  // Filtering + sorting (derived)
-  const filteredQuotes = useMemo(() => {
-    let result = [...quotes];
-
-    if (search.trim()) {
-      const s = search.trim().toLowerCase();
-      result = result.filter((q) => {
-        const t = (q.titel || '').toLowerCase();
-        const k = ((q as any).clientName || '').toLowerCase();
-        return t.includes(s) || k.includes(s);
-      });
-    }
-
-    if (statusFilter !== 'all') {
-      result = result.filter((q) => q.status === statusFilter);
-    }
-
-    result.sort((a, b) => {
-      const aDate = a.createdAtDate ? a.createdAtDate.getTime() : 0;
-      const bDate = b.createdAtDate ? b.createdAtDate.getTime() : 0;
-      const aAmt = a.amount || 0;
-      const bAmt = b.amount || 0;
-
-      switch (sortOption) {
-        case 'createdAt_asc':
-          return aDate - bDate;
-        case 'amount_desc':
-          return bAmt - aAmt;
-        case 'amount_asc':
-          return aAmt - bAmt;
-        case 'createdAt_desc':
-        default:
-          return bDate - aDate;
-      }
-    });
-
-    return result;
-  }, [quotes, search, statusFilter, sortOption]);
-
-  const handleDuplicate = async (quote: QuoteMetDatums) => {
+  const dupliceerOfferte = async (offerte: QuoteMetDatums) => {
     if (!user || !firestore) return;
 
-    const { id, createdAtDate, sentAtDate, createdAt, sentAt, status, ...rest } = quote;
+    const { id, createdAtDate, updatedAtDate, sentAtDate, ...rest } = offerte as any;
 
     try {
       const newDocRef = await addDocumentNonBlocking(collection(firestore, 'quotes'), {
@@ -257,211 +181,185 @@ export default function Dashboard() {
         status: 'concept',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        title: `${quote.titel} (Kopie)`,
+        titel: `${getTitel(offerte)} (Kopie)`,
       });
 
       if (newDocRef) router.push(`/offertes/${newDocRef.id}`);
     } catch (e) {
-      console.error('Fout bij dupliceren offerte:', e);
+      console.error('Fout bij dupliceren klus:', e);
     }
   };
 
-  // Stats
-  const thirtyDaysAgo = subDays(new Date(), 30);
-  const openStandCount = quotes.filter((q) => q.status === 'concept' || q.status === 'in_behandeling').length;
-  const verzondenCount = quotes.filter((q) => q.status === 'verzonden').length;
+  // Meest recente eerst
+  const sortedByRecent = useMemo(() => {
+    const arr = [...offertes];
+    arr.sort((a, b) => {
+      const aT = (a.updatedAtDate ?? a.createdAtDate)?.getTime() ?? 0;
+      const bT = (b.updatedAtDate ?? b.createdAtDate)?.getTime() ?? 0;
+      return bT - aT;
+    });
+    return arr;
+  }, [offertes]);
 
-  const geaccepteerd30dSum = quotes
-    .filter((q) => q.status === 'geaccepteerd' && (q.createdAtDate ? q.createdAtDate >= thirtyDaysAgo : false))
-    .reduce((sum, q) => sum + (q.amount || 0), 0);
+  // Lopende klus = meest recente concept / in_behandeling
+  const lopendeKlus = useMemo(() => {
+    const drafts = sortedByRecent.filter((o) => o.status === 'concept' || o.status === 'in_behandeling');
+    return drafts[0] ?? null;
+  }, [sortedByRecent]);
 
-  const fiveDaysAgo = subDays(new Date(), 5);
-  const followUps = quotes.filter((q) => {
-    if (q.status !== 'verzonden') return false;
-    if (!q.sentAtDate) return false;
-    return isBefore(q.sentAtDate, fiveDaysAgo);
-  });
+  // Recente klussen
+  const recenteKlussen = useMemo(() => {
+    const s = zoek.trim().toLowerCase();
+    let result = [...sortedByRecent];
+
+    if (s) {
+      result = result.filter((o) => {
+        const titel = getTitel(o).toLowerCase();
+        const klant = getKlantNaam(o).toLowerCase();
+        return titel.includes(s) || klant.includes(s);
+      });
+    }
+
+    return result.slice(0, 12);
+  }, [sortedByRecent, zoek]);
 
   if (isUserLoading || !user) return <DashboardSkeleton />;
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col min-h-screen">
+      <div className="flex min-h-screen flex-col">
         <DashboardHeader user={user} />
 
-        <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
-          {/* Header row */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Button asChild variant="outline" size="icon">
-                <Link href="/landing" aria-label="Terug">
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              <div>
-                <h1 className="font-semibold text-2xl md:text-3xl">Dashboard</h1>
-                <p className="text-sm text-muted-foreground">Overzicht van je offertes en opvolging.</p>
+        {/* pb-24 zodat de mobiele bottom bar niets overlapt */}
+        <main className="flex flex-1 flex-col items-center p-4 md:p-6 pb-24">
+          <div className="w-full max-w-3xl space-y-6">
+            {/* Begroeting */}
+            <div className="px-1">
+              <div className="text-lg font-medium leading-tight">
+                {begroeting}
               </div>
             </div>
 
-            <Button asChild className="gap-2">
-              <Link href="/offertes/nieuw">
-                <PlusCircle className="h-4 w-4" />
-                Nieuwe offerte
-              </Link>
-            </Button>
-          </div>
+            {/* STARTSCHERM: 1 primaire actie */}
+            <Card className="bg-card/50">
+              <CardContent className="p-5 md:p-6">
+              <div className="flex items-start justify-between gap-6">
+  {/* LEFT: context */}
+  <div className="min-w-0">
+    <h1 className="text-2xl md:text-3xl font-semibold leading-tight">
+      Nieuwe klus
+    </h1>
+    <p className="mt-2 text-sm text-muted-foreground">
+      Start met het uitwerken van een nieuwe klus.
+    </p>
+  </div>
 
-          {/* Stats */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="Openstaand"
-              value={openStandCount}
-              subtext="Concept + in behandeling"
-              icon={<FilePen className="h-4 w-4 text-muted-foreground" />}
-            />
-            <StatCard
-              title="Verzonden"
-              value={verzondenCount}
-              subtext="Wacht op reactie"
-              icon={<Send className="h-4 w-4 text-muted-foreground" />}
-            />
-            <StatCard
-              title="Geaccepteerd (30d)"
-              value={formatCurrency(geaccepteerd30dSum)}
-              subtext="Totaalbedrag laatste 30 dagen"
-              icon={<CircleDollarSign className="h-4 w-4 text-muted-foreground" />}
-              valueClassName="text-green-400"
-            />
-            <StatCard
-              title="Opvolgen"
-              value={followUps.length}
-              subtext="Verzonden > 5 dagen geleden"
-              icon={<Clock className="h-4 w-4 text-muted-foreground" />}
-              valueClassName={followUps.length > 0 ? 'text-orange-400' : ''}
-            />
-          </div>
+  {/* RIGHT: primary action */}
+  <div className="shrink-0">
+    <Button asChild variant="success" className="gap-2 h-11 px-5">
+      <Link href="/offertes/nieuw">
+        <Plus className="h-4 w-4" />
+        Nieuwe klus starten
+      </Link>
+    </Button>
+  </div>
+</div>
 
-          {/* Follow-up */}
-          {followUps.length > 0 && (
-            <Card className="border-orange-500/20 bg-card/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-orange-400" />
-                  Vandaag opvolgen
-                </CardTitle>
-                <CardDescription>Deze offertes zijn verzonden en al een tijd stil.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {followUps.slice(0, 6).map((q) => (
-                    <li key={q.id}>
-                      <Link
-                        href={`/offertes/${q.id}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border bg-background/40 p-3 hover:bg-muted/40 transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">
-                          {(q as any).klantnaam || '–'} – {q.titel}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Verzonden:{' '}
-                            {q.sentAtDate ? format(q.sentAtDate, 'd MMM yyyy', { locale: nl }) : '—'}
-                          </div>
-                        </div>
-                        <div className="text-sm text-muted-foreground shrink-0">{formatCurrency(q.amount)}</div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
               </CardContent>
             </Card>
-          )}
 
-          {/* Quotes table */}
-          <Card className="bg-card/50">
-            <CardHeader>
-              <CardTitle>Recente offertes</CardTitle>
-              <CardDescription>Zoek, filter en sorteer je offertes.</CardDescription>
+            {/* Recovery (secundair) */}
+            {lopendeKlus ? (
+              <Card className="bg-card/50">
+                <CardContent className="p-4 md:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold">Lopende klus</div>
+                      <div className="mt-1 text-sm text-muted-foreground truncate">
+                        {getKlantNaam(lopendeKlus)} — {getTitel(lopendeKlus)}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Laatst bewerkt:{' '}
+                        {(lopendeKlus.updatedAtDate ?? lopendeKlus.createdAtDate)
+                          ? format((lopendeKlus.updatedAtDate ?? lopendeKlus.createdAtDate) as Date, 'd MMM yyyy', { locale: nl })
+                          : '—'}
+                      </div>
+                    </div>
 
-              <div className="mt-4 flex flex-col md:flex-row gap-2">
-                <Input
-                  placeholder="Zoek op titel of klant..."
-                  className="max-w-xs"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                    <Button asChild variant="secondary" className="shrink-0 gap-2">
+                      <Link href={`/offertes/${lopendeKlus.id}`}>
+                        <Pencil className="h-4 w-4" />
+                        Verder
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
 
-                <div className="flex gap-2">
-                  <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Alle statussen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alle statussen</SelectItem>
-                      <SelectItem value="concept">Concept</SelectItem>
-                      <SelectItem value="in_behandeling">In behandeling</SelectItem>
-                      <SelectItem value="verzonden">Verzonden</SelectItem>
-                      <SelectItem value="geaccepteerd">Geaccepteerd</SelectItem>
-                      <SelectItem value="afgewezen">Afgewezen</SelectItem>
-                      <SelectItem value="verlopen">Verlopen</SelectItem>
-                    </SelectContent>
-                  </Select>
+            {/* Recente klussen (rustig) */}
+            <Card className="bg-card/50">
+              <CardContent className="p-4 md:p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold">Recente klussen</div>
+                    <div className="text-xs text-muted-foreground">
+                      Terugvinden, openen, of dupliceren.
+                    </div>
+                  </div>
 
-                  <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Sorteren op" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="createdAt_desc">Datum (nieuwste)</SelectItem>
-                      <SelectItem value="createdAt_asc">Datum (oudste)</SelectItem>
-                      <SelectItem value="amount_desc">Bedrag (hoogste)</SelectItem>
-                      <SelectItem value="amount_asc">Bedrag (laagste)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="Zoek op klant of titel..."
+                    className="w-full md:w-[320px]"
+                    value={zoek}
+                    onChange={(e) => setZoek(e.target.value)}
+                  />
                 </div>
-              </div>
-            </CardHeader>
 
-            <CardContent>
-              {loading ? (
-                <div className="space-y-3">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="h-12 bg-muted/50 rounded animate-pulse" />
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Titel</TableHead>
-                      <TableHead>Klant</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead className="text-right">Bedrag</TableHead>
-                      <TableHead className="text-center">Acties</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                <div className="mt-4">
+                  {laden ? (
+                    <div className="space-y-2">
+                      {[...Array(7)].map((_, i) => (
+                        <div key={i} className="h-12 animate-pulse rounded bg-muted/50" />
+                      ))}
+                    </div>
+                  ) : recenteKlussen.length === 0 ? (
+                    <div className="rounded-2xl border bg-background/20 p-6 text-center text-muted-foreground">
+                      Nog geen klussen gevonden.
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {recenteKlussen.map((o) => {
+                        const datum = o.updatedAtDate ?? o.createdAtDate;
 
-                  <TableBody>
-                    {filteredQuotes.length > 0 ? (
-                      filteredQuotes.map((q) => (
-                        <TableRow key={q.id}>
-                          <TableCell className="font-medium">{q.titel}</TableCell>
-                          <TableCell>{(q as any).klantNaam ?? (q as any).clientName ?? '-'}</TableCell>
-                          <TableCell>
-                            <StatusBadge status={q.status} />
-                          </TableCell>
-                          <TableCell>
-                            {q.createdAtDate ? format(q.createdAtDate, 'd MMM yyyy', { locale: nl }) : '—'}
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(q.amount)}</TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
+                        return (
+                          <div
+                            key={o.id}
+                            className="group flex items-center justify-between gap-3 rounded-2xl border bg-background/15 px-3 py-2 hover:bg-muted/25 transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <Link href={`/offertes/${o.id}`} className="block min-w-0">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="truncate font-medium">
+                                    {getKlantNaam(o)} — {getTitel(o)}
+                                  </div>
+                                  <StatusBadge status={o.status} />
+                                </div>
+
+                                <div className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+                                  <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
+                                  <span className="opacity-60">•</span>
+                                  <span>{formatCurrency(o.amount)}</span>
+                                </div>
+                              </Link>
+                            </div>
+
+                            {/* Acties op hover (desktop) */}
+                            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button asChild variant="ghost" size="icon">
-                                    <Link href={`/offertes/${q.id}`} aria-label="Openen">
+                                    <Link href={`/offertes/${o.id}`} aria-label="Openen">
                                       <ArrowUpRight className="h-4 w-4" />
                                     </Link>
                                   </Button>
@@ -471,29 +369,62 @@ export default function Dashboard() {
 
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => handleDuplicate(q)} aria-label="Dupliceren">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => dupliceerOfferte(o)}
+                                    aria-label="Dupliceren"
+                                  >
                                     <Copy className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Dupliceren</TooltipContent>
                               </Tooltip>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center h-28 text-muted-foreground">
-                          Geen offertes gevonden. Maak je eerste offerte via <span className="font-medium">“Nieuwe offerte”</span>.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
         </main>
+         {/* Mobiele utility bar (fixed onderin) */}
+         <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 backdrop-blur-xl">
+            <div className="mx-auto max-w-3xl px-3 py-2 flex items-center justify-around">
+              {/* Klanten (doet nu niets) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                }}
+                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground opacity-60 cursor-not-allowed"
+                aria-disabled="true"
+              >
+                <Users className="h-5 w-5" />
+                Klanten
+              </button>
+
+              <Link
+                href="/materialen"
+                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Boxes className="h-5 w-5" />
+                Materialen
+              </Link>
+
+              <Link
+                href="/instellingen"
+                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Settings className="h-5 w-5" />
+                Instellingen
+              </Link>
+            </div>
+          </div>
       </div>
     </TooltipProvider>
   );

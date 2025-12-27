@@ -16,3 +16,16 @@ env:
     value: "oh_9f4c2b1e6a7d4c77a3b2f8c1d0e9a6f3"
     availability:
       - RUNTIME
+
+env:
+  - variable: SUPABASE_URL
+    value: "https://eihmvwieqwxvieqcpodh.supabase.co"
+    availability:
+      - RUNTIME
+
+  - variable: SUPABASE_SERVICE_ROLE_KEY
+    value: "sb_publishable_FVwRCa-Fr7GYNEE1z5CZdg_py61Y5cp"
+    availability:
+      - RUNTIME
+
+      

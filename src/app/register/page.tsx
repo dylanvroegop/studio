@@ -245,7 +245,18 @@ export default function RegisterPage() {
             <Separator />
             
             <div className="items-top flex space-x-2">
-                <Checkbox id="terms" checked={termsAccepted} onCheckedChange={(checked) => setTermsAccepted(checked as boolean)} />
+            <Checkbox
+  id="terms"
+  checked={termsAccepted}
+  onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+  className="
+    data-[state=checked]:bg-emerald-600
+    data-[state=checked]:border-emerald-600
+    data-[state=checked]:text-white
+    data-[state=checked]:hover:bg-emerald-600
+  "
+/>
+
                 <div className="grid gap-1.5 leading-none">
                     <label
                     htmlFor="terms"
@@ -267,10 +278,16 @@ export default function RegisterPage() {
             )}
           </div>
           <div className="mt-6 flex flex-col gap-4">
-            <Button onClick={handleRegister} disabled={isLoading} className="w-full">
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
-            </Button>
+          <Button
+  variant="success"
+  onClick={handleRegister}
+  disabled={isLoading}
+  className="w-full"
+>
+  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+  {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
+</Button>
+
             <p className="text-center text-sm text-muted-foreground">
               Heb je al een account?{' '}
               <Link href="/login" className="underline text-primary hover:text-primary/80">

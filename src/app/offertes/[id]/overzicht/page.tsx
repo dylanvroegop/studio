@@ -1955,98 +1955,84 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-          {/* Bouwplaatskosten */}
-          <Card className="border-muted/60">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-col gap-1">
-  <CardTitle>Bouwplaatskosten</CardTitle>
-  <p className="text-xs text-muted-foreground max-w-[420px]">
-    Voor kosten zoals steigerhuur, container, aanhanger, parkeer- of overige bouwplaatskosten.
-  </p>
+         {/* Bouwplaatskosten */}
+<Card className="border-muted/60">
+  <CardHeader className="pb-3 relative overflow-hidden">
+    <div className="flex items-start justify-between gap-4 flex-wrap">
+      {/* Links: titel + beschrijving */}
+      <div className="flex flex-col gap-1 min-w-0">
+        <CardTitle>Bouwplaatskosten</CardTitle>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-foreground sm:hidden"
-                    onClick={() => setBouwplaatsBeheerOpen(true)}
-                    aria-label="Bouwplaatskosten instellingen"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </Button>
-                </div>
+        <p className="text-xs leading-snug text-muted-foreground">
+          Voor kosten zoals steigerhuur, container of aanhanger.
+          <br />
+          Ook parkeer- en overige bouwplaatskosten.
+        </p>
+      </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="min-w-[220px]">
-                    <Select
-                      value={geselecteerdPakketId || ''}
-                      onValueChange={(v) => {
-                        // cleared (Select can set "" to clear)
-                        if (!v) {
-                          setGeselecteerdPakketId('');
-                          setBouwplaatskosten([]); // clean slate
-                          return;
-                        }
-                      
-                        // explicit "Leeg (handmatig)"
-                        if (v === 'LEEG') {
-                          setGeselecteerdPakketId('');
-                          setBouwplaatskosten([]); // clean slate
-                          return;
-                        }
-                      
-                        // pakket gekozen
-                        handleSelectPakket(v);
-                      }}
-                      
-                      
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Leeg (handmatig)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                      <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
-                        {pakketten.length === 0 && (
-                          <div className="px-3 py-2 text-xs text-muted-foreground">
-                            Nog geen pakketten
-                          </div>
-                        )}
-                        {pakketten.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.naam}{p.id === standaardPakketId ? ' (standaard)' : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+      {/* Rechts: controls */}
+      <div className="flex items-center gap-2 flex-wrap justify-end">
+        <Select
+          value={geselecteerdPakketId || 'LEEG'}
+          onValueChange={(v) => {
+            if (!v || v === 'LEEG') {
+              setGeselecteerdPakketId('');
+              setBouwplaatskosten([]);
+              return;
+            }
+            handleSelectPakket(v);
+          }}
+        >
+          <SelectTrigger className="w-[220px] max-w-full">
+            <SelectValue placeholder="Leeg (handmatig)" />
+          </SelectTrigger>
 
-                  {/* Preset opslaan button (vervangt oude “Extra toevoegen” in header) */}
-                  <Button
-  type="button"
-  variant="success"
-  size="sm"
-  onClick={openBouwplaatsOpslaan}
->
-  <Save className="mr-2 h-4 w-4" />
-  Opslaan
-</Button>
+          <SelectContent>
+            <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
 
-
-                  {/* Settings voor alleen bouwplaats (beheer pakketten) */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
-                    onClick={() => setBouwplaatsBeheerOpen(true)}
-                    aria-label="Bouwplaatskosten instellingen"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </Button>
-                </div>
+            {pakketten.length === 0 && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                Nog geen pakketten
               </div>
-            </CardHeader>
+            )}
+
+            {pakketten.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.naam}
+                {p.id === standaardPakketId ? ' (standaard)' : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground shrink-0"
+          onClick={() => setBouwplaatsBeheerOpen(true)}
+          aria-label="Bouwplaatskosten pakketten beheren"
+        >
+          <Settings className="h-5 w-5" />
+        </Button>
+
+        {/* Materialen-stijl "+ Toevoegen" (zelfde sizing) */}
+        <button
+          type="button"
+          onClick={handleAddExtraBouwplaats}
+          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-2 min-h-[44px] bg-transparent text-emerald-500 hover:opacity-90 active:opacity-80"
+          aria-label="Toevoegen"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Toevoegen</span>
+        </button>
+      </div>
+    </div>
+  </CardHeader>
+
+
+
+
 
             <CardContent className="space-y-4">
               {bouwplaatskosten.map((item) => (
@@ -2102,13 +2088,14 @@ export default function OverzichtPage() {
               {/* Consistente “+ Toevoegen” (altijd: nieuwe regel) */}
               <Button
   type="button"
-  variant="successGhost"
-  onClick={handleAddExtraBouwplaats}
+  variant="outline"
+  onClick={openBouwplaatsOpslaan}
   className="w-full justify-center"
 >
-  <Plus className="mr-2 h-4 w-4" />
-  Toevoegen
+  <Save className="mr-2 h-4 w-4" />
+  Huidige keuzes opslaan als pakket
 </Button>
+
 
             </CardContent>
           </Card>
