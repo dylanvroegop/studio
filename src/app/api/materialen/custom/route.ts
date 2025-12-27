@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { initFirebaseAdmin } from '@/firebase/admin';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+
 type Body = {
   materiaalnaam?: unknown;
   eenheid?: unknown;
