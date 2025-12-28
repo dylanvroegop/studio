@@ -169,6 +169,14 @@ function InputMetSuffix(props: {
   );
 }
 
+async function haalFirebaseIdToken(): Promise<string> {
+  const { getAuth } = await import('firebase/auth');
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Niet ingelogd. Log opnieuw in.');
+  return await currentUser.getIdToken();
+}
+
 export default function MaterialenPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -362,125 +370,111 @@ export default function MaterialenPage() {
   }, [customNaam, maatVereist, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
 
   const saveCustomMaterial = useCallback(async () => {
-    if (!user?.uid) return;
-
-    const naamRaw = customNaam.trim();
-    if (!naamRaw) {
-      setPageError('Materiaalnaam is verplicht.');
-      return;
-    }
-
-    const prijsNumLocal = parsePriceToNumber(customPrijs);
-    if (prijsNumLocal == null || prijsNumLocal < 0) {
-      setPageError('Vul een geldige prijs in.');
-      return;
-    }
-
-    const eenheid = (customEenheid || '').trim();
-    if (!eenheid) {
-      setPageError('Kies een eenheid.');
-      return;
-    }
-
-    let finalNaam = stripMaatSuffix(naamRaw);
-
-    if (isMaatEenheid(eenheid)) {
-      const l = maatLengte.trim();
-      const b = maatBreedte.trim();
-      const u = maatUnit.trim();
-
-      if (!l || !b || !u) {
-        setPageError('Vul afmetingen in en kies mm/cm/m.');
+    try {
+      const naamRaw = customNaam.trim();
+      if (!naamRaw) {
+        setPageError('Materiaalnaam is verplicht.');
         return;
       }
 
-      if (eenheid === 'p/m3') {
-        const h = maatHoogte.trim();
-        if (!h) {
-          setPageError('Vul hoogte in (voor p/m3).');
-          return;
-        }
-        finalNaam = buildMergedNaam({
-          baseNaam: naamRaw,
-          eenheid,
-          maatUnit: u,
-          lengte: l,
-          breedte: b,
-          derdeWaarde: h,
-        });
-      } else {
-        const d = maatDikte.trim();
-        if (!d) {
-          setPageError('Vul dikte in (voor p/m1/p/m2).');
-          return;
-        }
-        finalNaam = buildMergedNaam({
-          baseNaam: naamRaw,
-          eenheid,
-          maatUnit: u,
-          lengte: l,
-          breedte: b,
-          derdeWaarde: d,
-        });
+      const prijsNumLocal = parsePriceToNumber(customPrijs);
+      if (prijsNumLocal == null || prijsNumLocal < 0) {
+        setPageError('Vul een geldige prijs in.');
+        return;
       }
+
+      const eenheid = (customEenheid || '').trim();
+      if (!eenheid) {
+        setPageError('Kies een eenheid.');
+        return;
+      }
+
+      // Afmetingen validatie (UI) + payload velden (API route bouwt uiteindelijk de naam)
+      const maatUnitLocal = (maatUnit || 'mm').trim();
+      const lengte = maatLengte.trim();
+      const breedte = maatBreedte.trim();
+      const dikte = maatDikte.trim();
+      const hoogte = maatHoogte.trim();
+
+      if (isMaatEenheid(eenheid)) {
+        if (!lengte || !breedte || !maatUnitLocal) {
+          setPageError('Vul afmetingen in en kies mm/cm/m.');
+          return;
+        }
+        if (eenheid === 'p/m3') {
+          if (!hoogte) {
+            setPageError('Vul hoogte in (voor p/m3).');
+            return;
+          }
+        } else {
+          if (!dikte) {
+            setPageError('Vul dikte in (voor p/m1/p/m2).');
+            return;
+          }
+        }
+      }
+
+      const categorie = customSubsectie.trim() || 'Overig';
+      const leverancierTrim = customLeverancier.trim();
+      const leverancier = leverancierTrim ? leverancierTrim : null;
+
+      setSavingCustom(true);
+      setPageError(null);
+
+      // ✅ payload zoals jouw modal; server bepaalt UID + bouwt naam
+      const payload: any = {
+        materiaalnaam: stripMaatSuffix(naamRaw),
+        eenheid,
+        prijs: prijsNumLocal,
+        categorie,
+        leverancier,
+        unit: maatUnitLocal,
+      };
+
+      // stuur afmetingen alleen mee als relevant
+      if (isMaatEenheid(eenheid)) {
+        payload.lengte = lengte;
+        payload.breedte = breedte;
+        if (eenheid === 'p/m3') payload.hoogte = hoogte;
+        else payload.dikte = dikte;
+      }
+
+      const token = await haalFirebaseIdToken();
+
+      // ✅ INTEGRATIE 4): app -> /api/materialen/upsert -> n8n -> supabase
+      const res = await fetch('/api/materialen/upsert', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.ok) {
+        const msg =
+          json?.message ||
+          json?.error ||
+          (typeof json === 'string' ? json : null) ||
+          'Onbekende fout bij opslaan.';
+        console.error('Upsert API error:', msg, json);
+        setPageError(`Opslaan mislukt: ${msg}`);
+        setSavingCustom(false);
+        return;
+      }
+
+      await fetchMaterials();
+
+      setSavingCustom(false);
+      setDialogOpen(false);
+    } catch (e: any) {
+      console.error(e);
+      setPageError(e?.message || 'Onbekende fout.');
+      setSavingCustom(false);
     }
-
-    const subsectie = customSubsectie.trim() || 'Overig';
-    const leverancierTrim = customLeverancier.trim();
-    const leverancier = leverancierTrim ? leverancierTrim : null;
-
-    setSavingCustom(true);
-    setPageError(null);
-
-    // ✅ LET OP: geen "bron" meer, want die kolom bestaat niet in jouw tabel
-    const payload = {
-      materiaalnaam: finalNaam,
-      eenheid,
-      prijs: prijsNumLocal,
-      subsectie,
-      leverancier,
-      volgorde: 999999,
-    };
-
-    // Firebase token ophalen (veiligste manier: via currentUser)
-const { getAuth } = await import('firebase/auth');
-const auth = getAuth();
-const currentUser = auth.currentUser;
-
-if (!currentUser) {
-  setPageError('Niet ingelogd. Log opnieuw in.');
-  setSavingCustom(false);
-  return;
-}
-
-const token = await currentUser.getIdToken();
-
-const res = await fetch('/api/materialen/custom', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify(payload),
-});
-
-const json = await res.json().catch(() => null);
-
-if (!res.ok || !json?.success) {
-  const msg = json?.error || 'Onbekende fout bij opslaan.';
-  console.error('API insert error:', msg, json);
-  setPageError(`Opslaan mislukt: ${msg}`);
-  setSavingCustom(false);
-  return;
-}
-
-
-    await fetchMaterials();
-
-    setSavingCustom(false);
-    setDialogOpen(false);
   }, [
-    user?.uid,
     customNaam,
     customPrijs,
     customEenheid,
@@ -782,7 +776,7 @@ if (!res.ok || !json?.success) {
               </div>
             </div>
 
-            <DialogFooter className="mt-6 border-t border-muted/60 pt-4 gap-2">
+            <DialogFooter className="mt-6 gap-2 border-t border-muted/60 pt-4">
               <Button type="button" variant="outline" onClick={closeCustomDialog} disabled={savingCustom}>
                 Annuleren
               </Button>
