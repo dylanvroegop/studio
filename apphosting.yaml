@@ -17,10 +17,3 @@ runConfig:
     - variable: N8N_MATERIALEN_DELETE_URL
       value: "https://n8n.dylan8n.org/webhook/materialen-delete"
       availability: [RUNTIME]
-firebase login --no-localhost
-
-
-    - variable: ENV_VERSION
-      value: "2025-12-28-01"
-      availability: [RUNTIME]
- 
