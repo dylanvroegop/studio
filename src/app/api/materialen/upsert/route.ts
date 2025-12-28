@@ -4,15 +4,12 @@ import admin from 'firebase-admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/** Firebase Admin via ADC (werkt op Firebase App Hosting) */
 function krijgFirebaseAdminApp() {
   if (admin.apps.length > 0) return admin.app();
   return admin.initializeApp({
     credential: admin.credential.applicationDefault(),
   });
-}
-
-function env(name: string): string | undefined {
-  return (process.env as Record<string, string | undefined>)[name];
 }
 
 async function leesBodyVeilig(req: Request) {
@@ -32,54 +29,22 @@ function normalizeString(v: unknown): string | null {
 function toNumber(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v === 'string') {
-    const cleaned = v.replace(',', '.').trim();
-    if (!cleaned) return null;
-    const n = Number(cleaned);
+    const n = Number(v.replace(',', '.').trim());
     return Number.isFinite(n) ? n : null;
   }
   return null;
 }
 
-function isMaatEenheid(eenheid: string) {
-  return eenheid === 'p/m1' || eenheid === 'p/m2' || eenheid === 'p/m3';
-}
-
-function bouwMateriaalnaam(opts: {
-  basisNaam: string;
-  eenheid: string;
-  unit: string;
-  lengte: number | null;
-  breedte: number | null;
-  dikte: number | null;
-  hoogte: number | null;
-}) {
-  const { basisNaam, eenheid, unit, lengte, breedte, dikte, hoogte } = opts;
-
-  if (!isMaatEenheid(eenheid)) return basisNaam;
-  if (lengte == null || breedte == null) return basisNaam;
-
-  if (eenheid === 'p/m3') {
-    if (hoogte == null) return basisNaam;
-    return `${basisNaam} ${lengte} × ${breedte} × ${hoogte}${unit}`;
-  }
-
-  if (dikte == null) return basisNaam;
-  return `${basisNaam} ${lengte} × ${breedte} × ${dikte}${unit}`;
-}
-
 async function bepaalUid(req: Request): Promise<string> {
-  // dev bypass
-  if (process.env.NODE_ENV !== 'production') return 'dev-user';
-
   const authHeader = req.headers.get('authorization') || '';
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!match) throw new Error('Geen Authorization: Bearer <idToken> header gevonden.');
+  if (!match) throw new Error('Geen Bearer token in Authorization header');
 
   const token = match[1];
   const app = krijgFirebaseAdminApp();
   const decoded = await admin.auth(app).verifyIdToken(token);
-  if (!decoded?.uid) throw new Error('UID ontbreekt in token');
 
+  if (!decoded?.uid) throw new Error('UID ontbreekt in token');
   return decoded.uid;
 }
 
@@ -90,28 +55,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'Body is geen geldige JSON' }, { status: 400 });
     }
 
-    // ✅ Fallback: als upsert env ontbreekt, pak de env die wél werkt (generate)
-    const n8nUrl = env('N8N_MATERIALEN_UPSERT_URL') || env('N8N_WEBHOOK_URL');
-    const secret = env('N8N_HEADER_SECRET');
+    const n8nUrl = process.env.N8N_MATERIALEN_UPSERT_URL;
+    const secret = process.env.N8N_HEADER_SECRET;
 
-    if (!n8nUrl) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: 'ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL (en ook geen fallback N8N_WEBHOOK_URL)',
-          debug: {
-            hasN8N_WEBHOOK_URL: !!env('N8N_WEBHOOK_URL'),
-            hasN8N_MATERIALEN_UPSERT_URL: !!env('N8N_MATERIALEN_UPSERT_URL'),
-            nodeEnv: env('NODE_ENV') || null,
-          },
-        },
-        { status: 500 }
-      );
-    }
-
-    if (!secret) {
-      return NextResponse.json({ ok: false, message: 'ENV ontbreekt: N8N_HEADER_SECRET' }, { status: 500 });
-    }
+    if (!n8nUrl) throw new Error('ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL');
+    if (!secret) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
 
     const uid = await bepaalUid(req);
 
@@ -122,25 +70,28 @@ export async function POST(req: Request) {
     const categorie = normalizeString(body.categorie) || normalizeString(body.subsectie) || 'Overig';
     const leverancier = normalizeString(body.leverancier) || null;
 
-    const unit = normalizeString(body.unit) || 'mm';
     const lengte = toNumber(body.lengte);
     const breedte = toNumber(body.breedte);
     const dikte = toNumber(body.dikte);
     const hoogte = toNumber(body.hoogte);
+    const unit = normalizeString(body.unit) || 'mm';
 
     if (!basisNaam) return NextResponse.json({ ok: false, message: 'Materiaalnaam is verplicht' }, { status: 400 });
     if (!eenheid) return NextResponse.json({ ok: false, message: 'Eenheid is verplicht' }, { status: 400 });
     if (prijs === null) return NextResponse.json({ ok: false, message: 'Prijs is ongeldig' }, { status: 400 });
 
-    const materiaalnaam = bouwMateriaalnaam({
-      basisNaam,
-      eenheid,
-      unit,
-      lengte,
-      breedte,
-      dikte,
-      hoogte,
-    });
+    // Let op: UI stuurt dikte OF hoogte afhankelijk van eenheid.
+    let materiaalnaam = basisNaam;
+
+    // p/m1 of p/m2: lengte + breedte + dikte
+    if ((eenheid === 'p/m1' || eenheid === 'p/m2') && lengte !== null && breedte !== null && dikte !== null) {
+      materiaalnaam = `${basisNaam} ${lengte} x ${breedte} x ${dikte}${unit}`;
+    }
+
+    // p/m3: lengte + breedte + hoogte
+    if (eenheid === 'p/m3' && lengte !== null && breedte !== null && hoogte !== null) {
+      materiaalnaam = `${basisNaam} ${lengte} x ${breedte} x ${hoogte}${unit}`;
+    }
 
     const payload = {
       uid,
@@ -162,19 +113,24 @@ export async function POST(req: Request) {
     });
 
     const txt = await res.text();
+
     if (!res.ok) {
+      // ✅ dit zie je letterlijk in Firebase runtime logs
+      console.error('N8N FOUT', {
+        n8nUrl,
+        status: res.status,
+        body: txt?.slice(0, 2000),
+      });
+
       return NextResponse.json(
         { ok: false, message: 'n8n webhook faalde', status: res.status, body: txt },
         { status: 502 }
       );
     }
 
-    try {
-      return NextResponse.json({ ok: true, n8n: JSON.parse(txt) });
-    } catch {
-      return NextResponse.json({ ok: true, n8n: txt });
-    }
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
+    console.error('UPSERT ROUTE FOUT', e);
     return NextResponse.json({ ok: false, message: e?.message || 'Onbekende serverfout' }, { status: 500 });
   }
 }
