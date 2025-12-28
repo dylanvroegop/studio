@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
 
 import { useUser } from '@/firebase';
-import { supabase } from '@/lib/supabase';
 
 import { DashboardHeader } from '@/components/dashboard-header';
 import { Button } from '@/components/ui/button';
@@ -120,19 +119,10 @@ function buildMaatString(opts: {
   const u = (opts.maatUnit || '').trim();
   if (!l || !b || !u) return '';
 
-  if (opts.eenheid === 'p/m1' || opts.eenheid === 'p/m2') {
-    const d = (opts.derdeWaarde || '').trim();
-    if (!d) return '';
-    return `${l} × ${b} × ${d}${u}`;
-  }
+  const d = (opts.derdeWaarde || '').trim();
+  if (!d) return '';
 
-  if (opts.eenheid === 'p/m3') {
-    const h = (opts.derdeWaarde || '').trim();
-    if (!h) return '';
-    return `${l} × ${b} × ${h}${u}`;
-  }
-
-  return '';
+  return `${l} × ${b} × ${d}${u}`;
 }
 
 function buildMergedNaam(opts: {
@@ -229,45 +219,42 @@ export default function MaterialenPage() {
     }
   }, [user, isUserLoading, router]);
 
+  // ✅ FIX: geen losse rommel onder de hook, geen extra sluit-haakjes, en juiste route /api/materialen/get
   const fetchMaterials = useCallback(async () => {
     if (!user?.uid) return;
 
     setIsLoading(true);
     setPageError(null);
 
-    // ✅ Supabase max rows per request = 1000 → dus in batches ophalen
-    const PAGINA_GROOTTE = 1000;
-    const MAX_TOTAAL = 5000;
+    try {
+      const token = await haalFirebaseIdToken();
 
-    const alles: Material[] = [];
-    let offset = 0;
+      const res = await fetch('/api/materialen/get', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      });
 
-    while (offset < MAX_TOTAAL) {
-      const { data, error } = await supabase
-        .from('materialen')
-        .select('*')
-        .eq('gebruikerid', user.uid)
-        .order('volgorde', { ascending: true })
-        .order('materiaalnaam', { ascending: true })
-        .range(offset, offset + PAGINA_GROOTTE - 1);
+      const json = await res.json().catch(() => null);
 
-      if (error) {
-        console.error('Fout bij ophalen materialen:', error);
-        setMaterials([]);
-        setPageError('Fout bij het laden van materialen: prijslijst nog niet verwerkt.');
-        setIsLoading(false);
-        return;
+      if (res.ok && json?.ok) {
+        setMaterials(Array.isArray(json.data) ? json.data : []);
+      } else {
+        const msg =
+          json?.message ||
+          json?.error ||
+          (typeof json === 'string' ? json : null) ||
+          `Kon materialen niet laden (HTTP ${res.status}).`;
+        setPageError(msg);
       }
-
-      const batch = (data as Material[]) ?? [];
-      alles.push(...batch);
-
-      if (batch.length < PAGINA_GROOTTE) break;
-      offset += PAGINA_GROOTTE;
+    } catch (err: any) {
+      console.error(err);
+      setPageError(err?.message || 'Netwerkfout bij het laden van materialen.');
+    } finally {
+      setIsLoading(false);
     }
-
-    setMaterials(alles);
-    setIsLoading(false);
   }, [user?.uid]);
 
   useEffect(() => {
@@ -372,9 +359,7 @@ export default function MaterialenPage() {
 
     if (!l || !b || !u) return false;
 
-    if (customEenheid === 'p/m3') {
-      return maatHoogte.trim().length > 0;
-    }
+    if (customEenheid === 'p/m3') return maatHoogte.trim().length > 0;
     return maatDikte.trim().length > 0;
   }, [maatVereist, maatLengte, maatBreedte, maatUnit, customEenheid, maatDikte, maatHoogte]);
 
@@ -762,7 +747,7 @@ export default function MaterialenPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* ✅ Add custom dialog (jouw bestaande) */}
+        {/* ✅ Add custom dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-[640px]">
             <DialogHeader className="space-y-1">
