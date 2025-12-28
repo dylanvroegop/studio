@@ -72,6 +72,25 @@ function parsePriceToNumber(raw: unknown): number | null {
   return Number.isNaN(num) ? null : num;
 }
 
+function calculatePiecePrice(price: number, unit: string, L: string, B: string, maatUnit: string): number | null {
+  const lengte = parseFloat(L.replace(',', '.'));
+  const breedte = parseFloat(B.replace(',', '.'));
+  if (isNaN(lengte) || isNaN(breedte)) return null;
+
+  let areaM2 = 0;
+  if (maatUnit === 'mm') areaM2 = (lengte * breedte) / 1000000;
+  else if (maatUnit === 'cm') areaM2 = (lengte * breedte) / 10000;
+  else areaM2 = lengte * breedte;
+
+  if (unit === 'p/m2') return price * areaM2;
+  // If they chose m1, we calculate price per full length
+  if (unit === 'p/m1') {
+    const lengthM1 = maatUnit === 'mm' ? lengte / 1000 : maatUnit === 'cm' ? lengte / 100 : lengte;
+    return price * lengthM1;
+  }
+  return null;
+}
+
 function formatEuro(amount: number | null): string {
   if (amount == null) return '—';
   return new Intl.NumberFormat('nl-NL', {
@@ -396,6 +415,13 @@ export default function MaterialenPage() {
         return;
       }
 
+      // Nieuw: Maak de naam netjes (Hoofdletter Per Woord)
+      const formattedName = naamRaw
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
       const prijsNumLocal = parsePriceToNumber(customPrijs);
       if (prijsNumLocal == null || prijsNumLocal < 0) {
         setPageError('Vul een geldige prijs in.');
@@ -440,7 +466,8 @@ export default function MaterialenPage() {
       setPageError(null);
 
       const payload: any = {
-        materiaalnaam: stripMaatSuffix(naamRaw),
+        // Gebruik hier de geformatteerde naam
+        materiaalnaam: stripMaatSuffix(formattedName),
         eenheid,
         prijs: prijsNumLocal,
         categorie,
@@ -469,19 +496,13 @@ export default function MaterialenPage() {
       const json = await res.json().catch(() => null);
 
       if (!res.ok || !json?.ok) {
-        const msg =
-          json?.message ||
-          json?.error ||
-          (typeof json === 'string' ? json : null) ||
-          'Onbekende fout bij opslaan.';
-        console.error('Upsert API error:', msg, json);
+        const msg = json?.message || json?.error || 'Onbekende fout bij opslaan.';
         setPageError(`Opslaan mislukt: ${msg}`);
         setSavingCustom(false);
         return;
       }
 
       await fetchMaterials();
-
       setSavingCustom(false);
       setDialogOpen(false);
     } catch (e: any) {
@@ -886,28 +907,59 @@ export default function MaterialenPage() {
                     placeholder="Bijv. Eigen / Bouwmaat / Jongeneel"
                   />
                 </div>
-              </div>
+                </div> 
+      </div>
+
+{/* 1. DE SAFETY CHECK BAR */}
+{isPrijsOk && isMaatOk && (customEenheid === 'p/m2' || customEenheid === 'p/m1') && (
+        <div className="mx-6 mt-4 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
             </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-destructive uppercase tracking-widest leading-none">Controle</span>
+              <span className="text-sm font-semibold text-foreground mt-0.5 capitalize italic">{previewNaam}</span>
+            </div>
+          </div>
 
-            <DialogFooter className="mt-6 gap-2 border-t border-muted/60 pt-4">
-              <Button type="button" variant="outline" onClick={closeCustomDialog} disabled={savingCustom}>
-                Annuleren
-              </Button>
+          <div className="text-right">
+            <div className="text-lg font-black text-destructive leading-none">
+              {formatEuro(calculatePiecePrice(prijsNum!, customEenheid, maatLengte, maatBreedte, maatUnit))}
+            </div>
+            <div className="text-[10px] font-bold uppercase text-muted-foreground mt-1">
+              per {customEenheid === 'p/m2' ? 'stuk' : 'lengte'}
+            </div>
+          </div>
+        </div>
+      )}
 
-              <Button
-                type="button"
-                variant="success"
-                onClick={saveCustomMaterial}
-                disabled={!canSaveCustom}
-                className="gap-2"
-                title={!canSaveCustom ? 'Vul alle verplichte velden in' : undefined}
-              >
-                {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Materiaal toevoegen
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {/* 2. DE KNOPPEN */}
+      <DialogFooter className="mt-6 border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3">
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={closeCustomDialog} 
+          disabled={savingCustom}
+          className="h-11 px-6 text-sm font-medium"
+        >
+          Annuleren
+        </Button>
+
+        <Button
+          type="button"
+          variant="success"
+          onClick={saveCustomMaterial}
+          disabled={!canSaveCustom}
+          className="h-11 gap-2 px-8 text-sm font-bold shadow-lg shadow-success/20"
+        >
+          {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          Materiaal toevoegen
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
       </main>
     </div>
   );
