@@ -9,7 +9,7 @@ runConfig:
     - variable: N8N_HEADER_SECRET
       value: "oh_9f4c2b1e6a7d4c77a3b2f8c1d0e9a6f3"
       availability: [RUNTIME]
-      
+
     - variable: N8N_MATERIALEN_UPSERT_URL
       value: "https://n8n.dylan8n.org/webhook-test/materialen-upsert"
-      availability: [RUNTIME]
+      availability: [BUILD, RUNTIME]

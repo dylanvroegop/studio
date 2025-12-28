@@ -4,12 +4,9 @@ import admin from 'firebase-admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * Firebase Admin via ADC (werkt op Firebase App Hosting)
- */
+/** Firebase Admin via ADC (werkt op Firebase App Hosting)*/
 function krijgFirebaseAdminApp() {
   if (admin.apps.length > 0) return admin.app();
-
   return admin.initializeApp({
     credential: admin.credential.applicationDefault(),
   });
