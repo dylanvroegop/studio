@@ -89,6 +89,11 @@ function PageSkeleton() {
 const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
 const MAAT_UNITS: string[] = ['mm', 'cm', 'm'];
 
+// ✅ Belangrijk: Supabase/PostgREST levert standaard vaak max ~1000 rijen.
+// Jij hebt 1043 rijen → laatste ~43 rijen kwamen niet binnen → jouw nieuwe rij zat daar.
+// Zet dit ruim genoeg (of implementeer echte server-side pagination later).
+const MAX_MATERIALEN_OPHALEN = 5000;
+
 function stripMaatSuffix(naam: string): string {
   return naam.replace(/\s+\d[\d\s.,x×-]*?(mm|cm|m)\s*$/i, '').trim();
 }
@@ -219,12 +224,14 @@ export default function MaterialenPage() {
     setIsLoading(true);
     setPageError(null);
 
+    // ✅ Fix: haal méér dan 1000 rijen op met range
     const { data, error } = await supabase
       .from('materialen')
       .select('*')
       .eq('gebruikerid', user.uid)
       .order('volgorde', { ascending: true })
-      .order('materiaalnaam', { ascending: true });
+      .order('materiaalnaam', { ascending: true })
+      .range(0, MAX_MATERIALEN_OPHALEN - 1);
 
     if (error) {
       console.error('Fout bij ophalen materialen:', error);
@@ -389,7 +396,6 @@ export default function MaterialenPage() {
         return;
       }
 
-      // Afmetingen validatie (UI) + payload velden (API route bouwt uiteindelijk de naam)
       const maatUnitLocal = (maatUnit || 'mm').trim();
       const lengte = maatLengte.trim();
       const breedte = maatBreedte.trim();
@@ -421,7 +427,6 @@ export default function MaterialenPage() {
       setSavingCustom(true);
       setPageError(null);
 
-      // ✅ payload zoals jouw modal; server bepaalt UID + bouwt naam
       const payload: any = {
         materiaalnaam: stripMaatSuffix(naamRaw),
         eenheid,
@@ -431,7 +436,6 @@ export default function MaterialenPage() {
         unit: maatUnitLocal,
       };
 
-      // stuur afmetingen alleen mee als relevant
       if (isMaatEenheid(eenheid)) {
         payload.lengte = lengte;
         payload.breedte = breedte;
@@ -441,7 +445,6 @@ export default function MaterialenPage() {
 
       const token = await haalFirebaseIdToken();
 
-      // ✅ INTEGRATIE 4): app -> /api/materialen/upsert -> n8n -> supabase
       const res = await fetch('/api/materialen/upsert', {
         method: 'POST',
         headers: {
