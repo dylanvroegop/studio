@@ -160,6 +160,8 @@ function InputMetSuffix(props: {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        type="number"      
+        step="0.01"
         inputMode="decimal"
         className="pr-12"
       />
@@ -785,6 +787,8 @@ export default function MaterialenPage() {
                   <Input
                     value={customPrijs}
                     onChange={(e) => setCustomPrijs(e.target.value)}
+                    type="number"  
+                    step="0.01"
                     placeholder="0,00"
                     inputMode="decimal"
                   />
