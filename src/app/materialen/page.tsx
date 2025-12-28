@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Plus } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
 
 import { useUser } from '@/firebase';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +23,17 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type Material = {
   row_id: string;
@@ -88,11 +99,6 @@ function PageSkeleton() {
 
 const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
 const MAAT_UNITS: string[] = ['mm', 'cm', 'm'];
-
-// ✅ Belangrijk: Supabase/PostgREST levert standaard vaak max ~1000 rijen.
-// Jij hebt 1043 rijen → laatste ~43 rijen kwamen niet binnen → jouw nieuwe rij zat daar.
-// Zet dit ruim genoeg (of implementeer echte server-side pagination later).
-const MAX_MATERIALEN_OPHALEN = 5000;
 
 function stripMaatSuffix(naam: string): string {
   return naam.replace(/\s+\d[\d\s.,x×-]*?(mm|cm|m)\s*$/i, '').trim();
@@ -200,6 +206,11 @@ export default function MaterialenPage() {
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [savingCustom, setSavingCustom] = useState<boolean>(false);
 
+  // ✅ Delete confirm dialog
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
+  const [deleteTarget, setDeleteTarget] = useState<Material | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
   const [customNaam, setCustomNaam] = useState<string>('');
   const [customEenheid, setCustomEenheid] = useState<string>(''); // leeg (focus!)
   const [customPrijs, setCustomPrijs] = useState<string>('');
@@ -220,16 +231,17 @@ export default function MaterialenPage() {
 
   const fetchMaterials = useCallback(async () => {
     if (!user?.uid) return;
-  
+
     setIsLoading(true);
     setPageError(null);
-  
-    const PAGINA_GROOTTE = 1000; // server cap
-    const MAX_TOTAAL = 5000;     // veiligheidslimiet (pas aan indien nodig)
-  
+
+    // ✅ Supabase max rows per request = 1000 → dus in batches ophalen
+    const PAGINA_GROOTTE = 1000;
+    const MAX_TOTAAL = 5000;
+
     const alles: Material[] = [];
     let offset = 0;
-  
+
     while (offset < MAX_TOTAAL) {
       const { data, error } = await supabase
         .from('materialen')
@@ -238,7 +250,7 @@ export default function MaterialenPage() {
         .order('volgorde', { ascending: true })
         .order('materiaalnaam', { ascending: true })
         .range(offset, offset + PAGINA_GROOTTE - 1);
-  
+
       if (error) {
         console.error('Fout bij ophalen materialen:', error);
         setMaterials([]);
@@ -246,20 +258,17 @@ export default function MaterialenPage() {
         setIsLoading(false);
         return;
       }
-  
+
       const batch = (data as Material[]) ?? [];
       alles.push(...batch);
-  
-      // klaar als we minder dan een volle batch terugkrijgen
+
       if (batch.length < PAGINA_GROOTTE) break;
-  
       offset += PAGINA_GROOTTE;
     }
-  
+
     setMaterials(alles);
     setIsLoading(false);
   }, [user?.uid]);
-  
 
   useEffect(() => {
     if (user?.uid) {
@@ -507,6 +516,58 @@ export default function MaterialenPage() {
     fetchMaterials,
   ]);
 
+  // ✅ Open delete confirm
+  const openDeleteDialog = useCallback((m: Material) => {
+    setPageError(null);
+    setDeleteTarget(m);
+    setDeleteOpen(true);
+  }, []);
+
+  // ✅ Delete via API -> n8n -> supabase delete
+  const bevestigDelete = useCallback(async () => {
+    if (!deleteTarget?.row_id) return;
+
+    try {
+      setDeleting(true);
+      setPageError(null);
+
+      const token = await haalFirebaseIdToken();
+
+      const res = await fetch('/api/materialen/delete', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ row_id: deleteTarget.row_id }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.ok) {
+        const msg =
+          json?.message ||
+          json?.error ||
+          (typeof json === 'string' ? json : null) ||
+          'Onbekende fout bij verwijderen.';
+        console.error('Delete API error:', msg, json);
+        setPageError(`Verwijderen mislukt: ${msg}`);
+        setDeleting(false);
+        return;
+      }
+
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+
+      await fetchMaterials();
+      setDeleting(false);
+    } catch (e: any) {
+      console.error(e);
+      setPageError(e?.message || 'Onbekende fout.');
+      setDeleting(false);
+    }
+  }, [deleteTarget, fetchMaterials]);
+
   if (isUserLoading || (!user && !pageError)) {
     return <PageSkeleton />;
   }
@@ -602,6 +663,7 @@ export default function MaterialenPage() {
                     <TableHead>Eenheid</TableHead>
                     <TableHead>Categorie</TableHead>
                     <TableHead>Leverancier</TableHead>
+                    <TableHead className="w-[60px] text-right">Acties</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -616,12 +678,25 @@ export default function MaterialenPage() {
                           <TableCell>{material.eenheid ?? '—'}</TableCell>
                           <TableCell>{material.subsectie ?? '—'}</TableCell>
                           <TableCell>{material.leverancier ?? '—'}</TableCell>
+
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openDeleteDialog(material)}
+                              title="Verwijderen"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         Geen materialen gevonden.
                       </TableCell>
                     </TableRow>
@@ -658,6 +733,36 @@ export default function MaterialenPage() {
           ) : null}
         </Card>
 
+        {/* ✅ Confirm delete dialog */}
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Weet je zeker dat je dit materiaal wilt verwijderen?
+                <br />
+                <span className="font-medium">
+                  {deleteTarget?.materiaalnaam ?? 'Onbekend materiaal'}
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter className="gap-2">
+              <AlertDialogCancel disabled={deleting}>Annuleren</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!deleting) bevestigDelete();
+                }}
+                disabled={deleting}
+              >
+                {deleting ? 'Verwijderen...' : 'Ja, verwijderen'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* ✅ Add custom dialog (jouw bestaande) */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-[640px]">
             <DialogHeader className="space-y-1">
