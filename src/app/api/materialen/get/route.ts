@@ -32,8 +32,8 @@ const { data, error } = await supabaseAdmin
 .from('materialen')
 .select('*')
 .eq('gebruikerid', uid)
-.range(0, 5000) // Adjust 5000 if you expect to grow even larger
-.order('materiaalnaam', { ascending: true }); // Adding an order makes results predictable
+.range(0, 5000)
+.order('volgorde', { ascending: true });
 
     if (error) throw error;
 
