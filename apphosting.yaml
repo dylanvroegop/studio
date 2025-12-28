@@ -3,7 +3,7 @@ runConfig:
 
   env:
     - variable: N8N_WEBHOOK_URL
-      value: "https://n8n.dylan8n.org/webhook-test/offerte-test"
+      value: "https://n8n.dylan8n.org/webhook/offerte-test"
       availability: [RUNTIME]
 
     - variable: N8N_HEADER_SECRET
@@ -18,3 +18,7 @@ runConfig:
       value: "https://n8n.dylan8n.org/webhook/materialen-delete"
       availability: [RUNTIME]
 
+    - variable: ENV_VERSION
+      value: "2025-12-28-01"
+      availability: [RUNTIME]
+ 
