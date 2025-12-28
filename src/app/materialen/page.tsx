@@ -220,30 +220,46 @@ export default function MaterialenPage() {
 
   const fetchMaterials = useCallback(async () => {
     if (!user?.uid) return;
-
+  
     setIsLoading(true);
     setPageError(null);
-
-    // ✅ Fix: haal méér dan 1000 rijen op met range
-    const { data, error } = await supabase
-      .from('materialen')
-      .select('*')
-      .eq('gebruikerid', user.uid)
-      .order('volgorde', { ascending: true })
-      .order('materiaalnaam', { ascending: true })
-      .range(0, MAX_MATERIALEN_OPHALEN - 1);
-
-    if (error) {
-      console.error('Fout bij ophalen materialen:', error);
-      setMaterials([]);
-      setPageError('Fout bij het laden van materialen: prijslijst nog niet verwerkt.');
-      setIsLoading(false);
-      return;
+  
+    const PAGINA_GROOTTE = 1000; // server cap
+    const MAX_TOTAAL = 5000;     // veiligheidslimiet (pas aan indien nodig)
+  
+    const alles: Material[] = [];
+    let offset = 0;
+  
+    while (offset < MAX_TOTAAL) {
+      const { data, error } = await supabase
+        .from('materialen')
+        .select('*')
+        .eq('gebruikerid', user.uid)
+        .order('volgorde', { ascending: true })
+        .order('materiaalnaam', { ascending: true })
+        .range(offset, offset + PAGINA_GROOTTE - 1);
+  
+      if (error) {
+        console.error('Fout bij ophalen materialen:', error);
+        setMaterials([]);
+        setPageError('Fout bij het laden van materialen: prijslijst nog niet verwerkt.');
+        setIsLoading(false);
+        return;
+      }
+  
+      const batch = (data as Material[]) ?? [];
+      alles.push(...batch);
+  
+      // klaar als we minder dan een volle batch terugkrijgen
+      if (batch.length < PAGINA_GROOTTE) break;
+  
+      offset += PAGINA_GROOTTE;
     }
-
-    setMaterials((data as Material[]) ?? []);
+  
+    setMaterials(alles);
     setIsLoading(false);
   }, [user?.uid]);
+  
 
   useEffect(() => {
     if (user?.uid) {
