@@ -1,19 +1,12 @@
 runConfig:
   maxInstances: 1
 
-  env:
-    - variable: N8N_WEBHOOK_URL
-      value: "https://n8n.dylan8n.org/webhook/offerte-test"
-      availability: [RUNTIME]
-
-    - variable: N8N_HEADER_SECRET
-      value: "oh_9f4c2b1e6a7d4c77a3b2f8c1d0e9a6f3"
-      availability: [RUNTIME]
-
-    - variable: N8N_MATERIALEN_UPSERT_URL
-      value: "https://n8n.dylan8n.org/webhook/materialen-upsert"
-      availability: [RUNTIME]
-
-    - variable: N8N_MATERIALEN_DELETE_URL
-      value: "https://n8n.dylan8n.org/webhook/materialen-delete"
-      availability: [RUNTIME]
+env:
+  - variable: N8N_MATERIALEN_DELETE_URL
+    secret: N8N_MATERIALEN_DELETE_URL
+  - variable: N8N_MATERIALEN_UPSERT_URL
+    secret: N8N_MATERIALEN_UPSERT_URL
+  - variable: N8N_WEBHOOK_URL
+    secret: N8N_WEBHOOK_URL
+  - variable: N8N_HEADER_SECRET
+    secret: N8N_HEADER_SECRET
