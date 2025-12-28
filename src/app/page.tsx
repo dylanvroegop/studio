@@ -31,7 +31,7 @@ function LandingPageContent() {
             return; // Wacht tot de authenticatiestatus bekend is
         }
         if (user) {
-            router.push('/landing');
+            router.push('/dashboard');
         } else {
             router.push('/login');
         }

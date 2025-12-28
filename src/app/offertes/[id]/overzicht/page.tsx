@@ -1310,7 +1310,7 @@ export default function OverzichtPage() {
           <CardContent>
             <p className="text-muted-foreground">{error}</p>
             <div className="pt-4">
-              <Button variant="outline" onClick={() => router.push('/landing')}>
+              <Button variant="outline" onClick={() => router.push('/dashboard')}>
                 Terug
               </Button>
             </div>
