@@ -43,7 +43,7 @@ export default function LoginPage() {
       }
     
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/landing');
+      router.push('/dashboard');
     } catch (e) {
       const authError = e as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';

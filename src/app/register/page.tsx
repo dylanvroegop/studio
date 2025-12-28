@@ -117,7 +117,7 @@ export default function RegisterPage() {
       const businessDocRef = doc(firestore, 'businesses', newUser.uid);
       setDocumentNonBlocking(businessDocRef, businessData, { merge: true });
     
-      router.push('/landing');
+      router.push('/dashboard');
     } catch (e) {
       const authError = e as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';
