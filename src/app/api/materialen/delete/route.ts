@@ -63,25 +63,15 @@ async function bepaalUid(req: Request): Promise<string> {
  *    -> https://n8n.dylan8n.org/webhook-test/materialen-delete
  */
 function bepaalN8nUrlVoorMaterialenDelete(): string {
-  const direct = process.env.N8N_MATERIALEN_DELETE_URL;
-  if (direct && direct.trim()) return direct.trim();
-
-  const base = process.env.N8N_WEBHOOK_URL;
-  if (!base || !base.trim()) {
-    throw new Error('ENV ontbreekt: N8N_MATERIALEN_DELETE_URL én N8N_WEBHOOK_URL');
-  }
-
-  const u = new URL(base.trim());
-
-  // vervang laatste padsegment (bijv. offerte-test) door materialen-delete
-  const parts = u.pathname.split('/').filter(Boolean);
-  if (parts.length === 0) throw new Error('N8N_WEBHOOK_URL is ongeldig (geen pad)');
-
-  parts[parts.length - 1] = 'materialen-delete';
-  u.pathname = '/' + parts.join('/');
-
-  return u.toString();
-}
+    const direct = process.env.N8N_MATERIALEN_DELETE_URL;
+    if (direct && direct.trim()) return direct.trim();
+  
+    // HARD FAIL -> geen fallback naar webhook-test
+    throw new Error(
+      'ENV ontbreekt: N8N_MATERIALEN_DELETE_URL (geen fallback toegestaan). ' +
+      `N8N_WEBHOOK_URL=${process.env.N8N_WEBHOOK_URL || '(leeg)'}`
+    );
+  }  
 
 export async function POST(req: Request) {
   try {
