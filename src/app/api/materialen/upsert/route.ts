@@ -29,7 +29,9 @@ function normalizeString(v: unknown): string | null {
 function toNumber(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v === 'string') {
-    const n = Number(v.replace(',', '.').trim());
+    const cleaned = v.trim().replace(',', '.');
+    if (!cleaned) return null;
+    const n = Number(cleaned);
     return Number.isFinite(n) ? n : null;
   }
   return null;
@@ -48,11 +50,44 @@ async function bepaalUid(req: Request): Promise<string> {
   return decoded.uid;
 }
 
+/**
+ * Bouw exact dezelfde "Wordt opgeslagen als ..." logica als jouw UI:
+ * - p/m1 & p/m2: lengte + breedte + dikte
+ * - p/m3: lengte + breedte + hoogte
+ * (Alleen als alle benodigde velden aanwezig zijn)
+ */
+function bouwMateriaalnaam(opts: {
+  basisNaam: string;
+  eenheid: string;
+  unit: string;
+  lengte: number | null;
+  breedte: number | null;
+  dikte: number | null;
+  hoogte: number | null;
+}): string {
+  const { basisNaam, eenheid, unit, lengte, breedte, dikte, hoogte } = opts;
+
+  const heeftLB = lengte !== null && breedte !== null;
+
+  if ((eenheid === 'p/m1' || eenheid === 'p/m2') && heeftLB && dikte !== null) {
+    return `${basisNaam} ${lengte} x ${breedte} x ${dikte}${unit}`;
+  }
+
+  if (eenheid === 'p/m3' && heeftLB && hoogte !== null) {
+    return `${basisNaam} ${lengte} x ${breedte} x ${hoogte}${unit}`;
+  }
+
+  return basisNaam;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await leesBodyVeilig(req);
     if (!body) {
-      return NextResponse.json({ ok: false, message: 'Body is geen geldige JSON' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, message: 'Body is geen geldige JSON' },
+        { status: 400 }
+      );
     }
 
     const n8nUrl = process.env.N8N_MATERIALEN_UPSERT_URL;
@@ -61,37 +96,56 @@ export async function POST(req: Request) {
     if (!n8nUrl) throw new Error('ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL');
     if (!secret) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
 
+    // 1) UID server-side bepalen
     const uid = await bepaalUid(req);
 
+    // 2) Input uit modal (client)
     const basisNaam = normalizeString(body.materiaalnaam);
     const eenheid = normalizeString(body.eenheid);
     const prijs = toNumber(body.prijs);
 
-    const categorie = normalizeString(body.categorie) || normalizeString(body.subsectie) || 'Overig';
+    const categorie =
+      normalizeString(body.categorie) ||
+      normalizeString(body.subsectie) ||
+      'Overig';
+
     const leverancier = normalizeString(body.leverancier) || null;
 
+    // afmetingen (client stuurt dikte OF hoogte afhankelijk van eenheid)
     const lengte = toNumber(body.lengte);
     const breedte = toNumber(body.breedte);
     const dikte = toNumber(body.dikte);
     const hoogte = toNumber(body.hoogte);
     const unit = normalizeString(body.unit) || 'mm';
 
-    if (!basisNaam) return NextResponse.json({ ok: false, message: 'Materiaalnaam is verplicht' }, { status: 400 });
-    if (!eenheid) return NextResponse.json({ ok: false, message: 'Eenheid is verplicht' }, { status: 400 });
-    if (prijs === null) return NextResponse.json({ ok: false, message: 'Prijs is ongeldig' }, { status: 400 });
-
-    // Let op: UI stuurt dikte OF hoogte afhankelijk van eenheid.
-    let materiaalnaam = basisNaam;
-
-    // p/m1 of p/m2: lengte + breedte + dikte
-    if ((eenheid === 'p/m1' || eenheid === 'p/m2') && lengte !== null && breedte !== null && dikte !== null) {
-      materiaalnaam = `${basisNaam} ${lengte} x ${breedte} x ${dikte}${unit}`;
+    if (!basisNaam) {
+      return NextResponse.json(
+        { ok: false, message: 'Materiaalnaam is verplicht' },
+        { status: 400 }
+      );
+    }
+    if (!eenheid) {
+      return NextResponse.json(
+        { ok: false, message: 'Eenheid is verplicht' },
+        { status: 400 }
+      );
+    }
+    if (prijs === null) {
+      return NextResponse.json(
+        { ok: false, message: 'Prijs is ongeldig' },
+        { status: 400 }
+      );
     }
 
-    // p/m3: lengte + breedte + hoogte
-    if (eenheid === 'p/m3' && lengte !== null && breedte !== null && hoogte !== null) {
-      materiaalnaam = `${basisNaam} ${lengte} x ${breedte} x ${hoogte}${unit}`;
-    }
+    const materiaalnaam = bouwMateriaalnaam({
+      basisNaam,
+      eenheid,
+      unit,
+      lengte,
+      breedte,
+      dikte,
+      hoogte,
+    });
 
     const payload = {
       uid,
@@ -103,6 +157,7 @@ export async function POST(req: Request) {
       volgorde: 999999,
     };
 
+    // 3) Call n8n
     const res = await fetch(n8nUrl, {
       method: 'POST',
       headers: {
@@ -115,15 +170,16 @@ export async function POST(req: Request) {
     const txt = await res.text();
 
     if (!res.ok) {
-      // ✅ dit zie je letterlijk in Firebase runtime logs
-      console.error('N8N FOUT', {
+      // BELANGRIJK: geef status + body terug zodat jij direct ziet wat n8n zegt
+      const detail = `n8n ${res.status}: ${txt?.slice(0, 1500) || '(lege response)'}`;
+      console.error('N8N FOUT (materialen/upsert)', {
         n8nUrl,
         status: res.status,
-        body: txt?.slice(0, 2000),
+        body: txt?.slice(0, 4000),
       });
 
       return NextResponse.json(
-        { ok: false, message: 'n8n webhook faalde', status: res.status, body: txt },
+        { ok: false, message: detail },
         { status: 502 }
       );
     }
@@ -131,6 +187,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error('UPSERT ROUTE FOUT', e);
-    return NextResponse.json({ ok: false, message: e?.message || 'Onbekende serverfout' }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message || 'Onbekende serverfout' },
+      { status: 500 }
+    );
   }
 }
