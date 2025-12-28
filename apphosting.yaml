@@ -11,10 +11,10 @@ runConfig:
       availability: [RUNTIME]
 
     - variable: N8N_MATERIALEN_UPSERT_URL
-      value: "https://n8n.dylan8n.org/webhook-test/materialen-upsert"
+      value: "https://n8n.dylan8n.org/webhook/materialen-upsert"
       availability: [RUNTIME]
 
     - variable: N8N_MATERIALEN_DELETE_URL
-      value: "https://n8n.dylan8n.org/webhook-test/materialen-delete"
+      value: "https://n8n.dylan8n.org/webhook/materialen-delete"
       availability: [RUNTIME]
 
