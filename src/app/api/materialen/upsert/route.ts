@@ -29,8 +29,7 @@ function normalizeString(v: unknown): string | null {
 function toNumber(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v === 'string') {
-    const cleaned = v.trim().replace(',', '.');
-    if (!cleaned) return null;
+    const cleaned = v.trim().replace(/\./g, '').replace(',', '.');
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : null;
   }
@@ -51,11 +50,33 @@ async function bepaalUid(req: Request): Promise<string> {
 }
 
 /**
- * Bouw exact dezelfde "Wordt opgeslagen als ..." logica als jouw UI:
- * - p/m1 & p/m2: lengte + breedte + dikte
- * - p/m3: lengte + breedte + hoogte
- * (Alleen als alle benodigde velden aanwezig zijn)
+ * 1) Als N8N_MATERIALEN_UPSERT_URL bestaat -> gebruik die.
+ * 2) Anders: deriveer uit N8N_WEBHOOK_URL (die werkt al bij generate).
+ *    Voorbeeld:
+ *    https://n8n.dylan8n.org/webhook-test/offerte-test
+ *    -> https://n8n.dylan8n.org/webhook-test/materialen-upsert
  */
+function bepaalN8nUrlVoorMaterialen(): string {
+  const direct = process.env.N8N_MATERIALEN_UPSERT_URL;
+  if (direct && direct.trim()) return direct.trim();
+
+  const base = process.env.N8N_WEBHOOK_URL;
+  if (!base || !base.trim()) {
+    throw new Error('ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL én N8N_WEBHOOK_URL');
+  }
+
+  const u = new URL(base.trim());
+
+  // vervang laatste padsegment (bijv. offerte-test) door materialen-upsert
+  const parts = u.pathname.split('/').filter(Boolean);
+  if (parts.length === 0) throw new Error('N8N_WEBHOOK_URL is ongeldig (geen pad)');
+
+  parts[parts.length - 1] = 'materialen-upsert';
+  u.pathname = '/' + parts.join('/');
+
+  return u.toString();
+}
+
 function bouwMateriaalnaam(opts: {
   basisNaam: string;
   eenheid: string;
@@ -65,19 +86,28 @@ function bouwMateriaalnaam(opts: {
   dikte: number | null;
   hoogte: number | null;
 }): string {
-  const { basisNaam, eenheid, unit, lengte, breedte, dikte, hoogte } = opts;
+  const basis = opts.basisNaam.trim();
+  if (!basis) return '';
 
-  const heeftLB = lengte !== null && breedte !== null;
+  const unit = (opts.unit || 'mm').trim();
 
-  if ((eenheid === 'p/m1' || eenheid === 'p/m2') && heeftLB && dikte !== null) {
-    return `${basisNaam} ${lengte} x ${breedte} x ${dikte}${unit}`;
+  // alleen plakken als afmetingen compleet zijn (volgens jouw UI logica)
+  const heeftLB = opts.lengte !== null && opts.breedte !== null;
+
+  // p/m3 -> hoogte
+  if (opts.eenheid === 'p/m3') {
+    if (!heeftLB || opts.hoogte === null) return basis;
+    return `${basis} ${opts.lengte} × ${opts.breedte} × ${opts.hoogte}${unit}`;
   }
 
-  if (eenheid === 'p/m3' && heeftLB && hoogte !== null) {
-    return `${basisNaam} ${lengte} x ${breedte} x ${hoogte}${unit}`;
+  // p/m1 of p/m2 -> dikte
+  if (opts.eenheid === 'p/m1' || opts.eenheid === 'p/m2') {
+    if (!heeftLB || opts.dikte === null) return basis;
+    return `${basis} ${opts.lengte} × ${opts.breedte} × ${opts.dikte}${unit}`;
   }
 
-  return basisNaam;
+  // andere eenheden: geen maat suffix
+  return basis;
 }
 
 export async function POST(req: Request) {
@@ -90,16 +120,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const n8nUrl = process.env.N8N_MATERIALEN_UPSERT_URL;
     const secret = process.env.N8N_HEADER_SECRET;
+    if (!secret || !secret.trim()) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
 
-    if (!n8nUrl) throw new Error('ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL');
-    if (!secret) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
+    const n8nUrl = bepaalN8nUrlVoorMaterialen();
 
     // 1) UID server-side bepalen
     const uid = await bepaalUid(req);
 
-    // 2) Input uit modal (client)
+    // 2) Input uit modal
     const basisNaam = normalizeString(body.materiaalnaam);
     const eenheid = normalizeString(body.eenheid);
     const prijs = toNumber(body.prijs);
@@ -111,12 +140,11 @@ export async function POST(req: Request) {
 
     const leverancier = normalizeString(body.leverancier) || null;
 
-    // afmetingen (client stuurt dikte OF hoogte afhankelijk van eenheid)
+    const unit = normalizeString(body.unit) || 'mm';
     const lengte = toNumber(body.lengte);
     const breedte = toNumber(body.breedte);
     const dikte = toNumber(body.dikte);
     const hoogte = toNumber(body.hoogte);
-    const unit = normalizeString(body.unit) || 'mm';
 
     if (!basisNaam) {
       return NextResponse.json(
@@ -162,7 +190,7 @@ export async function POST(req: Request) {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-offertehulp-secret': secret,
+        'x-offertehulp-secret': secret.trim(),
       },
       body: JSON.stringify(payload),
     });
@@ -170,23 +198,24 @@ export async function POST(req: Request) {
     const txt = await res.text();
 
     if (!res.ok) {
-      // BELANGRIJK: geef status + body terug zodat jij direct ziet wat n8n zegt
-      const detail = `n8n ${res.status}: ${txt?.slice(0, 1500) || '(lege response)'}`;
-      console.error('N8N FOUT (materialen/upsert)', {
-        n8nUrl,
-        status: res.status,
-        body: txt?.slice(0, 4000),
-      });
-
       return NextResponse.json(
-        { ok: false, message: detail },
+        {
+          ok: false,
+          message: 'n8n webhook faalde',
+          status: res.status,
+          body: txt,
+        },
         { status: 502 }
       );
     }
 
-    return NextResponse.json({ ok: true });
+    // n8n kan JSON of tekst teruggeven
+    try {
+      return NextResponse.json({ ok: true, n8n: JSON.parse(txt) });
+    } catch {
+      return NextResponse.json({ ok: true, n8n: txt });
+    }
   } catch (e: any) {
-    console.error('UPSERT ROUTE FOUT', e);
     return NextResponse.json(
       { ok: false, message: e?.message || 'Onbekende serverfout' },
       { status: 500 }
