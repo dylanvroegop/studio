@@ -4,7 +4,6 @@ import admin from 'firebase-admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Firebase Admin via ADC (werkt op Firebase App Hosting) */
 function krijgFirebaseAdminApp() {
   if (admin.apps.length > 0) return admin.app();
   return admin.initializeApp({
@@ -12,7 +11,6 @@ function krijgFirebaseAdminApp() {
   });
 }
 
-/** Voorkomt build-time inlining issues: altijd runtime lezen */
 function env(name: string): string | undefined {
   return (process.env as Record<string, string | undefined>)[name];
 }
@@ -58,10 +56,6 @@ function bouwMateriaalnaam(opts: {
   const { basisNaam, eenheid, unit, lengte, breedte, dikte, hoogte } = opts;
 
   if (!isMaatEenheid(eenheid)) return basisNaam;
-
-  // UI-logica:
-  // - p/m1 & p/m2 => lengte, breedte, dikte
-  // - p/m3       => lengte, breedte, hoogte
   if (lengte == null || breedte == null) return basisNaam;
 
   if (eenheid === 'p/m3') {
@@ -74,7 +68,7 @@ function bouwMateriaalnaam(opts: {
 }
 
 async function bepaalUid(req: Request): Promise<string> {
-  // Dev bypass (zelfde idee als je generate route)
+  // dev bypass
   if (process.env.NODE_ENV !== 'production') return 'dev-user';
 
   const authHeader = req.headers.get('authorization') || '';
@@ -82,7 +76,6 @@ async function bepaalUid(req: Request): Promise<string> {
   if (!match) throw new Error('Geen Authorization: Bearer <idToken> header gevonden.');
 
   const token = match[1];
-
   const app = krijgFirebaseAdminApp();
   const decoded = await admin.auth(app).verifyIdToken(token);
   if (!decoded?.uid) throw new Error('UID ontbreekt in token');
@@ -97,15 +90,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'Body is geen geldige JSON' }, { status: 400 });
     }
 
-    // Lees env dynamisch (runtime), voorkomt dat Next dit "undefined" bundled
-    const n8nUrl = env('N8N_MATERIALEN_UPSERT_URL');
+    // ✅ Fallback: als upsert env ontbreekt, pak de env die wél werkt (generate)
+    const n8nUrl = env('N8N_MATERIALEN_UPSERT_URL') || env('N8N_WEBHOOK_URL');
     const secret = env('N8N_HEADER_SECRET');
 
     if (!n8nUrl) {
       return NextResponse.json(
         {
           ok: false,
-          message: 'ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL',
+          message: 'ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL (en ook geen fallback N8N_WEBHOOK_URL)',
           debug: {
             hasN8N_WEBHOOK_URL: !!env('N8N_WEBHOOK_URL'),
             hasN8N_MATERIALEN_UPSERT_URL: !!env('N8N_MATERIALEN_UPSERT_URL'),
@@ -117,10 +110,7 @@ export async function POST(req: Request) {
     }
 
     if (!secret) {
-      return NextResponse.json(
-        { ok: false, message: 'ENV ontbreekt: N8N_HEADER_SECRET' },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, message: 'ENV ontbreekt: N8N_HEADER_SECRET' }, { status: 500 });
     }
 
     const uid = await bepaalUid(req);
@@ -179,7 +169,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // n8n kan JSON teruggeven of plain text; beide ok
     try {
       return NextResponse.json({ ok: true, n8n: JSON.parse(txt) });
     } catch {
