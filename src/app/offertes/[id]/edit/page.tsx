@@ -60,14 +60,6 @@ export default function EditQuotePage() {
     <main className="relative min-h-screen bg-background">
       {/* ✅ FORCE groen: CTA + radio (inner dot) + switch */}
       <style jsx global>{`
-  /* SUBMIT BUTTON — toned down green */
-  .oh-cta-green button[type='submit'] {
-    background-color: hsl(142 45% 38%) !important;
-    color: white !important;
-    border-color: transparent !important;
-  }
-  .oh-cta-green button[type='submit']:hover {
-    background-color: hsl(142 45% 34%) !important;
   }
   .oh-cta-green button[type='submit']:disabled {
     opacity: 0.6 !important;
