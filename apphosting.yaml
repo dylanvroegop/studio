@@ -15,3 +15,6 @@ env:
     secret: SUPABASE_SERVICE_ROLE_KEY
   - variable: NEXT_PUBLIC_SUPABASE_URL
     secret: NEXT_PUBLIC_SUPABASE_URL
+
+
+
