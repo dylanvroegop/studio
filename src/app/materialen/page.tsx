@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2, Calculator, Package } from 'lucide-react';
 
 import { useUser } from '@/firebase';
 
@@ -222,6 +222,9 @@ export default function MaterialenPage() {
   const [deleteTarget, setDeleteTarget] = useState<Material | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
 
+  // Voeg deze twee toe aan je bestaande states
+  const [step, setStep] = useState<'choice' | 'form'>('choice');
+  const [isCalculatie, setIsCalculatie] = useState<boolean>(true);
   const [customNaam, setCustomNaam] = useState<string>('');
   const [customEenheid, setCustomEenheid] = useState<string>(''); // leeg (focus!)
   const [customPrijs, setCustomPrijs] = useState<string>('');
@@ -349,6 +352,7 @@ export default function MaterialenPage() {
   const openCustomDialog = useCallback(() => {
     setPageError(null);
     resetCustomForm();
+    setStep('choice'); // Zorgt dat je altijd begint bij de 2 kaarten
     setDialogOpen(true);
   }, [resetCustomForm]);
 
@@ -385,8 +389,17 @@ export default function MaterialenPage() {
   }, [maatVereist, maatLengte, maatBreedte, maatUnit, customEenheid, maatDikte, maatHoogte]);
 
   const canSaveCustom = useMemo(() => {
-    return !savingCustom && isNaamOk && isPrijsOk && isEenheidOk && isMaatOk;
-  }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk]);
+    // Basis check: naam, prijs en eenheid moeten er altijd zijn
+    const basisCheck = !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
+  
+    if (isCalculatie) {
+      // In calculatie-modus MOETEN lengte en breedte ingevuld zijn (isMaatOk)
+      return basisCheck && isMaatOk;
+    }
+  
+    // In 'Los artikel' modus zijn maten niet nodig
+    return basisCheck;
+  }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk, isCalculatie]);
 
   const previewNaam = useMemo(() => {
     const base = (customNaam || '').trim() || '...';
@@ -741,225 +754,258 @@ export default function MaterialenPage() {
           ) : null}
         </Card>
 
-        {/* ✅ Confirm delete dialog */}
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Weet je zeker dat je dit materiaal wilt verwijderen?
-                <br />
-                <span className="font-medium">
-                  {deleteTarget?.materiaalnaam ?? 'Onbekend materiaal'}
-                </span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-
-            <AlertDialogFooter className="gap-2">
-              <AlertDialogCancel disabled={deleting}>Annuleren</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (!deleting) bevestigDelete();
-                }}
-                disabled={deleting}
-              >
-                {deleting ? 'Verwijderen...' : 'Ja, verwijderen'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
         {/* ✅ Add custom dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-[640px]">
-            <DialogHeader className="space-y-1">
-              <DialogTitle>Eigen materiaal toevoegen</DialogTitle>
-              <DialogDescription>
-                Dit materiaal wordt opgeslagen in uw materialenlijst en blijft bestaan bij nieuwe prijslijsten.
-              </DialogDescription>
-            </DialogHeader>
+<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+  <DialogContent className="sm:max-w-[640px] overflow-hidden p-0">
+  {step === 'choice' ? (
+  /* STAP 1: DE KEUZEKAARTEN (Nu beide met emerald hover) */
+  <div className="p-8">
+    <DialogHeader className="mb-8 text-center">
+      <DialogTitle className="text-2xl font-bold text-white">Wat voor materiaal voegt u toe?</DialogTitle>
+      <DialogDescription className="text-zinc-400">
+        Kies het type product om het juiste formulier te openen.
+      </DialogDescription>
+    </DialogHeader>
 
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Materiaalnaam *</div>
-                <Input value={customNaam} onChange={(e) => setCustomNaam(e.target.value)} />
-              </div>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {/* Kaart: Calculatie Product */}
+      <button
+        type="button"
+        onClick={() => {
+          setIsCalculatie(true);
+          setStep('form');
+        }}
+        className="group flex flex-col items-center gap-4 rounded-2xl border-2 border-zinc-800 bg-zinc-900/50 p-6 text-center transition-all hover:border-emerald-500 hover:bg-emerald-500/5"
+      >
+        <div className="rounded-full bg-zinc-800 p-4 group-hover:bg-emerald-500/20 transition-colors">
+          <Calculator className="h-8 w-8 text-zinc-400 group-hover:text-emerald-500" />
+        </div>
+        <div>
+          <div className="text-lg font-bold text-white">Calculatie Product</div>
+          <div className="text-xs text-zinc-500 mt-1">
+            Voor wanden, vloeren en rachels. <br /> Maten zijn <strong>verplicht</strong>.
+          </div>
+        </div>
+      </button>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Eenheid *</div>
-                  <Select value={customEenheid} onValueChange={setCustomEenheid}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Kies eenheid" />
+      {/* Kaart: Los Artikel (Nu ook emerald hover) */}
+      <button
+        type="button"
+        onClick={() => {
+          setIsCalculatie(false);
+          setStep('form');
+          setCustomEenheid('stuk');
+        }}
+        className="group flex flex-col items-center gap-4 rounded-2xl border-2 border-zinc-800 bg-zinc-900/50 p-6 text-center transition-all hover:border-emerald-500 hover:bg-emerald-500/5"
+      >
+        <div className="rounded-full bg-zinc-800 p-4 group-hover:bg-emerald-500/20 transition-colors">
+          <Package className="h-8 w-8 text-zinc-400 group-hover:text-emerald-500" />
+        </div>
+        <div>
+          <div className="text-lg font-bold text-white">Los Artikel</div>
+          <div className="text-xs text-zinc-500 mt-1">
+            Voor kranen, verf of lijm. <br /> Geen afmetingen nodig.
+          </div>
+        </div>
+      </button>
+    </div>
+
+    <div className="mt-8 flex justify-center">
+      <Button variant="ghost" onClick={closeCustomDialog} className="text-zinc-500 hover:text-white">
+        Annuleren
+      </Button>
+    </div>
+  </div>
+) : (
+      /* STAP 2: HET FORMULIER */
+      <>
+        <DialogHeader className="px-6 pt-6 flex flex-row items-center gap-4 space-y-0 text-left border-b border-zinc-800 pb-6">
+  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+    {isCalculatie ? (
+      <Calculator className="h-6 w-6 text-emerald-500" />
+    ) : (
+      <Package className="h-6 w-6 text-emerald-500" />
+    )}
+  </div>
+  <div className="flex flex-col gap-1">
+    <DialogTitle className="text-xl font-bold text-white leading-none">
+      Nieuw {isCalculatie ? 'Calculatie Product' : 'Los Artikel'}
+    </DialogTitle>
+    <DialogDescription className="text-zinc-400 text-sm">
+      Vul de gegevens van het materiaal in.
+    </DialogDescription>
+  </div>
+</DialogHeader>
+
+        <div className="space-y-4 px-6 py-4">
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Materiaalnaam *</div>
+            <Input 
+              value={customNaam} 
+              onChange={(e) => setCustomNaam(e.target.value)} 
+              placeholder={isCalculatie ? "bijv. Gipsplaat AK" : "bijv. Keukenkraan chroom"}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Eenheid *</div>
+              <Select value={customEenheid} onValueChange={setCustomEenheid}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Kies eenheid" />
+                </SelectTrigger>
+                <SelectContent>
+  {/* Toon relevante eenheden op basis van keuze */}
+  {isCalculatie 
+    ? EENHEDEN.filter(e => e.includes('p/m') || e === 'stuk').map((e) => (
+        <SelectItem key={e} value={e}>{e}</SelectItem>
+      ))
+    : EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
+        <SelectItem key={e} value={e}>{e}</SelectItem>
+      ))
+  }
+</SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Prijs per eenheid (€) *</div>
+              <Input
+                value={customPrijs}
+                onChange={(e) => setCustomPrijs(e.target.value)}
+                type="number"  
+                step="0.01"
+                placeholder="0,00"
+                inputMode="decimal"
+              />
+            </div>
+          </div>
+
+          {/* AFMETINGEN: Alleen tonen als Calculatie is gekozen */}
+          {isCalculatie && (
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-inner">
+              <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-medium text-white uppercase tracking-tight">Afmetingen *</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Unit</div>
+                  <Select value={maatUnit} onValueChange={setMaatUnit}>
+                    <SelectTrigger className="h-7 w-[70px] text-xs">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {EENHEDEN.map((e) => (
-                        <SelectItem key={e} value={e}>
-                          {e}
-                        </SelectItem>
+                      {MAAT_UNITS.map((u) => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Prijs per eenheid (€) *</div>
-                  <Input
-                    value={customPrijs}
-                    onChange={(e) => setCustomPrijs(e.target.value)}
-                    type="number"  
-                    step="0.01"
-                    placeholder="0,00"
-                    inputMode="decimal"
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Lengte</div>
+                  <InputMetSuffix value={maatLengte} onChange={setMaatLengte} suffix={maatUnit} placeholder="0" />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Breedte</div>
+                  <InputMetSuffix value={maatBreedte} onChange={setMaatBreedte} suffix={maatUnit} placeholder="0" />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
+                    {customEenheid === 'p/m3' ? 'Hoogte' : 'Dikte'}
+                  </div>
+                  <InputMetSuffix
+                    value={customEenheid === 'p/m3' ? maatHoogte : maatDikte}
+                    onChange={customEenheid === 'p/m3' ? setMaatHoogte : setMaatDikte}
+                    suffix={maatUnit}
+                    placeholder="0"
                   />
                 </div>
               </div>
 
-              {maatVereist ? (
-                <div className="rounded-lg border border-muted/60 p-3">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium">Afmetingen *</div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs text-muted-foreground">Unit</div>
-                      <Select value={maatUnit} onValueChange={setMaatUnit}>
-                        <SelectTrigger className="h-8 w-[90px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MAAT_UNITS.map((u) => (
-                            <SelectItem key={u} value={u}>
-                              {u}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Lengte *</div>
-                      <InputMetSuffix
-                        value={maatLengte}
-                        onChange={setMaatLengte}
-                        suffix={maatUnit}
-                        placeholder="bijv. 2400"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Breedte *</div>
-                      <InputMetSuffix
-                        value={maatBreedte}
-                        onChange={setMaatBreedte}
-                        suffix={maatUnit}
-                        placeholder="bijv. 1200"
-                      />
-                    </div>
-
-                    {customEenheid === 'p/m3' ? (
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Hoogte *</div>
-                        <InputMetSuffix
-                          value={maatHoogte}
-                          onChange={setMaatHoogte}
-                          suffix={maatUnit}
-                          placeholder="bijv. 100"
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Dikte *</div>
-                        <InputMetSuffix
-                          value={maatDikte}
-                          onChange={setMaatDikte}
-                          suffix={maatUnit}
-                          placeholder="bijv. 18"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-3 text-xs">
-                    <span className="text-muted-foreground">Wordt opgeslagen als:&nbsp;</span>
-                    <span className="font-medium text-emerald-400">{previewNaam}</span>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Categorie (optioneel)</div>
-                  <Input
-                    value={customSubsectie}
-                    onChange={(e) => setCustomSubsectie(e.target.value)}
-                    placeholder="Bijv. Balkhout"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Leverancier (optioneel)</div>
-                  <Input
-                    value={customLeverancier}
-                    onChange={(e) => setCustomLeverancier(e.target.value)}
-                    placeholder="Bijv. Eigen / Bouwmaat / Jongeneel"
-                  />
-                </div>
-                </div> 
-      </div>
-
-{/* 1. DE SAFETY CHECK BAR */}
-{isPrijsOk && isMaatOk && (customEenheid === 'p/m2' || customEenheid === 'p/m1') && (
-        <div className="mx-6 mt-4 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
+              <div className="mt-3 text-[10px] italic text-muted-foreground">
+                Wordt opgeslagen als: <span className="font-semibold text-emerald-500">{previewNaam}</span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-destructive uppercase tracking-widest leading-none">Controle</span>
-              <span className="text-sm font-semibold text-foreground mt-0.5 capitalize italic">{previewNaam}</span>
-            </div>
-          </div>
+          )}
 
-          <div className="text-right">
-            <div className="text-lg font-black text-destructive leading-none">
-              {formatEuro(calculatePiecePrice(prijsNum!, customEenheid, maatLengte, maatBreedte, maatUnit))}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Categorie (optioneel)</div>
+              <Input
+                value={customSubsectie}
+                onChange={(e) => setCustomSubsectie(e.target.value)}
+                placeholder="Bijv. Balkhout"
+              />
             </div>
-            <div className="text-[10px] font-bold uppercase text-muted-foreground mt-1">
-              per {customEenheid === 'p/m2' ? 'stuk' : 'lengte'}
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Leverancier (optioneel)</div>
+              <Input
+                value={customLeverancier}
+                onChange={(e) => setCustomLeverancier(e.target.value)}
+                placeholder="Bijv. Bouwmaat"
+              />
             </div>
           </div>
         </div>
-      )}
 
-      {/* 2. DE KNOPPEN */}
-      <DialogFooter className="mt-6 border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3">
-        <Button 
-          type="button" 
-          variant="outline" 
-          onClick={closeCustomDialog} 
-          disabled={savingCustom}
-          className="h-11 px-6 text-sm font-medium"
-        >
-          Annuleren
-        </Button>
+       {/* ✅ DE SAFETY CHECK BAR - VOLLEDIG ZICHTBAAR */}
+{isPrijsOk && (isCalculatie ? isMaatOk : true) && customEenheid && (
+  <div className="mx-6 mb-4 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+    <div className="flex items-center gap-3">
+      <div className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[10px] font-bold text-destructive uppercase tracking-widest leading-none">Controle</span>
+        {/* Verwijder 'truncate' en 'max-w' om de volledige naam te zien */}
+        <span className="text-sm font-semibold text-white mt-1 italic whitespace-nowrap">
+          {previewNaam}
+        </span>
+      </div>
+    </div>
 
-        <Button
-          type="button"
-          variant="success"
-          onClick={saveCustomMaterial}
-          disabled={!canSaveCustom}
-          className="h-11 gap-2 px-8 text-sm font-bold shadow-lg shadow-success/20"
-        >
-          {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Materiaal toevoegen
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    <div className="text-right ml-4">
+      <div className="text-lg font-black text-white leading-none">
+        {formatEuro(isCalculatie 
+          ? (calculatePiecePrice(prijsNum!, customEenheid, maatLengte, maatBreedte, maatUnit) ?? prijsNum)
+          : prijsNum
+        )}
+      </div>
+      <div className="text-[10px] font-bold uppercase text-zinc-400 mt-1">
+        {isCalculatie ? 'Totaal per stuk' : `Per ${customEenheid}`}
+      </div>
+    </div>
+  </div>
+)}
+
+        {/* 2. DE KNOPPEN */}
+        <DialogFooter className="border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3">
+          <Button 
+            type="button" 
+            variant="ghost" 
+            onClick={() => setStep('choice')}
+            className="h-11"
+          >
+            Vorige
+          </Button>
+
+          <Button
+            type="button"
+            variant="success"
+            onClick={saveCustomMaterial}
+            disabled={!canSaveCustom || savingCustom}
+            className="h-11 gap-2 px-8 text-sm font-bold shadow-lg shadow-success/20"
+          >
+            {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Materiaal toevoegen
+          </Button>
+        </DialogFooter>
+      </>
+    )}
+  </DialogContent>
+</Dialog>
       </main>
     </div>
   );
