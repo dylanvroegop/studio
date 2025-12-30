@@ -2031,7 +2031,7 @@ await updateDoc(ref, {
           key={group.id}
           id={group.id}
           title={group.title}
-          materials={group.materials}
+          materials={group.materials.map((m) => ({ ...m, quantity: m.quantity ?? 1 }))}
           onUpdateTitle={(val) =>
             setCustomGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, title: val } : g)))
           }
@@ -2069,7 +2069,7 @@ await updateDoc(ref, {
             onClick={() => setCustomGroups((prev) => [...prev, { id: crypto.randomUUID(), title: '', materials: [] }])}
           >
             <Plus className="h-4 w-4" />
-            Groep toevoegen
+            Materiaal toevoegen
           </Button>
         </CardHeader>
       </Card>
@@ -2622,6 +2622,8 @@ await updateDoc(ref, {
             eenheid: item.eenheid || 'stuk',
             prijs: Number(item.prijs) || 0,
             quantity: 1,
+            categorie: item.categorie ?? null,
+            sort_order: null,
           };
 
           setCustomGroups((prev) =>
@@ -2630,7 +2632,44 @@ await updateDoc(ref, {
           setIsExtraModalOpen(false);
           setActiveGroupId(null);
         }}
-        onMaterialAdded={() => fetchMaterials()}
+
+        onMaterialAdded={(newMaterial: any) => {
+          console.log("🔥 onMaterialAdded TRIGGERED");
+          console.log("👉 Current Active Group ID:", activeGroupId);
+          console.log("📦 New Material Data:", newMaterial);
+          // 1. DIRECT UPDATE: Check immediately (No 'await' here!)
+          if (activeGroupId && newMaterial) {
+            
+            // 2. Normalize the price fields (handle both formats)
+            const prijsValue = newMaterial.prijs ?? newMaterial.prijsPerEenheid ?? 0;
+
+            const newMat = {
+              id: newMaterial.id || crypto.randomUUID(),
+              materiaalnaam: newMaterial.materiaalnaam || newMaterial.naam || 'Naamloos',
+              eenheid: newMaterial.eenheid || 'stuk',
+              prijs: Number(prijsValue) || 0,
+              quantity: 1,
+              categorie: newMaterial.categorie ?? null,
+              sort_order: null,
+            };
+
+            // 3. Update the State Immediately (Optimistic UI)
+            setCustomGroups((prev) =>
+              prev.map((g) =>
+                g.id === activeGroupId
+                  ? { ...g, materials: [...g.materials, newMat] }
+                  : g
+              )
+            );
+
+            // 4. Close Modal & Reset ID immediately
+            setIsExtraModalOpen(false);
+            setActiveGroupId(null);
+          }
+
+          // 5. Refresh the library in the background (fire and forget)
+          fetchMaterials();
+        }}
       />
     </>
   );

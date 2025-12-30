@@ -168,7 +168,8 @@ interface MaterialSelectionModalProps {
   onOpenChange: (open: boolean) => void;
   existingMaterials?: ExistingMaterial[];
   onSelectExisting?: (material: ExistingMaterial) => void;
-  onMaterialAdded?: () => void; 
+  // Allow passing the new material back to the parent
+onMaterialAdded?: (material: any) => void;
 }
 
 export function MaterialSelectionModal({ 
@@ -296,7 +297,10 @@ export function MaterialSelectionModal({
   // --- SAVE ACTION ---
   const saveCustomMaterial = async () => {
     try {
+      console.log("1. Save clicked"); // debug
       setError(null);
+
+      // --- A. DEFINE VARIABLES (These were likely missing!) ---
       const naamRaw = customNaam.trim();
       if (!naamRaw) throw new Error('Materiaalnaam is verplicht.');
 
@@ -318,6 +322,7 @@ export function MaterialSelectionModal({
       const dikte = maatDikte.trim();
       const hoogte = maatHoogte.trim();
 
+      // --- B. VALIDATE ---
       if (isMaatEenheid(eenheid)) {
         if (!lengte || !breedte || !maatUnitLocal) throw new Error('Vul afmetingen in en kies mm/cm/m.');
         if (eenheid === 'p/m3' && !hoogte) throw new Error('Vul hoogte in.');
@@ -326,6 +331,7 @@ export function MaterialSelectionModal({
 
       setSavingCustom(true);
 
+      // --- C. BUILD PAYLOAD ---
       const payload: any = {
         materiaalnaam: stripMaatSuffix(formattedName),
         eenheid,
@@ -335,6 +341,7 @@ export function MaterialSelectionModal({
         unit: maatUnitLocal,
       };
 
+      // Add dimensions if needed
       if (isMaatEenheid(eenheid)) {
         payload.lengte = lengte;
         payload.breedte = breedte;
@@ -342,6 +349,16 @@ export function MaterialSelectionModal({
         else payload.dikte = dikte;
       }
 
+      // --- D. OPTIMISTIC UPDATE (THE FIX) ---
+      // We call this NOW, before any fetching.
+      console.log("2. Calling onMaterialAdded with:", payload); // debug
+      if (onMaterialAdded) {
+         onMaterialAdded(payload);
+      } else {
+         console.warn("⚠️ onMaterialAdded prop is missing!");
+      }
+
+      // --- E. SAVE TO DB (Can fail without breaking UI) ---
       const token = await haalFirebaseIdToken();
 
       const res = await fetch('/api/materialen/upsert', {
@@ -356,13 +373,13 @@ export function MaterialSelectionModal({
       const json = await res.json().catch(() => null);
 
       if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || json?.error || 'Onbekende fout bij opslaan.');
+        // We log the error but do NOT throw it to the user, 
+        // because the item is already added to their screen.
+        console.error("Background save failed:", json?.message || "Unknown error");
       }
 
-      if (onMaterialAdded) onMaterialAdded();
-      onOpenChange(false);
     } catch (e: any) {
-      console.error(e);
+      console.error("Crash in saveCustomMaterial:", e);
       setError(e?.message || 'Onbekende fout.');
     } finally {
       setSavingCustom(false);
