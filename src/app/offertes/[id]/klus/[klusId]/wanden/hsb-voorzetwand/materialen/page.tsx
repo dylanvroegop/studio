@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { MaterialSelectionModal, ExistingMaterial } from '@/components/MaterialSelectionModal';
+import { DynamicMaterialGroup, GroupMaterial } from '@/components/DynamicMaterialGroup';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -89,7 +90,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
-import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 
 
 // ==================================
@@ -1203,7 +1203,7 @@ export default function HsbWandMaterialenPage() {
   const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
 
   const [editExtra, setEditExtra] = useState<ExtraMaterial | null>(null);
-    const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
 
   const userHeeftPresetGewijzigdRef = useRef(false);
@@ -1800,15 +1800,37 @@ const handleNewMaterialAdd = (result: ExistingMaterial) => {
 
   // ✅ HANDLER: When user selects an item from the NEW modal list
   const handleSelectFromNewModal = (material: ExistingMaterial) => {
-    const newExtra: ExtraMaterial = {
-      id: maakId(),
-      naam: material.materiaalnaam || 'Naamloos',
-      eenheid: (material.eenheid as any) || 'stuk',
-      prijsPerEenheid: typeof material.prijs === 'number' ? material.prijs : 0,
+    // 1. Create the material object
+    // Note: We map 'prijs' to 'prijsPerEenheid' for consistency
+    const materialObj = {
+      id: material.row_id || material.id || maakId(),
+      materiaalnaam: material.materiaalnaam || 'Naamloos',
+      eenheid: material.eenheid || 'stuk',
+      prijs: Number(material.prijs) || 0,
+      // Add these if your types require them for the group view
+      naam: material.materiaalnaam, 
+      prijsPerEenheid: Number(material.prijs) || 0,
       usageDescription: '',
+      quantity: 1, // Default quantity
     };
-
-    setExtraMaterials((prev) => [...prev, newExtra]);
+  
+    // 2. CHECK: Are we adding to a specific Group?
+    if (activeGroupId) {
+      handleSelectForCustomGroup(activeGroupId, materialObj as any);
+    } else {
+      // 3. Otherwise, add to the general "Extra Materials" list (legacy behavior)
+      const newExtra: ExtraMaterial = {
+        id: materialObj.id,
+        naam: materialObj.materiaalnaam,
+        eenheid: materialObj.eenheid as any,
+        prijsPerEenheid: materialObj.prijs,
+        usageDescription: '',
+      };
+      setExtraMaterials((prev) => [...prev, newExtra]);
+    }
+  
+    // 4. Reset and Close
+    setActiveGroupId(null);
     setIsExtraModalOpen(false);
   };
 
@@ -2000,37 +2022,58 @@ await updateDoc(ref, {
   };
 
 
+  // --- RENDER FUNCTION ---
   const renderExtraMateriaalCompact = () => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between p-4">
-        <CardTitle className="text-lg">Extra materiaal</CardTitle>
-  
-        <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
-                    onClick={handleAddCustomGroup}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Groep toevoegen
-                  </Button>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-4">
-        {customGroups.map(group => (
-            <DynamicMaterialGroup
-                key={group.id}
-                id={group.id}
-                title={group.title}
-                materials={group.materials}
-                onUpdateTitle={(newTitle) => handleUpdateCustomGroupTitle(group.id, newTitle)}
-                onAddMaterial={() => openMateriaalKiezer('extra', group.id)}
-                onUpdateQuantity={(materialId, quantity) => handleUpdateMaterialQuantity(group.id, materialId, quantity)}
-                onRemoveMaterial={(materialId) => handleRemoveMaterialFromGroup(group.id, materialId)}
-                onDeleteGroup={() => handleDeleteCustomGroup(group.id)}
-            />
-        ))}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {/* 1. Render Custom Cards */}
+      {customGroups.map((group) => (
+        <DynamicMaterialGroup
+          key={group.id}
+          id={group.id}
+          title={group.title}
+          materials={group.materials}
+          onUpdateTitle={(val) =>
+            setCustomGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, title: val } : g)))
+          }
+          // THIS triggers the NEW modal for THIS specific card
+          onAddMaterial={() => {
+            setActiveGroupId(group.id);
+            setIsExtraModalOpen(true);
+          }}
+          onRemoveMaterial={(matId) =>
+            setCustomGroups((prev) =>
+              prev.map((g) => (g.id === group.id ? { ...g, materials: g.materials.filter((m: any) => m.id !== matId) } : g))
+            )
+          }
+          onDeleteGroup={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
+          onUpdateQuantity={(matId, qty) =>
+            setCustomGroups((prev) =>
+              prev.map((g) =>
+                g.id === group.id
+                  ? { ...g, materials: g.materials.map((m: any) => (m.id === matId ? { ...m, quantity: qty } : m)) }
+                  : g
+              )
+            )
+          }
+        />
+      ))}
+
+      {/* 2. Container Card with "Add Group" Button */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between p-4">
+          <CardTitle className="text-lg">Extra materiaal</CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-emerald-500 hover:text-emerald-400"
+            onClick={() => setCustomGroups((prev) => [...prev, { id: crypto.randomUUID(), title: '', materials: [] }])}
+          >
+            <Plus className="h-4 w-4" />
+            Groep toevoegen
+          </Button>
+        </CardHeader>
+      </Card>
+    </div>
   );
   
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
@@ -2564,18 +2607,30 @@ await updateDoc(ref, {
         onSelectForCustomGroup={handleSelectForCustomGroup}
       />
 
-      {/* ✅ NEW COMPONENT */}
-      <MaterialSelectionModal 
-        open={isExtraModalOpen} 
+      {/* --- NEW MODAL COMPONENT --- */}
+      <MaterialSelectionModal
+        open={isExtraModalOpen}
         onOpenChange={setIsExtraModalOpen}
-        
-        existingMaterials={alleMaterialen.map(m => ({ ...m, row_id: m.id }))}
-        
-        // Handle selection from list
-        onSelectExisting={handleSelectFromNewModal}
-        
-        // Handle creation of new material (refreshes the list)
-        onMaterialAdded={handleNewMaterialCreated}
+        existingMaterials={alleMaterialen.map((m) => ({ ...m, row_id: m.id }))}
+        onSelectExisting={(result) => {
+          if (!activeGroupId) return;
+          const item = result.data || result; // Handle both return formats
+          
+          const newMat = {
+            id: item.id || crypto.randomUUID(),
+            materiaalnaam: item.materiaalnaam || item.naam || 'Naamloos',
+            eenheid: item.eenheid || 'stuk',
+            prijs: Number(item.prijs) || 0,
+            quantity: 1,
+          };
+
+          setCustomGroups((prev) =>
+            prev.map((g) => (g.id === activeGroupId ? { ...g, materials: [...g.materials, newMat] } : g))
+          );
+          setIsExtraModalOpen(false);
+          setActiveGroupId(null);
+        }}
+        onMaterialAdded={() => fetchMaterials()}
       />
     </>
   );
