@@ -9,6 +9,7 @@ import React, {
   useRef,
 } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { MaterialSelectionModal, ExistingMaterial } from '@/components/MaterialSelectionModal';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -1202,61 +1203,52 @@ export default function HsbWandMaterialenPage() {
     fetchQuote();
   }, [quoteId]);
 
-  // ✅ Supabase materialen ophalen + prijs normaliseren naar number
-  useEffect(() => {
+  // --- PASTE THIS AT LINE 1206 REPLACING THE OLD USEEFFECT ---
+
+  const [isExtraModalOpen, setIsExtraModalOpen] = useState(false); // <--- New state for the modal
+
+  // ✅ REFACTORED: Fetch logic extracted to useCallback so we can reload it later
+  const fetchMaterials = useCallback(async () => {
     if (!user?.uid) return;
 
-    const fetchMaterials = async () => {
-      setMaterialenLaden(true);
-      setFoutMaterialen(null);
+    setMaterialenLaden(true);
+    setFoutMaterialen(null);
 
-      // LET OP: hier filter je op 'gebruikerid' (moet echt zo heten in je tabel)
-      const { data, error } = await supabase.from('materialen').select('*').eq('gebruikerid', user.uid);
+    const { data, error } = await supabase.from('materialen').select('*').eq('gebruikerid', user.uid);
 
-      if (error) {
-        console.error('Fout bij ophalen Supabase materialen:', error);
-        setFoutMaterialen('Kon materialen niet laden.');
-        setAlleMaterialen([]);
-        setMaterialenLaden(false);
-        return;
-      }
-
-      // Sanity check (alleen console) — helpt als kolomnamen ooit anders blijken
-      if ((data || []).length && !(data![0] as any).row_id) {
-        console.warn('Supabase: verwacht row_id maar niet gevonden. Kolommen:', Object.keys(data![0] as any));
-      }
-
-      const getCorrectPrice = (p: unknown): number => {
-        if (p === null || p === undefined) return 0;
-
-        if (typeof p === 'number') return Number.isFinite(p) ? p : 0;
-
-        if (typeof p === 'string') {
-          const parsed = parseNLMoneyToNumber(p);
-          if (parsed === null) {
-            console.warn('Ongeldige prijs string uit DB:', p);
-            return 0;
-          }
-          return parsed;
-        }
-
-        console.warn('Onverwacht prijs type uit DB:', typeof p, p);
-        return 0;
-      };
-
-      const materialenData = (data || []).map((m: any) => ({
-        ...m,
-        id: m.row_id ?? m.id, // ✅ fallback als je ooit id ipv row_id hebt
-        prijs: getCorrectPrice(m.prijs),
-        categorie: m.subsectie ?? m.categorie ?? null,
-      })) as MateriaalKeuze[];
-
-      setAlleMaterialen(materialenData);
+    if (error) {
+      console.error('Fout bij ophalen Supabase materialen:', error);
+      setFoutMaterialen('Kon materialen niet laden.');
+      setAlleMaterialen([]);
       setMaterialenLaden(false);
+      return;
+    }
+
+    const getCorrectPrice = (p: unknown): number => {
+      if (p === null || p === undefined) return 0;
+      if (typeof p === 'number') return Number.isFinite(p) ? p : 0;
+      if (typeof p === 'string') {
+        const parsed = parseNLMoneyToNumber(p);
+        return parsed === null ? 0 : parsed;
+      }
+      return 0;
     };
 
-    fetchMaterials();
+    const materialenData = (data || []).map((m: any) => ({
+      ...m,
+      id: m.row_id ?? m.id,
+      prijs: getCorrectPrice(m.prijs),
+      categorie: m.subsectie ?? m.categorie ?? null,
+    })) as MateriaalKeuze[];
+
+    setAlleMaterialen(materialenData);
+    setMaterialenLaden(false);
   }, [user?.uid]);
+
+  // ✅ USE EFFECT: Calls the function above on mount
+  useEffect(() => {
+    fetchMaterials();
+  }, [fetchMaterials]);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -1567,7 +1559,28 @@ export default function HsbWandMaterialenPage() {
 
     setGekozenMaterialen((prev) => ({ ...prev, [_sectieSleutel]: materiaal }));
   };
+// --- NIEUWE LOGICA VOOR DE NIEUWE MODAL ---
+const [isModalOpen, setIsModalOpen] = useState(false);
 
+const handleNewMaterialAdd = (result: ExistingMaterial) => {
+  // We halen de data uit het resultaat van de modal
+  const { data } = result;
+
+  // We maken het object precies zoals jouw bestaande code dat verwacht
+  const newExtra = {
+    id: maakId(), // Deze helper functie staat al in je bestand
+    naam: data.materiaalnaam,
+    eenheid: data.eenheid,
+    prijsPerEenheid: Number(data.prijs), // Zeker weten dat het een nummer is
+    usageDescription: '',
+  };
+
+  // Voeg toe aan de lijst 'Extra Materialen'
+  setExtraMaterials((prev: any) => [...prev, newExtra]);
+  
+  // Sluit de modal
+  setIsModalOpen(false);
+};
   const handleAddExtraMateriaal = (materiaal: ExtraMaterial) => {
     setExtraMaterials((prev) => [...prev, materiaal]);
   };
@@ -1738,6 +1751,33 @@ export default function HsbWandMaterialenPage() {
     return true;
   }, [gekozenMaterialen]);
 
+// --- PASTE THIS ABOVE "const handleNext" ---
+
+  // ✅ HANDLER: When user selects an item from the NEW modal list
+  const handleSelectFromNewModal = (material: ExistingMaterial) => {
+    const newExtra: ExtraMaterial = {
+      id: maakId(),
+      naam: material.materiaalnaam || 'Naamloos',
+      eenheid: (material.eenheid as any) || 'stuk',
+      prijsPerEenheid: typeof material.prijs === 'number' ? material.prijs : 0,
+      usageDescription: '',
+    };
+
+    setExtraMaterials((prev) => [...prev, newExtra]);
+    setIsExtraModalOpen(false);
+  };
+
+  // ✅ HANDLER: When user created a BRAND NEW material in the modal
+  const handleNewMaterialCreated = async () => {
+    await fetchMaterials(); 
+    toast({ 
+      title: "Succes", 
+      description: "Nieuw materiaal aangemaakt en toegevoegd aan uw bibliotheek." 
+    });
+  };
+
+  // -------------------------------------------
+
   const handleNext = async () => {
     setIsOpslaan(true);
 
@@ -1868,12 +1908,15 @@ await updateDoc(ref, {
       <CardHeader className="flex flex-row items-center justify-between p-4">
         <CardTitle className="text-lg">Extra materiaal</CardTitle>
   
-        <ToevoegenActie
-          onClick={() => {
-            setEditExtra(null);
-            openMateriaalKiezer('extra');
-          }}
-        />
+        <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                    onClick={() => setIsModalOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Toevoegen
+                  </Button>
       </CardHeader>
     </Card>
   );
@@ -1992,12 +2035,15 @@ await updateDoc(ref, {
     <CardTitle className="text-lg">{titel}</CardTitle>
   </div>
 
-  <ToevoegenActie
-    onClick={() => {
-      setEditExtra(null);
-      openMateriaalKiezer('extra');
-    }}
-  />
+  <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+              onClick={() => setIsExtraModalOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Toevoegen
+            </Button>
 </CardHeader>
 
 
@@ -2483,6 +2529,20 @@ await updateDoc(ref, {
         onUpdateExtra={handleUpdateExtraMateriaal}
         editExtra={editExtra}
         materialen={actieveSectie ? filterMaterialenVoorSectie(actieveSectie) : []}
+      />
+
+      {/* ✅ NEW COMPONENT */}
+      <MaterialSelectionModal 
+        open={isExtraModalOpen} 
+        onOpenChange={setIsExtraModalOpen}
+        
+        existingMaterials={alleMaterialen.map(m => ({ ...m, row_id: m.id }))}
+        
+        // Handle selection from list
+        onSelectExisting={handleSelectFromNewModal}
+        
+        // Handle creation of new material (refreshes the list)
+        onMaterialAdded={handleNewMaterialCreated}
       />
     </>
   );

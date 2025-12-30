@@ -117,11 +117,14 @@ export default function Dashboard() {
   const router = useRouter();
 
   const begroeting = useMemo(() => {
-    const naam =
+    let naam =
       (user as any)?.displayName ||
       (user as any)?.name ||
       (user as any)?.email?.split('@')?.[0] ||
       '';
+    if (naam) {
+      naam = naam.charAt(0).toUpperCase() + naam.slice(1);
+    }
     return naam ? `Welkom, ${naam}` : 'Welkom';
   }, [user]);
 

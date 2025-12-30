@@ -18,9 +18,10 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/70 backdrop-blur-sm',
-      'data-[state=open]:animate-in data-[state=closed]:animate-out',
-      'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      // ✅ Minder “zwart gat” effect:
+      // - van bg-black/80 -> bg-black/50
+      // - blur iets minder agressief
+      'fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] transition-opacity',
       className
     )}
     {...props}
@@ -37,31 +38,32 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%]',
-        'border border-white/10 bg-zinc-900 p-6 shadow-lg outline-none',
-        'rounded-2xl',
-        'data-[state=open]:animate-in data-[state=closed]:animate-out',
+        // ✅ Modal zelf minder “zwart”:
+        // - van bg-background (bij dark vaak bijna zwart) -> iets lichtere zinc
+        // - border en shadow blijven netjes
+        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-6 text-zinc-100 shadow-lg backdrop-blur-sm',
+        'duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]',
+        'data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
         className
       )}
       {...props}
     >
       {children}
 
-      {/* GLOBALE SLUITKNOP (mobiel-proof): grote hitbox */}
+      {/* Close button (standaard shadcn) */}
       <DialogPrimitive.Close
-  className={cn(
-    'absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full',
-    'text-white/70 transition hover:bg-white/10 hover:text-white',
-    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/40',
-    'active:scale-95'
-  )}
-  aria-label="Sluiten"
->
-  <X className="h-3 w-3" />
-</DialogPrimitive.Close>
-
+        className={cn(
+          'absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity',
+          'hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+          'disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground'
+        )}
+      >
+        <X className="h-4 w-4" />
+        <span className="sr-only">Sluiten</span>
+      </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
@@ -71,7 +73,7 @@ const DialogHeader = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col space-y-1.5 text-left', className)} {...props} />
+  <div className={cn('flex flex-col space-y-1.5 text-center sm:text-left', className)} {...props} />
 );
 DialogHeader.displayName = 'DialogHeader';
 
@@ -81,7 +83,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2',
       className
     )}
     {...props}
@@ -107,7 +109,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-white/60', className)}
+    className={cn('text-sm text-muted-foreground', className)}
     {...props}
   />
 ));
