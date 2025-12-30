@@ -125,6 +125,11 @@ export type Material = {
     updatedAt: Timestamp;
 };
 
+export type MateriaalKeuze = Omit<Material, 'prijs'> & {
+    id: string;
+    prijs: number;
+};
+
 export type ExtraMaterial = {
   id: string;
   naam: string;

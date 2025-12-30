@@ -89,6 +89,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { Separator } from '@/components/ui/separator';
+import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 
 
 // ==================================
@@ -341,6 +342,13 @@ type Material = {
 type MateriaalKeuze = Omit<Material, 'row_id' | 'user_id' | 'prijs'> & {
   prijs: number;
   id: string;
+  quantity?: number;
+};
+
+type CustomGroup = {
+    id: string;
+    title: string;
+    materials: MateriaalKeuze[];
 };
 
 const sectieSleutels = [
@@ -363,6 +371,7 @@ type FirestoreMaterialenPayload = {
   jobSlug?: string | null;
   selections?: Record<string, any>;
   extraMaterials?: any[];
+  customGroups?: any[];
   savedByUid?: string | null;
   collapsedSections?: Record<string, boolean>;
 };
@@ -602,6 +611,8 @@ type MateriaalKiezerModalProps = {
   onUpdateExtra: (materiaal: ExtraMaterial) => void;
   materialen: MateriaalKeuze[];
   editExtra?: ExtraMaterial | null;
+  activeGroupId?: string | null;
+  onSelectForCustomGroup: (groupId: string, materiaal: MateriaalKeuze) => void;
 };
 
 const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProps>(
@@ -616,6 +627,8 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
       onAddExtra,
       onUpdateExtra,
       editExtra,
+      activeGroupId,
+      onSelectForCustomGroup,
     },
     _ref
   ) => {
@@ -750,6 +763,12 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
     if (!open) return null;
 
     const handleSelect = (materiaal: MateriaalKeuze) => {
+        if (activeGroupId) {
+            onSelectForCustomGroup(activeGroupId, materiaal);
+            onSluiten();
+            return;
+        }
+
       if (isExtraMateriaal) {
         const newExtra: ExtraMaterial = {
           id: maakId(),
@@ -918,7 +937,7 @@ const MateriaalKiezerModal = forwardRef<HTMLDivElement, MateriaalKiezerModalProp
             ) : null}
           </DialogHeader>
 
-          {isExtraMateriaal ? (
+          {isExtraMateriaal || !!activeGroupId ? (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mt-4">
               <TabsList className="grid w-full grid-cols-2">
   <TabsTrigger
@@ -1165,6 +1184,8 @@ export default function HsbWandMaterialenPage() {
 
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, MateriaalKeuze | undefined>>({});
   const [extraMaterials, setExtraMaterials] = useState<ExtraMaterial[]>([]);
+  const [customGroups, setCustomGroups] = useState<CustomGroup[]>([]);
+
 
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfigLocal>({
     mode: 'percentage',
@@ -1182,6 +1203,8 @@ export default function HsbWandMaterialenPage() {
   const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
 
   const [editExtra, setEditExtra] = useState<ExtraMaterial | null>(null);
+    const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+
 
   const userHeeftPresetGewijzigdRef = useRef(false);
   const isHydratingRef = useRef(true);
@@ -1298,6 +1321,10 @@ export default function HsbWandMaterialenPage() {
 
         const rawSelections = mat?.selections && typeof mat.selections === 'object' ? mat.selections : {};
         const rawExtra = Array.isArray(mat?.extraMaterials) ? mat!.extraMaterials : [];
+        const rawCustomGroups = Array.isArray(mat?.customGroups) ? mat!.customGroups : [];
+
+        setCustomGroups(rawCustomGroups);
+
 
         const hasSelections = Object.keys(rawSelections || {}).length > 0;
         const hasExtra = Array.isArray(rawExtra) && rawExtra.length > 0;
@@ -1454,6 +1481,7 @@ export default function HsbWandMaterialenPage() {
         setGekozenMaterialen({});
         setCollapsedSections({});
         setExtraMaterials([]);
+        setCustomGroups([]);
         setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
       }
       return;
@@ -1525,23 +1553,26 @@ export default function HsbWandMaterialenPage() {
   const filterMaterialenVoorSectie = useCallback(
     (sectieKey: SectieKey): MateriaalKeuze[] => {
       if (!alleMaterialen) return [];
-      if (sectieKey === 'extra') return alleMaterialen;
+      if (sectieKey === 'extra' || !!activeGroupId) return alleMaterialen;
 
       const subsectie = subsectieMapping[sectieKey];
       if (!subsectie) return alleMaterialen;
 
       return alleMaterialen.filter((m) => m.categorie === subsectie);
     },
-    [alleMaterialen]
+    [alleMaterialen, activeGroupId]
   );
 
-  const openMateriaalKiezer = (sectieSleutel: SectieKey) => {
+  const openMateriaalKiezer = (sectieSleutel: SectieKey, groupId: string | null = null) => {
     setActieveSectie(sectieSleutel);
+    setActiveGroupId(groupId);
   };
+  
 
   const sluitMateriaalKiezer = () => {
     setActieveSectie(null);
     setEditExtra(null);
+    setActiveGroupId(null);
   };
 
   const handleMateriaalSelectie = (_sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
@@ -1559,6 +1590,20 @@ export default function HsbWandMaterialenPage() {
 
     setGekozenMaterialen((prev) => ({ ...prev, [_sectieSleutel]: materiaal }));
   };
+
+  const handleSelectForCustomGroup = (groupId: string, material: MateriaalKeuze) => {
+    setCustomGroups(prevGroups =>
+      prevGroups.map(group => {
+        if (group.id === groupId) {
+          return {
+            ...group,
+            materials: [...group.materials, { ...material, quantity: 1 }]
+          };
+        }
+        return group;
+      })
+    );
+};
 // --- NIEUWE LOGICA VOOR DE NIEUWE MODAL ---
 const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -1834,6 +1879,7 @@ const handleNewMaterialAdd = (result: ExistingMaterial) => {
         jobSlug: JOB_KEY,
         selections: schoneSelecties,
         extraMaterials: schoneExtra,
+        customGroups: customGroups,
         savedByUid: user.uid,
       };
 
@@ -1903,6 +1949,57 @@ await updateDoc(ref, {
       setIsOpslaan(false);
     }
   };
+
+  const handleAddCustomGroup = () => {
+    const newGroup: CustomGroup = {
+      id: maakId(),
+      title: '',
+      materials: [],
+    };
+    setCustomGroups(prev => [...prev, newGroup]);
+  };
+
+  const handleUpdateCustomGroupTitle = (groupId: string, newTitle: string) => {
+    setCustomGroups(prev =>
+      prev.map(group => (group.id === groupId ? { ...group, title: newTitle } : group))
+    );
+  };
+
+  const handleUpdateMaterialQuantity = (groupId: string, materialId: string, quantity: number) => {
+    setCustomGroups(prev =>
+      prev.map(group => {
+        if (group.id === groupId) {
+          return {
+            ...group,
+            materials: group.materials.map(mat =>
+              mat.id === materialId ? { ...mat, quantity } : mat
+            ),
+          };
+        }
+        return group;
+      })
+    );
+  };
+
+  const handleRemoveMaterialFromGroup = (groupId: string, materialId: string) => {
+    setCustomGroups(prev =>
+      prev.map(group => {
+        if (group.id === groupId) {
+          return {
+            ...group,
+            materials: group.materials.filter(mat => mat.id !== materialId),
+          };
+        }
+        return group;
+      })
+    );
+  };
+
+  const handleDeleteCustomGroup = (groupId: string) => {
+    setCustomGroups(prev => prev.filter(group => group.id !== groupId));
+  };
+
+
   const renderExtraMateriaalCompact = () => (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between p-4">
@@ -1912,12 +2009,27 @@ await updateDoc(ref, {
                     variant="ghost" 
                     size="sm" 
                     className="gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={handleAddCustomGroup}
                   >
                     <Plus className="h-4 w-4" />
-                    Toevoegen
+                    Groep toevoegen
                   </Button>
       </CardHeader>
+      <CardContent className="p-4 pt-0 space-y-4">
+        {customGroups.map(group => (
+            <DynamicMaterialGroup
+                key={group.id}
+                id={group.id}
+                title={group.title}
+                materials={group.materials}
+                onUpdateTitle={(newTitle) => handleUpdateCustomGroupTitle(group.id, newTitle)}
+                onAddMaterial={() => openMateriaalKiezer('extra', group.id)}
+                onUpdateQuantity={(materialId, quantity) => handleUpdateMaterialQuantity(group.id, materialId, quantity)}
+                onRemoveMaterial={(materialId) => handleRemoveMaterialFromGroup(group.id, materialId)}
+                onDeleteGroup={() => handleDeleteCustomGroup(group.id)}
+            />
+        ))}
+      </CardContent>
     </Card>
   );
   
@@ -2028,87 +2140,7 @@ await updateDoc(ref, {
     if (sectieSleutel === 'naden_vullen_2') return null;
 
     if (sectieSleutel === 'extra') {
-      return (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
-  <div className="space-y-1.5">
-    <CardTitle className="text-lg">{titel}</CardTitle>
-  </div>
-
-  <Button 
-              variant="ghost" 
-              size="sm" 
-              className="gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
-              onClick={() => setIsExtraModalOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Toevoegen
-            </Button>
-</CardHeader>
-
-
-          <CardContent className="p-4 pt-0">
-            <div className="border-t pt-4">
-            {extraMaterials.length > 0 && (
-  <ul className="space-y-3">
-    {extraMaterials.map((mat) => (
-      <li key={mat.id} className="flex items-center justify-between text-sm">
-      <div className="min-w-0 flex flex-col justify-center">
-      <p className={cn('text-sm leading-snug', SELECTED_MATERIAL_TEXT)}>
-  {mat.naam}
-  {typeof (mat as any).lengte === 'number' && typeof (mat as any).breedte === 'number' && typeof (mat as any).hoogte === 'number'
-    ? ` (${(mat as any).lengte}×${(mat as any).breedte}×${(mat as any).hoogte})`
-    : typeof (mat as any).lengte === 'number' && typeof (mat as any).breedte === 'number'
-      ? ` (${(mat as any).lengte}×${(mat as any).breedte})`
-      : typeof (mat as any).lengte === 'number'
-        ? ` (${(mat as any).lengte})`
-        : null}
-</p>
-
-    
-        {typeof (mat as any).aantal === 'number' && (
-          <p className="text-xs text-muted-foreground leading-tight">
-            Aantal: {(mat as any).aantal}
-          </p>
-        )}
-      </div>
-    
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <TekstActie
-            onClick={() => {
-              setEditExtra(mat);
-              openMateriaalKiezer('extra');
-            }}
-            className="text-foreground/80"
-          >
-            <Pencil className="h-4 w-4" />
-            Bewerken
-          </TekstActie>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleRemoveExtraMaterial(mat.id)}
-            className={cn(
-              'h-11 w-11 text-muted-foreground hover:text-destructive hover:bg-transparent',
-              ICON_BUTTON_NO_ORANGE
-            )}
-            aria-label="Verwijder extra materiaal"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </li>
-    ))}
-  </ul>
-)}
-
-
-            </div>
-          </CardContent>
-        </Card>
-      );
+        return renderExtraMateriaalCompact();
     }
 
     const showRed = !gekozenMateriaal;
@@ -2437,19 +2469,18 @@ await updateDoc(ref, {
             </div>
 
             <div className="space-y-4">
-  {renderSelectieRij('balkhout', 'Balkhout')}
-  {renderSelectieRij('isolatie', 'Isolatie')}
-  {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
-  {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
-  {renderSelectieRij('naden_vullen', 'Naden vullen')}
-  {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
+              {renderSelectieRij('balkhout', 'Balkhout')}
+              {renderSelectieRij('isolatie', 'Isolatie')}
+              {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
+              {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
+              {renderSelectieRij('naden_vullen', 'Naden vullen')}
+              {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
 
- {/* Optioneel materiaal */}
-<div className="mt-8 space-y-6">
-  {renderSelectieRij('extra', 'Extra materiaal')}
-  {renderKleinMateriaalSectie()}
-</div>
-</div>
+             <div className="mt-8 space-y-6">
+                {renderSelectieRij('extra', 'Extra materiaal')}
+                {renderKleinMateriaalSectie()}
+            </div>
+            </div>
 
             <div className="mt-8">
             <Button
@@ -2521,7 +2552,7 @@ await updateDoc(ref, {
         open={!!actieveSectie}
         sectieSleutel={actieveSectie as SectieKey}
         geselecteerdMateriaalId={
-          actieveSectie && actieveSectie !== 'extra' ? gekozenMaterialen[actieveSectie]?.id : undefined
+          actieveSectie && actieveSectie !== 'extra' && !activeGroupId ? gekozenMaterialen[actieveSectie]?.id : undefined
         }
         onSluiten={sluitMateriaalKiezer}
         onSelecteren={handleMateriaalSelectie}
@@ -2529,6 +2560,8 @@ await updateDoc(ref, {
         onUpdateExtra={handleUpdateExtraMateriaal}
         editExtra={editExtra}
         materialen={actieveSectie ? filterMaterialenVoorSectie(actieveSectie) : []}
+        activeGroupId={activeGroupId}
+        onSelectForCustomGroup={handleSelectForCustomGroup}
       />
 
       {/* ✅ NEW COMPONENT */}
