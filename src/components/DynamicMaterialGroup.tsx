@@ -1,14 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, Pencil, GripVertical } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ==========================================
-// Styles extracted from page.tsx to match perfectly
+// Styling helpers
 // ==========================================
 const ICON_BUTTON_NO_ORANGE = 'hover:bg-muted/50 hover:text-foreground focus-visible:ring-0';
 const SELECTED_MATERIAL_TEXT = 'text-emerald-400';
@@ -19,6 +19,12 @@ export interface GroupMaterial {
   eenheid: string;
   quantity: number;
   prijs: number;
+  // Optional dimensions for display
+  lengte?: number | string;
+  breedte?: number | string;
+  hoogte?: number | string;
+  dikte?: number | string;
+  unit?: string;
 }
 
 interface DynamicMaterialGroupProps {
@@ -27,9 +33,10 @@ interface DynamicMaterialGroupProps {
   materials: GroupMaterial[];
   onUpdateTitle: (val: string) => void;
   onAddMaterial: () => void;
+  onEditMaterial?: () => void; // 👈 New Prop
   onRemoveMaterial: (id: string) => void;
   onDeleteGroup: () => void;
-  onUpdateQuantity: (id: string, qty: number) => void;
+  onUpdateQuantity?: (id: string, qty: number) => void;
 }
 
 export function DynamicMaterialGroup({
@@ -37,21 +44,41 @@ export function DynamicMaterialGroup({
   materials,
   onUpdateTitle,
   onAddMaterial,
-  onRemoveMaterial,
+  onEditMaterial, // 👈 Destructure new prop
   onDeleteGroup,
-  onUpdateQuantity,
 }: DynamicMaterialGroupProps) {
-  const isEmpty = materials.length === 0;
+  // STRICT RULE: Only 1 material per card.
+  const material = materials.length > 0 ? materials[0] : null;
+  const hasMaterial = !!material;
+
+  // Helper to construct the full name including measurements
+  const getDisplayName = (mat: GroupMaterial) => {
+    const baseName = mat.materiaalnaam;
+    if (mat.lengte && mat.breedte) {
+       const u = mat.unit || 'mm';
+       return `${baseName} ${mat.lengte}x${mat.breedte}${u}`;
+    }
+    return baseName;
+  };
+
+  // Auto-capitalize title on blur
+  const handleTitleBlur = () => {
+    if (!title) return;
+    const capitalized = title.charAt(0).toUpperCase() + title.slice(1);
+    if (capitalized !== title) {
+      onUpdateTitle(capitalized);
+    }
+  };
 
   return (
-    <Card className={cn('transition-all', isEmpty && 'border-l-2 border-l-destructive')}>
-      {/* HEADER: Matches standard cards, but with an editable Input for the title */}
+    <Card className={cn('transition-all', !hasMaterial && 'border-l-2 border-l-destructive')}>
+      {/* HEADER */}
       <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
         <div className="flex items-center gap-2 flex-1">
-            {/* We use an Input here but styled to look like CardTitle */}
             <Input
               value={title}
               onChange={(e) => onUpdateTitle(e.target.value)}
+              onBlur={handleTitleBlur}
               placeholder="Naam van groep..."
               className="border-none shadow-none focus-visible:ring-0 px-0 h-auto text-lg font-semibold bg-transparent placeholder:text-muted-foreground/50 w-full"
             />
@@ -70,8 +97,8 @@ export function DynamicMaterialGroup({
 
       <CardContent className="p-4 pt-0">
         <div className="border-t pt-4">
-          {isEmpty ? (
-            /* EMPTY STATE: Matches "Nog geen materiaal gekozen" style */
+          {!hasMaterial ? (
+            /* EMPTY STATE: Show "Toevoegen" */
             <div className="flex items-center justify-between min-h-[40px]">
               <div>
                 <p className="text-sm text-destructive italic">Nog geen materiaal gekozen</p>
@@ -88,61 +115,22 @@ export function DynamicMaterialGroup({
               </div>
             </div>
           ) : (
-            /* LIST STATE */
-            <div className="space-y-4">
-              {materials.map((mat) => (
-                <div key={mat.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-h-[40px]">
-                  
-                  {/* Left: Name and Unit */}
-                  <div className="flex-1">
-                    <p className={cn('text-sm font-medium', SELECTED_MATERIAL_TEXT)}>
-                      {mat.materiaalnaam}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                        {mat.eenheid}
-                    </p>
-                  </div>
-
-                  {/* Right: Controls (Qty + Remove) */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Aantal:</span>
-                        <Input
-                            type="number"
-                            min={0}
-                            value={mat.quantity}
-                            onChange={(e) => onUpdateQuantity(mat.id, parseInt(e.target.value) || 0)}
-                            className="h-8 w-20 text-center"
-                        />
-                    </div>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onRemoveMaterial(mat.id)}
-                      className={cn(
-                        'h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-transparent',
-                        ICON_BUTTON_NO_ORANGE
-                      )}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+            /* FILLED STATE: Material Name + "Wijzigen" Button */
+            <div className="flex items-center justify-between min-h-[40px]">
+              <span className={cn('text-sm font-medium truncate', SELECTED_MATERIAL_TEXT)}>
+                {getDisplayName(material)}
+              </span>
               
-              {/* "Add another" button at the bottom of the list */}
-              <div className="flex justify-end pt-2">
-                 <Button
-                    variant="ghost"
-                    onClick={onAddMaterial}
-                    size="sm"
-                    className="text-muted-foreground/80 whitespace-nowrap inline-flex items-center gap-1 hover:bg-muted/50 px-2"
-                >
-                    <Plus className="h-3 w-3" />
-                    <span>Nog een materiaal</span>
-                </Button>
-              </div>
+              <Button
+                 variant="ghost"
+                 onClick={onEditMaterial} // 👈 Calls the modal opener
+                 className={cn(
+                   "text-foreground/80 hover:text-foreground whitespace-nowrap inline-flex items-center gap-1 hover:bg-transparent px-2 h-8",
+                   ICON_BUTTON_NO_ORANGE
+                 )}
+              >
+                 Wijzigen
+              </Button>
             </div>
           )}
         </div>

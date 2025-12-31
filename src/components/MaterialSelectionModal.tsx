@@ -333,7 +333,7 @@ export function MaterialSelectionModal({
 
       // --- C. BUILD PAYLOAD ---
       const payload: any = {
-        materiaalnaam: stripMaatSuffix(formattedName),
+        materiaalnaam: formattedName,
         eenheid,
         prijs: prijsNumLocal,
         categorie: customSubsectie.trim() || 'Overig',

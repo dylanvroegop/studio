@@ -2040,6 +2040,12 @@ await updateDoc(ref, {
             setActiveGroupId(group.id);
             setIsExtraModalOpen(true);
           }}
+          // 👇 ADD THIS NEW HANDLER HERE 👇
+          // It does the exact same thing: sets the ID and opens the modal
+          onEditMaterial={() => {
+            setActiveGroupId(group.id);
+            setIsExtraModalOpen(true);
+          }}
           onRemoveMaterial={(matId) =>
             setCustomGroups((prev) =>
               prev.map((g) => (g.id === group.id ? { ...g, materials: g.materials.filter((m: any) => m.id !== matId) } : g))
@@ -2634,13 +2640,10 @@ await updateDoc(ref, {
         }}
 
         onMaterialAdded={(newMaterial: any) => {
-          console.log("🔥 onMaterialAdded TRIGGERED");
-          console.log("👉 Current Active Group ID:", activeGroupId);
-          console.log("📦 New Material Data:", newMaterial);
-          // 1. DIRECT UPDATE: Check immediately (No 'await' here!)
+          // 1. DIRECT UPDATE: Check immediately
           if (activeGroupId && newMaterial) {
             
-            // 2. Normalize the price fields (handle both formats)
+            // 2. Normalize price
             const prijsValue = newMaterial.prijs ?? newMaterial.prijsPerEenheid ?? 0;
 
             const newMat = {
@@ -2651,23 +2654,29 @@ await updateDoc(ref, {
               quantity: 1,
               categorie: newMaterial.categorie ?? null,
               sort_order: null,
+              // Maintain dimensions if they exist
+              lengte: newMaterial.lengte,
+              breedte: newMaterial.breedte,
+              hoogte: newMaterial.hoogte,
+              dikte: newMaterial.dikte,
+              unit: newMaterial.unit
             };
 
-            // 3. Update the State Immediately (Optimistic UI)
+            // 3. Update State (REPLACE the material instead of adding)
             setCustomGroups((prev) =>
               prev.map((g) =>
                 g.id === activeGroupId
-                  ? { ...g, materials: [...g.materials, newMat] }
+                  ? { ...g, materials: [newMat] } // <--- ✅ FORCE REPLACE
                   : g
               )
             );
 
-            // 4. Close Modal & Reset ID immediately
+            // 4. Close Modal
             setIsExtraModalOpen(false);
             setActiveGroupId(null);
           }
 
-          // 5. Refresh the library in the background (fire and forget)
+          // 5. Background Refresh
           fetchMaterials();
         }}
       />
