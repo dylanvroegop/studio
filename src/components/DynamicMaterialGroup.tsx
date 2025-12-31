@@ -4,8 +4,14 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // ==========================================
 // Styling helpers
@@ -73,7 +79,45 @@ export function DynamicMaterialGroup({
     }
   };
 
-  // ✅ 1. COLLAPSED STATE (No Trash Icon, "Niet van toepassing")
+  // Helper component for the Menu to avoid code duplication
+  const ActionsMenu = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={(e) => e.stopPropagation()} // Prevent card toggle
+          className={cn('h-8 w-8 text-muted-foreground hover:text-foreground', ICON_BUTTON_NO_ORANGE)}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {hasMaterial && (
+          <DropdownMenuItem 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (material) onRemoveMaterial(material.id);
+            }}
+            className="text-destructive focus:text-destructive cursor-pointer"
+          >
+            Verwijder materiaal
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem 
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeleteGroup();
+          }}
+          className="text-destructive focus:text-destructive cursor-pointer"
+        >
+          Verwijder groep
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  // ✅ 1. COLLAPSED STATE
   if (!isExpanded) {
     return (
       <div 
@@ -86,7 +130,6 @@ export function DynamicMaterialGroup({
         </p>
 
         <div className="flex items-center gap-1 shrink-0">
-            {/* ONLY CHEVRON HERE */}
             <Button 
                 variant="ghost" 
                 size="icon"
@@ -95,18 +138,21 @@ export function DynamicMaterialGroup({
             >
                 <ChevronDown className="h-4 w-4" />
             </Button>
+            
+            {/* ✅ MENU REPLACES TRASH */}
+            <ActionsMenu />
         </div>
       </div>
     );
   }
 
-  // ✅ 2. EXPANDED STATE (Has Trash Icon to delete group)
+  // ✅ 2. EXPANDED STATE
   return (
     <Card className={cn('transition-all', !hasMaterial && 'border-l-2 border-l-destructive')}>
-      {/* HEADER */}
       <CardHeader 
         className="flex flex-row items-center justify-between p-4 pb-3 cursor-pointer"
         onClick={(e) => {
+            // Only toggle if NOT clicking interactive elements
             if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'BUTTON' && (e.target as HTMLElement).tagName !== 'SVG' && (e.target as HTMLElement).tagName !== 'PATH') {
                 setIsExpanded(false);
             }
@@ -132,20 +178,11 @@ export function DynamicMaterialGroup({
               <ChevronUp className="h-4 w-4" />
             </Button>
 
-            {/* Trash icon is ONLY visible when expanded */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); onDeleteGroup(); }}
-              className={cn('h-8 w-8 text-muted-foreground hover:text-destructive', ICON_BUTTON_NO_ORANGE)}
-              title="Verwijder groep"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {/* ✅ MENU REPLACES TRASH */}
+            <ActionsMenu />
         </div>
       </CardHeader>
 
-      {/* CONTENT */}
       <CardContent className="p-4 pt-0">
         <div className="border-t pt-4">
           {!hasMaterial ? (
@@ -173,15 +210,7 @@ export function DynamicMaterialGroup({
               </span>
               
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onRemoveMaterial(material.id)}
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-transparent"
-                  title="Verwijder materiaal"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {/* ❌ REMOVED INLINE TRASH (Moved to Menu) */}
 
                 <Button
                   variant="ghost"
