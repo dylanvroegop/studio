@@ -377,32 +377,21 @@ export function MaterialSelectionModal({
         className={cn(
           "sm:max-w-[640px] w-full p-0 transition-all duration-200", 
           step === 'search' 
-            ? "h-[85vh] flex flex-col overflow-hidden" // Search needs fixed height + internal scroll
-            : "h-auto block" // Others should just grow naturally
+            ? "h-[85vh] flex flex-col overflow-hidden" 
+            : "h-auto block" 
         )}
       >
         
-        {/* === STEP 1: SEARCH === */}
+        {/* === STEP 1: SEARCH (Filter BELOW Search Bar) === */}
         {step === 'search' && (
           <div className="flex flex-col h-full min-h-0">
+            {/* Header: CLEAN (No filter here) */}
             <DialogHeader className="px-4 py-4 border-b shrink-0 flex flex-row items-center justify-between">
               <DialogTitle className="text-lg font-semibold">Kies materiaal</DialogTitle>
-              <div className="flex items-center gap-2">
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-[160px] h-8 text-xs">
-                    <SelectValue placeholder="Categorie" />
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectItem value="all">Alle categorieën</SelectItem>
-                    {uniqueCategories.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </DialogHeader>
 
             <div className="p-4 border-b shrink-0 bg-background space-y-4">
+                {/* Creation Buttons */}
                 <div className="grid grid-cols-2 gap-3">
                     <Button variant="outline" onClick={() => { setIsCalculatie(true); setStep('form'); }} className="h-auto py-4 flex flex-col gap-1 items-center border-dashed border-2 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-500/5 transition-all">
                         <Calculator className="h-5 w-5" />
@@ -413,6 +402,8 @@ export function MaterialSelectionModal({
                         <span className="text-xs font-semibold">Nieuw Los Artikel</span>
                     </Button>
                 </div>
+               
+               {/* Search Bar */}
                <div className="relative">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                  <Input 
@@ -423,6 +414,35 @@ export function MaterialSelectionModal({
                    className="pl-9"
                  />
                </div>
+
+               {/* ✅ FILTER: Full Width, Below Search */}
+               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-full h-10 bg-muted/30 border-input hover:bg-muted/50 transition-all text-left font-normal text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground w-full">
+                      <Filter className="h-4 w-4 shrink-0" />
+                      <span className="truncate flex-1">
+                        {categoryFilter === 'all' ? 'Filter op categorie...' : categoryFilter}
+                      </span>
+                      {categoryFilter !== 'all' && (
+                        <div 
+                          className="p-1 hover:bg-muted-foreground/20 rounded-full cursor-pointer z-10"
+                          onClick={(e) => {
+                             e.stopPropagation();
+                             setCategoryFilter('all');
+                          }}
+                        >
+                            <X className="h-3 w-3" />
+                        </div>
+                      )}
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="all" className="font-semibold text-muted-foreground">Toon alles</SelectItem>
+                    {uniqueCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -486,7 +506,7 @@ export function MaterialSelectionModal({
           </div>
         )}
 
-        {/* === STEP 2: CHOICE (No scrolling needed) === */}
+        {/* === STEP 2: CHOICE === */}
         {step === 'choice' && (
             <div className="p-8 flex flex-col gap-8">
                 <DialogHeader className="text-center shrink-0">
@@ -545,7 +565,7 @@ export function MaterialSelectionModal({
             </div>
         )}
 
-        {/* === STEP 3: FORM (Auto height, NO inner scrollbar) === */}
+        {/* === STEP 3: FORM === */}
         {step === 'form' && (
           <div className="flex flex-col">
              <DialogHeader className="px-6 pt-6 flex flex-row items-center gap-4 space-y-0 text-left border-b border-zinc-800 pb-6 shrink-0 bg-background">
@@ -562,7 +582,6 @@ export function MaterialSelectionModal({
                </div>
             </DialogHeader>
 
-            {/* REMOVED: flex-1 and overflow-y-auto here */}
             <div className="space-y-4 px-6 py-4">
               {error && (
                 <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
