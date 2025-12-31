@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ==========================================
@@ -19,7 +19,6 @@ export interface GroupMaterial {
   eenheid: string;
   quantity: number;
   prijs: number;
-  // Optional dimensions for display
   lengte?: number | string;
   breedte?: number | string;
   hoogte?: number | string;
@@ -45,37 +44,27 @@ export function DynamicMaterialGroup({
   onUpdateTitle,
   onAddMaterial,
   onEditMaterial,
+  onRemoveMaterial,
   onDeleteGroup,
 }: DynamicMaterialGroupProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
   // STRICT RULE: Only 1 material per card.
   const material = materials.length > 0 ? materials[0] : null;
   const hasMaterial = !!material;
 
-  // Helper to construct the full name including measurements
   const getDisplayName = (mat: GroupMaterial) => {
     const baseName = mat.materiaalnaam;
-    
-    // Check if we have dimensions (Length & Width are required)
     if (mat.lengte && mat.breedte) {
        const u = mat.unit || 'mm';
-       
-       // Start with Length x Width
        let dimensions = `${mat.lengte}×${mat.breedte}`;
-
-       // ✅ NEW: Check for Thickness (dikte) OR Height (hoogte) and append it
-       if (mat.dikte) {
-         dimensions += `×${mat.dikte}`;
-       } else if (mat.hoogte) {
-         dimensions += `×${mat.hoogte}`;
-       }
-
+       if (mat.dikte) dimensions += `×${mat.dikte}`;
+       else if (mat.hoogte) dimensions += `×${mat.hoogte}`;
        return `${baseName} ${dimensions}${u}`;
     }
-    
     return baseName;
   };
 
-  // Auto-capitalize title on blur
   const handleTitleBlur = () => {
     if (!title) return;
     const capitalized = title.charAt(0).toUpperCase() + title.slice(1);
@@ -84,11 +73,46 @@ export function DynamicMaterialGroup({
     }
   };
 
+  // ✅ 1. COLLAPSED STATE (No Trash Icon, "Niet van toepassing")
+  if (!isExpanded) {
+    return (
+      <div 
+        className="flex items-center justify-between rounded-lg border bg-card text-card-foreground p-4 shadow-[inset_0_0_4px_rgba(0,0,0,0.35)] cursor-pointer transition-all"
+        onClick={() => setIsExpanded(true)}
+      >
+        <p className="text-sm font-medium text-muted-foreground truncate flex-1">
+          {title || 'Naamloos'} 
+          <span className="font-normal ml-2">· Niet van toepassing</span>
+        </p>
+
+        <div className="flex items-center gap-1 shrink-0">
+            {/* ONLY CHEVRON HERE */}
+            <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={(e) => { e.stopPropagation(); setIsExpanded(true); }} 
+                className="text-muted-foreground px-1 py-1 min-h-0 h-8 w-8 hover:bg-transparent hover:text-foreground"
+            >
+                <ChevronDown className="h-4 w-4" />
+            </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ 2. EXPANDED STATE (Has Trash Icon to delete group)
   return (
     <Card className={cn('transition-all', !hasMaterial && 'border-l-2 border-l-destructive')}>
       {/* HEADER */}
-      <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
-        <div className="flex items-center gap-2 flex-1">
+      <CardHeader 
+        className="flex flex-row items-center justify-between p-4 pb-3 cursor-pointer"
+        onClick={(e) => {
+            if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'BUTTON' && (e.target as HTMLElement).tagName !== 'SVG' && (e.target as HTMLElement).tagName !== 'PATH') {
+                setIsExpanded(false);
+            }
+        }}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
             <Input
               value={title}
               onChange={(e) => onUpdateTitle(e.target.value)}
@@ -98,21 +122,34 @@ export function DynamicMaterialGroup({
             />
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onDeleteGroup}
-          className={cn('h-8 w-8 text-muted-foreground hover:text-destructive', ICON_BUTTON_NO_ORANGE)}
-          title="Verwijder groep"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}
+              className={cn('h-8 w-8 text-muted-foreground', ICON_BUTTON_NO_ORANGE)}
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+
+            {/* Trash icon is ONLY visible when expanded */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); onDeleteGroup(); }}
+              className={cn('h-8 w-8 text-muted-foreground hover:text-destructive', ICON_BUTTON_NO_ORANGE)}
+              title="Verwijder groep"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+        </div>
       </CardHeader>
 
+      {/* CONTENT */}
       <CardContent className="p-4 pt-0">
         <div className="border-t pt-4">
           {!hasMaterial ? (
-            /* EMPTY STATE: Show "Toevoegen" */
+            /* EMPTY STATE */
             <div className="flex items-center justify-between min-h-[40px]">
               <div>
                 <p className="text-sm text-destructive italic">Nog geen materiaal gekozen</p>
@@ -129,22 +166,34 @@ export function DynamicMaterialGroup({
               </div>
             </div>
           ) : (
-            /* FILLED STATE: Material Name + "Wijzigen" Button */
+            /* FILLED STATE */
             <div className="flex items-center justify-between min-h-[40px]">
               <span className={cn('text-sm font-medium truncate', SELECTED_MATERIAL_TEXT)}>
                 {getDisplayName(material)}
               </span>
               
-              <Button
-                 variant="ghost"
-                 onClick={onEditMaterial}
-                 className={cn(
-                   "text-foreground/80 hover:text-foreground whitespace-nowrap inline-flex items-center gap-1 hover:bg-transparent px-2 h-8",
-                   ICON_BUTTON_NO_ORANGE
-                 )}
-              >
-                 Wijzigen
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onRemoveMaterial(material.id)}
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-transparent"
+                  title="Verwijder materiaal"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  onClick={onEditMaterial}
+                  className={cn(
+                    "text-foreground/80 hover:text-foreground whitespace-nowrap inline-flex items-center gap-1 hover:bg-transparent px-2 h-8",
+                    ICON_BUTTON_NO_ORANGE
+                  )}
+                >
+                  Wijzigen
+                </Button>
+              </div>
             </div>
           )}
         </div>

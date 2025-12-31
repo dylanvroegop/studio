@@ -2633,7 +2633,11 @@ await updateDoc(ref, {
           };
 
           setCustomGroups((prev) =>
-            prev.map((g) => (g.id === activeGroupId ? { ...g, materials: [...g.materials, newMat] } : g))
+            prev.map((g) => 
+              g.id === activeGroupId 
+                ? { ...g, materials: [newMat] } // ✅ FIXED: Replaces the list with just [newMat]
+                : g
+            )
           );
           setIsExtraModalOpen(false);
           setActiveGroupId(null);

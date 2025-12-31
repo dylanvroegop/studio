@@ -81,6 +81,7 @@ function formatEuro(amount: number | null): string {
 const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
 const MAAT_UNITS: string[] = ['mm', 'cm', 'm'];
 
+// We keep this function definition just in case, but we won't use it for saving anymore.
 function stripMaatSuffix(naam: string): string {
   return naam.replace(/\s+\d[\d\s.,x×-]*?(mm|cm|m)\s*$/i, '').trim();
 }
@@ -105,27 +106,6 @@ function buildMaatString(opts: {
   if (!d) return '';
 
   return `${l} × ${b} × ${d}${u}`;
-}
-
-function buildMergedNaam(opts: {
-  baseNaam: string;
-  eenheid: string;
-  maatUnit: string;
-  lengte: string;
-  breedte: string;
-  derdeWaarde: string;
-}): string {
-  const base = stripMaatSuffix(opts.baseNaam.trim());
-  const maat = buildMaatString({
-    eenheid: opts.eenheid,
-    maatUnit: opts.maatUnit,
-    lengte: opts.lengte,
-    breedte: opts.breedte,
-    derdeWaarde: opts.derdeWaarde,
-  });
-
-  if (!maat) return base;
-  return `${base} ${maat}`;
 }
 
 function InputMetSuffix(props: {
@@ -283,22 +263,25 @@ export function MaterialSelectionModal({
     return basisCheck;
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk, isCalculatie]);
 
-  // ✅ FIX: PREVIEW NAAM
+  // ✅ PREVIEW: RAW NAME + RAW DIMENSIONS
+  // We no longer strip anything. If they type it twice, they see it twice.
   const previewNaam = useMemo(() => {
     const base = (customNaam || '').trim() || '...';
     
-    // IF NOT CALCULATIE (Los Artikel), DO NOT STRIP THE NAME
+    // If no dimensions required (Los Artikel), just show the name as is.
     if (!maatVereist) return base; 
 
-    const merged = buildMergedNaam({
-      baseNaam: base,
+    // Generate the dimension string (e.g., "2600 x 1200 x 12.5mm")
+    const maatString = buildMaatString({
       eenheid: customEenheid,
       maatUnit,
       lengte: maatLengte,
       breedte: maatBreedte,
       derdeWaarde: customEenheid === 'p/m3' ? maatHoogte : maatDikte,
     });
-    return merged || stripMaatSuffix(base);
+
+    // Simple concatenation: Name + Dimensions
+    return maatString ? `${base} ${maatString}` : base;
   }, [customNaam, maatVereist, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
 
   // --- SAVE ACTION ---
@@ -334,13 +317,9 @@ export function MaterialSelectionModal({
 
       setSavingCustom(true);
 
-      // ✅ FIX: DO NOT STRIP SUFFIX FOR 'LOS ARTIKEL'
-      // If it is 'Calculatie', we strip and rebuild. 
-      // If it is 'Los Artikel', we take the name exactly as is.
-      const finalName = isCalculatie ? stripMaatSuffix(formattedName) : formattedName;
-
+      // ✅ NO STRIPPING. Save exactly what the user typed.
       const payload: any = {
-        materiaalnaam: finalName, 
+        materiaalnaam: formattedName, 
         eenheid,
         prijs: prijsNumLocal,
         categorie: customSubsectie.trim() || 'Overig',
@@ -400,7 +379,7 @@ export function MaterialSelectionModal({
               <DialogTitle className="text-lg font-semibold">Kies materiaal</DialogTitle>
             </DialogHeader>
 
-            {/* ✅ SEPARATE SECTION: NEW MATERIAL (Distinct Style) */}
+            {/* Creation Buttons (Distinct Section) */}
             <div className="p-4 bg-muted/10 border-b space-y-3 shrink-0">
                 <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Of maak nieuw</span>
@@ -434,7 +413,7 @@ export function MaterialSelectionModal({
                 </div>
             </div>
 
-            {/* ✅ SEPARATE SECTION: SEARCH & FILTER */}
+            {/* Search & Filter */}
             <div className="p-4 border-b shrink-0 bg-background space-y-4">
                {/* Search Bar */}
                <div className="relative">
@@ -724,7 +703,7 @@ export function MaterialSelectionModal({
                 </div>
               </div>
 
-               {/* CHECK BAR */}
+               {/* CHECK BAR (RED) */}
                {isPrijsOk && (isCalculatie ? isMaatOk : true) && customEenheid && (
                   <div className="mx-0 mb-2 mt-4 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                     <div className="flex items-center gap-3">
