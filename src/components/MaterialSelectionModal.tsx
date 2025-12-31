@@ -283,9 +283,13 @@ export function MaterialSelectionModal({
     return basisCheck;
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk, isCalculatie]);
 
+  // ✅ FIX: PREVIEW NAAM
   const previewNaam = useMemo(() => {
     const base = (customNaam || '').trim() || '...';
-    if (!maatVereist) return stripMaatSuffix(base);
+    
+    // IF NOT CALCULATIE (Los Artikel), DO NOT STRIP THE NAME
+    if (!maatVereist) return base; 
+
     const merged = buildMergedNaam({
       baseNaam: base,
       eenheid: customEenheid,
@@ -329,8 +333,14 @@ export function MaterialSelectionModal({
       }
 
       setSavingCustom(true);
+
+      // ✅ FIX: DO NOT STRIP SUFFIX FOR 'LOS ARTIKEL'
+      // If it is 'Calculatie', we strip and rebuild. 
+      // If it is 'Los Artikel', we take the name exactly as is.
+      const finalName = isCalculatie ? stripMaatSuffix(formattedName) : formattedName;
+
       const payload: any = {
-        materiaalnaam: stripMaatSuffix(formattedName), 
+        materiaalnaam: finalName, 
         eenheid,
         prijs: prijsNumLocal,
         categorie: customSubsectie.trim() || 'Overig',

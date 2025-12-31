@@ -33,7 +33,7 @@ interface DynamicMaterialGroupProps {
   materials: GroupMaterial[];
   onUpdateTitle: (val: string) => void;
   onAddMaterial: () => void;
-  onEditMaterial?: () => void; // 👈 New Prop
+  onEditMaterial?: () => void;
   onRemoveMaterial: (id: string) => void;
   onDeleteGroup: () => void;
   onUpdateQuantity?: (id: string, qty: number) => void;
@@ -44,7 +44,7 @@ export function DynamicMaterialGroup({
   materials,
   onUpdateTitle,
   onAddMaterial,
-  onEditMaterial, // 👈 Destructure new prop
+  onEditMaterial,
   onDeleteGroup,
 }: DynamicMaterialGroupProps) {
   // STRICT RULE: Only 1 material per card.
@@ -54,10 +54,24 @@ export function DynamicMaterialGroup({
   // Helper to construct the full name including measurements
   const getDisplayName = (mat: GroupMaterial) => {
     const baseName = mat.materiaalnaam;
+    
+    // Check if we have dimensions (Length & Width are required)
     if (mat.lengte && mat.breedte) {
        const u = mat.unit || 'mm';
-       return `${baseName} ${mat.lengte}x${mat.breedte}${u}`;
+       
+       // Start with Length x Width
+       let dimensions = `${mat.lengte}×${mat.breedte}`;
+
+       // ✅ NEW: Check for Thickness (dikte) OR Height (hoogte) and append it
+       if (mat.dikte) {
+         dimensions += `×${mat.dikte}`;
+       } else if (mat.hoogte) {
+         dimensions += `×${mat.hoogte}`;
+       }
+
+       return `${baseName} ${dimensions}${u}`;
     }
+    
     return baseName;
   };
 
@@ -123,7 +137,7 @@ export function DynamicMaterialGroup({
               
               <Button
                  variant="ghost"
-                 onClick={onEditMaterial} // 👈 Calls the modal opener
+                 onClick={onEditMaterial}
                  className={cn(
                    "text-foreground/80 hover:text-foreground whitespace-nowrap inline-flex items-center gap-1 hover:bg-transparent px-2 h-8",
                    ICON_BUTTON_NO_ORANGE
