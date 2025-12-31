@@ -382,27 +382,50 @@ export function MaterialSelectionModal({
         )}
       >
         
-        {/* === STEP 1: SEARCH (Filter BELOW Search Bar) === */}
+        {/* === STEP 1: SEARCH === */}
         {step === 'search' && (
           <div className="flex flex-col h-full min-h-0">
-            {/* Header: CLEAN (No filter here) */}
+            {/* Header */}
             <DialogHeader className="px-4 py-4 border-b shrink-0 flex flex-row items-center justify-between">
               <DialogTitle className="text-lg font-semibold">Kies materiaal</DialogTitle>
             </DialogHeader>
 
-            <div className="p-4 border-b shrink-0 bg-background space-y-4">
-                {/* Creation Buttons */}
-                <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline" onClick={() => { setIsCalculatie(true); setStep('form'); }} className="h-auto py-4 flex flex-col gap-1 items-center border-dashed border-2 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-500/5 transition-all">
-                        <Calculator className="h-5 w-5" />
-                        <span className="text-xs font-semibold">Nieuw Calculatie Product</span>
-                    </Button>
-                    <Button variant="outline" onClick={() => { setIsCalculatie(false); setStep('form'); }} className="h-auto py-4 flex flex-col gap-1 items-center border-dashed border-2 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-500/5 transition-all">
-                        <Package className="h-5 w-5" />
-                        <span className="text-xs font-semibold">Nieuw Los Artikel</span>
-                    </Button>
+            {/* ✅ SEPARATE SECTION: NEW MATERIAL (Distinct Style) */}
+            <div className="p-4 bg-muted/10 border-b space-y-3 shrink-0">
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Of maak nieuw</span>
                 </div>
-               
+                <div className="grid grid-cols-2 gap-3">
+                    <button 
+                        onClick={() => { setIsCalculatie(true); setStep('form'); }} 
+                        className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:border-emerald-500 hover:bg-emerald-500/5 transition-all group text-left shadow-sm"
+                    >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted group-hover:bg-emerald-500/10 group-hover:text-emerald-500 transition-colors">
+                            <Calculator className="h-4 w-4" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-foreground group-hover:text-emerald-500">Calculatie</span>
+                            <span className="text-[10px] text-muted-foreground">Maten verplicht</span>
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => { setIsCalculatie(false); setStep('form'); }} 
+                        className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:border-emerald-500 hover:bg-emerald-500/5 transition-all group text-left shadow-sm"
+                    >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted group-hover:bg-emerald-500/10 group-hover:text-emerald-500 transition-colors">
+                            <Package className="h-4 w-4" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-foreground group-hover:text-emerald-500">Los Artikel</span>
+                            <span className="text-[10px] text-muted-foreground">Geen maten</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            {/* ✅ SEPARATE SECTION: SEARCH & FILTER */}
+            <div className="p-4 border-b shrink-0 bg-background space-y-4">
                {/* Search Bar */}
                <div className="relative">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -411,11 +434,11 @@ export function MaterialSelectionModal({
                    placeholder="Zoek op materiaalnaam..." 
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
-                   className="pl-9"
+                   className="pl-9 h-10"
                  />
                </div>
 
-               {/* ✅ FILTER: Full Width, Below Search */}
+               {/* Filter Bar */}
                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger className="w-full h-10 bg-muted/30 border-input hover:bg-muted/50 transition-all text-left font-normal text-sm">
                     <div className="flex items-center gap-2 text-muted-foreground w-full">
