@@ -92,6 +92,11 @@ const POSITIVE_BTN_SOFT =
   'hover:bg-emerald-500/25 hover:border-emerald-500/65 ' +
   'focus-visible:ring-emerald-500 focus-visible:ring-offset-0';
 
+  const DESTRUCTIVE_BTN_SOFT =
+  'border border-red-500/50 bg-red-500/15 text-red-100 ' +
+  'hover:bg-red-500/25 hover:border-red-500/65 ' +
+  'focus-visible:ring-red-500 focus-visible:ring-offset-0';
+
 const SELECT_ITEM_GREEN =
   'text-foreground ' +
   'focus:bg-emerald-600/15 focus:text-foreground ' +
@@ -366,25 +371,52 @@ function bouwCustomGroupsUitFirestore(custommateriaal: FirestoreCustomMateriaalM
     });
 }
 
-// ==================================
-// Modal Components
-// ==================================
 type SavePresetDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (presetName: string, isDefault: boolean) => void;
+  onSave: (presetName: string, isDefault: boolean, existingId?: string) => void;
   jobTitel: string;
+  presets: PresetType[];
+  defaultName?: string;
 };
 
-function SavePresetDialog({ open, onOpenChange, onSave, jobTitel }: SavePresetDialogProps) {
+function SavePresetDialog({ open, onOpenChange, onSave, jobTitel, presets, defaultName }: SavePresetDialogProps) {
   const [name, setName] = useState('');
   const [isDefault, setIsDefault] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Check if name matches an existing preset
+  const existingPreset = useMemo(() => {
+    if (!name.trim()) return null;
+    return presets.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+  }, [name, presets]);
+
+  // Pre-fill name AND checkbox state when opening or matching
+  useEffect(() => {
+    if (open) {
+      if (defaultName) {
+        setName(defaultName);
+        // If we opened with a default name, check if THAT preset is default
+        const p = presets.find(x => x.name === defaultName);
+        if (p) setIsDefault(p.isDefault);
+      } else {
+        setName('');
+        setIsDefault(false);
+      }
+    }
+  }, [open, defaultName, presets]);
+
+  // ✅ Auto-check the box if the user types a name that is ALREADY a default
+  useEffect(() => {
+    if (existingPreset) {
+      setIsDefault(existingPreset.isDefault);
+    }
+  }, [existingPreset]);
+
   const handleSave = async () => {
     if (!name) return;
     setIsSaving(true);
-    await onSave(name, isDefault);
+    await onSave(name, isDefault, existingPreset?.id);
     setIsSaving(false);
     onOpenChange(false);
     setTimeout(() => {
@@ -397,21 +429,39 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel }: SavePresetDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn('max-w-lg w-full', DIALOG_CLOSE_TAP)}>
         <DialogHeader>
-          <DialogTitle>Werkwijze opslaan</DialogTitle>
+          <DialogTitle>
+            {existingPreset ? 'Werkwijze bijwerken' : 'Werkwijze opslaan'}
+          </DialogTitle>
           <DialogDescription>
-            Sla de huidige materiaalconfiguratie op voor later gebruik bij {jobTitel}.
+            {existingPreset
+              ? `U staat op het punt om "${existingPreset.name}" te overschrijven.`
+              : `Sla de huidige materiaalconfiguratie op voor later gebruik bij ${jobTitel}.`
+            }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="preset-name">Naam werkwijze *</Label>
-            <Input
-              id="preset-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={`bv. Standaard ${jobTitel}`}
-            />
+            <div className="relative">
+              <Input
+                id="preset-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={`bv. Standaard ${jobTitel}`}
+                className={cn(existingPreset && "border-red-500/50 focus-visible:ring-red-500")}
+              />
+            </div>
+
+            {/* ✅ Subtler Warning using Red colors */}
+            {existingPreset && (
+              <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 p-2 rounded-md border border-red-500/20 animate-in fade-in slide-in-from-top-1">
+                <Settings className="h-4 w-4 shrink-0" />
+                <span>
+                  Let op: deze naam bestaat al. Opslaan zal overschrijven.
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -429,20 +479,25 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel }: SavePresetDi
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuleren
           </Button>
+          
+          {/* ✅ Button now uses the 'Soft Red' style when overwriting */}
           <Button
             onClick={handleSave}
             disabled={!name || isSaving}
             variant="outline"
-            className={cn(POSITIVE_BTN_SOFT)}
+            className={cn(
+              existingPreset ? DESTRUCTIVE_BTN_SOFT : POSITIVE_BTN_SOFT
+            )}
           >
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isSaving ? 'Opslaan...' : 'Opslaan'}
+            {isSaving ? 'Bezig...' : existingPreset ? 'Overschrijven' : 'Opslaan'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
 
 type ManagePresetsDialogProps = {
   open: boolean;
@@ -876,71 +931,79 @@ export default function HsbWandMaterialenPage() {
     setGekozenPresetId(defaultPreset.id);
   }, [isPresetsLaden, presets, gekozenPresetId]);
 
-  // ✅ Preset toepassen
-  useEffect(() => {
-    if (gekozenPresetId === 'default') {
-      if (userHeeftPresetGewijzigdRef.current) {
-        setGekozenMaterialen({});
-        setCollapsedSections({});
-        setExtraMaterials([]);
-        setCustomGroups([]);
-        setFirestoreCustommateriaal(null);
-        setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
-      }
-      return;
-    }
-
-    if (!alleMaterialen || alleMaterialen.length === 0) return;
-
-    const preset = presets.find((p) => p.id === gekozenPresetId);
-    if (!preset) return;
-
-    if (
-      !userHeeftPresetGewijzigdRef.current &&
-      isHydratingRef.current === false &&
-      !autoApplyDefaultPresetRef.current
-    ) {
-      return;
-    }
-
-    const nieuweGekozen: Record<string, MateriaalKeuze | undefined> = {};
-
-    for (const key of sectieSleutels) {
-      if (key === 'extra' || key === 'klein_materiaal') continue;
-      const materiaalId = (preset as any).slots?.[key];
-      if (!materiaalId) continue;
-
-      const materiaal = alleMaterialen.find((m) => m.id === materiaalId);
-      if (materiaal) nieuweGekozen[key] = materiaal;
-    }
-
-    setGekozenMaterialen(nieuweGekozen);
-    setCollapsedSections((preset as any).collapsedSections || {});
-
-    const kmPreset: any = (preset as any).kleinMateriaalConfig;
-    if (kmPreset && typeof kmPreset === 'object') {
-      const mode: KleinMateriaalMode =
-        kmPreset.mode === 'none'
-          ? 'none'
-          : kmPreset.mode === 'fixed'
-            ? 'fixed'
-            : kmPreset.mode === 'inschatting'
-              ? 'inschatting'
-              : 'percentage';
-
-      setKleinMateriaalConfig({
-        mode,
-        percentage: typeof kmPreset.percentage === 'number' ? kmPreset.percentage : null,
-        fixedAmount:
-          typeof kmPreset.fixedAmount === 'number' && kmPreset.fixedAmount > 0 ? kmPreset.fixedAmount : null,
-      });
-    } else {
+ // ✅ Preset toepassen
+ useEffect(() => {
+  if (gekozenPresetId === 'default') {
+    if (userHeeftPresetGewijzigdRef.current) {
+      setGekozenMaterialen({});
+      setCollapsedSections({});
+      setExtraMaterials([]);
+      setCustomGroups([]); // Clears custom groups on "New"
+      setFirestoreCustommateriaal(null);
       setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
     }
+    return;
+  }
 
-    // preset verandert niks aan custommateriaal; user kiest dat zelf
-    if (autoApplyDefaultPresetRef.current) autoApplyDefaultPresetRef.current = false;
-  }, [gekozenPresetId, presets, alleMaterialen]);
+  if (!alleMaterialen || alleMaterialen.length === 0) return;
+
+  const preset = presets.find((p) => p.id === gekozenPresetId);
+  if (!preset) return;
+
+  if (
+    !userHeeftPresetGewijzigdRef.current &&
+    isHydratingRef.current === false &&
+    !autoApplyDefaultPresetRef.current
+  ) {
+    return;
+  }
+
+  // 1. Restore standard slots
+  const nieuweGekozen: Record<string, MateriaalKeuze | undefined> = {};
+  for (const key of sectieSleutels) {
+    if (key === 'extra' || key === 'klein_materiaal') continue;
+    const materiaalId = (preset as any).slots?.[key];
+    if (!materiaalId) continue;
+
+    const materiaal = alleMaterialen.find((m) => m.id === materiaalId);
+    if (materiaal) nieuweGekozen[key] = materiaal;
+  }
+  setGekozenMaterialen(nieuweGekozen);
+  setCollapsedSections((preset as any).collapsedSections || {});
+
+  // ✅ NEW: Restore Custom Groups from Preset
+  const savedCustom = (preset as any).custommateriaal;
+  if (savedCustom) {
+    const rebuiltGroups = bouwCustomGroupsUitFirestore(savedCustom, alleMaterialen);
+    setCustomGroups(rebuiltGroups);
+  } else {
+    setCustomGroups([]);
+  }
+
+  // Restore Klein Materiaal
+  const kmPreset: any = (preset as any).kleinMateriaalConfig;
+  if (kmPreset && typeof kmPreset === 'object') {
+    const mode: KleinMateriaalMode =
+      kmPreset.mode === 'none'
+        ? 'none'
+        : kmPreset.mode === 'fixed'
+          ? 'fixed'
+          : kmPreset.mode === 'inschatting'
+            ? 'inschatting'
+            : 'percentage';
+
+    setKleinMateriaalConfig({
+      mode,
+      percentage: typeof kmPreset.percentage === 'number' ? kmPreset.percentage : null,
+      fixedAmount:
+        typeof kmPreset.fixedAmount === 'number' && kmPreset.fixedAmount > 0 ? kmPreset.fixedAmount : null,
+    });
+  } else {
+    setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
+  }
+
+  if (autoApplyDefaultPresetRef.current) autoApplyDefaultPresetRef.current = false;
+}, [gekozenPresetId, presets, alleMaterialen]);
 
   const onPresetChange = (value: string) => {
     userHeeftPresetGewijzigdRef.current = true;
@@ -1038,7 +1101,10 @@ export default function HsbWandMaterialenPage() {
   };
 
   // --- SAVE PRESET ---
-  const handleSavePreset = async (presetName: string, isDefault: boolean) => {
+  // --- SAVE PRESET ---
+  // --- SAVE PRESET ---
+  // ✅ Update signature to accept existingId
+  const handleSavePreset = async (presetName: string, isDefault: boolean, existingId?: string) => {
     if (!user || !firestore) return;
 
     const slots: Record<string, string> = {};
@@ -1047,19 +1113,29 @@ export default function HsbWandMaterialenPage() {
       if (materiaal?.id) slots[key] = materiaal.id;
     }
 
-    const newPresetData: Omit<PresetType, 'id'> = {
+    const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
+
+    // Prepare data
+    const newPresetData: any = {
       userId: user.uid,
       jobType: JOB_KEY,
       name: presetName,
       isDefault,
-      slots: slots as any,
+      slots: slots,
       collapsedSections,
-      kleinMateriaalConfig: kleinMateriaalConfig as any,
-      createdAt: serverTimestamp() as any,
-    } as any;
+      kleinMateriaalConfig,
+      custommateriaal: customMap,
+      updatedAt: serverTimestamp(), // Track updates
+    };
+
+    // Only add createdAt if it's new
+    if (!existingId) {
+      newPresetData.createdAt = serverTimestamp();
+    }
 
     const batch = writeBatch(firestore);
 
+    // Handle "Default" logic (unset others if this one is default)
     if (isDefault) {
       const q = query(
         collection(firestore, 'presets'),
@@ -1070,37 +1146,54 @@ export default function HsbWandMaterialenPage() {
 
       try {
         const qs = await getDocs(q);
-        qs.forEach((d) => batch.update(d.ref, { isDefault: false }));
-      } catch (_serverError) {
-        const permissionError = new FirestorePermissionError({
-          path: `presets`,
-          operation: 'list',
+        qs.forEach((d) => {
+          // If we are updating an existing doc, don't unset "itself" (redundant but safe)
+          if (d.id !== existingId) {
+            batch.update(d.ref, { isDefault: false });
+          }
         });
-        errorEmitter.emit('permission-error', permissionError);
+      } catch (_serverError) {
+        // Handle error silently or log
       }
     }
 
-    const newDocRef = doc(collection(firestore, 'presets'));
-    batch.set(newDocRef, newPresetData as any);
+    // ✅ Determine Reference: New Doc OR Existing Doc
+    const docRef = existingId 
+      ? doc(firestore, 'presets', existingId) 
+      : doc(collection(firestore, 'presets'));
+
+    // Use .set with { merge: true } or just overwrite. Overwrite is usually safer for "Save As" behavior.
+    batch.set(docRef, newPresetData, { merge: true });
 
     try {
       await batch.commit();
+      
+      const action = existingId ? 'bijgewerkt' : 'opgeslagen';
       toast({
-        title: 'Werkwijze opgeslagen',
-        description: `Werkwijze "${presetName}" is succesvol opgeslagen.`,
+        title: `Werkwijze ${action}`,
+        description: `Werkwijze "${presetName}" is succesvol ${action}.`,
       });
 
-      const newPreset = { id: newDocRef.id, ...(newPresetData as any) } as PresetType;
+      // Update Local State
+      const newPreset = { id: docRef.id, ...newPresetData } as PresetType;
 
-      setPresets((prev) =>
-        prev.map((p) => ({ ...p, isDefault: isDefault ? false : p.isDefault })).concat(newPreset)
-      );
-      setGekozenPresetId(newDocRef.id);
+      setPresets((prev) => {
+        // Remove old version if updating, then add new version
+        const filtered = prev.filter((p) => p.id !== docRef.id);
+        // Handle isDefault logic locally
+        const updatedList = filtered.map((p) => ({
+          ...p,
+          isDefault: isDefault ? false : p.isDefault
+        }));
+        return [...updatedList, newPreset];
+      });
+      
+      setGekozenPresetId(docRef.id);
     } catch (_serverError) {
       const permissionError = new FirestorePermissionError({
-        path: newDocRef.path,
-        operation: 'create',
-        requestResourceData: newPresetData as any,
+        path: docRef.path,
+        operation: existingId ? 'update' : 'create',
+        requestResourceData: newPresetData,
       });
       errorEmitter.emit('permission-error', permissionError);
     }
@@ -1866,21 +1959,34 @@ export default function HsbWandMaterialenPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <SavePresetDialog open={savePresetModalOpen} onOpenChange={setSavePresetModalOpen} onSave={handleSavePreset} jobTitel={JOB_TITEL} />
+      <SavePresetDialog 
+        open={savePresetModalOpen} 
+        onOpenChange={setSavePresetModalOpen} 
+        onSave={handleSavePreset} 
+        jobTitel={JOB_TITEL} 
+        presets={presets}
+        // ✅ ADD THIS LINE:
+        defaultName={gekozenPresetId !== 'default' ? presets.find(p => p.id === gekozenPresetId)?.name : ''}
+      />
 
       {/* --- MODAL --- */}
       <MaterialSelectionModal
         open={isExtraModalOpen}
         onOpenChange={setIsExtraModalOpen}
+        
+        // This hides the star icon (UI)
         showFavorites={actieveSectie !== 'extra' && !activeGroupId}
+        
         defaultCategory={
           actieveSectie && actieveSectie !== 'extra' && !activeGroupId ? subsectieMapping[actieveSectie] : undefined
         }
+        
         existingMaterials={alleMaterialen.map((m) => ({
           ...m,
           row_id: m.id,
-          isFavorite: favorieten.includes(m.id),
+          isFavorite: (actieveSectie !== 'extra' && !activeGroupId) && favorieten.includes(m.id),
         }))}
+        
         onToggleFavorite={toggleFavoriet}
         onSelectExisting={(result) => {
           const item = (result as any).data || result;

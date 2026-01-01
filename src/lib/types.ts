@@ -130,6 +130,7 @@ export type MateriaalKeuze = Omit<Material, 'prijs'> & {
     prijs: number;
 };
 
+
 export type ExtraMaterial = {
   id: string;
   naam: string;
@@ -145,6 +146,8 @@ export type KleinMateriaalConfig = {
   fixedAmount: number | null;
 };
 
+// @/lib/types.ts
+
 export type Preset = {
   id: string;
   userId: string;
@@ -152,8 +155,9 @@ export type Preset = {
   name: string;
   isDefault: boolean;
   slots: Record<string, string>;
-  collapsedSections: Record<string, boolean>;
-  gipsLagen?: number;
+  collapsedSections?: Record<string, boolean>;
   kleinMateriaalConfig?: KleinMateriaalConfig;
-  createdAt: Timestamp;
+  // ✅ ADD THIS LINE:
+  custommateriaal?: Record<string, { id: string; title: string; order?: number }>;
+  createdAt: any;
 };
