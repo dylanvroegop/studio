@@ -1664,13 +1664,38 @@ export default function HsbWandMaterialenPage() {
       );
     }
 
+    // Helper for compact selection tiles
+    const SelectionTile = ({ 
+      active, 
+      error, 
+      title, 
+      subtitle, 
+      onClick 
+    }: { 
+      active: boolean; 
+      error?: boolean; 
+      title: string; 
+      subtitle?: string; 
+      onClick: () => void 
+    }) => (
+      <div
+        onClick={onClick}
+        className={cn(
+          'flex flex-col items-center justify-center p-3 rounded-md border cursor-pointer transition-all text-center h-full',
+          active && !error && 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100',
+          active && error && 'border-red-500/50 bg-red-500/10 text-red-100',
+          !active && 'hover:bg-muted/20 hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground'
+        )}
+      >
+        <span className="font-semibold text-sm">{title}</span>
+        {subtitle && <span className="text-[10px] opacity-70 mt-0.5">{subtitle}</span>}
+      </div>
+    );
+
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
-          <div className="space-y-1.5">
-            <CardTitle className="text-lg">Klein materiaal</CardTitle>
-          </div>
-
+          <CardTitle className="text-lg">Klein materiaal</CardTitle>
           <button type="button" onClick={() => toggleSection(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground')}>
             <ChevronUp className="h-5 w-5" />
           </button>
@@ -1678,134 +1703,89 @@ export default function HsbWandMaterialenPage() {
 
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
-                  isInschatting ? 'border-emerald-500/40 bg-emerald-500/10' : 'hover:border-muted-foreground/30 hover:bg-muted/20'
-                )}
+            
+            {/* COMPACT GRID */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <SelectionTile
+                active={isInschatting}
+                title="Inschatting"
+                subtitle="Door ons berekend"
                 onClick={() => {
-                  setKleinMateriaalConfig({
-                    mode: 'inschatting',
-                    percentage: null as any,
-                    fixedAmount: null,
-                  } as any);
+                  setKleinMateriaalConfig({ mode: 'inschatting', percentage: null as any, fixedAmount: null } as any);
                   setKleinVastBedragStr('');
                 }}
-              >
-                <h4 className="font-semibold">Laat door ons inschatten</h4>
-                <p className="text-sm text-muted-foreground">
-                  We schatten alleen de kosten voor klein materiaal. Hoofdmaterialen worden exact berekend.
-                </p>
-              </div>
+              />
+              
+              <SelectionTile
+                active={isPercentage}
+                error={showPercentageError}
+                title="Percentage"
+                subtitle="% van materiaalkosten"
+                onClick={() => setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'percentage', percentage: typeof prev.percentage === 'number' ? prev.percentage : null }))}
+              />
 
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
-                  isPercentage && percentageIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  isPercentage && !percentageIsValid && 'border-red-500/40 bg-red-500/10',
-                  !isPercentage && 'hover:border-muted-foreground/30 hover:bg-muted/20'
-                )}
-                onClick={() =>
-                  setKleinMateriaalConfig((prev) => ({
-                    ...prev,
-                    mode: 'percentage',
-                    percentage: typeof prev.percentage === 'number' ? prev.percentage : null,
-                  }))
-                }
-              >
-                <h4 className="font-semibold">Percentage (%)</h4>
-                <p className="text-sm text-muted-foreground">Reken een percentage van de totale materiaalkosten.</p>
+              <SelectionTile
+                active={isFixed}
+                error={showFixedError}
+                title="Vast bedrag"
+                subtitle="Vaste toeslag"
+                onClick={() => setKleinMateriaalConfig((prev) => ({ ...prev, mode: 'fixed', fixedAmount: prev.fixedAmount ?? null }))}
+              />
 
-                {isPercentage && (
-                  <div className="pt-2 space-y-2">
-                    <Label htmlFor="kleinMateriaalPercentage">Percentage</Label>
-                    <div className="relative">
-                      <Input
-                        id="kleinMateriaalPercentage"
-                        type="number"
-                        step="0.1"
-                        placeholder="0"
-                        className="w-full pr-10"
-                        value={(kleinMateriaalConfig as any).percentage ?? ''}
-                        onChange={(e) =>
-                          setKleinMateriaalConfig({
-                            ...kleinMateriaalConfig,
-                            mode: 'percentage',
-                            percentage: e.target.value === '' ? null : Number(e.target.value),
-                          } as any)
-                        }
-                      />
-                      <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground pointer-events-none">
-                        %
-                      </span>
-                    </div>
-
-                    {showPercentageError && (
-                      <p className="text-xs text-red-300">Vul een percentage groter dan 0 in of kies “Geen”.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
-                  isFixed && fixedIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  isFixed && !fixedIsValid && 'border-red-500/40 bg-red-500/10',
-                  !isFixed && 'hover:border-muted-foreground/30 hover:bg-muted/20'
-                )}
-                onClick={() =>
-                  setKleinMateriaalConfig((prev) => ({
-                    ...prev,
-                    mode: 'fixed',
-                    fixedAmount: prev.fixedAmount ?? null,
-                  }))
-                }
-              >
-                <h4 className="font-semibold">Vast bedrag (€)</h4>
-                <p className="text-sm text-muted-foreground">Voeg een vast bedrag toe voor kleine materialen.</p>
-
-                {isFixed && (
-                  <div className="pt-2 space-y-2">
-                    <Label htmlFor="kleinMateriaalFixedAmount">Bedrag</Label>
-                    <EuroInput
-                      id="kleinMateriaalFixedAmount"
-                      value={kleinVastBedragStr}
-                      onChange={(v) => {
-                        setKleinVastBedragStr(v);
-                        const n = parseNLMoneyToNumber(v);
-                        setKleinMateriaalConfig({
-                          ...kleinMateriaalConfig,
-                          mode: 'fixed',
-                          fixedAmount: n === null ? null : n,
-                        });
-                      }}
-                      placeholder="0,00"
-                      disabled={isNone}
-                    />
-
-                    {showFixedError && (
-                      <p className="text-xs text-red-300">Vul een bedrag groter dan 0 in of kies “Geen”.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
-                  isNone ? 'border-emerald-500/40 bg-emerald-500/10' : 'hover:border-muted-foreground/30 hover:bg-muted/20'
-                )}
+              <SelectionTile
+                active={isNone}
+                title="Geen"
                 onClick={() => {
                   setKleinMateriaalConfig({ mode: 'none', percentage: null as any, fixedAmount: null } as any);
                   setKleinVastBedragStr('');
                 }}
-              >
-                <h4 className="font-semibold">Geen</h4>
-                <p className="text-sm text-muted-foreground">Geen klein materiaal kosten rekenen.</p>
-              </div>
+              />
             </div>
+
+            {/* DYNAMIC INPUTS ROW (Shows only when needed) */}
+            {isPercentage && (
+              <div className="animate-in fade-in slide-in-from-top-1 pt-2">
+                <div className="flex items-center gap-3 max-w-xs">
+                  <div className="relative w-full">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      placeholder="0"
+                      className={cn("pr-8", showPercentageError && "border-red-500 focus-visible:ring-red-500")}
+                      value={(kleinMateriaalConfig as any).percentage ?? ''}
+                      onChange={(e) =>
+                        setKleinMateriaalConfig({
+                          ...kleinMateriaalConfig,
+                          mode: 'percentage',
+                          percentage: e.target.value === '' ? null : Number(e.target.value),
+                        } as any)
+                      }
+                    />
+                    <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground pointer-events-none">%</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">op totale materialen</span>
+                </div>
+              </div>
+            )}
+
+            {isFixed && (
+              <div className="animate-in fade-in slide-in-from-top-1 pt-2">
+                <div className="flex items-center gap-3 max-w-xs">
+                  <EuroInput
+                    id="kleinMateriaalFixedAmount"
+                    value={kleinVastBedragStr}
+                    placeholder="0,00"
+                    onChange={(v) => {
+                      setKleinVastBedragStr(v);
+                      const n = parseNLMoneyToNumber(v);
+                      setKleinMateriaalConfig({ ...kleinMateriaalConfig, mode: 'fixed', fixedAmount: n === null ? null : n });
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">vaste toeslag</span>
+                </div>
+              </div>
+            )}
+
           </div>
         </CardContent>
       </Card>
