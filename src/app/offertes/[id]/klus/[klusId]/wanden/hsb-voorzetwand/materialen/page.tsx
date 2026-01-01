@@ -1,17 +1,12 @@
 'use client';
 
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,
-} from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-// ✅ IMPORT THE NEW MODAL
-import { MaterialSelectionModal, ExistingMaterial } from '@/components/MaterialSelectionModal';
-import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 import Link from 'next/link';
+
+import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
+import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
+
 import {
   ArrowLeft,
   Trash2,
@@ -21,27 +16,18 @@ import {
   ChevronUp,
   Star,
   Loader2,
-  Check,
   Plus,
-  MoreHorizontal, // ✅ Added for the menu
+  MoreHorizontal,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-import type {
-  Quote,
-  Preset as PresetType,
-  KleinMateriaalConfig,
-  ExtraMaterial,
-} from '@/lib/types';
+import type { Quote, Preset as PresetType, KleinMateriaalConfig, ExtraMaterial } from '@/lib/types';
 import { getQuoteById } from '@/lib/data';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
 import {
   Dialog,
   DialogContent,
@@ -60,6 +47,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+
 import {
   Select,
   SelectContent,
@@ -67,16 +55,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-// ✅ IMPORT DROPDOWN MENU
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
+
 import {
   collection,
   query,
@@ -90,6 +79,7 @@ import {
   getDoc,
   deleteField,
 } from 'firebase/firestore';
+
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
@@ -127,11 +117,12 @@ const DIALOG_CLOSE_TAP =
   '[&_button[aria-label="Sluiten"]]:focus-visible:ring-0 ' +
   '[&_button[aria-label="Sluiten"]_svg]:h-6 [&_button[aria-label="Sluiten"]_svg]:w-6';
 
-// ✅ Consistent Button Styling matching DynamicMaterialGroup
-const TEKST_ACTIE_CLASSES = "inline-flex items-center gap-1 rounded-md px-2 py-2 min-h-[44px] bg-transparent hover:bg-transparent hover:text-inherit hover:opacity-90 active:opacity-80 disabled:opacity-40 disabled:pointer-events-none";
+// ✅ Consistent Button Styling
+const TEKST_ACTIE_CLASSES =
+  'inline-flex items-center gap-1 rounded-md px-2 py-2 min-h-[44px] bg-transparent hover:bg-transparent hover:text-inherit hover:opacity-90 active:opacity-80 disabled:opacity-40 disabled:pointer-events-none';
 
 // ==================================
-// ID helper (veilig)
+// ID helper
 // ==================================
 const maakId = () =>
   typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function'
@@ -274,9 +265,9 @@ type MateriaalKeuze = Omit<Material, 'row_id' | 'user_id' | 'prijs'> & {
 };
 
 type CustomGroup = {
-    id: string;
-    title: string;
-    materials: MateriaalKeuze[];
+  id: string; // groupId
+  title: string; // bv. "Versteviging"
+  materials: MateriaalKeuze[]; // UI; maar wij slaan Firestore 1 materiaal per group op
 };
 
 const sectieSleutels = [
@@ -293,13 +284,17 @@ const sectieSleutels = [
 
 type SectieKey = (typeof sectieSleutels)[number];
 
+// ✅ Firestore plan: custommateriaal map met groupId -> { id: row_id, title }
+type FirestoreCustomMateriaalItem = { id: string; title: string; order?: number };
+type FirestoreCustomMateriaalMap = Record<string, FirestoreCustomMateriaalItem>;
+
 type FirestoreMaterialenPayload = {
   jobKey?: string | null;
   jobType?: string | null;
   jobSlug?: string | null;
   selections?: Record<string, any>;
   extraMaterials?: any[];
-  customGroups?: any[];
+  custommateriaal?: FirestoreCustomMateriaalMap; // ✅ NIEUW: dit is het enige dat we nodig hebben
   savedByUid?: string | null;
   collapsedSections?: Record<string, boolean>;
 };
@@ -311,8 +306,65 @@ type FirestoreWerkwijzePayload = {
 };
 
 // Klein materiaal met "Geen"
-type KleinMateriaalMode = 'percentage' | 'fixed' | 'none'| 'inschatting';
+type KleinMateriaalMode = 'percentage' | 'fixed' | 'none' | 'inschatting';
 type KleinMateriaalConfigLocal = Omit<KleinMateriaalConfig, 'mode'> & { mode: KleinMateriaalMode };
+
+// ==================================
+// Helpers voor custommateriaal <-> UI customGroups
+// ==================================
+function maakPlaceholderMateriaal(rowId: string): MateriaalKeuze {
+  return {
+    id: rowId,
+    materiaalnaam: '(onbekend materiaal)',
+    eenheid: 'stuk',
+    prijs: 0,
+    categorie: null,
+    sort_order: null,
+    quantity: 1,
+  } as any;
+}
+
+function bouwCustommateriaalMapUitCustomGroups(customGroups: CustomGroup[]): FirestoreCustomMateriaalMap {
+  const out: FirestoreCustomMateriaalMap = {};
+
+  // ✅ Change to forEach with index
+  customGroups.forEach((group, index) => {
+    const groupId = group?.id;
+    const title = (group?.title || '').trim();
+    // 1 groep = 1 gekozen materiaal (eerste item)
+    const rowId = (group?.materials?.[0] as any)?.id || (group?.materials?.[0] as any)?.row_id || null;
+
+    if (!groupId) return;
+    if (!title) return;
+    if (!rowId) return;
+
+    // ✅ Save the order!
+    out[groupId] = { id: String(rowId), title, order: index };
+  });
+
+  return out;
+}
+
+function bouwCustomGroupsUitFirestore(custommateriaal: FirestoreCustomMateriaalMap | undefined, alleMaterialen: MateriaalKeuze[]): CustomGroup[] {
+  if (!custommateriaal || typeof custommateriaal !== 'object') return [];
+
+  const index = new Map<string, MateriaalKeuze>();
+  for (const m of alleMaterialen || []) index.set(String(m.id), m);
+
+  return Object.entries(custommateriaal)
+    // ✅ SORT HERE based on the saved 'order' property (default to 9999 if missing)
+    .sort(([, itemA], [, itemB]) => (itemA.order ?? 9999) - (itemB.order ?? 9999))
+    .map(([groupId, item]) => {
+      const rowId = String(item?.id || '');
+      const gevonden = index.get(rowId);
+
+      return {
+        id: groupId,
+        title: item?.title || '',
+        materials: [gevonden ?? maakPlaceholderMateriaal(rowId)].filter(Boolean) as any,
+      };
+    });
+}
 
 // ==================================
 // Modal Components
@@ -346,7 +398,9 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel }: SavePresetDi
       <DialogContent className={cn('max-w-lg w-full', DIALOG_CLOSE_TAP)}>
         <DialogHeader>
           <DialogTitle>Werkwijze opslaan</DialogTitle>
-          <DialogDescription>Sla de huidige materiaalconfiguratie op voor later gebruik bij {jobTitel}.</DialogDescription>
+          <DialogDescription>
+            Sla de huidige materiaalconfiguratie op voor later gebruik bij {jobTitel}.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -374,7 +428,6 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel }: SavePresetDi
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuleren
-
           </Button>
           <Button
             onClick={handleSave}
@@ -461,14 +514,10 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
         </div>
 
         <DialogFooter>
-          <Button
-            variant="secondary"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Sluiten
           </Button>
         </DialogFooter>
-
       </DialogContent>
     </Dialog>
   );
@@ -509,6 +558,8 @@ export default function HsbWandMaterialenPage() {
   const [extraMaterials, setExtraMaterials] = useState<ExtraMaterial[]>([]);
   const [customGroups, setCustomGroups] = useState<CustomGroup[]>([]);
 
+  // ✅ we bewaren de Firestore map zodat we na Supabase-load correct kunnen hydraten
+  const [firestoreCustommateriaal, setFirestoreCustommateriaal] = useState<FirestoreCustomMateriaalMap | null>(null);
 
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<KleinMateriaalConfigLocal>({
     mode: 'percentage',
@@ -525,9 +576,7 @@ export default function HsbWandMaterialenPage() {
   const [presetToDelete, setPresetToDelete] = useState<PresetType | null>(null);
   const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
 
-  const [editExtra, setEditExtra] = useState<ExtraMaterial | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-
 
   const userHeeftPresetGewijzigdRef = useRef(false);
   const isHydratingRef = useRef(true);
@@ -551,14 +600,18 @@ export default function HsbWandMaterialenPage() {
 
   const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
 
-  // ✅ REFACTORED: Fetch logic extracted to useCallback so we can reload it later
+  // ✅ Fetch materialen uit Supabase (max 5000)
   const fetchMaterials = useCallback(async () => {
     if (!user?.uid) return;
 
     setMaterialenLaden(true);
     setFoutMaterialen(null);
 
-    const { data, error } = await supabase.from('materialen').select('*').eq('gebruikerid', user.uid);
+    const { data, error } = await supabase
+      .from('materialen')
+      .select('*')
+      .eq('gebruikerid', user.uid)
+      .range(0, 4999);
 
     if (error) {
       console.error('Fout bij ophalen Supabase materialen:', error);
@@ -589,11 +642,11 @@ export default function HsbWandMaterialenPage() {
     setMaterialenLaden(false);
   }, [user?.uid]);
 
-  // ✅ USE EFFECT: Calls the function above on mount
   useEffect(() => {
     fetchMaterials();
   }, [fetchMaterials]);
 
+  // ✅ Presets ophalen
   useEffect(() => {
     if (!user || !firestore) return;
 
@@ -624,6 +677,7 @@ export default function HsbWandMaterialenPage() {
     fetchPresets();
   }, [user, firestore]);
 
+  // ✅ Hydrate basisconfig uit Firestore (inclusief custommateriaal map)
   useEffect(() => {
     if (!firestore || !quoteId || !klusId) return;
 
@@ -642,41 +696,45 @@ export default function HsbWandMaterialenPage() {
 
         const rawSelections = mat?.selections && typeof mat.selections === 'object' ? mat.selections : {};
         const rawExtra = Array.isArray(mat?.extraMaterials) ? mat!.extraMaterials : [];
-        const rawCustomGroups = Array.isArray(mat?.customGroups) ? mat!.customGroups : [];
 
-        setCustomGroups(rawCustomGroups);
+        // ✅ NIEUW: custommateriaal map in state zetten (UI customGroups bouwen we later zodra Supabase list er is)
+        const rawCustommateriaal =
+          mat?.custommateriaal && typeof mat.custommateriaal === 'object'
+            ? (mat.custommateriaal as FirestoreCustomMateriaalMap)
+            : null;
 
+        setFirestoreCustommateriaal(rawCustommateriaal);
 
         const hasSelections = Object.keys(rawSelections || {}).length > 0;
         const hasExtra = Array.isArray(rawExtra) && rawExtra.length > 0;
         const hasKleinMateriaal = !!kmAny;
         const hasWerkwijze = !!werkw?.workMethodId;
-        hasSavedConfigRef.current = hasSelections || hasExtra || hasKleinMateriaal || hasWerkwijze;
+        hasSavedConfigRef.current = hasSelections || hasExtra || hasKleinMateriaal || hasWerkwijze || !!rawCustommateriaal;
 
         const workMethodId = werkw?.workMethodId ?? null;
         setGekozenPresetId(workMethodId ? workMethodId : 'default');
 
         if (kmAny && typeof kmAny === 'object') {
           const mode: KleinMateriaalMode =
-          kmAny.mode === 'none'
-            ? 'none'
-            : kmAny.mode === 'fixed'
-              ? 'fixed'
-              : kmAny.mode === 'inschatting'
-                ? 'inschatting'
-                : 'percentage';
-        
+            kmAny.mode === 'none'
+              ? 'none'
+              : kmAny.mode === 'fixed'
+                ? 'fixed'
+                : kmAny.mode === 'inschatting'
+                  ? 'inschatting'
+                  : 'percentage';
 
           setKleinMateriaalConfig({
             mode,
             percentage: typeof kmAny.percentage === 'number' ? kmAny.percentage : null,
-            fixedAmount: typeof kmAny.fixedAmount === 'number' && kmAny.fixedAmount > 0 ? kmAny.fixedAmount : null,
+            fixedAmount:
+              typeof kmAny.fixedAmount === 'number' && kmAny.fixedAmount > 0 ? kmAny.fixedAmount : null,
           });
         } else {
           setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
         }
 
-        const rawCollapsed = (klusNode?.materialen?.collapsedSections || klusNode?.collapsedSections) ?? null;
+        const rawCollapsed = mat?.collapsedSections ?? (klusNode?.collapsedSections ?? null);
         if (rawCollapsed && typeof rawCollapsed === 'object') {
           setCollapsedSections(rawCollapsed);
         }
@@ -691,12 +749,39 @@ export default function HsbWandMaterialenPage() {
     hydrateFromDb();
   }, [firestore, quoteId, klusId]);
 
+  // ✅ Bouw UI customGroups zodra we zowel Firestore custommateriaal als Supabase materialen hebben
+  // ✅ Bouw UI customGroups zodra we zowel Firestore custommateriaal als Supabase materialen hebben
+  useEffect(() => {
+    // Alleen tijdens init/hydrate opnieuw zetten.
+    if (isHydratingRef.current) return;
+    
+    if (!firestoreCustommateriaal) {
+      // Geen custommateriaal in Firestore: laat user state intact als die al bestaat
+      return;
+    }
+
+    // 🔍 FIX: Check if we currently have "broken" placeholder materials
+    // This happens if Firestore loaded faster than Supabase materials
+    const hasPlaceholders = customGroups.some((g) =>
+      g.materials.some((m) => m.materiaalnaam === '(onbekend materiaal)')
+    );
+
+    // Als user al customGroups heeft (length > 0), willen we normaal niet overschrijven...
+    // BEHALVE als het placeholders zijn die we nu kunnen repareren.
+    if (customGroups.length > 0 && !hasPlaceholders) return;
+
+    const built = bouwCustomGroupsUitFirestore(firestoreCustommateriaal, alleMaterialen);
+    setCustomGroups(built);
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firestoreCustommateriaal, alleMaterialen]);
+
   useEffect(() => {
     const n = kleinMateriaalConfig.fixedAmount ?? null;
     setKleinVastBedragStr(typeof n === 'number' && n > 0 ? formatNlMoneyFromNumber(n) : '');
   }, [kleinMateriaalConfig.fixedAmount]);
 
-  // ✅ Mapping selections uit Firestore => alleen IDs in Firestore, hier terug mappen naar object
+  // ✅ Mapping selections uit Firestore => objecten (bestaand)
   useEffect(() => {
     if (!alleMaterialen || alleMaterialen.length === 0) return;
 
@@ -727,11 +812,8 @@ export default function HsbWandMaterialenPage() {
           if (!toegestaneKeys.has(key as any)) continue;
           if (key === 'extra' || key === 'klein_materiaal') continue;
 
-          // ondersteunt: {id}, {row_id}, of directe string id
           const id =
-            (val as any)?.id ||
-            (val as any)?.row_id ||
-            (typeof val === 'string' ? val : null);
+            (val as any)?.id || (val as any)?.row_id || (typeof val === 'string' ? val : null);
 
           if (!id) continue;
 
@@ -752,20 +834,17 @@ export default function HsbWandMaterialenPage() {
                   ? m.prijs
                   : 0;
 
-                  return {
-                    id: m?.id || maakId(),
-                    naam,
-                    eenheid,
-                    prijsPerEenheid,
-                    aantal: typeof m?.aantal === 'number' ? m.aantal : undefined,
-                    usageDescription: m?.usageDescription ?? '',
-                  
-                    // ✅ belangrijk: behoud meetwaarden uit Firestore bij bewerken
-                    lengte: typeof m?.lengte === 'number' ? m.lengte : undefined,
-                    breedte: typeof m?.breedte === 'number' ? m.breedte : undefined,
-                    hoogte: typeof m?.hoogte === 'number' ? m.hoogte : undefined,
-                  } as ExtraMaterial;
-                  
+            return {
+              id: m?.id || maakId(),
+              naam,
+              eenheid,
+              prijsPerEenheid,
+              aantal: typeof m?.aantal === 'number' ? m.aantal : undefined,
+              usageDescription: m?.usageDescription ?? '',
+              lengte: typeof m?.lengte === 'number' ? m.lengte : undefined,
+              breedte: typeof m?.breedte === 'number' ? m.breedte : undefined,
+              hoogte: typeof m?.hoogte === 'number' ? m.hoogte : undefined,
+            } as ExtraMaterial;
           })
           .filter((x) => x.naam);
 
@@ -778,6 +857,7 @@ export default function HsbWandMaterialenPage() {
     mapNow();
   }, [alleMaterialen, firestore, quoteId, klusId]);
 
+  // ✅ Auto apply default preset
   useEffect(() => {
     if (isPresetsLaden) return;
     if (!presets || presets.length === 0) return;
@@ -796,6 +876,7 @@ export default function HsbWandMaterialenPage() {
     setGekozenPresetId(defaultPreset.id);
   }, [isPresetsLaden, presets, gekozenPresetId]);
 
+  // ✅ Preset toepassen
   useEffect(() => {
     if (gekozenPresetId === 'default') {
       if (userHeeftPresetGewijzigdRef.current) {
@@ -803,6 +884,7 @@ export default function HsbWandMaterialenPage() {
         setCollapsedSections({});
         setExtraMaterials([]);
         setCustomGroups([]);
+        setFirestoreCustommateriaal(null);
         setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
       }
       return;
@@ -813,7 +895,11 @@ export default function HsbWandMaterialenPage() {
     const preset = presets.find((p) => p.id === gekozenPresetId);
     if (!preset) return;
 
-    if (!userHeeftPresetGewijzigdRef.current && isHydratingRef.current === false && !autoApplyDefaultPresetRef.current) {
+    if (
+      !userHeeftPresetGewijzigdRef.current &&
+      isHydratingRef.current === false &&
+      !autoApplyDefaultPresetRef.current
+    ) {
       return;
     }
 
@@ -834,24 +920,25 @@ export default function HsbWandMaterialenPage() {
     const kmPreset: any = (preset as any).kleinMateriaalConfig;
     if (kmPreset && typeof kmPreset === 'object') {
       const mode: KleinMateriaalMode =
-  kmPreset.mode === 'none'
-    ? 'none'
-    : kmPreset.mode === 'fixed'
-      ? 'fixed'
-      : kmPreset.mode === 'inschatting'
-        ? 'inschatting'
-        : 'percentage';
-
+        kmPreset.mode === 'none'
+          ? 'none'
+          : kmPreset.mode === 'fixed'
+            ? 'fixed'
+            : kmPreset.mode === 'inschatting'
+              ? 'inschatting'
+              : 'percentage';
 
       setKleinMateriaalConfig({
         mode,
         percentage: typeof kmPreset.percentage === 'number' ? kmPreset.percentage : null,
-        fixedAmount: typeof kmPreset.fixedAmount === 'number' && kmPreset.fixedAmount > 0 ? kmPreset.fixedAmount : null,
+        fixedAmount:
+          typeof kmPreset.fixedAmount === 'number' && kmPreset.fixedAmount > 0 ? kmPreset.fixedAmount : null,
       });
     } else {
       setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
     }
 
+    // preset verandert niks aan custommateriaal; user kiest dat zelf
     if (autoApplyDefaultPresetRef.current) autoApplyDefaultPresetRef.current = false;
   }, [gekozenPresetId, presets, alleMaterialen]);
 
@@ -862,33 +949,36 @@ export default function HsbWandMaterialenPage() {
   };
 
   // ---------------------------------------------------------
-  // ✅ FAVORITES LOGIC (Moved from old modal to here)
+  // ✅ FAVORITES LOGIC
   // ---------------------------------------------------------
   const [favorieten, setFavorieten] = useState<string[]>([]);
-  
+
   useEffect(() => {
     if (typeof window === 'undefined' || !user) return;
     try {
       const saved = localStorage.getItem(`offertehulp:favorieten:${user.uid}`);
       if (saved) setFavorieten(JSON.parse(saved));
     } catch (e) {
-      console.error("Kon favorieten niet laden", e);
+      console.error('Kon favorieten niet laden', e);
     }
   }, [user]);
 
-  const toggleFavoriet = useCallback((id: string) => {
-    if (!user) return;
-    setFavorieten(prev => {
-      let next;
-      if (prev.includes(id)) {
-        next = prev.filter(fid => fid !== id);
-      } else {
-        next = [...prev, id];
-      }
-      localStorage.setItem(`offertehulp:favorieten:${user.uid}`, JSON.stringify(next));
-      return next;
-    });
-  }, [user]);
+  const toggleFavoriet = useCallback(
+    (id: string) => {
+      if (!user) return;
+      setFavorieten((prev) => {
+        let next;
+        if (prev.includes(id)) {
+          next = prev.filter((fid) => fid !== id);
+        } else {
+          next = [...prev, id];
+        }
+        localStorage.setItem(`offertehulp:favorieten:${user.uid}`, JSON.stringify(next));
+        return next;
+      });
+    },
+    [user]
+  );
 
   const subsectieMapping: Record<string, string> = {
     balkhout: 'Balkhout',
@@ -916,11 +1006,10 @@ export default function HsbWandMaterialenPage() {
   const openMateriaalKiezer = (sectieSleutel: SectieKey, groupId: string | null = null) => {
     setActieveSectie(sectieSleutel);
     setActiveGroupId(groupId);
-    setIsExtraModalOpen(true); // ✅ Always use the new modal
+    setIsExtraModalOpen(true);
   };
-  
+
   const handleMateriaalSelectie = (sectieSleutel: SectieKey, materiaal: MateriaalKeuze) => {
-    // Logic for "Extra Material" (Global list)
     if (sectieSleutel === 'extra') {
       const newExtra: ExtraMaterial = {
         id: maakId(),
@@ -933,30 +1022,7 @@ export default function HsbWandMaterialenPage() {
       return;
     }
 
-    // Logic for Standard Sections (e.g. Balkhout, Isolatie)
     setGekozenMaterialen((prev) => ({ ...prev, [sectieSleutel]: materiaal }));
-  };
-
-  const handleSelectForCustomGroup = (groupId: string, material: MateriaalKeuze) => {
-    setCustomGroups(prevGroups =>
-      prevGroups.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            materials: [...group.materials, { ...material, quantity: 1 }]
-          };
-        }
-        return group;
-      })
-    );
-};
-
-  const handleAddExtraMateriaal = (materiaal: ExtraMaterial) => {
-    setExtraMaterials((prev) => [...prev, materiaal]);
-  };
-
-  const handleUpdateExtraMateriaal = (materiaal: ExtraMaterial) => {
-    setExtraMaterials((prev) => prev.map((m) => (m.id === materiaal.id ? materiaal : m)));
   };
 
   const handleRemoveExtraMaterial = (idToRemove: string) => {
@@ -971,6 +1037,7 @@ export default function HsbWandMaterialenPage() {
     });
   };
 
+  // --- SAVE PRESET ---
   const handleSavePreset = async (presetName: string, isDefault: boolean) => {
     if (!user || !firestore) return;
 
@@ -1025,7 +1092,9 @@ export default function HsbWandMaterialenPage() {
 
       const newPreset = { id: newDocRef.id, ...(newPresetData as any) } as PresetType;
 
-      setPresets((prev) => prev.map((p) => ({ ...p, isDefault: isDefault ? false : p.isDefault })).concat(newPreset));
+      setPresets((prev) =>
+        prev.map((p) => ({ ...p, isDefault: isDefault ? false : p.isDefault })).concat(newPreset)
+      );
       setGekozenPresetId(newDocRef.id);
     } catch (_serverError) {
       const permissionError = new FirestorePermissionError({
@@ -1121,16 +1190,7 @@ export default function HsbWandMaterialenPage() {
     return true;
   }, [gekozenMaterialen]);
 
-  // ✅ HANDLER: When user created a BRAND NEW material in the modal
-  const handleNewMaterialCreated = async () => {
-    await fetchMaterials(); 
-    toast({ 
-      title: "Succes", 
-      description: "Nieuw materiaal aangemaakt en toegevoegd aan uw bibliotheek." 
-    });
-  };
-
-  // -------------------------------------------
+  // ... inside HsbWandMaterialenPage ...
 
   const handleNext = async () => {
     setIsOpslaan(true);
@@ -1143,9 +1203,8 @@ export default function HsbWandMaterialenPage() {
 
       if (!klusId) throw new Error('klusId ontbreekt in de URL.');
 
+      // ... (Step 1: schoneSelecties logic remains same) ...
       const toegestaneKeys = new Set(sectieSleutels);
-
-      // ✅ BELANGRIJK: Firestore payload klein houden => alleen {id} opslaan
       const schoneSelecties = Object.fromEntries(
         Object.entries(gekozenMaterialen || {})
           .filter(([k, v]: any) => {
@@ -1158,21 +1217,21 @@ export default function HsbWandMaterialenPage() {
           .map(([k, v]: any) => [k, { id: v.id }])
       );
 
+      // ... (Step 2: schoneExtra logic remains same) ...
       const schoneExtra = Array.isArray(extraMaterials)
-  ? extraMaterials
-      .filter((m: any) => m && (m.naam || m.id))
-      .map((m: any) => {
-        const c: any = { ...m };
+        ? extraMaterials
+            .filter((m: any) => m && (m.naam || m.id))
+            .map((m: any) => {
+              const c: any = { ...m };
+              if (c.lengte === '' || c.lengte == null) delete c.lengte;
+              if (c.breedte === '' || c.breedte == null) delete c.breedte;
+              if (c.aantal === '' || c.aantal == null) delete c.aantal;
+              return c;
+            })
+        : [];
 
-        // 2) haal lege/undefined velden weg (Firestore haat undefined)
-        if (c.lengte === '' || c.lengte == null) delete c.lengte;
-        if (c.breedte === '' || c.breedte == null) delete c.breedte;
-        if (c.aantal === '' || c.aantal == null) delete c.aantal;
-
-        return c;
-      })
-  : [];
-
+      // Step 3: Custom Groups
+      const custommateriaalMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
 
       const ref = doc(firestore, 'quotes', quoteId);
 
@@ -1182,40 +1241,24 @@ export default function HsbWandMaterialenPage() {
         savedByUid: user.uid,
       };
 
+      // ✅ HERE IS THE FIX
+      // We conditionally add 'collapsedSections' ONLY if it has keys.
+      // This affects ONLY the quote document. It does NOT touch the 'presets' logic.
       const materialenPayload: FirestoreMaterialenPayload = {
         jobKey: JOB_KEY,
         jobType: 'wanden',
         jobSlug: JOB_KEY,
         selections: schoneSelecties,
         extraMaterials: schoneExtra,
-        customGroups: customGroups,
+        custommateriaal: custommateriaalMap,
+        // Only include this key if the object is NOT empty
+        ...(Object.keys(collapsedSections).length > 0 ? { collapsedSections } : {}),
         savedByUid: user.uid,
       };
 
-      const updatePayload: any = {
-        [`klussen.${klusId}.materialen`]: materialenPayload,
-        [`klussen.${klusId}.werkwijze`]: werkwijzePayload,
-      };
-      
-      if (kleinMateriaalConfig.mode === 'none') {
-        updatePayload[`klussen.${klusId}.kleinMateriaal`] = deleteField();
-      } else {
-        updatePayload[`klussen.${klusId}.kleinMateriaal`] = {
-          mode: kleinMateriaalConfig.mode,
-          ...(kleinMateriaalConfig.mode === 'percentage'
-            ? { percentage: kleinMateriaalConfig.percentage }
-            : {}),
-          ...(kleinMateriaalConfig.mode === 'fixed'
-            ? { fixedAmount: kleinMateriaalConfig.fixedAmount }
-            : {}),
-        };
-      }
-      
+      // Helper to clean undefined values (local helper, safe)
       function stripUndefinedDiep(waarde: any): any {
-        if (Array.isArray(waarde)) {
-          return waarde.map(stripUndefinedDiep);
-        }
-      
+        if (Array.isArray(waarde)) return waarde.map(stripUndefinedDiep);
         if (waarde && typeof waarde === 'object') {
           const schoon: any = {};
           for (const [k, v] of Object.entries(waarde)) {
@@ -1224,26 +1267,39 @@ export default function HsbWandMaterialenPage() {
           }
           return schoon;
         }
-      
         return waarde;
       }
 
+      // Clean the payloads locally FIRST
+      const cleanMaterialen = stripUndefinedDiep(materialenPayload);
+      const cleanWerkwijze = stripUndefinedDiep(werkwijzePayload);
 
-      
-// Quotes: UI state nooit opslaan
-if (updatePayload?.materialen && 'collapsedSections' in updatePayload.materialen) {
-  delete (updatePayload.materialen as any).collapsedSections;
-}
+      // Construct the final update object
+      const updatePayload: any = {
+        [`klussen.${klusId}.materialen`]: cleanMaterialen,
+        [`klussen.${klusId}.werkwijze`]: cleanWerkwijze,
 
-const payloadSchoon: any = stripUndefinedDiep(updatePayload);
+        // ✅ CLEANUP: Remove old messy fields from the Quote document
+        [`klussen.${klusId}.materialen.customGroups`]: deleteField(),
+        [`klussen.${klusId}.materialen.materials`]: deleteField(),
+      };
 
-// Firestore deleteField() mag NOOIT door stripUndefinedDiep heen
-await updateDoc(ref, {
-  ...payloadSchoon,
-  'materialen.collapsedSections': deleteField(),
-});
+      // Handle Klein Materiaal logic
+      if (kleinMateriaalConfig.mode === 'none') {
+        updatePayload[`klussen.${klusId}.kleinMateriaal`] = deleteField();
+      } else {
+        updatePayload[`klussen.${klusId}.kleinMateriaal`] = stripUndefinedDiep({
+          mode: kleinMateriaalConfig.mode,
+          ...(kleinMateriaalConfig.mode === 'percentage'
+            ? { percentage: kleinMateriaalConfig.percentage }
+            : {}),
+          ...(kleinMateriaalConfig.mode === 'fixed'
+            ? { fixedAmount: kleinMateriaalConfig.fixedAmount }
+            : {}),
+        });
+      }
 
-
+      await updateDoc(ref, updatePayload);
 
       toast({ title: 'Materialen opgeslagen!' });
       router.push(`/offertes/${quoteId}/overzicht`);
@@ -1259,59 +1315,9 @@ await updateDoc(ref, {
     }
   };
 
-  const handleAddCustomGroup = () => {
-    const newGroup: CustomGroup = {
-      id: maakId(),
-      title: '',
-      materials: [],
-    };
-    setCustomGroups(prev => [...prev, newGroup]);
-  };
-
-  const handleUpdateCustomGroupTitle = (groupId: string, newTitle: string) => {
-    setCustomGroups(prev =>
-      prev.map(group => (group.id === groupId ? { ...group, title: newTitle } : group))
-    );
-  };
-
-  const handleUpdateMaterialQuantity = (groupId: string, materialId: string, quantity: number) => {
-    setCustomGroups(prev =>
-      prev.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            materials: group.materials.map(mat =>
-              mat.id === materialId ? { ...mat, quantity } : mat
-            ),
-          };
-        }
-        return group;
-      })
-    );
-  };
-
-  const handleRemoveMaterialFromGroup = (groupId: string, materialId: string) => {
-    setCustomGroups(prev =>
-      prev.map(group => {
-        if (group.id === groupId) {
-          return {
-            ...group,
-            materials: group.materials.filter(mat => mat.id !== materialId),
-          };
-        }
-        return group;
-      })
-    );
-  };
-
-  const handleDeleteCustomGroup = (groupId: string) => {
-    setCustomGroups(prev => prev.filter(group => group.id !== groupId));
-  };
-
-  // --- HELPER: Render Custom Material Groups ---
   const renderExtraMateriaalCompact = () => (
     <div className="space-y-4">
-      {/* 1. Render Custom Cards */}
+      {/* Custom cards */}
       {customGroups.map((group) => (
         <DynamicMaterialGroup
           key={group.id}
@@ -1347,7 +1353,7 @@ await updateDoc(ref, {
         />
       ))}
 
-      {/* 2. Container Card with "Add Group" Button */}
+      {/* Add group */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between p-4">
           <CardTitle className="text-lg">Extra materiaal</CardTitle>
@@ -1355,7 +1361,7 @@ await updateDoc(ref, {
             variant="ghost"
             size="sm"
             className="gap-2 text-emerald-500 hover:text-emerald-400"
-            onClick={() => setCustomGroups((prev) => [...prev, { id: crypto.randomUUID(), title: '', materials: [] }])}
+            onClick={() => setCustomGroups((prev) => [...prev, { id: maakId(), title: '', materials: [] }])}
           >
             <Plus className="h-4 w-4" />
             Materiaal toevoegen
@@ -1365,117 +1371,117 @@ await updateDoc(ref, {
     </div>
   );
 
-  // --- RENDER FUNCTION ---
   const renderSelectieRij = (sectieSleutel: SectieKey, titel: string) => {
     const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
     const isCollapsed = collapsedSections[sectieSleutel];
 
-    // ✅ 1. COLLAPSED STATE (Ghost/Transparent style)
     if (isCollapsed) {
       return (
-        <div 
+        <div
           className="group flex items-center justify-between rounded-lg border border-border/40 bg-muted/5 px-4 py-2 cursor-pointer transition-all hover:bg-muted/20 hover:border-border/60 hover:opacity-100 opacity-60"
           onClick={() => toggleSection(sectieSleutel)}
         >
           <div className="flex flex-col justify-center flex-1 min-w-0 mr-4">
-             <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-muted-foreground truncate group-hover:text-foreground transition-colors">
-                  {titel}
-                </span>
-                <span className="text-xs font-normal text-muted-foreground/50 hidden sm:inline-block">
-                  · Niet van toepassing
-                </span>
-             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground truncate group-hover:text-foreground transition-colors">
+                {titel}
+              </span>
+              <span className="text-xs font-normal text-muted-foreground/50 hidden sm:inline-block">
+                · Niet van toepassing
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
-               <button
-                type="button"
-                className={cn(TEKST_ACTIE_CLASSES, "text-muted-foreground/70 group-hover:text-foreground")}
-              >
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              
-              {/* Dropdown Menu for Collapse State */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <button type="button" onClick={(e) => e.stopPropagation()} className={cn(TEKST_ACTIE_CLASSES, "text-muted-foreground hover:text-foreground")}>
-                        <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    {gekozenMateriaal && (
-                        <DropdownMenuItem 
-                            onClick={(e) => { e.stopPropagation(); handleMateriaalVerwijderen(sectieSleutel); }}
-                            className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            <span>Verwijder materiaal</span>
-                        </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem 
-                        onClick={(e) => { e.stopPropagation(); toggleSection(sectieSleutel); }}
-                        className="cursor-pointer flex items-center gap-2"
-                    >
-                        <ChevronDown className="h-4 w-4" />
-                        <span>Openen</span>
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <button type="button" className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground/70 group-hover:text-foreground')}>
+              <ChevronDown className="h-4 w-4" />
+            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground hover:text-foreground')}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {gekozenMateriaal && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMateriaalVerwijderen(sectieSleutel);
+                    }}
+                    className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Verwijder materiaal</span>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSection(sectieSleutel);
+                  }}
+                  className="cursor-pointer flex items-center gap-2"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                  <span>Openen</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       );
     }
 
-    // Special handler for the 'Extra Material' section
     if (sectieSleutel === 'extra') {
-        return renderExtraMateriaalCompact();
+      return renderExtraMateriaalCompact();
     }
 
     const showRed = !gekozenMateriaal;
 
-    // ✅ 2. EXPANDED STATE (Standard Card)
     return (
       <Card className={cn('transition-all', showRed && 'border-l-2 border-l-destructive')}>
-        
-        {/* HEADER: Title (18px) + Chevron + Menu */}
         <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
           <div className="space-y-1.5">
             <CardTitle className="text-lg font-semibold tracking-tight">{titel}</CardTitle>
           </div>
 
           <div className="flex items-center gap-1">
-             {/* Hide Icon */}
-             <button type="button" onClick={() => toggleSection(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, "text-muted-foreground")}>
-                <ChevronUp className="h-5 w-5" />
-             </button>
-             
-             {/* 3-Dots Menu (Next to Hide Icon) */}
-             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <button type="button" className={cn(TEKST_ACTIE_CLASSES, "text-muted-foreground hover:text-foreground")}>
-                        <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    {gekozenMateriaal ? (
-                        <DropdownMenuItem 
-                            onClick={() => handleMateriaalVerwijderen(sectieSleutel)}
-                            className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            <span>Verwijder materiaal</span>
-                        </DropdownMenuItem>
-                    ) : (
-                        <div className="p-2 text-xs text-muted-foreground text-center">Geen opties</div>
-                    )}
-                    {/* ❌ SLUITEN OPTION REMOVED HERE ❌ */}
-                </DropdownMenuContent>
-             </DropdownMenu>
+            <button
+              type="button"
+              onClick={() => toggleSection(sectieSleutel)}
+              className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground')}
+            >
+              <ChevronUp className="h-5 w-5" />
+            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground hover:text-foreground')}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {gekozenMateriaal ? (
+                  <DropdownMenuItem
+                    onClick={() => handleMateriaalVerwijderen(sectieSleutel)}
+                    className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Verwijder materiaal</span>
+                  </DropdownMenuItem>
+                ) : (
+                  <div className="p-2 text-xs text-muted-foreground text-center">Geen opties</div>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardHeader>
 
-        {/* CONTENT */}
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4">
             {isMaterialenLaden ? (
@@ -1492,13 +1498,21 @@ await updateDoc(ref, {
 
                 <div className="flex items-center gap-2">
                   {gekozenMateriaal ? (
-                    <button type="button" onClick={() => openMateriaalKiezer(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, "text-foreground/80 whitespace-nowrap")}>
-                        <span>Wijzigen</span>
+                    <button
+                      type="button"
+                      onClick={() => openMateriaalKiezer(sectieSleutel)}
+                      className={cn(TEKST_ACTIE_CLASSES, 'text-foreground/80 whitespace-nowrap')}
+                    >
+                      <span>Wijzigen</span>
                     </button>
                   ) : (
-                    <button type="button" onClick={() => openMateriaalKiezer(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, "text-emerald-500 whitespace-nowrap")}>
-                        <Plus className="h-4 w-4" />
-                        <span>Toevoegen</span>
+                    <button
+                      type="button"
+                      onClick={() => openMateriaalKiezer(sectieSleutel)}
+                      className={cn(TEKST_ACTIE_CLASSES, 'text-emerald-500 whitespace-nowrap')}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Toevoegen</span>
                     </button>
                   )}
                 </div>
@@ -1519,7 +1533,6 @@ await updateDoc(ref, {
     const isFixed = kleinMateriaalConfig.mode === 'fixed';
     const isInschatting = kleinMateriaalConfig.mode === 'inschatting';
 
-
     const p = (kleinMateriaalConfig as any)?.percentage;
     const percentageIsValid = typeof p === 'number' && Number.isFinite(p) && p > 0;
 
@@ -1531,28 +1544,25 @@ await updateDoc(ref, {
 
     if (isCollapsed) {
       return (
-        <div 
+        <div
           className="group flex items-center justify-between rounded-lg border border-border/40 bg-muted/5 px-4 py-2 cursor-pointer transition-all hover:bg-muted/20 hover:border-border/60 hover:opacity-100 opacity-60"
           onClick={() => toggleSection(sectieSleutel)}
         >
           <div className="flex flex-col justify-center flex-1 min-w-0 mr-4">
-             <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-muted-foreground truncate group-hover:text-foreground transition-colors">
-                  Klein materiaal
-                </span>
-                <span className="text-xs font-normal text-muted-foreground/50 hidden sm:inline-block">
-                  · Niet van toepassing
-                </span>
-             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground truncate group-hover:text-foreground transition-colors">
+                Klein materiaal
+              </span>
+              <span className="text-xs font-normal text-muted-foreground/50 hidden sm:inline-block">
+                · Niet van toepassing
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
-               <button
-                type="button"
-                className={cn(TEKST_ACTIE_CLASSES, "text-muted-foreground/70 group-hover:text-foreground")}
-              >
-                <ChevronDown className="h-4 w-4" />
-              </button>
+            <button type="button" className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground/70 group-hover:text-foreground')}>
+              <ChevronDown className="h-4 w-4" />
+            </button>
           </div>
         </div>
       );
@@ -1565,36 +1575,33 @@ await updateDoc(ref, {
             <CardTitle className="text-lg">Klein materiaal</CardTitle>
           </div>
 
-          <button type="button" onClick={() => toggleSection(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, "text-muted-foreground")}>
+          <button type="button" onClick={() => toggleSection(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground')}>
             <ChevronUp className="h-5 w-5" />
           </button>
         </CardHeader>
 
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div
-           
-  className={cn(
-    'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
-    kleinMateriaalConfig.mode === 'inschatting'
-      ? 'border-emerald-500/40 bg-emerald-500/10'
-      : 'hover:border-muted-foreground/30 hover:bg-muted/20'
-  )}
-  onClick={() => {
-    setKleinMateriaalConfig({
-      mode: 'inschatting',
-      percentage: null as any,
-      fixedAmount: null,
-    } as any);
-    setKleinVastBedragStr('');
-  }}
->
-  <h4 className="font-semibold">Laat door ons inschatten</h4>
-  <p className="text-sm text-muted-foreground">
-    We schatten alleen de kosten voor klein materiaal. Hoofdmaterialen worden exact berekend.
-  </p>
-</div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div
+                className={cn(
+                  'p-4 rounded-lg border cursor-pointer space-y-2 transition-colors',
+                  isInschatting ? 'border-emerald-500/40 bg-emerald-500/10' : 'hover:border-muted-foreground/30 hover:bg-muted/20'
+                )}
+                onClick={() => {
+                  setKleinMateriaalConfig({
+                    mode: 'inschatting',
+                    percentage: null as any,
+                    fixedAmount: null,
+                  } as any);
+                  setKleinVastBedragStr('');
+                }}
+              >
+                <h4 className="font-semibold">Laat door ons inschatten</h4>
+                <p className="text-sm text-muted-foreground">
+                  We schatten alleen de kosten voor klein materiaal. Hoofdmaterialen worden exact berekend.
+                </p>
+              </div>
 
               <div
                 className={cn(
@@ -1709,43 +1716,34 @@ await updateDoc(ref, {
     );
   };
 
-  const progressValue = isMaterialenComplete ? 100 : 75;
-  const progressKleur = isMaterialenComplete ? 'bg-emerald-600' : 'bg-primary';
-
   if (!isMounted) return null;
 
   return (
     <>
       <main className="flex flex-1 flex-col">
-      <header className="border-b bg-background/80 backdrop-blur-xl">
-  <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-    <div className="flex items-center gap-3">
-      <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
-        <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-      </Button>
+        <header className="border-b bg-background/80 backdrop-blur-xl">
+          <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+            <div className="flex items-center gap-3">
+              <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
+                <Link href={`/offertes/${quoteId}/klus/${klusId}/wanden/hsb-voorzetwand`}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
 
-      <div className="flex-1 text-center">
-        <div className="text-sm font-semibold">{JOB_TITEL}</div>
+              <div className="flex-1 text-center">
+                <div className="text-sm font-semibold">{JOB_TITEL}</div>
 
-        <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: '80%' }}
-          />
-        </div>
-      </div>
+                <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: '80%' }} />
+                </div>
+              </div>
 
-      <div className="w-11">
-        {isPaginaLaden ? (
-          <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
-        ) : null}
-      </div>
-    </div>
-  </div>
-</header>
-
+              <div className="w-11">
+                {isPaginaLaden ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}
+              </div>
+            </div>
+          </div>
+        </header>
 
         <div className="flex-1 p-4 md:p-8">
           <div className="max-w-2xl mx-auto w-full">
@@ -1797,33 +1795,29 @@ await updateDoc(ref, {
               {renderSelectieRij('isolatie', 'Isolatie')}
               {renderSelectieRij('houten plaatmateriaal', 'Houten plaatmateriaal')}
               {renderSelectieRij('gips_fermacell', 'Gips / Fermacell')}
-              
-              {/* ✅ UPDATED: Split into two separate cards with Dutch titles */}
               {renderSelectieRij('naden_vullen', 'Naden vullen')}
               {renderSelectieRij('naden_vullen_2', 'Naden afwerken')}
-
               {renderSelectieRij('afwerkplinten', 'Afwerkplinten')}
 
-             <div className="mt-8 space-y-6">
+              <div className="mt-8 space-y-6">
                 {renderSelectieRij('extra', 'Extra materiaal')}
                 {renderKleinMateriaalSectie()}
-            </div>
+              </div>
             </div>
 
             <div className="mt-8">
-            <Button
-  variant="outline"
-  onClick={() => setSavePresetModalOpen(true)}
-  className={cn(
-    'w-full transition-colors duration-150 ease-out',
-    'hover:bg-emerald-500/14 hover:border-emerald-500/55 hover:text-emerald-100',
-    'focus-visible:ring-emerald-500'
-  )}
->
-  <Save className="mr-2 h-4 w-4" />
-  Huidige keuzes opslaan als werkwijze
-</Button>
-
+              <Button
+                variant="outline"
+                onClick={() => setSavePresetModalOpen(true)}
+                className={cn(
+                  'w-full transition-colors duration-150 ease-out',
+                  'hover:bg-emerald-500/14 hover:border-emerald-500/55 hover:text-emerald-100',
+                  'focus-visible:ring-emerald-500'
+                )}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Huidige keuzes opslaan als werkwijze
+              </Button>
             </div>
 
             <div className="mt-8 flex justify-between items-center">
@@ -1862,133 +1856,133 @@ await updateDoc(ref, {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className={cn(SLUITEN_HOVER_RED)}>Annuleren</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleDeletePreset()} className={buttonVariants({ variant: 'destructive' })}>
+            <AlertDialogAction
+              onClick={() => void handleDeletePreset()}
+              className={buttonVariants({ variant: 'destructive' })}
+            >
               Verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <SavePresetDialog
-        open={savePresetModalOpen}
-        onOpenChange={setSavePresetModalOpen}
-        onSave={handleSavePreset}
-        jobTitel={JOB_TITEL}
-      />
+      <SavePresetDialog open={savePresetModalOpen} onOpenChange={setSavePresetModalOpen} onSave={handleSavePreset} jobTitel={JOB_TITEL} />
 
-      {/* --- NEW MODAL COMPONENT (Replaces the old one) --- */}
-      {/* --- NEW MODAL COMPONENT --- */}
+      {/* --- MODAL --- */}
       <MaterialSelectionModal
         open={isExtraModalOpen}
         onOpenChange={setIsExtraModalOpen}
-        
         showFavorites={actieveSectie !== 'extra' && !activeGroupId}
-        // ✅ 1. PASS AUTO-FILTER
-        // If we are in a standard section (not extra, not a group), use the mapping.
         defaultCategory={
-            (actieveSectie && actieveSectie !== 'extra' && !activeGroupId)
-            ? subsectieMapping[actieveSectie]
-            : undefined
+          actieveSectie && actieveSectie !== 'extra' && !activeGroupId ? subsectieMapping[actieveSectie] : undefined
         }
-
-        // ✅ 2. PASS FAVORITES STATUS
-        existingMaterials={alleMaterialen.map((m) => ({ 
-            ...m, 
-            row_id: m.id,
-            isFavorite: favorieten.includes(m.id) // Tell modal if it's a fav
+        existingMaterials={alleMaterialen.map((m) => ({
+          ...m,
+          row_id: m.id,
+          isFavorite: favorieten.includes(m.id),
         }))}
-
-        // ✅ 3. HANDLE FAVORITE CLICK
         onToggleFavorite={toggleFavoriet}
-
         onSelectExisting={(result) => {
-          const item = result.data || result;
-          
-          // 1. If adding to a Custom Group
-          if (activeGroupId) {
-             const newMat = {
-                id: item.id || crypto.randomUUID(),
-                materiaalnaam: item.materiaalnaam || item.naam || 'Naamloos',
-                eenheid: item.eenheid || 'stuk',
-                prijs: Number(item.prijs) || 0,
-                quantity: 1,
-                categorie: item.categorie ?? null,
-                sort_order: null,
-             };
-             setCustomGroups((prev) =>
-               prev.map((g) => 
-                 g.id === activeGroupId 
-                   ? { ...g, materials: [newMat] } 
-                   : g
-               )
-             );
-             setActiveGroupId(null);
-          } 
-          // 2. If adding to a Standard Section
-          else if (actieveSectie && actieveSectie !== 'extra') {
-             const chosenMaterial: MateriaalKeuze = {
-                id: item.id || crypto.randomUUID(),
-                materiaalnaam: item.materiaalnaam || item.naam || 'Naamloos',
-                eenheid: item.eenheid || 'stuk',
-                prijs: Number(item.prijs) || 0,
-                categorie: item.categorie ?? null,
-                quantity: 1,
-                sort_order: null,
-             };
-             handleMateriaalSelectie(actieveSectie, chosenMaterial);
-             setActieveSectie(null);
-          }
-          // 3. Fallback (Extra List)
-          else {
-             const newExtra = {
-               id: maakId(),
-               naam: item.materiaalnaam || item.naam,
-               eenheid: item.eenheid,
-               prijsPerEenheid: Number(item.prijs),
-               usageDescription: '',
-             };
-             setExtraMaterials((prev: any) => [...prev, newExtra]);
+          const item = (result as any).data || result;
+          const realId = item.id || item.row_id;
+
+          if (!realId) {
+            console.error('Geen ID gevonden voor item:', item);
+            return;
           }
 
+          // ✅ CustomGroup: 1 kaart = 1 row_id (dus REPLACE)
+          if (activeGroupId) {
+            const newMat: MateriaalKeuze = {
+              id: String(realId),
+              materiaalnaam: item.materiaalnaam || item.naam || 'Naamloos',
+              eenheid: item.eenheid || 'stuk',
+              prijs: Number(item.prijs) || 0,
+              categorie: item.categorie ?? null,
+              sort_order: null,
+              quantity: 1,
+            };
+
+            setCustomGroups((prev) =>
+              prev.map((g) => (g.id === activeGroupId ? { ...g, materials: [newMat] } : g))
+            );
+
+            setActiveGroupId(null);
+            setIsExtraModalOpen(false);
+            return;
+          }
+
+          // Standard sectie
+          if (actieveSectie && actieveSectie !== 'extra') {
+            const chosenMaterial: MateriaalKeuze = {
+              id: String(realId),
+              materiaalnaam: item.materiaalnaam || item.naam || 'Naamloos',
+              eenheid: item.eenheid || 'stuk',
+              prijs: Number(item.prijs) || 0,
+              categorie: item.categorie ?? null,
+              quantity: 1,
+              sort_order: null,
+            };
+
+            handleMateriaalSelectie(actieveSectie, chosenMaterial);
+            setActieveSectie(null);
+            setIsExtraModalOpen(false);
+            return;
+          }
+
+          // Fallback: legacy extra lijst
+          const newExtra = {
+            id: maakId(),
+            naam: item.materiaalnaam || item.naam,
+            eenheid: item.eenheid,
+            prijsPerEenheid: Number(item.prijs) || 0,
+            usageDescription: '',
+          };
+          setExtraMaterials((prev) => [...prev, newExtra]);
           setIsExtraModalOpen(false);
         }}
-
         onMaterialAdded={(newMaterial: any) => {
           fetchMaterials();
-          
-          if (activeGroupId && newMaterial) {
-             const prijsValue = newMaterial.prijs ?? newMaterial.prijsPerEenheid ?? 0;
-             const newMat = {
-               id: newMaterial.id || crypto.randomUUID(),
-               materiaalnaam: newMaterial.materiaalnaam || newMaterial.naam || 'Naamloos',
-               eenheid: newMaterial.eenheid || 'stuk',
-               prijs: Number(prijsValue) || 0,
-               quantity: 1,
-               categorie: newMaterial.categorie ?? null,
-               sort_order: null, 
-             };
-             setCustomGroups((prev) =>
-               prev.map((g) =>
-                 g.id === activeGroupId
-                   ? { ...g, materials: [newMat] }
-                   : g
-               )
-             );
-             setActiveGroupId(null);
-             setIsExtraModalOpen(false);
-          } else if (actieveSectie && actieveSectie !== 'extra' && newMaterial) {
-             const chosenMaterial: MateriaalKeuze = {
-                id: newMaterial.id || crypto.randomUUID(),
-                materiaalnaam: newMaterial.materiaalnaam || newMaterial.naam || 'Naamloos',
-                eenheid: newMaterial.eenheid || 'stuk',
-                prijs: Number(newMaterial.prijs) || 0,
-                categorie: newMaterial.categorie ?? null,
-                quantity: 1,
-                sort_order: null,
-             };
-             handleMateriaalSelectie(actieveSectie, chosenMaterial);
-             setActieveSectie(null);
-             setIsExtraModalOpen(false);
+
+          const realId = newMaterial?.id || newMaterial?.row_id;
+          if (!realId) return;
+
+          if (activeGroupId) {
+            const prijsValue = newMaterial.prijs ?? newMaterial.prijsPerEenheid ?? 0;
+
+            const newMat: MateriaalKeuze = {
+              id: String(realId),
+              materiaalnaam: newMaterial.materiaalnaam || newMaterial.naam || 'Naamloos',
+              eenheid: newMaterial.eenheid || 'stuk',
+              prijs: Number(prijsValue) || 0,
+              quantity: 1,
+              categorie: newMaterial.categorie ?? null,
+              sort_order: null,
+            };
+
+            setCustomGroups((prev) =>
+              prev.map((g) => (g.id === activeGroupId ? { ...g, materials: [newMat] } : g))
+            );
+
+            setActiveGroupId(null);
+            setIsExtraModalOpen(false);
+            return;
+          }
+
+          if (actieveSectie && actieveSectie !== 'extra') {
+            const chosenMaterial: MateriaalKeuze = {
+              id: String(realId),
+              materiaalnaam: newMaterial.materiaalnaam || newMaterial.naam || 'Naamloos',
+              eenheid: newMaterial.eenheid || 'stuk',
+              prijs: Number(newMaterial.prijs) || 0,
+              categorie: newMaterial.categorie ?? null,
+              quantity: 1,
+              sort_order: null,
+            };
+
+            handleMateriaalSelectie(actieveSectie, chosenMaterial);
+            setActieveSectie(null);
+            setIsExtraModalOpen(false);
           }
         }}
       />

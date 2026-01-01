@@ -285,7 +285,7 @@ export function MaterialSelectionModal({
     return maatString ? `${base} ${maatString}` : base;
   }, [customNaam, maatVereist, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
 
-  // --- SAVE ACTION ---
+  // --- SAVE ACTION (FIXED) ---
   const saveCustomMaterial = async () => {
     try {
       setError(null);
@@ -305,6 +305,7 @@ export function MaterialSelectionModal({
       if (!eenheid) throw new Error('Kies een eenheid.');
 
       const maatUnitLocal = (maatUnit || 'mm').trim();
+      
       const lengte = maatLengte.trim();
       const breedte = maatBreedte.trim();
       const dikte = maatDikte.trim();
@@ -319,6 +320,7 @@ export function MaterialSelectionModal({
       setSavingCustom(true);
 
       const payload: any = {
+        // No ID here yet, DB creates it
         materiaalnaam: formattedName, 
         eenheid,
         prijs: prijsNumLocal,
@@ -334,8 +336,6 @@ export function MaterialSelectionModal({
         else payload.dikte = dikte;
       }
       
-      if (onMaterialAdded) onMaterialAdded(payload);
-
       const token = await haalFirebaseIdToken();
       const res = await fetch('/api/materialen/upsert', {
         method: 'POST',
@@ -344,7 +344,20 @@ export function MaterialSelectionModal({
       });
 
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) console.error("Background save failed:", json?.message);
+      if (!res.ok || !json?.ok) throw new Error(json?.message || "Opslaan mislukt");
+
+      // ✅ FIX: Check for row_id (your DB column) OR id (API response wrapper)
+      const row = Array.isArray(json.data) ? json.data[0] : json.data;
+      const realId = row?.row_id || row?.id || json.id;
+
+      if (!realId) throw new Error("Geen ID ontvangen van server.");
+
+      // Update payload with the REAL ID
+      payload.id = realId;
+      payload.row_id = realId;
+
+      if (onMaterialAdded) onMaterialAdded(payload);
+
     } catch (e: any) {
       console.error("❌ Fout:", e);
       setError(e?.message || 'Onbekende fout.');
@@ -521,7 +534,7 @@ export function MaterialSelectionModal({
           </>
         )}
 
-        {/* === STEP 2: FORM (Kept Exactly as before) === */}
+        {/* === STEP 2: FORM === */}
         {step === 'form' && (
           <div className="flex flex-col">
              <DialogHeader className="px-6 pt-6 flex flex-row items-center gap-4 space-y-0 text-left border-b border-zinc-800 pb-6 shrink-0 bg-background">
