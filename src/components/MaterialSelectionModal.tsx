@@ -286,6 +286,8 @@ export function MaterialSelectionModal({
   }, [customNaam, maatVereist, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
 
   // --- SAVE ACTION (FIXED) ---
+  // ... inside your MaterialSelectionModal component
+
   const saveCustomMaterial = async () => {
     try {
       setError(null);
@@ -320,7 +322,6 @@ export function MaterialSelectionModal({
       setSavingCustom(true);
 
       const payload: any = {
-        // No ID here yet, DB creates it
         materiaalnaam: formattedName, 
         eenheid,
         prijs: prijsNumLocal,
@@ -346,17 +347,28 @@ export function MaterialSelectionModal({
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.message || "Opslaan mislukt");
 
-      // ✅ FIX: Check for row_id (your DB column) OR id (API response wrapper)
+      // ✅ FIX STARTS HERE
       const row = Array.isArray(json.data) ? json.data[0] : json.data;
       const realId = row?.row_id || row?.id || json.id;
 
       if (!realId) throw new Error("Geen ID ontvangen van server.");
 
-      // Update payload with the REAL ID
-      payload.id = realId;
-      payload.row_id = realId;
+      // We merge payload + row. 
+      // CRITICAL: Put '...row' LAST so the server's correct data types (Numbers) 
+      // overwrite the local state (Strings).
+      const finalMaterial = {
+        ...payload, 
+        ...row,     
+        id: realId,
+        row_id: realId,
+        // Ensure price is a number if the parent expects it
+        prijs: typeof row.prijs === 'number' ? row.prijs : prijsNumLocal, 
+      };
 
-      if (onMaterialAdded) onMaterialAdded(payload);
+      if (onMaterialAdded) onMaterialAdded(finalMaterial);
+      
+      // Also, close the modal on success (User usually expects this)
+      onOpenChange(false); 
 
     } catch (e: any) {
       console.error("❌ Fout:", e);

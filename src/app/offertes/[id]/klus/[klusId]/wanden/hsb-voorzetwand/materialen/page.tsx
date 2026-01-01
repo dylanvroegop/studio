@@ -804,32 +804,31 @@ export default function HsbWandMaterialenPage() {
     hydrateFromDb();
   }, [firestore, quoteId, klusId]);
 
-  // ✅ Bouw UI customGroups zodra we zowel Firestore custommateriaal als Supabase materialen hebben
-  // ✅ Bouw UI customGroups zodra we zowel Firestore custommateriaal als Supabase materialen hebben
-  useEffect(() => {
-    // Alleen tijdens init/hydrate opnieuw zetten.
-    if (isHydratingRef.current) return;
-    
-    if (!firestoreCustommateriaal) {
-      // Geen custommateriaal in Firestore: laat user state intact als die al bestaat
-      return;
-    }
+ // ✅ Bouw UI customGroups zodra we zowel Firestore custommateriaal als Supabase materialen hebben
+ useEffect(() => {
+  // Alleen tijdens init/hydrate opnieuw zetten.
+  if (isHydratingRef.current) return;
+  
+  // Als er niks in de DB staat, hoeven we niks te bouwen.
+  if (!firestoreCustommateriaal) return;
 
-    // 🔍 FIX: Check if we currently have "broken" placeholder materials
-    // This happens if Firestore loaded faster than Supabase materials
-    const hasPlaceholders = customGroups.some((g) =>
-      g.materials.some((m) => m.materiaalnaam === '(onbekend materiaal)')
-    );
+  // Check of we "broken" placeholders hebben die gerepareerd moeten worden
+  const hasPlaceholders = customGroups.some((g) =>
+    g.materials.some((m) => m.materiaalnaam === '(onbekend materiaal)')
+  );
 
-    // Als user al customGroups heeft (length > 0), willen we normaal niet overschrijven...
-    // BEHALVE als het placeholders zijn die we nu kunnen repareren.
-    if (customGroups.length > 0 && !hasPlaceholders) return;
+  // DE CRUCIALE FIX: 
+  // Omdat 'customGroups' nu in de dependency array staat (onderaan), 
+  // ziet deze check de WERKELIJKE state. Als jij net iets hebt toegevoegd, 
+  // is length > 0 en stopt hij hier, in plaats van te overschrijven.
+  if (customGroups.length > 0 && !hasPlaceholders) return;
 
-    const built = bouwCustomGroupsUitFirestore(firestoreCustommateriaal, alleMaterialen);
-    setCustomGroups(built);
-    
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firestoreCustommateriaal, alleMaterialen]);
+  const built = bouwCustomGroupsUitFirestore(firestoreCustommateriaal, alleMaterialen);
+  setCustomGroups(built);
+  
+  // ✅ VERWIJDERD: // eslint-disable-next-line ...
+  // ✅ TOEGEVOEGD: customGroups
+}, [firestoreCustommateriaal, alleMaterialen]);
 
   useEffect(() => {
     const n = kleinMateriaalConfig.fixedAmount ?? null;
@@ -921,6 +920,10 @@ export default function HsbWandMaterialenPage() {
     if (hasSavedConfigRef.current) return;
     if (gekozenPresetId !== 'default') return;
 
+    // ✅ SAFETY CHECK: If you have already added custom groups (length > 0), 
+    // stop the default preset from overwriting your work.
+    if (customGroups.length > 0) return; 
+
     const defaultPreset =
       presets.find((p) => p.isDefault) ||
       presets.find((p) => (p.name || '').toLowerCase().includes('standaard'));
@@ -929,7 +932,7 @@ export default function HsbWandMaterialenPage() {
 
     autoApplyDefaultPresetRef.current = true;
     setGekozenPresetId(defaultPreset.id);
-  }, [isPresetsLaden, presets, gekozenPresetId]);
+  }, [isPresetsLaden, presets, gekozenPresetId, customGroups.length]); // ✅ Added customGroups.length
 
  // ✅ Preset toepassen
  useEffect(() => {
@@ -2048,7 +2051,6 @@ export default function HsbWandMaterialenPage() {
           setIsExtraModalOpen(false);
         }}
         onMaterialAdded={(newMaterial: any) => {
-          fetchMaterials();
 
           const realId = newMaterial?.id || newMaterial?.row_id;
           if (!realId) return;
