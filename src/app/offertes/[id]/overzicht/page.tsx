@@ -254,7 +254,12 @@ function maakBouwplaatsId() {
 }
 
 function defaultBouwplaatskosten(): BouwplaatsItem[] {
-  return [];
+  return [
+    { id: 'steiger', naam: 'Steiger', prijs: '', per: 'week', isVast: false },
+    { id: 'hoogwerker', naam: 'Hoogwerker', prijs: '', per: 'dag', isVast: false },
+    { id: 'container', naam: 'Afvalcontainer', prijs: '', per: 'klus', isVast: false },
+    { id: 'huurkosten', naam: 'Overige huurkosten', prijs: '', per: 'klus', isVast: false },
+  ];
 }
 
 function slugify(value: string) {
@@ -627,6 +632,8 @@ export default function OverzichtPage() {
         // Bouwplaatskosten: quote extras, anders standaard pakket
         if (heeftBouwplaatsInQuote) {
           const mArr: any[] = Array.isArray(extras.materieel) ? extras.materieel : [];
+          
+          // Map saved items
           const mapped: BouwplaatsItem[] = mArr.map((m: any, idx: number) => ({
             id: String(m.id ?? `bk_saved_${idx}_${Date.now()}`),
             naam: String(m.naam ?? '').trim(),
@@ -636,17 +643,22 @@ export default function OverzichtPage() {
           }));
 
           const basis = defaultBouwplaatskosten();
+          const basisIds = new Set(basis.map(b => b.id)); // ✅ Smart set of default IDs
           const has = new Set(mapped.map((x) => x.id));
+
           const merged = [
+            // 1. Start with defaults (fill with saved data if available)
             ...basis.map((b) =>
               has.has(b.id) ? (mapped.find((x) => x.id === b.id) as BouwplaatsItem) : b
             ),
-            ...mapped.filter((x) => !['steiger', 'container', 'aanhanger'].includes(x.id)),
+            // 2. Add any custom items that aren't defaults
+            ...mapped.filter((x) => !basisIds.has(x.id)), 
           ];
           setBouwplaatskosten(merged);
         } else {
           const gekozen = packs.find((p) => p.id === stdPackId) ?? null;
-          if (gekozen) setBouwplaatskosten(pakketNaarItems(gekozen));
+          // If no packet selected, load defaults
+          setBouwplaatskosten(pakketNaarItems(gekozen)); 
         }
 
         isHydratingRef.current = false;
@@ -1955,47 +1967,48 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-         {/* Bouwplaatskosten */}
-<Card className="border-muted/60">
+       {/* Bouwplaatskosten */}
+  <Card className="border-muted/60">
   <CardHeader className="pb-3 relative overflow-hidden">
-    <div className="flex items-start justify-between gap-4 flex-wrap">
-      {/* Links: titel + beschrijving */}
-      <div className="flex flex-col gap-1 min-w-0">
-        <CardTitle>Bouwplaatskosten</CardTitle>
+      {/* ROW 1: Title (Left) + Settings Icon (Right) */}
+      <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-1 min-w-0">
+          <CardTitle>Bouwplaatskosten</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+          </p>
+        </div>
 
-        <p className="text-xs leading-snug text-muted-foreground">
-          Voor kosten zoals steigerhuur, container of aanhanger.
-          <br />
-          Ook parkeer- en overige bouwplaatskosten.
-        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground shrink-0 -mr-2 -mt-2"
+          onClick={() => setBouwplaatsBeheerOpen(true)}
+          aria-label="Bouwplaatskosten pakketten beheren"
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
       </div>
 
-      {/* Rechts: controls */}
-      <div className="flex items-center gap-2 flex-wrap justify-end">
+      {/* ROW 2: Dropdown (Now Full Width) */}
+      <div className="mt-4">
         <Select
           value={geselecteerdPakketId || 'LEEG'}
           onValueChange={(v) => {
             if (!v || v === 'LEEG') {
               setGeselecteerdPakketId('');
-              setBouwplaatskosten([]);
+              setBouwplaatskosten(defaultBouwplaatskosten()); // ✅ Loads defaults
               return;
             }
             handleSelectPakket(v);
           }}
         >
-          <SelectTrigger className="w-[220px] max-w-full">
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Leeg (handmatig)" />
           </SelectTrigger>
 
           <SelectContent>
             <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
-
-            {pakketten.length === 0 && (
-              <div className="px-3 py-2 text-xs text-muted-foreground">
-                Nog geen pakketten
-              </div>
-            )}
-
             {pakketten.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.naam}
@@ -2004,100 +2017,73 @@ export default function OverzichtPage() {
             ))}
           </SelectContent>
         </Select>
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          onClick={() => setBouwplaatsBeheerOpen(true)}
-          aria-label="Bouwplaatskosten pakketten beheren"
-        >
-          <Settings className="h-5 w-5" />
-        </Button>
-
-        {/* Materialen-stijl "+ Toevoegen" (zelfde sizing) */}
-        <button
-          type="button"
-          onClick={handleAddExtraBouwplaats}
-          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-2 min-h-[44px] bg-transparent text-emerald-500 hover:opacity-90 active:opacity-80"
-          aria-label="Toevoegen"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Toevoegen</span>
-        </button>
       </div>
-    </div>
-  </CardHeader>
+    </CardHeader>
 
 
 
+    <CardContent className="space-y-4">
+      {bouwplaatskosten.map((item) => (
+        <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+          <div className="sm:col-span-4">
+            <Label className="text-xs sm:sr-only">Naam</Label>
+            {item.isVast ? (
+              <span className="text-sm">{item.naam}</span>
+            ) : (
+              <Input
+                value={item.naam}
+                onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
+                placeholder="Bijv. Hoogwerker / Gereedschap huur"
+              />
+            )}
+          </div>
 
+          <EuroInput
+            value={item.prijs}
+            onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
+            className="sm:col-span-5"
+            placeholder="0,00"
+          />
 
-            <CardContent className="space-y-4">
-              {bouwplaatskosten.map((item) => (
-                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                  <div className="sm:col-span-4">
-                    <Label className="text-xs sm:sr-only">Naam</Label>
-                    {item.isVast ? (
-                      <span className="text-sm">{item.naam}</span>
-                    ) : (
-                      <Input
-                        value={item.naam}
-                        onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
-                        placeholder="Bijv. Hoogwerker / Gereedschap huur"
-                      />
-                    )}
-                  </div>
+          <div className="sm:col-span-2">
+            <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dag">dag</SelectItem>
+                <SelectItem value="week">week</SelectItem>
+                <SelectItem value="klus">klus</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-                  <EuroInput
-                    value={item.prijs}
-                    onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
-                    className="sm:col-span-5"
-                    placeholder="0,00"
-                  />
-
-                  <div className="sm:col-span-2">
-                    <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="dag">dag</SelectItem>
-                        <SelectItem value="week">week</SelectItem>
-                        <SelectItem value="klus">klus</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="sm:col-span-1 flex sm:justify-end">
-                    {!item.isVast && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-foreground"
-                        onClick={() => handleRemoveBouwplaats(item.id)}
-                        aria-label="Verwijderen"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {/* Consistente “+ Toevoegen” (altijd: nieuwe regel) */}
+          <div className="sm:col-span-1 flex sm:justify-end">
+            {!item.isVast && (
               <Button
-  type="button"
-  variant="outline"
-  onClick={openBouwplaatsOpslaan}
-  className="w-full justify-center"
->
-  <Save className="mr-2 h-4 w-4" />
-  Huidige keuzes opslaan als pakket
-</Button>
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => handleRemoveBouwplaats(item.id)}
+                aria-label="Verwijderen"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
 
-
-            </CardContent>
+      {/* ✅ ADD BUTTON: Placed at the bottom, full width */}
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={handleAddExtraBouwplaats}
+        className="w-full gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 font-medium border border-dashed border-emerald-500/20"
+      >
+        <Plus className="h-4 w-4" />
+        Toevoegen
+      </Button>
+    </CardContent>
           </Card>
 
           {/* Winstmarge */}
