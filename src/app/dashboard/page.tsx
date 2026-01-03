@@ -398,18 +398,15 @@ export default function Dashboard() {
          {/* Mobiele utility bar (fixed onderin) */}
          <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 backdrop-blur-xl">
             <div className="mx-auto max-w-3xl px-3 py-2 flex items-center justify-around">
-              {/* Klanten (doet nu niets) */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                }}
-                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground opacity-60 cursor-not-allowed"
-                aria-disabled="true"
+              
+              {/* ✅ UPDATED: Now links to /klanten */}
+              <Link
+                href="/klanten"
+                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
               >
                 <Users className="h-5 w-5" />
                 Klanten
-              </button>
+              </Link>
 
               <Link
                 href="/materialen"
