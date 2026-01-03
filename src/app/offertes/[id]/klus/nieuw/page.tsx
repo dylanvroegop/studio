@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
+import { PersonalNotes } from '@/components/PersonalNotes';
 
 const categories: { name: JobCategory; description: string; icon: IconName }[] = [
   { name: 'Wanden', description: 'Binnen- en buitenwanden', icon: 'wall' },
@@ -68,7 +69,7 @@ export default function NewJobPage() {
 
   return (
     <main className="relative min-h-screen bg-background">
-      {/* ✅ Header component is nu "alleen progress bar" -> gebruik progressValue i.p.v. stappen/actieveStap */}
+      {/* Header component is nu "alleen progress bar" -> gebruik progressValue i.p.v. stappen/actieveStap */}
       <QuoteStapHeader
         titel="Kies een klus"
         terugHref={`/offertes/${quoteId}/edit`}
@@ -93,7 +94,7 @@ export default function NewJobPage() {
       </div>
 
       {/* Content */}
-      <div className="px-4 py-6 max-w-5xl mx-auto">
+      <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
         <div className="rounded-3xl border bg-card/50 p-4 sm:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filteredCategories.map((category) => (
@@ -140,6 +141,9 @@ export default function NewJobPage() {
           )}
         </div>
       </div>
+
+      {/* Personal Notes floating button */}
+      {quoteId && <PersonalNotes quoteId={quoteId} />}
     </main>
   );
 }

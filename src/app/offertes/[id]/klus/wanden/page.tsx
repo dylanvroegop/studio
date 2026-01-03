@@ -12,6 +12,7 @@ import type { JobCategory, Quote } from '@/lib/types';
 import { JobIcon, type IconName } from '@/components/icons';
 import { getQuoteById } from '@/lib/data';
 import { useFirestore } from '@/firebase';
+import { PersonalNotes } from '@/components/PersonalNotes';
 
 type Subcategory = {
   name: JobCategory;
@@ -186,7 +187,7 @@ export default function WandenPage() {
       </header>
 
       {/* Content */}
-      <div className="px-4 py-6 max-w-5xl mx-auto">
+      <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
         <div className="rounded-3xl border bg-card/50 p-4 sm:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {subcategories.map((item) => (
@@ -230,6 +231,9 @@ export default function WandenPage() {
           </div>
         </div>
       </div>
+
+      {/* Personal Notes floating button */}
+      {quoteId && <PersonalNotes quoteId={quoteId} />}
     </main>
   );
 }

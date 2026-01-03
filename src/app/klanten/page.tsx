@@ -60,21 +60,26 @@ import { useUser, useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
 
 type Client = {
-  id: string;
-  userId?: string;
-  klanttype?: string;
-  voornaam?: string;
-  achternaam?: string;
-  bedrijfsnaam?: string;
-  emailadres?: string;
-  telefoonnummer?: string;
-  straat?: string;
-  huisnummer?: string;
-  postcode?: string;
-  plaats?: string;
-  createdAt?: any;
-  updatedAt?: any;
-};
+    id: string;
+    userId?: string;
+    klanttype?: string;
+    voornaam?: string;
+    achternaam?: string;
+    bedrijfsnaam?: string;
+    emailadres?: string;
+    telefoonnummer?: string;
+    straat?: string;
+    huisnummer?: string;
+    postcode?: string;
+    plaats?: string;
+    afwijkendProjectadres?: boolean;
+    projectStraat?: string;
+    projectHuisnummer?: string;
+    projectPostcode?: string;
+    projectPlaats?: string;
+    createdAt?: any;
+    updatedAt?: any;
+  };
 
 export default function KlantenPage() {
   const { user, isUserLoading } = useUser();
@@ -174,6 +179,11 @@ export default function KlantenPage() {
         huisnummer: editingClient.huisnummer || '',
         postcode: editingClient.postcode || '',
         plaats: editingClient.plaats || '',
+        afwijkendProjectadres: editingClient.afwijkendProjectadres || false,
+        projectStraat: editingClient.projectStraat || '',
+        projectHuisnummer: editingClient.projectHuisnummer || '',
+        projectPostcode: editingClient.projectPostcode || '',
+        projectPlaats: editingClient.projectPlaats || '',
         updatedAt: serverTimestamp(),
       });
 
@@ -422,9 +432,9 @@ export default function KlantenPage() {
         </div>
       </div>
 
-      {/* Edit modal */}
-      <Dialog open={!!editingClient} onOpenChange={(open) => !open && setEditingClient(null)}>
-        <DialogContent className="max-w-lg">
+     {/* Edit modal */}
+     <Dialog open={!!editingClient} onOpenChange={(open) => !open && setEditingClient(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Klant bewerken</DialogTitle>
           </DialogHeader>
@@ -485,6 +495,13 @@ export default function KlantenPage() {
                 </div>
               </div>
 
+              {/* Factuuradres Section */}
+              <div className="flex items-center gap-2 pt-2">
+                <div className="flex-1 border-t" />
+                <span className="text-xs font-medium text-muted-foreground">Factuuradres</span>
+                <div className="flex-1 border-t" />
+              </div>
+
               <div className="grid grid-cols-4 gap-4">
                 <div className="col-span-3 space-y-2">
                   <Label>Straat</Label>
@@ -528,6 +545,83 @@ export default function KlantenPage() {
                   />
                 </div>
               </div>
+
+              {/* Projectadres Section */}
+              <div className="flex items-center gap-2 pt-2">
+                <div className="flex-1 border-t" />
+                <span className="text-xs font-medium text-muted-foreground">Projectadres</span>
+                <div className="flex-1 border-t" />
+              </div>
+
+              {/* Toggle for project address */}
+              <div className="flex items-center space-x-2 py-1">
+                <input
+                  type="checkbox"
+                  id="projectToggle"
+                  checked={editingClient.afwijkendProjectadres || false}
+                  onChange={(e) =>
+                    setEditingClient({
+                      ...editingClient,
+                      afwijkendProjectadres: e.target.checked,
+                    })
+                  }
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="projectToggle" className="cursor-pointer">
+                  Afwijkend projectadres
+                </Label>
+              </div>
+
+              {/* Show project address fields if toggle is on */}
+              {editingClient.afwijkendProjectadres && (
+                <>
+                  <div className="grid grid-cols-4 gap-4 p-4 border rounded-md bg-muted/20">
+                    <div className="col-span-3 space-y-2">
+                      <Label>Projectstraat</Label>
+                      <Input
+                        value={editingClient.projectStraat || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, projectStraat: e.target.value })
+                        }
+                        placeholder="Straatnaam"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Nr.</Label>
+                      <Input
+                        value={editingClient.projectHuisnummer || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, projectHuisnummer: e.target.value })
+                        }
+                        placeholder="Nr."
+                      />
+                    </div>
+
+                    <div className="col-span-1 space-y-2">
+                      <Label>Postcode</Label>
+                      <Input
+                        value={editingClient.projectPostcode || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, projectPostcode: e.target.value })
+                        }
+                        placeholder="1234 AB"
+                      />
+                    </div>
+
+                    <div className="col-span-3 space-y-2">
+                      <Label>Plaats</Label>
+                      <Input
+                        value={editingClient.projectPlaats || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, projectPlaats: e.target.value })
+                        }
+                        placeholder="Plaatsnaam"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

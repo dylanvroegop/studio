@@ -18,6 +18,7 @@ import type { Quote } from '@/lib/types';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
+import { PersonalNotes } from '@/components/PersonalNotes';
 
 type WandForm = {
   lengte: string;
@@ -262,7 +263,7 @@ export default function HsbWandPage() {
         </div>
       </header>
 
-      <div className="px-4 py-6 max-w-5xl mx-auto">
+      <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
         <div className="max-w-2xl mx-auto w-full">
           <form>
             <div className="space-y-6">
@@ -353,16 +354,15 @@ export default function HsbWandPage() {
             </div>
 
             <Button
-  type="button"
-  variant="successGhost"
-  onClick={handleAddWall}
-  disabled={disabledAll}
-  className={cn("w-full mt-6 rounded-xl transition-colors")}
->
-  <PlusCircle className="mr-2 h-4 w-4" />
-  Wand toevoegen
-</Button>
-
+              type="button"
+              variant="successGhost"
+              onClick={handleAddWall}
+              disabled={disabledAll}
+              className={cn("w-full mt-6 rounded-xl transition-colors")}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Wand toevoegen
+            </Button>
 
             <div className="mt-6 flex justify-between items-center">
               <Button variant="outline" asChild disabled={disabledAll}>
@@ -370,18 +370,20 @@ export default function HsbWandPage() {
               </Button>
 
               <Button
-  type="submit"
-  variant="success"
-  disabled={isNextDisabled}
-  onClick={handleSubmit}
->
-  {saving ? 'Opslaan...' : 'Volgende'}
-</Button>
-
+                type="submit"
+                variant="success"
+                disabled={isNextDisabled}
+                onClick={handleSubmit}
+              >
+                {saving ? 'Opslaan...' : 'Volgende'}
+              </Button>
             </div>
           </form>
         </div>
       </div>
+
+      {/* Personal Notes floating button */}
+      {quoteId && <PersonalNotes quoteId={quoteId} />}
     </main>
   );
 }
