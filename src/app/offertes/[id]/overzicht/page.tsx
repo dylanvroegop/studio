@@ -425,22 +425,22 @@ export default function OverzichtPage() {
 
   async function schrijfGebruikerInstellingen(partial: Partial<GebruikerInstellingen>) {
     if (!firestore || !user) return;
-  
+   
     const ref = userRef();
-  
+   
     // 1) UpdateDoc: dotted paths zijn hier WEL correct (nested update)
     const updates: any = {};
     for (const [k, v] of Object.entries(partial)) {
       updates[`instellingen.${k}`] = v;
     }
     updates.updatedAt = serverTimestamp();
-  
+   
     try {
       await updateDoc(ref, updates);
-  
+   
       // cleanup: verwijder oude "instellingen.xxx" velden die ooit per ongeluk als literal zijn opgeslagen
       await cleanupFouteDotVelden(ref);
-  
+   
       return;
     } catch (e1: any) {
       // 2) Fallback setDoc: GEEN dotted keys gebruiken -> nested object schrijven
@@ -453,7 +453,7 @@ export default function OverzichtPage() {
           },
           { merge: true }
         );
-  
+   
         // cleanup (ook na setDoc)
         await cleanupFouteDotVelden(ref);
       } catch (e2: any) {
@@ -464,7 +464,7 @@ export default function OverzichtPage() {
       }
     }
   }
-  
+   
   // Verwijdert de foute velden met punt in de veldnaam: "instellingen.defaultsConfirmed", etc.
   async function cleanupFouteDotVelden(ref: any) {
     try {
@@ -485,7 +485,7 @@ export default function OverzichtPage() {
       // ignore
     }
   }
-  
+   
   /* ---------------------------------------------
    Fetch quote + hydrate + user defaults (veilig)
   --------------------------------------------- */
@@ -1299,6 +1299,34 @@ export default function OverzichtPage() {
     }
   }
 
+  // ✅ New Selection Tile Component (copied from materialen/page.tsx style)
+  const SelectionTile = ({
+    active,
+    error,
+    title,
+    subtitle,
+    onClick
+  }: {
+    active: boolean;
+    error?: boolean;
+    title: string;
+    subtitle?: string;
+    onClick: () => void
+  }) => (
+    <div
+      onClick={onClick}
+      className={cn(
+        'flex flex-col items-center justify-center p-3 rounded-md border cursor-pointer transition-all text-center h-full min-h-[80px]',
+        active && !error && 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100',
+        active && error && 'border-red-500/50 bg-red-500/10 text-red-100',
+        !active && 'hover:bg-muted/20 hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground'
+      )}
+    >
+      <span className="font-semibold text-sm">{title}</span>
+      {subtitle && <span className="text-[10px] opacity-70 mt-0.5">{subtitle}</span>}
+    </div>
+  );
+
   /* ---------------------------------------------
    Render states
   --------------------------------------------- */
@@ -1897,73 +1925,68 @@ export default function OverzichtPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'perKm' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  transportMode === 'perKm' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
-                  transportMode !== 'perKm' && 'hover:border-muted-foreground/30'
-                )}
-                onClick={() => setTransportMode('perKm')}
-                role="button"
-                tabIndex={0}
-              >
-                <h4 className="font-semibold flex items-center">
-                  <Truck className="mr-2 h-4 w-4" /> Prijs per km
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">Afstand automatisch berekend.</p>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <SelectionTile
+                  active={transportMode === 'perKm'}
+                  error={!transportIsValid && transportMode === 'perKm'}
+                  title="Prijs per km"
+                  subtitle="Afstand automatisch berekend"
+                  onClick={() => setTransportMode('perKm')}
+                />
+                
+                <SelectionTile
+                  active={transportMode === 'fixed'}
+                  error={!transportIsValid && transportMode === 'fixed'}
+                  title="Vast bedrag"
+                  subtitle="Eén bedrag voor transport"
+                  onClick={() => setTransportMode('fixed')}
+                />
 
-                {transportMode === 'perKm' && (
-                  <div className="mt-3">
-                    <Label className="text-xs">Tarief per km</Label>
-                    <EuroInput value={prijsPerKm} onChange={setPrijsPerKm} className="mt-1" placeholder="0,00" />
-                    {!transportIsValid && (
-                      <p className="mt-2 text-xs text-red-300">Vul een tarief in of kies “Geen”.</p>
-                    )}
+                <SelectionTile
+                  active={transportMode === 'none'}
+                  title="Geen"
+                  subtitle="Geen transportkosten"
+                  onClick={() => setTransportMode('none')}
+                />
+              </div>
+
+              {/* DYNAMIC INPUTS ROW (Shows only when needed) */}
+              {transportMode === 'perKm' && (
+                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
+                  <div className="flex items-center gap-3 max-w-xs">
+                    <div className="relative w-full">
+                      <EuroInput
+                        value={prijsPerKm}
+                        onChange={setPrijsPerKm}
+                        inputClassName={cn(
+                          !transportIsValid && "border-red-500 focus-visible:ring-red-500"
+                        )}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">per km</span>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'fixed' && transportIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  transportMode === 'fixed' && !transportIsValid && 'border-red-500/40 bg-red-500/10',
-                  transportMode !== 'fixed' && 'hover:border-muted-foreground/30'
-                )}
-                onClick={() => setTransportMode('fixed')}
-                role="button"
-                tabIndex={0}
-              >
-                <h4 className="font-semibold flex items-center">
-                  <Euro className="mr-2 h-4 w-4" /> Vast bedrag
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">Eén bedrag voor transport.</p>
-
-                {transportMode === 'fixed' && (
-                  <div className="mt-3">
-                    <Label className="text-xs">Bedrag</Label>
-                    <EuroInput value={vasteTransportkosten} onChange={setVasteTransportkosten} className="mt-1" placeholder="0,00" />
-                    {!transportIsValid && (
-                      <p className="mt-2 text-xs text-red-300">Vul een bedrag in of kies “Geen”.</p>
-                    )}
+              {transportMode === 'fixed' && (
+                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
+                  <div className="flex items-center gap-3 max-w-xs">
+                    <div className="relative w-full">
+                      <EuroInput
+                        value={vasteTransportkosten}
+                        onChange={setVasteTransportkosten}
+                        inputClassName={cn(
+                          !transportIsValid && "border-red-500 focus-visible:ring-red-500"
+                        )}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
                   </div>
-                )}
-              </div>
-
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer transition-colors md:col-span-1',
-                  transportMode === 'none' ? 'border-emerald-500/40 bg-emerald-500/10' : 'hover:border-muted-foreground/30'
-                )}
-                onClick={() => setTransportMode('none')}
-                role="button"
-                tabIndex={0}
-              >
-                <h4 className="font-semibold">Geen</h4>
-                <p className="mt-1 text-xs text-muted-foreground">Geen transportkosten rekenen.</p>
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -2104,29 +2127,45 @@ export default function OverzichtPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'percentage' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  winstMode === 'percentage' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
-                  winstMode !== 'percentage' && 'hover:border-muted-foreground/30'
-                )}
-                onClick={() => setWinstMarge((p) => ({ ...p, mode: 'percentage' }))}
-                role="button"
-                tabIndex={0}
-              >
-                <h4 className="font-semibold flex items-center">
-                  <Percent className="mr-2 h-4 w-4" /> Percentage
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">Reken een percentage over de totale offerteprijs.</p>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <SelectionTile
+                  active={winstMode === 'percentage'}
+                  error={!winstMargeIsValid && winstMode === 'percentage'}
+                  title="Percentage"
+                  subtitle="% van totaal"
+                  onClick={() => setWinstMarge((p) => ({ ...p, mode: 'percentage' }))}
+                />
 
-                {winstMode === 'percentage' && (
-                  <div className="mt-3">
-                    <Label className="text-xs">Percentage</Label>
-                    <div className="mt-1 flex items-center gap-2">
+                <SelectionTile
+                  active={winstMode === 'fixed'}
+                  error={!winstMargeIsValid && winstMode === 'fixed'}
+                  title="Vast bedrag"
+                  subtitle="Vaste toeslag"
+                  onClick={() => setWinstMarge((p) => ({ ...p, mode: 'fixed' }))}
+                />
+
+                <SelectionTile
+                  active={winstMode === 'none'}
+                  title="Geen"
+                  subtitle="Geen winstmarge"
+                  onClick={() => setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null })}
+                />
+              </div>
+
+              {/* DYNAMIC INPUTS ROW (Shows only when needed) */}
+              {winstMode === 'percentage' && (
+                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
+                  <div className="flex items-center gap-3 max-w-xs">
+                    <div className="relative w-full">
                       <Input
                         type="number"
+                        step="0.1"
+                        placeholder="0"
+                        className={cn(
+                          "pr-8",
+                          !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
+                        )}
                         value={winstMarge.percentage ?? ''}
                         onChange={(e) => {
                           const raw = e.target.value;
@@ -2139,64 +2178,33 @@ export default function OverzichtPage() {
                         }}
                         inputMode="decimal"
                       />
-                      <span className="text-sm text-muted-foreground">%</span>
+                      <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground pointer-events-none">%</span>
                     </div>
-
-                    {!winstMargeIsValid && (
-                      <p className="mt-2 text-xs text-red-300">Vul een percentage groter dan 0 in of kies “Geen”.</p>
-                    )}
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">op totaal</span>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'fixed' && winstMargeIsValid && 'border-emerald-500/40 bg-emerald-500/10',
-                  winstMode === 'fixed' && !winstMargeIsValid && 'border-red-500/40 bg-red-500/10',
-                  winstMode !== 'fixed' && 'hover:border-muted-foreground/30'
-                )}
-                onClick={() => setWinstMarge((p) => ({ ...p, mode: 'fixed' }))}
-                role="button"
-                tabIndex={0}
-              >
-                <h4 className="font-semibold flex items-center">
-                  <Euro className="mr-2 h-4 w-4" /> Vast bedrag
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">Voeg één vast bedrag toe als marge.</p>
-
-                {winstMode === 'fixed' && (
-                  <div className="mt-3">
-                    <Label className="text-xs">Bedrag</Label>
-                    <EuroInput
-                      value={numberToEuroInputString(winstMarge.fixedAmount)}
-                      onChange={(v) => {
-                        const n = euroNLToNumberOrNull(v);
-                        setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
-                      }}
-                      className="mt-1"
-                      placeholder="0,00"
-                    />
-
-                    {!winstMargeIsValid && (
-                      <p className="mt-2 text-xs text-red-300">Vul een bedrag groter dan 0 in of kies “Geen”.</p>
-                    )}
+              {winstMode === 'fixed' && (
+                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
+                  <div className="flex items-center gap-3 max-w-xs">
+                    <div className="relative w-full">
+                      <EuroInput
+                        value={numberToEuroInputString(winstMarge.fixedAmount)}
+                        onChange={(v) => {
+                          const n = euroNLToNumberOrNull(v);
+                          setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
+                        }}
+                        inputClassName={cn(
+                          !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
+                        )}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
                   </div>
-                )}
-              </div>
-
-              <div
-                className={cn(
-                  'p-4 rounded-lg border cursor-pointer transition-colors',
-                  winstMode === 'none' ? 'border-emerald-500/40 bg-emerald-500/10' : 'hover:border-muted-foreground/30'
-                )}
-                onClick={() => setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null })}
-                role="button"
-                tabIndex={0}
-              >
-                <h4 className="font-semibold">Geen</h4>
-                <p className="mt-1 text-xs text-muted-foreground">Geen winstmarge toevoegen.</p>
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

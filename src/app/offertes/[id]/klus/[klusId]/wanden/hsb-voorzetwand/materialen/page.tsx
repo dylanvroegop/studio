@@ -789,10 +789,16 @@ export default function HsbWandMaterialenPage() {
           setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
         }
 
-        const rawCollapsed = mat?.collapsedSections ?? (klusNode?.collapsedSections ?? null);
-        if (rawCollapsed && typeof rawCollapsed === 'object') {
-          setCollapsedSections(rawCollapsed);
-        }
+        // ✅ NEW CODE (Looks in uiState first, then falls back to old spots)
+const rawCollapsed = 
+klusNode?.uiState?.collapsedSections ?? // 1. Check NEW clean spot
+mat?.collapsedSections ??               // 2. Check old spot (materialen)
+klusNode?.collapsedSections ??          // 3. Check old spot (root)
+null;
+
+if (rawCollapsed && typeof rawCollapsed === 'object') {
+setCollapsedSections(rawCollapsed);
+}
 
         isHydratingRef.current = false;
       } catch (e) {
@@ -1415,42 +1421,61 @@ export default function HsbWandMaterialenPage() {
   const renderExtraMateriaalCompact = () => (
     <div className="space-y-4">
       {/* Custom cards */}
-      {customGroups.map((group) => (
-        <DynamicMaterialGroup
-          key={group.id}
-          id={group.id}
-          title={group.title}
-          materials={group.materials.map((m) => ({ ...m, quantity: m.quantity ?? 1 }))}
-          onUpdateTitle={(val) =>
-            setCustomGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, title: val } : g)))
-          }
-          onAddMaterial={() => {
-            setActiveGroupId(group.id);
-            setIsExtraModalOpen(true);
-          }}
-          onEditMaterial={() => {
-            setActiveGroupId(group.id);
-            setIsExtraModalOpen(true);
-          }}
-          onRemoveMaterial={(matId) =>
-            setCustomGroups((prev) =>
-              prev.map((g) => (g.id === group.id ? { ...g, materials: g.materials.filter((m: any) => m.id !== matId) } : g))
-            )
-          }
-          onDeleteGroup={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
-          onUpdateQuantity={(matId, qty) =>
-            setCustomGroups((prev) =>
-              prev.map((g) =>
-                g.id === group.id
-                  ? { ...g, materials: g.materials.map((m: any) => (m.id === matId ? { ...m, quantity: qty } : m)) }
-                  : g
-              )
-            )
-          }
-        />
-      ))}
+      {customGroups.map((group) => {
+        // 1. Check if this group is currently collapsed (closed) in your page state
+        // If it is NOT in the list, it defaults to Open (Expanded)
+        const isExpanded = !collapsedSections[group.id];
 
-      {/* Add group */}
+        return (
+          <DynamicMaterialGroup
+            key={group.id}
+            id={group.id}
+            title={group.title}
+            // Keep existing material logic
+            materials={group.materials.map((m) => ({ ...m, quantity: m.quantity ?? 1 }))}
+
+            // ✅ CONNECT STATE: This makes the collapse button work and save to DB
+            isExpanded={isExpanded}
+            onToggle={(isOpen) => {
+              setCollapsedSections((prev: any) => ({
+                ...prev,
+                [group.id]: !isOpen // If Open=true, then Collapsed=false
+              }));
+            }}
+
+            // --- Actions ---
+            onUpdateTitle={(val) => {
+              setCustomGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, title: val } : g)))
+            }}
+            onAddMaterial={() => {
+              setActiveGroupId(group.id);
+              setIsExtraModalOpen(true);
+            }}
+            // ✅ FIX: "Wijzigen" now simply opens the modal to overwrite (Fire & Forget)
+            onEditMaterial={() => {
+              setActiveGroupId(group.id);
+              setIsExtraModalOpen(true); 
+            }}
+            onRemoveMaterial={(matId) => {
+              setCustomGroups((prev) =>
+                prev.map((g) => (g.id === group.id ? { ...g, materials: g.materials.filter((m: any) => m.id !== matId) } : g))
+              )
+            }}
+            onDeleteGroup={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
+            onUpdateQuantity={(matId, qty) => {
+               setCustomGroups((prev) =>
+                  prev.map((g) => 
+                     g.id === group.id 
+                     ? { ...g, materials: g.materials.map((m: any) => m.id === matId ? { ...m, quantity: qty } : m) }
+                     : g
+                  )
+               )
+            }}
+          />
+        );
+      })}
+
+      {/* Add group button */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between p-4">
           <CardTitle className="text-lg">Extra materiaal</CardTitle>

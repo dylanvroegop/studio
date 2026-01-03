@@ -151,21 +151,39 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
 
           {klanttype === 'zakelijk' && (
             <div className="grid grid-cols-2 gap-4">
-              <Input name="bedrijfsnaam" placeholder="Bedrijfsnaam" defaultValue={initialKI?.bedrijfsnaam} />
-              <Input name="contactpersoon" placeholder="Contactpersoon" defaultValue={initialKI?.contactpersoon} />
+              <div className="space-y-1.5">
+                <Label htmlFor="bedrijfsnaam">Bedrijfsnaam</Label>
+                <Input id="bedrijfsnaam" name="bedrijfsnaam" placeholder="Bedrijf B.V." defaultValue={initialKI?.bedrijfsnaam} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="contactpersoon">Contactpersoon</Label>
+                <Input id="contactpersoon" name="contactpersoon" placeholder="Naam contactpersoon" defaultValue={initialKI?.contactpersoon} />
+              </div>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <Input name="voornaam" placeholder="Voornaam *" required defaultValue={initialKI?.voornaam} />
-            <Input name="achternaam" placeholder="Achternaam *" required defaultValue={initialKI?.achternaam} />
+            <div className="space-y-1.5">
+              <Label htmlFor="voornaam">Voornaam *</Label>
+              <Input id="voornaam" name="voornaam" placeholder="Voornaam" required defaultValue={initialKI?.voornaam} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="achternaam">Achternaam *</Label>
+              <Input id="achternaam" name="achternaam" placeholder="Achternaam" required defaultValue={initialKI?.achternaam} />
+            </div>
           </div>
 
           <Separator />
 
           <div className="grid grid-cols-2 gap-4">
-            <Input name="emailadres" type="email" placeholder="E-mail *" required defaultValue={initialKI?.emailadres} />
-            <Input name="telefoonnummer" type="tel" placeholder="Telefoon *" required defaultValue={initialKI?.telefoonnummer} />
+            <div className="space-y-1.5">
+              <Label htmlFor="emailadres">E-mailadres *</Label>
+              <Input id="emailadres" name="emailadres" type="email" placeholder="naam@voorbeeld.nl" required defaultValue={initialKI?.emailadres} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="telefoonnummer">Telefoonnummer *</Label>
+              <Input id="telefoonnummer" name="telefoonnummer" type="tel" placeholder="06 12345678" required defaultValue={initialKI?.telefoonnummer} />
+            </div>
           </div>
 
           <Separator />
@@ -174,45 +192,53 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           <div className="space-y-4">
             <h3 className="font-medium">Factuuradres</h3>
             <div className="grid grid-cols-6 gap-4">
-              <div className="col-span-4">
-                <Input name="straat" placeholder="Straat *" required defaultValue={initialKI?.straat} />
+              <div className="col-span-4 space-y-1.5">
+                <Label htmlFor="straat">Straat *</Label>
+                <Input id="straat" name="straat" placeholder="Straatnaam" required defaultValue={initialKI?.straat} />
               </div>
-              <div className="col-span-2">
-                <Input name="huisnummer" placeholder="Nr. *" required defaultValue={initialKI?.huisnummer} />
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="huisnummer">Nr. *</Label>
+                <Input id="huisnummer" name="huisnummer" placeholder="Nr." required defaultValue={initialKI?.huisnummer} />
               </div>
-              <div className="col-span-2">
-                <Input name="postcode" placeholder="Postcode *" required defaultValue={initialKI?.postcode} />
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="postcode">Postcode *</Label>
+                <Input id="postcode" name="postcode" placeholder="1234 AB" required defaultValue={initialKI?.postcode} />
               </div>
-              <div className="col-span-4">
-                <Input name="plaats" placeholder="Plaats *" required defaultValue={initialKI?.plaats} />
+              <div className="col-span-4 space-y-1.5">
+                <Label htmlFor="plaats">Plaats *</Label>
+                <Input id="plaats" name="plaats" placeholder="Plaatsnaam" required defaultValue={initialKI?.plaats} />
               </div>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            <Switch checked={showProjectAddress} onCheckedChange={setShowProjectAddress} />
-            <Label>Afwijkend projectadres</Label>
+            <Switch checked={showProjectAddress} onCheckedChange={setShowProjectAddress} id="project-switch" />
+            <Label htmlFor="project-switch">Afwijkend projectadres</Label>
           </div>
 
           {/* PROJECTADRES */}
           {showProjectAddress && (
             <div className="grid grid-cols-6 gap-4 p-4 border rounded-md bg-muted/20">
-              <div className="col-span-4">
-                <Input name="projectStraat" placeholder="Projectstraat" defaultValue={initialKI?.projectStraat} />
+              <div className="col-span-4 space-y-1.5">
+                <Label htmlFor="projectStraat">Straat</Label>
+                <Input id="projectStraat" name="projectStraat" placeholder="Straatnaam" defaultValue={initialKI?.projectStraat} />
               </div>
-              <div className="col-span-2">
-                <Input name="projectHuisnummer" placeholder="Nr." defaultValue={initialKI?.projectHuisnummer} />
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="projectHuisnummer">Nr.</Label>
+                <Input id="projectHuisnummer" name="projectHuisnummer" placeholder="Nr." defaultValue={initialKI?.projectHuisnummer} />
               </div>
-              <div className="col-span-2">
-                <Input name="projectPostcode" placeholder="Postcode" defaultValue={initialKI?.projectPostcode} />
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="projectPostcode">Postcode</Label>
+                <Input id="projectPostcode" name="projectPostcode" placeholder="1234 AB" defaultValue={initialKI?.projectPostcode} />
               </div>
-              <div className="col-span-4">
-                <Input name="projectPlaats" placeholder="Plaats" defaultValue={initialKI?.projectPlaats} />
+              <div className="col-span-4 space-y-1.5">
+                <Label htmlFor="projectPlaats">Plaats</Label>
+                <Input id="projectPlaats" name="projectPlaats" placeholder="Plaatsnaam" defaultValue={initialKI?.projectPlaats} />
               </div>
             </div>
           )}
 
-          <div className="flex justify-end gap-4">
+          <div className="flex justify-end gap-4 pt-4">
             <Button variant="outline" asChild><Link href="/">Annuleren</Link></Button>
             <Button type="submit" variant="success" disabled={isPending}>{isPending ? 'Bezig...' : 'Volgende'}</Button>
           </div>
