@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Calculator, Package, Search, Filter, ArrowLeft, ChevronDown, X, Star } from 'lucide-react';
+import { Loader2, Plus, Calculator, Package, Search, Filter, ArrowLeft, ChevronDown, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,19 +15,42 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils'; 
 
-// --- HELPER FUNCTIONS & TYPES ---
+// ==========================================
+// 1. HELPER FUNCTIONS (Logic Core)
+// ==========================================
 
-export type ExistingMaterial = {
-  row_id: string;
-  id: string;
-  materiaalnaam: string | null;
-  prijs: number | string | null;
-  eenheid: string | null;
-  subsectie?: string | null;
-  leverancier?: string | null;
-  isFavorite?: boolean;
-  [key: string]: any; 
-};
+// Centralized logic for naming. Used by both Preview and Save.
+// This ensures WYSIWYG (What You See Is What You Get).
+function constructFinalName(
+  baseName: string, 
+  isCalculatie: boolean, 
+  dimensions: { 
+    lengte: string, 
+    breedte: string, 
+    dikte: string, 
+    hoogte: string, 
+    maatUnit: string, 
+    eenheid: string 
+  }
+): string {
+  const cleanName = (baseName || '').trim();
+  if (!cleanName) return '';
+  
+  if (!isCalculatie) return cleanName;
+
+  const l = dimensions.lengte.trim();
+  const b = dimensions.breedte.trim();
+  const u = (dimensions.maatUnit || 'mm').trim();
+  
+  // Determine the 3rd dimension based on unit type (p/m3 uses height, others use thickness)
+  const thirdDim = dimensions.eenheid === 'p/m3' ? dimensions.hoogte.trim() : dimensions.dikte.trim();
+
+  if (!l || !b) return cleanName; // Don't append incomplete dimensions
+
+  // Result: "Test 1000 × 1000 × 12mm"
+  // Note: Using the multiplication symbol '×' consistently
+  return `${cleanName} ${l} × ${b} × ${thirdDim}${u}`;
+}
 
 function parsePriceToNumber(raw: unknown): number | null {
   if (raw == null) return null;
@@ -36,9 +59,10 @@ function parsePriceToNumber(raw: unknown): number | null {
 
   let value = raw.trim();
   value = value.replace(/€/g, '').replace(/\s+/g, '');
-  value = value.replace(/[^0-9.,-]/g, '');
+  value = value.replace(/[^0-9.,-]/g, ''); // Keep only numbers, dots, commas, dashes
   if (!value) return null;
 
+  // Handle European vs US number formats
   const hasDot = value.includes('.');
   const hasComma = value.includes(',');
 
@@ -52,6 +76,7 @@ function parsePriceToNumber(raw: unknown): number | null {
   return Number.isNaN(num) ? null : num;
 }
 
+// Logic to show estimated price in the red check bar
 function calculatePiecePrice(price: number, unit: string, L: string, B: string, maatUnit: string): number | null {
   const lengte = parseFloat(L.replace(',', '.'));
   const breedte = parseFloat(B.replace(',', '.'));
@@ -80,30 +105,9 @@ function formatEuro(amount: number | null): string {
   }).format(amount);
 }
 
-const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
-const MAAT_UNITS: string[] = ['mm', 'cm', 'm'];
-
-function isMaatEenheid(eenheid: string): boolean {
-  return eenheid === 'p/m1' || eenheid === 'p/m2' || eenheid === 'p/m3';
-}
-
-function buildMaatString(opts: {
-  eenheid: string;
-  maatUnit: string;
-  lengte: string;
-  breedte: string;
-  derdeWaarde?: string;
-}): string {
-  const l = (opts.lengte || '').trim();
-  const b = (opts.breedte || '').trim();
-  const u = (opts.maatUnit || '').trim();
-  if (!l || !b || !u) return '';
-
-  const d = (opts.derdeWaarde || '').trim();
-  if (!d) return '';
-
-  return `${l} × ${b} × ${d}${u}`;
-}
+// ==========================================
+// 2. SUB-COMPONENTS
+// ==========================================
 
 function InputMetSuffix(props: {
   value: string;
@@ -118,9 +122,8 @@ function InputMetSuffix(props: {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        type="number"      
-        step="0.01"
-        inputMode="decimal"
+        type="text"            
+        inputMode="decimal" // Better for mobile keyboards
         className="pr-12"
       />
       <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -130,15 +133,24 @@ function InputMetSuffix(props: {
   );
 }
 
-async function haalFirebaseIdToken(): Promise<string> {
-  const { getAuth } = await import('firebase/auth');
-  const auth = getAuth();
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error('Niet ingelogd.');
-  return await currentUser.getIdToken();
-}
+// ==========================================
+// 3. TYPES & MAIN COMPONENT
+// ==========================================
 
-// --- MAIN COMPONENT ---
+const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
+const MAAT_UNITS: string[] = ['mm', 'cm', 'm'];
+
+export type ExistingMaterial = {
+  row_id: string;
+  id: string;
+  materiaalnaam: string | null;
+  prijs: number | string | null;
+  eenheid: string | null;
+  subsectie?: string | null;
+  leverancier?: string | null;
+  isFavorite?: boolean;
+  [key: string]: any; 
+};
 
 interface MaterialSelectionModalProps {
   open: boolean;
@@ -185,14 +197,17 @@ export function MaterialSelectionModal({
   const [maatDikte, setMaatDikte] = useState<string>('');
   const [maatHoogte, setMaatHoogte] = useState<string>('');
 
+  // --- RESET ON OPEN ---
   useEffect(() => {
     if (open) {
+      // 1. Reset UI Flow
       setStep('search'); 
       setError(null);
       setSearchTerm('');
       setCategoryFilter(defaultCategory || 'all');
       setDisplayLimit(50);
       
+      // 2. Reset Form Fields (CLEAN SLATE)
       setCustomNaam('');
       setCustomEenheid('');
       setCustomPrijs('');
@@ -210,6 +225,7 @@ export function MaterialSelectionModal({
     setDisplayLimit(50);
   }, [searchTerm, categoryFilter]);
 
+  // Clear irrelevant dimensions when unit changes
   useEffect(() => {
     if (customEenheid === 'p/m3') {
       setMaatDikte('');
@@ -236,12 +252,10 @@ export function MaterialSelectionModal({
       result = result.filter(m => (m.materiaalnaam || '').toLowerCase().includes(lower));
     }
     
-    // Sort: Favorites first
     return result.sort((a, b) => {
         if (a.isFavorite === b.isFavorite) return 0;
         return a.isFavorite ? -1 : 1;
     });
-
   }, [existingMaterials, searchTerm, categoryFilter]);
 
   const visibleMaterials = useMemo(() => {
@@ -253,17 +267,17 @@ export function MaterialSelectionModal({
   const prijsNum = parsePriceToNumber(customPrijs);
   const isPrijsOk = prijsNum != null && prijsNum >= 0;
   const isEenheidOk = (customEenheid || '').trim().length > 0;
-  const maatVereist = isMaatEenheid(customEenheid);
-
+  
   const isMaatOk = useMemo(() => {
-    if (!maatVereist) return true;
+    if (!isCalculatie) return true;
     const l = maatLengte.trim();
     const b = maatBreedte.trim();
     const u = maatUnit.trim();
     if (!l || !b || !u) return false;
+    
     if (customEenheid === 'p/m3') return maatHoogte.trim().length > 0;
     return maatDikte.trim().length > 0;
-  }, [maatVereist, maatLengte, maatBreedte, maatUnit, customEenheid, maatDikte, maatHoogte]);
+  }, [isCalculatie, maatLengte, maatBreedte, maatUnit, customEenheid, maatDikte, maatHoogte]);
 
   const canSaveCustom = useMemo(() => {
     const basisCheck = !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
@@ -271,34 +285,27 @@ export function MaterialSelectionModal({
     return basisCheck;
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk, isCalculatie]);
 
-  // PREVIEW
+  // --- PREVIEW NAME GENERATOR ---
   const previewNaam = useMemo(() => {
-    const base = (customNaam || '').trim() || '...';
-    if (!maatVereist) return base; 
-    const maatString = buildMaatString({
-      eenheid: customEenheid,
-      maatUnit,
+    return constructFinalName(customNaam, isCalculatie, {
       lengte: maatLengte,
       breedte: maatBreedte,
-      derdeWaarde: customEenheid === 'p/m3' ? maatHoogte : maatDikte,
+      dikte: maatDikte,
+      hoogte: maatHoogte,
+      maatUnit,
+      eenheid: customEenheid
     });
-    return maatString ? `${base} ${maatString}` : base;
-  }, [customNaam, maatVereist, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
+  }, [customNaam, isCalculatie, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
 
-  // --- SAVE ACTION (FIXED) ---
-  // ... inside your MaterialSelectionModal component
-
+  // --- SAVE ACTION ---
   const saveCustomMaterial = async () => {
     try {
       setError(null);
+
+      // 1. Validation
       const naamRaw = customNaam.trim();
       if (!naamRaw) throw new Error('Materiaalnaam is verplicht.');
-
-      const formattedName = naamRaw
-        .toLowerCase()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+      const baseName = naamRaw.charAt(0).toUpperCase() + naamRaw.slice(1);
 
       const prijsNumLocal = parsePriceToNumber(customPrijs);
       if (prijsNumLocal == null || prijsNumLocal < 0) throw new Error('Vul een geldige prijs in.');
@@ -306,38 +313,40 @@ export function MaterialSelectionModal({
       const eenheid = (customEenheid || '').trim();
       if (!eenheid) throw new Error('Kies een eenheid.');
 
-      const maatUnitLocal = (maatUnit || 'mm').trim();
-      
-      const lengte = maatLengte.trim();
-      const breedte = maatBreedte.trim();
-      const dikte = maatDikte.trim();
-      const hoogte = maatHoogte.trim();
-
-      if (isMaatEenheid(eenheid)) {
-        if (!lengte || !breedte || !maatUnitLocal) throw new Error('Vul afmetingen in en kies mm/cm/m.');
-        if (eenheid === 'p/m3' && !hoogte) throw new Error('Vul hoogte in.');
-        if (eenheid !== 'p/m3' && !dikte) throw new Error('Vul dikte in.');
+      if (isCalculatie && !isMaatOk) {
+        throw new Error('Vul alle afmetingen in.');
       }
 
       setSavingCustom(true);
 
+      // 2. Generate the FINAL string using the shared helper
+      // This ensures database = preview exactly.
+      const finalNameToSend = constructFinalName(baseName, isCalculatie, {
+        lengte: maatLengte,
+        breedte: maatBreedte,
+        dikte: maatDikte,
+        hoogte: maatHoogte,
+        maatUnit: maatUnit,
+        eenheid: eenheid
+      });
+
+      // 3. Prepare Payload
       const payload: any = {
-        materiaalnaam: formattedName, 
+        materiaalnaam: finalNameToSend, 
         eenheid,
         prijs: prijsNumLocal,
         categorie: customSubsectie.trim() || 'Overig',
         leverancier: customLeverancier.trim() || null,
-        unit: maatUnitLocal,
       };
-
-      if (isMaatEenheid(eenheid)) {
-        payload.lengte = lengte;
-        payload.breedte = breedte;
-        if (eenheid === 'p/m3') payload.hoogte = hoogte;
-        else payload.dikte = dikte;
-      }
       
-      const token = await haalFirebaseIdToken();
+      // 4. API Call
+      // (Assuming `haalFirebaseIdToken` is available globally or imported)
+      const { getAuth } = await import('firebase/auth');
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Niet ingelogd.');
+      const token = await currentUser.getIdToken();
+
       const res = await fetch('/api/materialen/upsert', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
@@ -347,37 +356,28 @@ export function MaterialSelectionModal({
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.message || "Opslaan mislukt");
 
-      // ✅ FIX STARTS HERE
       const row = Array.isArray(json.data) ? json.data[0] : json.data;
       const realId = row?.row_id || row?.id || json.id;
 
-      if (!realId) throw new Error("Geen ID ontvangen van server.");
-
-      // We merge payload + row. 
-      // CRITICAL: Put '...row' LAST so the server's correct data types (Numbers) 
-      // overwrite the local state (Strings).
-      const finalMaterial = {
-        ...payload, 
-        ...row,     
-        id: realId,
-        row_id: realId,
-        // Ensure price is a number if the parent expects it
-        prijs: typeof row.prijs === 'number' ? row.prijs : prijsNumLocal, 
-      };
-
-      if (onMaterialAdded) onMaterialAdded(finalMaterial);
-      
-      // Also, close the modal on success (User usually expects this)
+      // 5. Success Callback
+      if (onMaterialAdded) {
+         onMaterialAdded({
+            ...payload, 
+            id: realId,
+            row_id: realId,
+            prijs: prijsNumLocal, 
+         });
+      }
       onOpenChange(false); 
 
     } catch (e: any) {
-      console.error("❌ Fout:", e);
+      console.error("❌ Fout bij opslaan:", e);
       setError(e?.message || 'Onbekende fout.');
     } finally {
       setSavingCustom(false);
     }
   };
-
+  
   const handleSelectExisting = (m: ExistingMaterial) => {
     if (onSelectExisting) {
       onSelectExisting(m);
@@ -469,7 +469,7 @@ export function MaterialSelectionModal({
                    <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
                      <div className="w-full flex items-stretch">
                         
-                        {/* ✅ ZONE 1: FAVORITE (Separated by border, full height click area) */}
+                        {/* FAVORITE */}
                         {showFavorites && (
                             <div 
                                 className="flex items-center justify-center px-4 border-r border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
@@ -487,7 +487,7 @@ export function MaterialSelectionModal({
                             </div>
                         )}
 
-                        {/* ✅ ZONE 2: CONTENT (Select Material) */}
+                        {/* CONTENT */}
                         <div 
                             className="flex-1 flex items-center justify-between gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
                             onClick={() => handleSelectExisting(mat)}

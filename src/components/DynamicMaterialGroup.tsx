@@ -28,10 +28,17 @@ export interface GroupMaterial {
   eenheid: string;
   quantity: number;
   prijs: number;
+  // Dutch dimensions
   lengte?: number | string;
   breedte?: number | string;
   hoogte?: number | string;
   dikte?: number | string;
+  // English dimensions (added to support data coming from the modal)
+  length?: number | string;
+  width?: number | string;
+  height?: number | string;
+  thickness?: number | string;
+  
   unit?: string;
 }
 
@@ -64,11 +71,21 @@ export function DynamicMaterialGroup({
 
   const getDisplayName = (mat: GroupMaterial) => {
     const baseName = mat.materiaalnaam;
-    if (mat.lengte && mat.breedte) {
+
+    // Check for dimensions using both Dutch AND English keys to be safe
+    const length = mat.lengte || mat.length;
+    const width = mat.breedte || mat.width;
+    const thickness = mat.dikte || mat.thickness;
+    const height = mat.hoogte || mat.height;
+
+    if (length && width) {
        const u = mat.unit || 'mm';
-       let dimensions = `${mat.lengte}×${mat.breedte}`;
-       if (mat.dikte) dimensions += `×${mat.dikte}`;
-       else if (mat.hoogte) dimensions += `×${mat.hoogte}`;
+       // Format: 1000 x 1000 x 10.2mm (with spaces)
+       let dimensions = `${length} x ${width}`;
+       
+       if (thickness) dimensions += ` x ${thickness}`;
+       else if (height) dimensions += ` x ${height}`;
+       
        return `${baseName} ${dimensions}${u}`;
     }
     return baseName;
@@ -122,7 +139,7 @@ export function DynamicMaterialGroup({
     </DropdownMenu>
   );
 
-  // ✅ 1. COLLAPSED STATE (Kept small: px-4 py-2)
+  // ✅ 1. COLLAPSED STATE
   if (!isExpanded) {
     return (
       <div 
@@ -155,11 +172,11 @@ export function DynamicMaterialGroup({
     );
   }
 
-  // ✅ 2. EXPANDED STATE (Afwerkplinten Style: p-4)
+  // ✅ 2. EXPANDED STATE
   return (
     <Card className={cn('transition-all', !hasMaterial && 'border-l-2 border-l-destructive')}>
       
-      {/* HEADER: Reverted to p-4 pb-3 to match Afwerkplinten exact height */}
+      {/* HEADER */}
       <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
         <div className="space-y-1.5 flex-1 min-w-0">
             <Input
@@ -167,7 +184,6 @@ export function DynamicMaterialGroup({
               onChange={(e) => onUpdateTitle(e.target.value)}
               onBlur={handleTitleBlur}
               placeholder="Naam van groep..."
-              // ✅ FORCE 18px FONT SIZE, BUT KEEP CARD PADDING COMPACT (p-4)
               style={{ fontSize: '18px' }}
               className="border-none shadow-none focus-visible:ring-0 px-0 h-auto py-0 font-semibold tracking-tight bg-transparent placeholder:text-muted-foreground/50 w-full !text-[18px]"
             />
@@ -186,10 +202,10 @@ export function DynamicMaterialGroup({
         </div>
       </CardHeader>
 
-      {/* CONTENT: Reverted to p-4 pt-0 */}
+      {/* CONTENT */}
       <CardContent className="p-4 pt-0">
         
-        {/* DIVIDER: Reverted to border-t pt-4 */}
+        {/* DIVIDER */}
         <div className="border-t pt-4">
           
           <div className="flex items-center justify-between min-h-[40px]">

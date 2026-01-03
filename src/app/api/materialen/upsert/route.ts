@@ -88,7 +88,9 @@ export async function POST(req: Request) {
     // 3) Body
     const body = (await req.json()) as Body;
 
-    const naam = normalizeString(body.materiaalnaam);
+    // ✅ FIXED HERE: We check "typeof === string" so Typescript allows .trim()
+    const naam = typeof body.materiaalnaam === 'string' ? body.materiaalnaam.trim() : null;
+    
     const eenheid = normalizeString(body.eenheid);
     const prijsNum = toNumber(body.prijs);
 
@@ -121,7 +123,7 @@ export async function POST(req: Request) {
     // 5) Payload (nooit id/categorie meesturen)
     const payload = {
       gebruikerid: uid,
-      materiaalnaam: naam,
+      materiaalnaam: naam, // This now contains the full string correctly
       eenheid,
       prijs: prijsNum,
       subsectie,
@@ -133,7 +135,7 @@ export async function POST(req: Request) {
 
     // 6) Update of insert
     if (incomingRowId) {
-      // SECURITY: altijd ownership check (anders kan iemand andermans row_id misbruiken)
+      // SECURITY: altijd ownership check
       const upd = await supabaseAdmin
         .from('materialen')
         .update(payload)
@@ -146,7 +148,6 @@ export async function POST(req: Request) {
       data = upd.data;
 
       if (!data) {
-        // row_id bestaat niet of hoort niet bij gebruiker -> harde fout (beter dan silent insert)
         return jsonFail('Materiaal niet gevonden of geen toegang.', 404);
       }
     } else {

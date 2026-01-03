@@ -1347,8 +1347,6 @@ export default function HsbWandMaterialenPage() {
         selections: schoneSelecties,
         extraMaterials: schoneExtra,
         custommateriaal: custommateriaalMap,
-        // Only include this key if the object is NOT empty
-        ...(Object.keys(collapsedSections).length > 0 ? { collapsedSections } : {}),
         savedByUid: user.uid,
       };
 
@@ -1370,11 +1368,14 @@ export default function HsbWandMaterialenPage() {
       const cleanMaterialen = stripUndefinedDiep(materialenPayload);
       const cleanWerkwijze = stripUndefinedDiep(werkwijzePayload);
 
+      const onlyCollapsed = Object.fromEntries(
+        Object.entries(collapsedSections).filter(([_, isCollapsed]) => isCollapsed === true)
+      );
       // Construct the final update object
       const updatePayload: any = {
         [`klussen.${klusId}.materialen`]: cleanMaterialen,
         [`klussen.${klusId}.werkwijze`]: cleanWerkwijze,
-
+        [`klussen.${klusId}.uiState`]: { collapsedSections: onlyCollapsed },
         // ✅ CLEANUP: Remove old messy fields from the Quote document
         [`klussen.${klusId}.materialen.customGroups`]: deleteField(),
         [`klussen.${klusId}.materialen.materials`]: deleteField(),
