@@ -1,51 +1,75 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Search, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft, ChevronRight, Star } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
-import { JobIcon, type IconName } from '@/components/icons';
 import { PersonalNotes } from '@/components/PersonalNotes';
 
-const categories: { name: JobCategory; description: string; icon: IconName }[] = [
-  { name: 'Wanden', description: 'Binnen- en buitenwanden', icon: 'wall' },
-  { name: 'Plafonds', description: 'Plafonds met een houten of metalstud frame', icon: 'ceiling' },
-  { name: 'Vloeren', description: 'Houten vloeren en ondervloeren', icon: 'floor' },
-  { name: 'Dakrenovatie', description: 'Complete dakvernieuwing', icon: 'roof' },
-  { name: 'Isolatiewerken', description: 'Isoleren van wanden, daken, vloeren', icon: 'wall' },
-  { name: 'Boeiboorden', description: 'Vervangen en bekleden', icon: 'fascia' },
-  { name: 'Kozijnen', description: 'Plaatsen en vervangen', icon: 'frame' },
-  { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', icon: 'door' },
-  { name: 'Gevelbekleding', description: 'Hout, kunststof of composiet', icon: 'siding' },
-  { name: 'Glas zetten', description: 'Enkel, dubbel of triple glas', icon: 'glass' },
-  { name: 'Afwerkingen', description: 'Plinten, architraven en aftimmering', icon: 'finishing' },
-  { name: 'Dakramen / Lichtkoepel', description: 'Plaatsen van Velux of andere merken', icon: 'window' },
-  { name: 'Schutting / Tuinafscheiding', description: 'Houten of composiet schuttingen', icon: 'fence' },
-  { name: 'Overkapping / Pergola', description: 'Houtconstructies voor in de tuin', icon: 'pergola' },
-  { name: 'Overige werkzaamheden', description: 'Specifiek timmerwerk', icon: 'plus' },
+// ✅ Firebase imports
+import { useUser, useFirestore } from '@/firebase';
+import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+
+/* ---------------------------------------------
+  DATA
+--------------------------------------------- */
+
+type CategoryItem = {
+  name: JobCategory;
+  description: string;
+};
+
+const categories: CategoryItem[] = [
+  { name: 'Wanden', description: 'Binnen- en buitenwanden' },
+  { name: 'Plafonds', description: 'Plafonds met houten of metalstud frame' },
+  { name: 'Vloeren', description: 'Houten vloeren en ondervloeren' },
+  { name: 'Isolatiewerken', description: 'Isoleren van wanden, daken, vloeren' },
+
+  { name: 'Afwerkingen', description: 'Plinten, architraven en aftimmering' },
+  { name: 'Deuren', description: 'Afhangen binnen- en buitendeuren' },
+
+  { name: 'Dakrenovatie', description: 'Complete dakvernieuwing' },
+  { name: 'Boeiboorden', description: 'Vervangen en bekleden' },
+  { name: 'Gevelbekleding', description: 'Hout, kunststof of composiet' },
+  { name: 'Schutting / Tuinafscheiding', description: 'Houten of composiet schuttingen' },
+  { name: 'Overkapping / Pergola', description: 'Houtconstructies voor in de tuin' },
+
+  { name: 'Kozijnen', description: 'Plaatsen en vervangen' },
+  { name: 'Glas zetten', description: 'Enkel, dubbel of triple glas' },
+  { name: 'Dakramen / Lichtkoepel', description: 'Plaatsen van Velux of andere merken' },
+
+  { name: 'Overige werkzaamheden', description: 'Specifiek timmerwerk' },
 ];
+
+function normalizeSlug(naam: string) {
+  return naam.toLowerCase();
+}
 
 export default function NewJobPage() {
   const params = useParams();
+  const quoteId = params.id as string;
+
+  // ✅ Hooks voor User & DB
+  const { user } = useUser();
+  const firestore = useFirestore();
 
   const [isMounted, setIsMounted] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [zoekterm, setZoekterm] = useState('');
-  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [favorieten, setFavorieten] = useState<string[]>([]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const quoteId = isMounted ? (params.id as string) : '';
-
+  // 1. Haal Quote op
   useEffect(() => {
     async function fetchQuote() {
       if (!quoteId) return;
@@ -57,23 +81,111 @@ export default function NewJobPage() {
     fetchQuote();
   }, [quoteId]);
 
+  // 2. Real-time luisteren naar favorieten in Firestore
+  useEffect(() => {
+    if (!user || !firestore) return;
+
+    const userRef = doc(firestore, 'users', user.uid);
+
+    // Luister naar wijzigingen in het user document
+    const unsubscribe = onSnapshot(userRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const favs = data?.favoriteJobs;
+        if (Array.isArray(favs)) {
+          setFavorieten(favs);
+        } else {
+          setFavorieten([]);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, firestore]);
+
+  const isFavoriet = useCallback(
+    (naam: string) => favorieten.includes(naam),
+    [favorieten]
+  );
+
+  // 3. Toggle functie met Firestore write
+  const toggleFavoriet = async (naam: string) => {
+    if (!user || !firestore) return;
+
+    const isAlreadyFav = favorieten.includes(naam);
+    const userRef = doc(firestore, 'users', user.uid);
+
+    // Optimistische UI update
+    setFavorieten((prev) =>
+      isAlreadyFav ? prev.filter((x) => x !== naam) : [...prev, naam]
+    );
+
+    try {
+      await setDoc(
+        userRef,
+        {
+          favoriteJobs: isAlreadyFav ? arrayRemove(naam) : arrayUnion(naam),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error('Fout bij opslaan favoriet:', error);
+      // Revert bij fout
+      setFavorieten((prev) =>
+        isAlreadyFav ? [...prev, naam] : prev.filter((x) => x !== naam)
+      );
+    }
+  };
+
   const filteredCategories = useMemo(() => {
     const q = zoekterm.trim().toLowerCase();
     if (!q) return categories;
+
     return categories.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
+      (c) =>
+        c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
     );
   }, [zoekterm]);
+
+  const favorietCategories = useMemo(() => {
+    if (!favorieten.length) return [];
+    const byName = new Map<JobCategory, CategoryItem>(
+      categories.map((c) => [c.name, c])
+    );
+
+    return favorieten
+      .map((naam) => byName.get(naam as JobCategory))
+      .filter((c): c is CategoryItem => Boolean(c));
+  }, [favorieten]);
+
+  const visibleFavorieten = useMemo(() => {
+    const q = zoekterm.trim().toLowerCase();
+    if (!q) return favorietCategories;
+    return favorietCategories.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
+    );
+  }, [zoekterm, favorietCategories]);
+
+  const overigeCategories = useMemo(() => {
+    const favSet = new Set(favorieten);
+    return filteredCategories.filter((c) => !favSet.has(c.name));
+  }, [filteredCategories, favorieten]);
 
   if (!isMounted) return null;
 
   return (
-    <main className="relative min-h-screen bg-background">
-      {/* INLINE HEADER with notes button */}
-      <header className="border-b bg-background/80 backdrop-blur-xl">
+    <main className="relative min-h-screen bg-background flex flex-col">
+      {/* HEADER */}
+      <header className="border-b bg-background">
         <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
+            <Button
+              asChild
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 rounded-xl shrink-0"
+            >
               <Link href={`/offertes/${quoteId}/edit`}>
                 <ArrowLeft className="h-4 w-4" />
               </Link>
@@ -83,7 +195,7 @@ export default function NewJobPage() {
               <div className="text-sm font-semibold text-center">Kies een klus</div>
 
               <div className="mt-3">
-                <div className="h-1.5 rounded-full bg-muted/40">
+                <div className="h-1.5 rounded-full bg-muted/40 mx-auto">
                   <div
                     className="h-full rounded-full bg-primary/65 transition-all"
                     style={{ width: '25%' }}
@@ -92,8 +204,7 @@ export default function NewJobPage() {
               </div>
             </div>
 
-            {/* Notes button in header */}
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center shrink-0">
               {loading ? (
                 <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
               ) : (
@@ -104,69 +215,155 @@ export default function NewJobPage() {
         </div>
       </header>
 
-      {/* Zoekbalk los onder header */}
-      <div className="px-4 pt-4 max-w-5xl mx-auto">
-        <div className="flex justify-end">
-          <div className="relative w-full sm:w-[320px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={zoekterm}
-              onChange={(e) => setZoekterm(e.target.value)}
-              placeholder="Zoek klus…"
-              className="w-full rounded-2xl border bg-background/20 px-9 py-2 text-sm"
-            />
-          </div>
+      {/* STICKY SEARCH */}
+      <div className="bg-background pt-4 pb-3 px-4 max-w-5xl mx-auto w-full">
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={zoekterm}
+            onChange={(e) => setZoekterm(e.target.value)}
+            placeholder="Zoek (bijv. dak, wand, kozijn, isolatie)…"
+            className="w-full h-11 rounded-xl border bg-secondary/30 px-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition-all"
+          />
         </div>
       </div>
 
-      {/* Content */}
-      <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
-        <div className="rounded-3xl border bg-card/50 p-4 sm:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {filteredCategories.map((category) => (
-              <div
+      {/* CONTENT */}
+      <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
+        
+        {/* FAVORIETEN */}
+        {visibleFavorieten.length > 0 && (
+          <section>
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-foreground">Favorieten</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {visibleFavorieten.map((category) => (
+                <KlusCard
+                  key={`fav-${category.name}`}
+                  quoteId={quoteId}
+                  category={category}
+                  isFav
+                  onToggleFav={toggleFavoriet}
+                />
+              ))}
+            </div>
+
+            <div className="mt-5 h-px bg-border/60" />
+          </section>
+        )}
+
+        {/* ALLE KLUSSEN */}
+        <section>
+          {visibleFavorieten.length > 0 && (
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-foreground">Alle klussen</h2>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {overigeCategories.map((category) => (
+              <KlusCard
                 key={category.name}
-                className={cn('relative rounded-2xl', selectedName === category.name && 'ring-2 ring-primary/25')}
-                onPointerDown={() => setSelectedName(category.name)}
-                onPointerUp={() => setSelectedName(null)}
-                onPointerCancel={() => setSelectedName(null)}
-              >
-                <Link
-                  href={`/offertes/${quoteId}/klus/${category.name.toLowerCase()}`}
-                  className={cn(
-                    'group relative block h-[112px] w-full overflow-hidden rounded-2xl border text-left transition-all',
-                    'bg-[#121212]/80 hover:bg-[#141414]/90',
-                    'border-primary/15 hover:border-primary/30',
-                    'shadow-sm hover:shadow-lg hover:shadow-primary/10',
-                    'active:scale-[0.99]'
-                  )}
-                >
-                  <div className="flex h-full items-center gap-4 p-5">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/8 ring-1 ring-primary/15">
-                      <JobIcon name={category.icon} className="h-6 w-6 text-primary" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="text-base font-semibold text-foreground">{category.name}</div>
-                      <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">{category.description}</div>
-                    </div>
-                  </div>
-
-                  <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100">
-                    <div className="absolute -inset-24 bg-[radial-gradient(700px_circle_at_0%_0%,rgba(255,0,0,0.10),transparent_45%)]" />
-                  </div>
-                </Link>
-              </div>
+                quoteId={quoteId}
+                category={category}
+                isFav={isFavoriet(category.name)}
+                onToggleFav={toggleFavoriet}
+              />
             ))}
           </div>
 
           {filteredCategories.length === 0 && (
-            <div className="mt-6 rounded-2xl border bg-background/20 p-4 text-sm text-muted-foreground">
-              Geen resultaten.
+            <div className="mt-12 text-center">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted border border-border mb-4">
+                <Search className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium">Geen klussen gevonden</h3>
+              <p className="text-muted-foreground text-sm mt-1">
+                Probeer een andere zoekterm.
+              </p>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </main>
+  );
+}
+
+/* ---------------------------------------------
+  CARD COMPONENT
+--------------------------------------------- */
+
+function KlusCard({
+  quoteId,
+  category,
+  isFav,
+  onToggleFav,
+}: {
+  quoteId: string;
+  category: CategoryItem;
+  isFav: boolean;
+  onToggleFav: (naam: string) => void;
+}) {
+  const href = `/offertes/${quoteId}/klus/${normalizeSlug(category.name)}`;
+
+  const STAR_ZONE_W = 44; 
+
+  return (
+    <div
+      className={cn(
+        'relative flex items-center justify-between h-full rounded-xl border bg-card transition-all duration-200 overflow-hidden',
+        'hover:border-emerald-600/50 hover:bg-secondary/20',
+        'active:scale-[0.98]',
+        'p-3 sm:p-4',
+        'min-h-[64px] sm:min-h-[76px]'
+      )}
+    >
+      {/* ⭐ STAR ZONE */}
+      <button
+        type="button"
+        aria-label="Favoriet togglen"
+        onClick={() => onToggleFav(category.name)}
+        className={cn(
+          'absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center',
+          'hover:bg-secondary/30 active:bg-secondary/40',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/25'
+        )}
+        style={{ width: STAR_ZONE_W }}
+      >
+        <Star
+          className={cn(
+            'h-4 w-4 transition-colors',
+            isFav ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/35'
+          )}
+        />
+      </button>
+
+      {/* LINK OVERLAY */}
+      <Link
+        href={href}
+        className="absolute inset-0 z-10"
+        style={{ left: STAR_ZONE_W }}
+        aria-label={`${category.name} openen`}
+      />
+
+      {/* CONTENT */}
+      <div className="relative z-15 flex items-center justify-between w-full">
+        <div
+          className="flex flex-col min-w-0 pr-2"
+          style={{ paddingLeft: STAR_ZONE_W }}
+        >
+          <span className="text-[15px] font-medium text-foreground leading-tight">
+            {category.name}
+          </span>
+          <span className="text-xs text-muted-foreground/85 mt-1 line-clamp-1 leading-snug">
+            {category.description}
+          </span>
+        </div>
+
+        <ChevronRight className="h-5 w-5 text-muted-foreground/30 transition-colors shrink-0" />
+      </div>
+    </div>
   );
 }

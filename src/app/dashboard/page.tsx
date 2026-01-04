@@ -8,12 +8,13 @@ import {
   collection,
   onSnapshot,
   query,
-  serverTimestamp,
   where,
   Timestamp,
+  doc as fsDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 
-import { useFirestore, useUser, addDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import type { Quote } from '@/lib/types';
 
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -23,21 +24,35 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 
 import {
   Plus,
   Pencil,
-  ArrowUpRight,
-  Copy,
   Settings,
   Boxes,
   Users,
+  Calendar,
+  MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 
 import { format } from 'date-fns';
@@ -50,7 +65,16 @@ type QuoteMetDatums = Quote & {
   createdAtDate?: Date | null;
   updatedAtDate?: Date | null;
   sentAtDate?: Date | null;
+  offerteNummer?: number | null;
 };
+
+// ✅ Alleen de styling die jij gaf (zelfde look/feel als je andere delete-confirm)
+const DESTRUCTIVE_BTN_SOFT =
+  'border border-red-500/50 bg-red-500/15 text-red-100 ' +
+  'hover:bg-red-500/25 hover:border-red-500/65 ' +
+  'focus-visible:ring-red-500 focus-visible:ring-offset-0';
+
+// --- Helpers ---
 
 function naarDate(value: any): Date | null {
   if (!value) return null;
@@ -63,32 +87,53 @@ function naarDate(value: any): Date | null {
 }
 
 function formatCurrency(amount?: number) {
-  if (amount === undefined || amount === null) return '—';
+  if (amount === undefined || amount === null || amount === 0) return '€ 0,00';
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
 }
 
 function getTitel(q: any): string {
-  return (q?.titel ?? q?.title ?? q?.naam ?? '—') as string;
+  if (q?.titel || q?.title) return q.titel || q.title;
+  const info = q?.klantinformatie;
+  if (info?.straat) return `${info.straat} ${info.huisnummer || ''}`.trim();
+  return 'Naamloze klus';
 }
 
 function getKlantNaam(q: any): string {
-  return (q?.klantNaam ?? q?.klantnaam ?? q?.clientName ?? q?.customerName ?? '—') as string;
+  const info = q?.klantinformatie;
+  if (!info) return 'Onbekende klant';
+  const naam = [info.voornaam, info.achternaam].filter(Boolean).join(' ');
+  return naam || 'Onbekende klant';
+}
+
+function getOfferteNummerLabel(q: any): string | null {
+  const n = q?.offerteNummer;
+  if (typeof n === 'number' && Number.isFinite(n)) return `Offerte #${n}`;
+  return null;
+}
+
+// ✅ Altijd naar overzicht
+function getOverzichtHref(quoteId: string) {
+  return `/offertes/${quoteId}/overzicht`;
 }
 
 function StatusBadge({ status }: { status: Status }) {
   const statusMap: Record<Status, { text: string; className: string }> = {
-    concept: { text: 'Concept', className: 'bg-zinc-500/15 text-zinc-200 border-zinc-500/25' },
-    in_behandeling: { text: 'Bezig', className: 'bg-blue-500/15 text-blue-200 border-blue-500/25' },
-    verzonden: { text: 'Verzonden', className: 'bg-orange-500/15 text-orange-200 border-orange-500/25' },
-    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-green-500/15 text-green-200 border-green-500/25' },
-    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/15 text-red-200 border-red-500/25' },
-    verlopen: { text: 'Verlopen', className: 'bg-zinc-700 text-zinc-300 border-zinc-600' },
+    concept: { text: 'Concept', className: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25' },
+    in_behandeling: { text: 'Bezig', className: 'bg-blue-500/15 text-blue-300 border-blue-500/25' },
+    verzonden: { text: 'Verzonden', className: 'bg-orange-500/15 text-orange-300 border-orange-500/25' },
+    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' },
+    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/15 text-red-300 border-red-500/25' },
+    verlopen: { text: 'Verlopen', className: 'bg-zinc-700 text-zinc-400 border-zinc-600' },
   };
 
-  const { text, className } = statusMap[status] || statusMap.concept;
+  const safeStatus: Status = statusMap[status] ? status : 'concept';
+  const { text, className } = statusMap[safeStatus];
 
   return (
-    <Badge variant="outline" className={className}>
+    <Badge
+      variant="outline"
+      className={`font-medium px-2 py-0 text-[10px] uppercase tracking-wider ${className}`}
+    >
       {text}
     </Badge>
   );
@@ -122,49 +167,53 @@ export default function Dashboard() {
       (user as any)?.name ||
       (user as any)?.email?.split('@')?.[0] ||
       '';
-    if (naam) {
-      naam = naam.charAt(0).toUpperCase() + naam.slice(1);
-    }
+    if (naam) naam = naam.charAt(0).toUpperCase() + naam.slice(1);
     return naam ? `Welkom, ${naam}` : 'Welkom';
   }, [user]);
 
   const [laden, setLaden] = useState(true);
   const [offertes, setOffertes] = useState<QuoteMetDatums[]>([]);
   const [zoek, setZoek] = useState('');
+  const [fout, setFout] = useState<string | null>(null);
 
-  // Auth redirect
+  // ✅ delete flow
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<QuoteMetDatums | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
 
-  // Live offertes
   useEffect(() => {
     if (!user || !firestore) return;
 
     setLaden(true);
+    setFout(null);
 
     const ref = collection(firestore, 'quotes');
-    const q = query(ref, where('userId', '==', user.uid));
+    const q = query(ref, where('klantinformatie.userId', '==', user.uid));
 
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        const data: QuoteMetDatums[] = snapshot.docs.map((doc) => {
-          const raw = doc.data() as any;
+        const data: QuoteMetDatums[] = snapshot.docs.map((docSnap) => {
+          const raw = docSnap.data() as any;
           return {
-            ...(raw as Quote),
-            id: doc.id,
+            ...raw,
+            id: docSnap.id,
             createdAtDate: naarDate(raw?.createdAt),
             updatedAtDate: naarDate(raw?.updatedAt),
             sentAtDate: naarDate(raw?.sentAt),
+            offerteNummer: typeof raw?.offerteNummer === 'number' ? raw.offerteNummer : null,
           };
         });
-
         setOffertes(data);
         setLaden(false);
       },
-      (err) => {
+      (err: any) => {
         console.error('Fout bij ophalen klussen:', err);
+        setFout(`${err.code}: ${err.message}`);
         setLaden(false);
       }
     );
@@ -172,28 +221,6 @@ export default function Dashboard() {
     return () => unsub();
   }, [user, firestore]);
 
-  const dupliceerOfferte = async (offerte: QuoteMetDatums) => {
-    if (!user || !firestore) return;
-
-    const { id, createdAtDate, updatedAtDate, sentAtDate, ...rest } = offerte as any;
-
-    try {
-      const newDocRef = await addDocumentNonBlocking(collection(firestore, 'quotes'), {
-        ...rest,
-        userId: user.uid,
-        status: 'concept',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        titel: `${getTitel(offerte)} (Kopie)`,
-      });
-
-      if (newDocRef) router.push(`/offertes/${newDocRef.id}`);
-    } catch (e) {
-      console.error('Fout bij dupliceren klus:', e);
-    }
-  };
-
-  // Meest recente eerst
   const sortedByRecent = useMemo(() => {
     const arr = [...offertes];
     arr.sort((a, b) => {
@@ -204,115 +231,122 @@ export default function Dashboard() {
     return arr;
   }, [offertes]);
 
-  // Lopende klus = meest recente concept / in_behandeling
   const lopendeKlus = useMemo(() => {
     const drafts = sortedByRecent.filter((o) => o.status === 'concept' || o.status === 'in_behandeling');
     return drafts[0] ?? null;
   }, [sortedByRecent]);
 
-  // Recente klussen
   const recenteKlussen = useMemo(() => {
     const s = zoek.trim().toLowerCase();
     let result = [...sortedByRecent];
-
     if (s) {
       result = result.filter((o) => {
-        const titel = getTitel(o).toLowerCase();
-        const klant = getKlantNaam(o).toLowerCase();
-        return titel.includes(s) || klant.includes(s);
+        const nr = getOfferteNummerLabel(o)?.toLowerCase() || '';
+        return (
+          getTitel(o).toLowerCase().includes(s) ||
+          getKlantNaam(o).toLowerCase().includes(s) ||
+          nr.includes(s)
+        );
       });
     }
-
     return result.slice(0, 12);
   }, [sortedByRecent, zoek]);
 
+  function openDeleteDialog(offerte: QuoteMetDatums) {
+    setDeleteTarget(offerte);
+    setDeleteOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!firestore || !deleteTarget) return;
+    setDeleting(true);
+
+    try {
+      await deleteDoc(fsDoc(firestore, 'quotes', deleteTarget.id));
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+    } catch (e) {
+      console.error('Fout bij verwijderen offerte:', e);
+      // bewust geen toast hier: jij gebruikt dat niet op deze pagina nu
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (isUserLoading || !user) return <DashboardSkeleton />;
+
+  const dialogNr = deleteTarget ? getOfferteNummerLabel(deleteTarget) : null;
+  const dialogKlant = deleteTarget ? getKlantNaam(deleteTarget) : '';
 
   return (
     <TooltipProvider>
       <div className="flex min-h-screen flex-col">
         <DashboardHeader user={user} />
 
-        {/* pb-24 zodat de mobiele bottom bar niets overlapt */}
         <main className="flex flex-1 flex-col items-center p-4 md:p-6 pb-24">
           <div className="w-full max-w-3xl space-y-6">
-            {/* Begroeting */}
             <div className="px-1">
-              <div className="text-lg font-medium leading-tight">
-                {begroeting}
-              </div>
+              <div className="text-lg font-medium leading-tight">{begroeting}</div>
             </div>
 
-            {/* STARTSCHERM: 1 primaire actie */}
             <Card className="bg-card/50">
               <CardContent className="p-5 md:p-6">
-              <div className="flex items-start justify-between gap-6">
-  {/* LEFT: context */}
-  <div className="min-w-0">
-    <h1 className="text-2xl md:text-3xl font-semibold leading-tight">
-      Nieuwe klus
-    </h1>
-    <p className="mt-2 text-sm text-muted-foreground">
-      Start met het uitwerken van een nieuwe klus.
-    </p>
-  </div>
-
-  {/* RIGHT: primary action */}
-  <div className="shrink-0">
-    <Button asChild variant="success" className="gap-2 h-11 px-5">
-      <Link href="/offertes/nieuw">
-        <Plus className="h-4 w-4" />
-        Nieuwe klus starten
-      </Link>
-    </Button>
-  </div>
-</div>
-
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <h1 className="text-2xl md:text-3xl font-semibold leading-tight">Nieuwe klus</h1>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Start met het uitwerken van een nieuwe klus.
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <Button asChild variant="success" className="gap-2 h-11 px-5">
+                      <Link href="/offertes/nieuw">
+                        <Plus className="h-4 w-4" />
+                        Nieuwe klus starten
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Recovery (secundair) */}
-            {lopendeKlus ? (
+            {lopendeKlus && (
               <Card className="bg-card/50">
                 <CardContent className="p-4 md:p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-semibold">Lopende klus</div>
                       <div className="mt-1 text-sm text-muted-foreground truncate">
+                        {getOfferteNummerLabel(lopendeKlus) ? (
+                          <>
+                            <span className="font-mono text-zinc-300">{getOfferteNummerLabel(lopendeKlus)}</span>
+                            <span className="opacity-30 mx-2">•</span>
+                          </>
+                        ) : null}
                         {getKlantNaam(lopendeKlus)} — {getTitel(lopendeKlus)}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        Laatst bewerkt:{' '}
-                        {(lopendeKlus.updatedAtDate ?? lopendeKlus.createdAtDate)
-                          ? format((lopendeKlus.updatedAtDate ?? lopendeKlus.createdAtDate) as Date, 'd MMM yyyy', { locale: nl })
-                          : '—'}
                       </div>
                     </div>
 
                     <Button asChild variant="secondary" className="shrink-0 gap-2">
-                      <Link href={`/offertes/${lopendeKlus.id}`}>
+                      <Link href={getOverzichtHref(lopendeKlus.id)}>
                         <Pencil className="h-4 w-4" />
-                        Verder
+                        Bewerken
                       </Link>
                     </Button>
                   </div>
                 </CardContent>
               </Card>
-            ) : null}
+            )}
 
-            {/* Recente klussen (rustig) */}
             <Card className="bg-card/50">
               <CardContent className="p-4 md:p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
                     <div className="text-sm font-semibold">Recente klussen</div>
-                    <div className="text-xs text-muted-foreground">
-                      Terugvinden, openen, of dupliceren.
-                    </div>
+                    <div className="text-xs text-muted-foreground">Terugvinden en openen.</div>
                   </div>
-
                   <Input
-                    placeholder="Zoek op klant of titel..."
+                    placeholder="Zoek op klant, adres of #nummer..."
                     className="w-full md:w-[320px]"
                     value={zoek}
                     onChange={(e) => setZoek(e.target.value)}
@@ -320,10 +354,14 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mt-4">
-                  {laden ? (
+                  {fout ? (
+                    <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+                      Firestore fout: <span className="font-mono">{fout}</span>
+                    </div>
+                  ) : laden ? (
                     <div className="space-y-2">
-                      {[...Array(7)].map((_, i) => (
-                        <div key={i} className="h-12 animate-pulse rounded bg-muted/50" />
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/30" />
                       ))}
                     </div>
                   ) : recenteKlussen.length === 0 ? (
@@ -331,58 +369,84 @@ export default function Dashboard() {
                       Nog geen klussen gevonden.
                     </div>
                   ) : (
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {recenteKlussen.map((o) => {
                         const datum = o.updatedAtDate ?? o.createdAtDate;
+                        const nrLabel = getOfferteNummerLabel(o);
 
                         return (
                           <div
                             key={o.id}
-                            className="group flex items-center justify-between gap-3 rounded-2xl border bg-background/15 px-3 py-2 hover:bg-muted/25 transition-colors"
+                            className="flex items-center justify-between gap-4 rounded-xl border border-zinc-800/50 bg-zinc-900/10 px-4 py-3 hover:bg-zinc-800/30 transition-all"
                           >
-                            <div className="min-w-0">
-                              <Link href={`/offertes/${o.id}`} className="block min-w-0">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <div className="truncate font-medium">
-                                    {getKlantNaam(o)} — {getTitel(o)}
-                                  </div>
-                                  <StatusBadge status={o.status} />
+                            <div className="flex-1 min-w-0">
+                              <Link href={getOverzichtHref(o.id)} className="block">
+                                <div className="flex items-center gap-3 mb-1 min-w-0">
+                                  <span className="font-semibold text-zinc-200 truncate">{getKlantNaam(o)}</span>
+
+                                  {nrLabel && (
+                                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-md border border-zinc-700/50 bg-zinc-900/20 text-zinc-300 shrink-0">
+                                      {nrLabel}
+                                    </span>
+                                  )}
+
+                                  <StatusBadge status={o.status as Status} />
                                 </div>
 
-                                <div className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-                                  <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
-                                  <span className="opacity-60">•</span>
-                                  <span>{formatCurrency(o.amount)}</span>
+                                <div className="flex items-center gap-3 text-xs text-zinc-500">
+                                  <span className="truncate max-w-[200px] font-medium text-zinc-400">
+                                    {getTitel(o)}
+                                  </span>
+                                  <span className="opacity-20">•</span>
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
+                                  </span>
+                                  <span className="opacity-20">•</span>
+                                  <span className="font-semibold text-emerald-500/80">
+                                    {formatCurrency((o as any).totaalbedrag || (o as any).amount)}
+                                  </span>
                                 </div>
                               </Link>
                             </div>
 
-                            {/* Acties op hover (desktop) */}
-                            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* ✅ Bewerken + 3-dots menu (zoals Klanten) */}
+                            <div className="flex items-center gap-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button asChild variant="ghost" size="icon">
-                                    <Link href={`/offertes/${o.id}`} aria-label="Openen">
-                                      <ArrowUpRight className="h-4 w-4" />
+                                  <Button asChild variant="secondary" size="sm" className="gap-2">
+                                    <Link href={getOverzichtHref(o.id)}>
+                                      <Pencil className="h-4 w-4" />
+                                      Bewerken
                                     </Link>
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Openen</TooltipContent>
+                                <TooltipContent>Bewerk deze klus</TooltipContent>
                               </Tooltip>
 
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => dupliceerOfferte(o)}
-                                    aria-label="Dupliceren"
-                                  >
-                                    <Copy className="h-4 w-4" />
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Acties</span>
                                   </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Dupliceren</TooltipContent>
-                              </Tooltip>
+                                </DropdownMenuTrigger>
+
+                                <DropdownMenuContent align="end" className="w-44">
+                                  <DropdownMenuSeparator />
+                                  {/* ✅ kleur in menu NIET aangepast — alleen rood label zoals jij wil */}
+                                  <DropdownMenuItem
+                                    onSelect={(e) => {
+                                      e.preventDefault();
+                                      openDeleteDialog(o);
+                                    }}
+                                    className="text-red-600 focus:text-red-600"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Verwijderen
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                         );
@@ -393,38 +457,68 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
-
         </main>
-         {/* Mobiele utility bar (fixed onderin) */}
-         <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 backdrop-blur-xl">
-            <div className="mx-auto max-w-3xl px-3 py-2 flex items-center justify-around">
-              
-              {/* ✅ UPDATED: Now links to /klanten */}
-              <Link
-                href="/klanten"
-                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Users className="h-5 w-5" />
-                Klanten
-              </Link>
 
-              <Link
-                href="/materialen"
-                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Boxes className="h-5 w-5" />
-                Materialen
-              </Link>
+        {/* ✅ Confirm dialog met exact jouw delete-button look (soft destructive) */}
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Offerte verwijderen?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Weet je zeker dat je deze offerte definitief wilt verwijderen? Dit kan niet ongedaan gemaakt worden.
+                {deleteTarget ? (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    <span className="font-mono text-zinc-300">
+                      {dialogNr ?? 'Offerte'}
+                    </span>
+                    <span className="opacity-30 mx-2">•</span>
+                    <span>{dialogKlant}</span>
+                  </div>
+                ) : null}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
 
-              <Link
-                href="/instellingen"
-                className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            <AlertDialogFooter className="gap-2 sm:gap-2">
+              <AlertDialogCancel disabled={deleting} className="rounded-xl">
+                Annuleren
+              </AlertDialogCancel>
+
+              {/* Let op: dit is bewust GEEN shadcn "destructive" variant.
+                  Dit gebruikt jouw DESTRUCTIVE_BTN_SOFT classes zodat het exact matcht. */}
+              <Button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className={`rounded-xl ${DESTRUCTIVE_BTN_SOFT}`}
               >
-                <Settings className="h-5 w-5" />
-                Instellingen
-              </Link>
-            </div>
+                {deleting ? 'Verwijderen...' : 'Verwijderen'}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 backdrop-blur-xl">
+          <div className="mx-auto max-w-3xl px-3 py-2 flex items-center justify-around">
+            <Link
+              href="/klanten"
+              className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Users className="h-5 w-5" /> Klanten
+            </Link>
+            <Link
+              href="/materialen"
+              className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Boxes className="h-5 w-5" /> Producten
+            </Link>
+            <Link
+              href="/instellingen"
+              className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Settings className="h-5 w-5" /> Instellingen
+            </Link>
           </div>
+        </div>
       </div>
     </TooltipProvider>
   );

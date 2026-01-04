@@ -14,7 +14,9 @@ import {
   query,
   where,
   getDocs,
-  orderBy
+  orderBy,
+  runTransaction,
+  setDoc,
 } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
@@ -37,11 +39,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from '@/components/ui/separator';
-import { 
-  Loader2, 
-  Search, 
-  User, 
-  Building2, 
+import {
+  Loader2,
+  Search,
+  User,
+  Building2,
   ChevronRight,
   BookUser
 } from 'lucide-react';
@@ -60,12 +62,8 @@ function formatCapitalize(value: string) {
 
 function formatPostcode(value: string) {
   if (!value) return '';
-  // Remove spaces and non-alphanumeric, then uppercase
   const clean = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-  // If it looks like 1234AB, make it 1234 AB
-  if (clean.length === 6) {
-    return `${clean.slice(0, 4)} ${clean.slice(4)}`;
-  }
+  if (clean.length === 6) return `${clean.slice(0, 4)} ${clean.slice(4)}`;
   return clean;
 }
 
@@ -76,6 +74,47 @@ function schoonObject(obj: any) {
     cleaned[k] = v;
   }
   return cleaned;
+}
+
+/**
+ * Haalt het volgende offerte-nummer op via transaction en verhoogt de teller.
+ * - Start bij 260001 als teller nog niet bestaat.
+ * - Per user eigen teller (voorkomt dat verschillende gebruikers elkaars nummers beïnvloeden).
+ */
+async function reserveerVolgendOfferteNummer(params: {
+  firestore: any;
+  userId: string;
+  startNummer?: number;
+}): Promise<number> {
+  const { firestore, userId, startNummer = 260001 } = params;
+
+  const counterRef = doc(firestore, 'counters', `quoteNumber_${userId}`);
+
+  const offerteNummer = await runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(counterRef);
+
+    const huidigeVolgende: number =
+      snap.exists() && typeof snap.data()?.next === 'number'
+        ? snap.data().next
+        : startNummer;
+
+    const nieuweVolgende = huidigeVolgende + 1;
+
+    // Counter doc updaten/aanmaken binnen dezelfde transaction
+    tx.set(
+      counterRef,
+      {
+        next: nieuweVolgende,
+        updatedAt: serverTimestamp(),
+        userId,
+      },
+      { merge: true }
+    );
+
+    return huidigeVolgende;
+  });
+
+  return offerteNummer;
 }
 
 /* ---------------------------------------------
@@ -112,11 +151,11 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
   const [klanttype, setKlanttype] = useState<'particulier' | 'zakelijk'>('particulier');
   const [showProjectAddress, setShowProjectAddress] = useState(false);
   const [isPending, startTransition] = useTransition();
-  
+
   // Data state
   const [initialKI, setInitialKI] = useState<Record<string, any> | null>(null);
   const [isLoading, setIsLoading] = useState(!!quoteId);
-  const [formKey, setFormKey] = useState(0); 
+  const [formKey, setFormKey] = useState(0);
 
   // Client Modal State
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -126,6 +165,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
   // 1. Fetch Quote (if editing)
   useEffect(() => {
     if (!quoteId || !firestore) return;
+
     const fetchQuote = async () => {
       setIsLoading(true);
       try {
@@ -139,26 +179,30 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           setShowProjectAddress(!!ki?.afwijkendProjectadres);
           setFormKey((prev) => prev + 1);
         }
-      } finally { setIsLoading(false); }
+      } finally {
+        setIsLoading(false);
+      }
     };
+
     fetchQuote();
   }, [quoteId, firestore]);
 
   // 2. Fetch Clients (ordered by newest first)
   useEffect(() => {
     if (!user || !firestore) return;
+
     const fetchClients = async () => {
       try {
         const q = query(
-          collection(firestore, 'clients'), 
+          collection(firestore, 'clients'),
           where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc') 
+          orderBy('createdAt', 'desc')
         );
         const snap = await getDocs(q);
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setClients(list);
       } catch (e) {
-        // Fallback without index
+        // Fallback zonder index
         const q = query(collection(firestore, 'clients'), where('userId', '==', user.uid));
         const snap = await getDocs(q);
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -166,6 +210,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
         setClients(list);
       }
     };
+
     fetchClients();
   }, [user, firestore]);
 
@@ -174,7 +219,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
     setInitialKI(client);
     setKlanttype(client.klanttype === 'Zakelijk' ? 'zakelijk' : 'particulier');
     setShowProjectAddress(!!client.afwijkendProjectadres);
-    setFormKey((prev) => prev + 1); 
+    setFormKey((prev) => prev + 1);
     setIsClientModalOpen(false);
     toast({ title: 'Klant geselecteerd', description: `${client.voornaam} ${client.achternaam} is ingevuld.` });
   };
@@ -195,9 +240,9 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
     if (!user || !firestore) return;
 
     const formData = new FormData(event.currentTarget);
-    const raw = Object.fromEntries(formData);
+    const raw: any = Object.fromEntries(formData);
 
-    // Apply formatting logic
+    // Formatting
     if (typeof raw.voornaam === 'string') raw.voornaam = formatCapitalize(raw.voornaam);
     if (typeof raw.achternaam === 'string') raw.achternaam = formatCapitalize(raw.achternaam);
     if (typeof raw.straat === 'string') raw.straat = formatCapitalize(raw.straat);
@@ -219,7 +264,6 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
         userId: user.uid,
         updatedAt: serverTimestamp(),
         klanttype: validated.data.klanttype === 'particulier' ? 'Particulier' : 'Zakelijk',
-        // Only include project address fields if toggle is on
         ...(validated.data.afwijkendProjectadres ? {
           afwijkendProjectadres: true,
           projectStraat: validated.data.projectStraat,
@@ -232,9 +276,13 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
       });
 
       try {
-        // 1. SAVE/UPDATE CLIENT
+        // 1) SAVE/UPDATE CLIENT
         const clientRef = collection(firestore, 'clients');
-        const q = query(clientRef, where('emailadres', '==', cleanData.emailadres), where('userId', '==', user.uid));
+        const q = query(
+          clientRef,
+          where('emailadres', '==', cleanData.emailadres),
+          where('userId', '==', user.uid)
+        );
         const snap = await getDocs(q);
 
         if (!snap.empty) {
@@ -244,17 +292,30 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           await addDoc(clientRef, { ...cleanData, createdAt: serverTimestamp() });
         }
 
-        // 2. SAVE QUOTE
+        // 2) SAVE QUOTE
         if (quoteId) {
+          // Bewerken: geen nieuw offertnummer aanmaken
           await updateDoc(doc(firestore, 'quotes', quoteId), { klantinformatie: cleanData });
           router.push(`/offertes/${quoteId}/klus/nieuw`);
-        } else {
-          const docRef = await addDoc(collection(firestore, 'quotes'), {
-            createdAt: serverTimestamp(),
-            klantinformatie: cleanData,
-          });
-          router.push(`/offertes/${docRef.id}/klus/nieuw`);
+          return;
         }
+
+        // Nieuw: eerst een uniek offertenummer reserveren (transaction)
+        const offerteNummer = await reserveerVolgendOfferteNummer({
+          firestore,
+          userId: user.uid,
+          startNummer: 260001,
+        });
+
+        const docRef = await addDoc(collection(firestore, 'quotes'), {
+          userId: user.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          offerteNummer, // ✅ jouw nummer zoals 260001
+          klantinformatie: cleanData,
+        });
+
+        router.push(`/offertes/${docRef.id}/klus/nieuw`);
       } catch (e) {
         console.error(e);
         toast({ variant: 'destructive', title: 'Fout bij opslaan' });
@@ -262,7 +323,13 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
     });
   };
 
-  if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin inline mr-2" /> Laden...</div>;
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center">
+        <Loader2 className="animate-spin inline mr-2" /> Laden...
+      </div>
+    );
+  }
 
   return (
     <Card>
@@ -270,12 +337,9 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
         <div className="flex items-start justify-between">
           <div className="space-y-1.5">
             <CardTitle>{quoteId ? 'Offerte bewerken' : 'Klantinformatie'}</CardTitle>
-            <CardDescription>
-              Vul de gegevens van de klant in.
-            </CardDescription>
+            <CardDescription>Vul de gegevens van de klant in.</CardDescription>
           </div>
 
-          {/* ✅ Button is now ALWAYS visible, regardless of quoteId */}
           <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
             <DialogTrigger asChild>
               <Button variant="secondary" size="sm" className="gap-2">
@@ -283,15 +347,16 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                 <span className="hidden sm:inline">Adresboek</span>
               </Button>
             </DialogTrigger>
+
             <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle>Klant selecteren</DialogTitle>
               </DialogHeader>
-              
+
               <div className="relative mt-2">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Zoek op naam, bedrijf of e-mail..." 
+                <Input
+                  placeholder="Zoek op naam, bedrijf of e-mail..."
                   className="pl-9"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -307,19 +372,28 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                   filteredClients.map((client) => {
                     const isZakelijk = client.klanttype === 'Zakelijk';
                     return (
-                      <div 
+                      <div
                         key={client.id}
                         onClick={() => selectClient(client)}
                         className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50 cursor-pointer transition-colors group"
                       >
                         <div className="flex items-center gap-3">
-                          <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shrink-0", isZakelijk ? "bg-blue-100 text-blue-600" : "bg-emerald-100 text-emerald-600")}>
+                          <div
+                            className={cn(
+                              "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                              isZakelijk ? "bg-blue-100 text-blue-600" : "bg-emerald-100 text-emerald-600"
+                            )}
+                          >
                             {isZakelijk ? <Building2 className="h-5 w-5" /> : <User className="h-5 w-5" />}
                           </div>
                           <div>
                             <div className="font-medium text-sm flex items-center gap-2">
                               {client.voornaam} {client.achternaam}
-                              {isZakelijk && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Zakelijk</span>}
+                              {isZakelijk && (
+                                <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                                  Zakelijk
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {isZakelijk && client.bedrijfsnaam ? `${client.bedrijfsnaam} • ` : ''}
@@ -329,7 +403,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
-                    )
+                    );
                   })
                 )}
               </div>
@@ -337,14 +411,25 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           </Dialog>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <form key={formKey} onSubmit={handleFormSubmit} className="space-y-8">
-        {showProjectAddress && <input type="hidden" name="afwijkendProjectadres" value="on" />}
-          
-          <RadioGroup name="klanttype" value={klanttype} onValueChange={(v: any) => setKlanttype(v)} className="flex gap-6">
-            <div className="flex items-center space-x-2"><RadioGroupItem value="particulier" id="p" /><Label htmlFor="p">Particulier</Label></div>
-            <div className="flex items-center space-x-2"><RadioGroupItem value="zakelijk" id="z" /><Label htmlFor="z">Zakelijk</Label></div>
+          {showProjectAddress && <input type="hidden" name="afwijkendProjectadres" value="on" />}
+
+          <RadioGroup
+            name="klanttype"
+            value={klanttype}
+            onValueChange={(v: any) => setKlanttype(v)}
+            className="flex gap-6"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="particulier" id="p" />
+              <Label htmlFor="p">Particulier</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="zakelijk" id="z" />
+              <Label htmlFor="z">Zakelijk</Label>
+            </div>
           </RadioGroup>
 
           {klanttype === 'zakelijk' && (
@@ -363,24 +448,24 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="voornaam">Voornaam *</Label>
-              <Input 
-                id="voornaam" 
-                name="voornaam" 
-                placeholder="Voornaam" 
-                required 
+              <Input
+                id="voornaam"
+                name="voornaam"
+                placeholder="Voornaam"
+                required
                 defaultValue={initialKI?.voornaam}
-                onBlur={(e) => e.target.value = formatCapitalize(e.target.value)}
+                onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="achternaam">Achternaam *</Label>
-              <Input 
-                id="achternaam" 
-                name="achternaam" 
-                placeholder="Achternaam" 
-                required 
+              <Input
+                id="achternaam"
+                name="achternaam"
+                placeholder="Achternaam"
+                required
                 defaultValue={initialKI?.achternaam}
-                onBlur={(e) => e.target.value = formatCapitalize(e.target.value)}
+                onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
               />
             </div>
           </div>
@@ -404,13 +489,13 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
             <div className="grid grid-cols-6 gap-4">
               <div className="col-span-4 space-y-1.5">
                 <Label htmlFor="straat">Straat *</Label>
-                <Input 
-                  id="straat" 
-                  name="straat" 
-                  placeholder="Straatnaam" 
-                  required 
-                  defaultValue={initialKI?.straat} 
-                  onBlur={(e) => e.target.value = formatCapitalize(e.target.value)}
+                <Input
+                  id="straat"
+                  name="straat"
+                  placeholder="Straatnaam"
+                  required
+                  defaultValue={initialKI?.straat}
+                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
@@ -419,24 +504,24 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
               </div>
               <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="postcode">Postcode *</Label>
-                <Input 
-                  id="postcode" 
-                  name="postcode" 
-                  placeholder="1234 AB" 
-                  required 
+                <Input
+                  id="postcode"
+                  name="postcode"
+                  placeholder="1234 AB"
+                  required
                   defaultValue={initialKI?.postcode}
-                  onBlur={(e) => e.target.value = formatPostcode(e.target.value)}
+                  onBlur={(e) => (e.target.value = formatPostcode(e.target.value))}
                 />
               </div>
               <div className="col-span-4 space-y-1.5">
                 <Label htmlFor="plaats">Plaats *</Label>
-                <Input 
-                  id="plaats" 
-                  name="plaats" 
-                  placeholder="Plaatsnaam" 
-                  required 
-                  defaultValue={initialKI?.plaats} 
-                  onBlur={(e) => e.target.value = formatCapitalize(e.target.value)}
+                <Input
+                  id="plaats"
+                  name="plaats"
+                  placeholder="Plaatsnaam"
+                  required
+                  defaultValue={initialKI?.plaats}
+                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
                 />
               </div>
             </div>
@@ -452,12 +537,12 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
             <div className="grid grid-cols-6 gap-4 p-4 border rounded-md bg-muted/20">
               <div className="col-span-4 space-y-1.5">
                 <Label htmlFor="projectStraat">Straat</Label>
-                <Input 
-                  id="projectStraat" 
-                  name="projectStraat" 
-                  placeholder="Straatnaam" 
+                <Input
+                  id="projectStraat"
+                  name="projectStraat"
+                  placeholder="Straatnaam"
                   defaultValue={initialKI?.projectStraat}
-                  onBlur={(e) => e.target.value = formatCapitalize(e.target.value)}
+                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
@@ -466,22 +551,22 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
               </div>
               <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="projectPostcode">Postcode</Label>
-                <Input 
-                  id="projectPostcode" 
-                  name="projectPostcode" 
-                  placeholder="1234 AB" 
+                <Input
+                  id="projectPostcode"
+                  name="projectPostcode"
+                  placeholder="1234 AB"
                   defaultValue={initialKI?.projectPostcode}
-                  onBlur={(e) => e.target.value = formatPostcode(e.target.value)}
+                  onBlur={(e) => (e.target.value = formatPostcode(e.target.value))}
                 />
               </div>
               <div className="col-span-4 space-y-1.5">
                 <Label htmlFor="projectPlaats">Plaats</Label>
-                <Input 
-                  id="projectPlaats" 
-                  name="projectPlaats" 
-                  placeholder="Plaatsnaam" 
+                <Input
+                  id="projectPlaats"
+                  name="projectPlaats"
+                  placeholder="Plaatsnaam"
                   defaultValue={initialKI?.projectPlaats}
-                  onBlur={(e) => e.target.value = formatCapitalize(e.target.value)}
+                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
                 />
               </div>
             </div>
@@ -489,7 +574,9 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
 
           <div className="flex justify-end gap-4 pt-4">
             <Button variant="outline" asChild><Link href="/">Annuleren</Link></Button>
-            <Button type="submit" variant="success" disabled={isPending}>{isPending ? 'Bezig...' : 'Volgende'}</Button>
+            <Button type="submit" variant="success" disabled={isPending}>
+              {isPending ? 'Bezig...' : 'Volgende'}
+            </Button>
           </div>
         </form>
       </CardContent>

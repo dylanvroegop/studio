@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
+import React, { useEffect, useMemo, useState, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2 } from 'lucide-react';
@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
 import { PersonalNotes } from '@/components/PersonalNotes';
@@ -47,6 +47,22 @@ function toIntOrNull(waarde: string): number | null {
   const n = Number(waarde);
   if (!Number.isFinite(n)) return null;
   return Math.trunc(n);
+}
+
+// ✅ Belangrijk: slug moet al bestaan vóór materialen
+function slugify(waarde: string) {
+  return (waarde || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\-]/g, '')
+    .replace(/\-+/g, '-')
+    .replace(/^\-+|\-+$/g, '');
+}
+
+function veiligeTekst(x: any): string {
+  if (typeof x === 'string') return x.trim();
+  return '';
 }
 
 export default function HsbWandPage() {
@@ -164,6 +180,30 @@ export default function HsbWandPage() {
     if (e.key === 'e' || e.key === 'E') e.preventDefault();
   };
 
+  // ✅ Haal title/type zo vroeg mogelijk uit de quote (klussen > klusomschrijving)
+  const jobMeta = useMemo(() => {
+    const raw: any = (quote as any)?.klussen?.[klusId];
+
+    const title =
+      veiligeTekst(raw?.klusomschrijving?.title) ||
+      veiligeTekst(raw?.klusinformatie?.title) ||
+      veiligeTekst(raw?.meta?.title) ||
+      'Klus';
+
+    const type =
+      veiligeTekst(raw?.meta?.type) ||
+      veiligeTekst(raw?.klusomschrijving?.type) ||
+      veiligeTekst(raw?.klusinformatie?.type) ||
+      veiligeTekst(raw?.type) ||
+      'wanden';
+
+    const slug =
+      veiligeTekst(raw?.meta?.slug) ||
+      slugify(title);
+
+    return { title, type, slug };
+  }, [quote, klusId]);
+
   async function saveToFirestoreOrThrow() {
     if (!firestore) throw new Error('Firestore ontbreekt.');
     if (!quoteId) throw new Error('quoteId ontbreekt.');
@@ -189,9 +229,14 @@ export default function HsbWandPage() {
 
     const ref = doc(firestore, 'quotes', quoteId);
 
+    // ✅ Cruciaal: meta.slug + meta.type + meta.title worden NU al gezet
+    // zodat "Bewerken" altijd een stabiele URL kan bouwen (ook zonder materialen).
     await updateDoc(ref, {
       [`klussen.${klusId}.maatwerk`]: mapped,
-      [`klussen.${klusId}.updatedAt`]: new Date(),
+      [`klussen.${klusId}.meta.title`]: jobMeta.title,
+      [`klussen.${klusId}.meta.type`]: jobMeta.type,
+      [`klussen.${klusId}.meta.slug`]: jobMeta.slug,
+      [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
     });
   }
 
@@ -362,7 +407,7 @@ export default function HsbWandPage() {
               variant="successGhost"
               onClick={handleAddWall}
               disabled={disabledAll}
-              className={cn("w-full mt-6 rounded-xl transition-colors")}
+              className={cn('w-full mt-6 rounded-xl transition-colors')}
             >
               <PlusCircle className="mr-2 h-4 w-4" />
               Wand toevoegen
