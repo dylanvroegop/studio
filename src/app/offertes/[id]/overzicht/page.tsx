@@ -57,6 +57,7 @@ import {
   serverTimestamp,
   FieldPath,
 } from 'firebase/firestore';
+import { PersonalNotes } from '@/components/PersonalNotes';
 
 /* ---------------------------------------------
  Helpers
@@ -714,8 +715,8 @@ export default function OverzichtPage() {
   const primaryHint = useMemo(() => {
     if (stats.totaal === 0) return 'Voeg minimaal 1 klus toe.';
     if (stats.incompleet > 0) return 'Er zijn nog onvolledige klussen. Werk ze eerst af.';
-    if (!stats.transportIsValid) return 'Transport is niet ingevuld. Kies “Geen” of vul een bedrag in.';
-    if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies “Geen” of vul een bedrag/percentage in.';
+    if (!stats.transportIsValid) return 'Transport is niet ingevuld. Kies "Geen" of vul een bedrag in.';
+    if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies "Geen" of vul een bedrag/percentage in.';
     return 'Je kunt de offerte indienen voor berekening.';
   }, [stats]);
 
@@ -823,7 +824,7 @@ export default function OverzichtPage() {
     lastSavedJsonRef.current = stateForCompare;
 
     if (forceToast) {
-      toast({ title: 'Opgeslagen', description: 'Extra’s zijn opgeslagen.' });
+      toast({ title: 'Opgeslagen', description: 'Extra\'s zijn opgeslagen.' });
     }
   };
 
@@ -914,7 +915,7 @@ export default function OverzichtPage() {
       toast({
         variant: 'destructive',
         title: 'Ongeldig',
-        description: 'Vul eerst een geldig transportbedrag in (of kies “Geen”).',
+        description: 'Vul eerst een geldig transportbedrag in (of kies "Geen").',
       });
       return;
     }
@@ -935,7 +936,7 @@ export default function OverzichtPage() {
       toast({
         variant: 'destructive',
         title: 'Ongeldig',
-        description: 'Vul eerst een geldige winstmarge in (of kies “Geen”).',
+        description: 'Vul eerst een geldige winstmarge in (of kies "Geen").',
       });
       return;
     }
@@ -998,7 +999,7 @@ export default function OverzichtPage() {
       bouwplaatsKostenPakketten: next,
     });
 
-    toast({ title: 'Opgeslagen', description: `Pakket “${naam}” is toegevoegd.` });
+    toast({ title: 'Opgeslagen', description: `Pakket "${naam}" is toegevoegd.` });
     setBouwplaatsOpslaanOpen(false);
   }
 
@@ -1038,7 +1039,7 @@ export default function OverzichtPage() {
       bouwplaatsKostenPakketten: next,
     });
 
-    toast({ title: 'Opgeslagen', description: `Pakket “${naam}” is bijgewerkt.` });
+    toast({ title: 'Opgeslagen', description: `Pakket "${naam}" is bijgewerkt.` });
     setBouwplaatsOpslaanOpen(false);
   }
 
@@ -1078,7 +1079,7 @@ export default function OverzichtPage() {
       bouwplaatsKostenPakketten: next,
     });
 
-    toast({ title: 'Opgeslagen', description: `Pakket “${naam}” is toegevoegd.` });
+    toast({ title: 'Opgeslagen', description: `Pakket "${naam}" is toegevoegd.` });
   }
 
   async function maakPakketStandaard(id: string) {
@@ -1700,7 +1701,7 @@ export default function OverzichtPage() {
             <div className="space-y-2">
               {pakketten.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">
-                  Nog geen pakketten. Maak er één via “Opslaan als nieuw”.
+                  Nog geen pakketten. Maak er één via "Opslaan als nieuw".
                 </p>
               ) : (
                 pakketten.map((p) => {
@@ -1768,22 +1769,39 @@ export default function OverzichtPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* HEADER with PersonalNotes */}
+      <header className="border-b bg-background/80 backdrop-blur-xl">
+        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <Button 
+              asChild 
+              variant="outline" 
+              size="icon" 
+              className="h-11 w-11 rounded-xl"
+            >
+              <Link href="/dashboard">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-center">Overzicht & extra's</div>
+            </div>
+
+            {/* Notes button in header */}
+            <div className="flex items-center justify-center">
+              {loading ? (
+                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+              ) : (
+                <PersonalNotes quoteId={quoteId} />
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
       <div className="flex-1 px-4 py-6 md:py-10">
         <div className="mx-auto max-w-3xl space-y-6">
-          <div className="grid grid-cols-3 items-center">
-            <div>
-              <Button variant="ghost" size="icon" onClick={() => router.back()} aria-label="Terug">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="text-center">
-              <h1 className="font-semibold text-lg">Overzicht & extra’s</h1>
-            </div>
-
-            <div />
-          </div>
-
           <div
             className={cn(
               'rounded-lg border px-4 py-3 text-sm',

@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Search } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 
-import { QuoteStapHeader } from '@/components/quote/QuoteStapHeader';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
@@ -69,16 +69,42 @@ export default function NewJobPage() {
 
   return (
     <main className="relative min-h-screen bg-background">
-      {/* Header component is nu "alleen progress bar" -> gebruik progressValue i.p.v. stappen/actieveStap */}
-      <QuoteStapHeader
-        titel="Kies een klus"
-        terugHref={`/offertes/${quoteId}/edit`}
-        isPaginaLaden={loading}
-        progressKleur="bg-primary"
-        progressValue={33.3333}
-      />
+      {/* INLINE HEADER with notes button */}
+      <header className="border-b bg-background/80 backdrop-blur-xl">
+        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
+              <Link href={`/offertes/${quoteId}/edit`}>
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
 
-      {/* Zoekbalk los onder header (niet in header zelf) */}
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-center">Kies een klus</div>
+
+              <div className="mt-3">
+                <div className="h-1.5 rounded-full bg-muted/40">
+                  <div
+                    className="h-full rounded-full bg-primary/65 transition-all"
+                    style={{ width: '25%' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Notes button in header */}
+            <div className="flex items-center justify-center">
+              {loading ? (
+                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+              ) : (
+                <PersonalNotes quoteId={quoteId} />
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Zoekbalk los onder header */}
       <div className="px-4 pt-4 max-w-5xl mx-auto">
         <div className="flex justify-end">
           <div className="relative w-full sm:w-[320px]">
@@ -141,9 +167,6 @@ export default function NewJobPage() {
           )}
         </div>
       </div>
-
-      {/* Personal Notes floating button */}
-      {quoteId && <PersonalNotes quoteId={quoteId} />}
     </main>
   );
 }

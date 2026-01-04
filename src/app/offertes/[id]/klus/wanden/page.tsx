@@ -56,7 +56,7 @@ export default function WandenPage() {
   }, [quoteId]);
 
   // Progress bar: jij bepaalt deze. Voor "Klus" stap was eerder ~33%.
-  const progressValue = 33.3333;
+  const progressValue = 25;
 
   const subcategories: Subcategory[] = useMemo(
     () => [
@@ -178,9 +178,13 @@ export default function WandenPage() {
               </div>
             </div>
 
-            {/* rechter spacer zodat titel écht gecentreerd blijft */}
-            <div className="w-11">
-              {loading ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}
+            {/* Notes button in header */}
+            <div className="flex items-center justify-center">
+              {loading ? (
+                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+              ) : (
+                <PersonalNotes quoteId={quoteId} />
+              )}
             </div>
           </div>
         </div>
@@ -231,9 +235,6 @@ export default function WandenPage() {
           </div>
         </div>
       </div>
-
-      {/* Personal Notes floating button */}
-      {quoteId && <PersonalNotes quoteId={quoteId} />}
     </main>
   );
 }

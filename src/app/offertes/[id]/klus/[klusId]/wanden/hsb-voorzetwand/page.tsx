@@ -228,7 +228,7 @@ export default function HsbWandPage() {
   if (!isMounted) return null;
 
   // Progress bar: jij bepaalt deze (voor Maten stap was eerder ~66%).
-  const progressValue = 66.6667;
+  const progressValue = 50;
 
   return (
     <main className="relative min-h-screen bg-background">
@@ -248,16 +248,20 @@ export default function HsbWandPage() {
               <div className="mt-3">
                 <div className="h-1.5 rounded-full bg-muted/40">
                   <div
-                    className="h-full rounded-full bg-primary transition-all"
+                    className="h-full rounded-full bg-primary/65 transition-all"
                     style={{ width: `${progressValue}%` }}
                   />
                 </div>
               </div>
             </div>
 
-            {/* rechter spacer zodat titel écht gecentreerd blijft */}
-            <div className="w-11">
-              {loading ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}
+            {/* Notes button in header */}
+            <div className="flex items-center justify-center">
+              {loading ? (
+                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+              ) : (
+                <PersonalNotes quoteId={quoteId} />
+              )}
             </div>
           </div>
         </div>
@@ -381,9 +385,6 @@ export default function HsbWandPage() {
           </form>
         </div>
       </div>
-
-      {/* Personal Notes floating button */}
-      {quoteId && <PersonalNotes quoteId={quoteId} />}
     </main>
   );
 }

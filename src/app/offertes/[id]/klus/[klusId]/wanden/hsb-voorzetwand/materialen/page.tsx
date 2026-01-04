@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
+import { PersonalNotes } from '@/components/PersonalNotes';
 
 import {
   ArrowLeft,
@@ -834,7 +835,7 @@ setCollapsedSections(rawCollapsed);
   
   // ✅ VERWIJDERD: // eslint-disable-next-line ...
   // ✅ TOEGEVOEGD: customGroups
-}, [firestoreCustommateriaal, alleMaterialen]);
+}, [firestoreCustommateriaal, alleMaterialen, customGroups.length]);
 
   useEffect(() => {
     const n = kleinMateriaalConfig.fixedAmount ?? null;
@@ -1110,9 +1111,6 @@ setCollapsedSections(rawCollapsed);
   };
 
   // --- SAVE PRESET ---
-  // --- SAVE PRESET ---
-  // --- SAVE PRESET ---
-  // ✅ Update signature to accept existingId
   const handleSavePreset = async (presetName: string, isDefault: boolean, existingId?: string) => {
     if (!user || !firestore) return;
 
@@ -1292,8 +1290,6 @@ setCollapsedSections(rawCollapsed);
     return true;
   }, [gekozenMaterialen]);
 
-  // ... inside HsbWandMaterialenPage ...
-
   const handleNext = async () => {
     setIsOpslaan(true);
 
@@ -1305,7 +1301,6 @@ setCollapsedSections(rawCollapsed);
 
       if (!klusId) throw new Error('klusId ontbreekt in de URL.');
 
-      // ... (Step 1: schoneSelecties logic remains same) ...
       const toegestaneKeys = new Set(sectieSleutels);
       const schoneSelecties = Object.fromEntries(
         Object.entries(gekozenMaterialen || {})
@@ -1319,7 +1314,6 @@ setCollapsedSections(rawCollapsed);
           .map(([k, v]: any) => [k, { id: v.id }])
       );
 
-      // ... (Step 2: schoneExtra logic remains same) ...
       const schoneExtra = Array.isArray(extraMaterials)
         ? extraMaterials
             .filter((m: any) => m && (m.naam || m.id))
@@ -1332,7 +1326,6 @@ setCollapsedSections(rawCollapsed);
             })
         : [];
 
-      // Step 3: Custom Groups
       const custommateriaalMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
 
       const ref = doc(firestore, 'quotes', quoteId);
@@ -1343,9 +1336,6 @@ setCollapsedSections(rawCollapsed);
         savedByUid: user.uid,
       };
 
-      // ✅ HERE IS THE FIX
-      // We conditionally add 'collapsedSections' ONLY if it has keys.
-      // This affects ONLY the quote document. It does NOT touch the 'presets' logic.
       const materialenPayload: FirestoreMaterialenPayload = {
         jobKey: JOB_KEY,
         jobType: 'wanden',
@@ -1356,7 +1346,6 @@ setCollapsedSections(rawCollapsed);
         savedByUid: user.uid,
       };
 
-      // Helper to clean undefined values (local helper, safe)
       function stripUndefinedDiep(waarde: any): any {
         if (Array.isArray(waarde)) return waarde.map(stripUndefinedDiep);
         if (waarde && typeof waarde === 'object') {
@@ -1370,24 +1359,21 @@ setCollapsedSections(rawCollapsed);
         return waarde;
       }
 
-      // Clean the payloads locally FIRST
       const cleanMaterialen = stripUndefinedDiep(materialenPayload);
       const cleanWerkwijze = stripUndefinedDiep(werkwijzePayload);
 
       const onlyCollapsed = Object.fromEntries(
         Object.entries(collapsedSections).filter(([_, isCollapsed]) => isCollapsed === true)
       );
-      // Construct the final update object
+
       const updatePayload: any = {
         [`klussen.${klusId}.materialen`]: cleanMaterialen,
         [`klussen.${klusId}.werkwijze`]: cleanWerkwijze,
         [`klussen.${klusId}.uiState`]: { collapsedSections: onlyCollapsed },
-        // ✅ CLEANUP: Remove old messy fields from the Quote document
         [`klussen.${klusId}.materialen.customGroups`]: deleteField(),
         [`klussen.${klusId}.materialen.materials`]: deleteField(),
       };
 
-      // Handle Klein Materiaal logic
       if (kleinMateriaalConfig.mode === 'none') {
         updatePayload[`klussen.${klusId}.kleinMateriaal`] = deleteField();
       } else {
@@ -1422,8 +1408,6 @@ setCollapsedSections(rawCollapsed);
     <div className="space-y-4">
       {/* Custom cards */}
       {customGroups.map((group) => {
-        // 1. Check if this group is currently collapsed (closed) in your page state
-        // If it is NOT in the list, it defaults to Open (Expanded)
         const isExpanded = !collapsedSections[group.id];
 
         return (
@@ -1431,19 +1415,16 @@ setCollapsedSections(rawCollapsed);
             key={group.id}
             id={group.id}
             title={group.title}
-            // Keep existing material logic
             materials={group.materials.map((m) => ({ ...m, quantity: m.quantity ?? 1 }))}
 
-            // ✅ CONNECT STATE: This makes the collapse button work and save to DB
             isExpanded={isExpanded}
             onToggle={(isOpen) => {
               setCollapsedSections((prev: any) => ({
                 ...prev,
-                [group.id]: !isOpen // If Open=true, then Collapsed=false
+                [group.id]: !isOpen
               }));
             }}
 
-            // --- Actions ---
             onUpdateTitle={(val) => {
               setCustomGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, title: val } : g)))
             }}
@@ -1451,7 +1432,6 @@ setCollapsedSections(rawCollapsed);
               setActiveGroupId(group.id);
               setIsExtraModalOpen(true);
             }}
-            // ✅ FIX: "Wijzigen" now simply opens the modal to overwrite (Fire & Forget)
             onEditMaterial={() => {
               setActiveGroupId(group.id);
               setIsExtraModalOpen(true); 
@@ -1690,7 +1670,6 @@ setCollapsedSections(rawCollapsed);
       );
     }
 
-    // Helper for compact selection tiles
     const SelectionTile = ({ 
       active, 
       error, 
@@ -1730,7 +1709,6 @@ setCollapsedSections(rawCollapsed);
         <CardContent className="p-4 pt-0">
           <div className="border-t pt-4 space-y-4">
             
-            {/* COMPACT GRID */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <SelectionTile
                 active={isInschatting}
@@ -1768,7 +1746,6 @@ setCollapsedSections(rawCollapsed);
               />
             </div>
 
-            {/* DYNAMIC INPUTS ROW (Shows only when needed) */}
             {isPercentage && (
               <div className="animate-in fade-in slide-in-from-top-1 pt-2">
                 <div className="flex items-center gap-3 max-w-xs">
@@ -1820,9 +1797,12 @@ setCollapsedSections(rawCollapsed);
 
   if (!isMounted) return null;
 
+  const progressValue = 80;
+
   return (
     <>
       <main className="flex flex-1 flex-col">
+        {/* INLINE HEADER (geen component) */}
         <header className="border-b bg-background/80 backdrop-blur-xl">
           <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
             <div className="flex items-center gap-3">
@@ -1832,16 +1812,26 @@ setCollapsedSections(rawCollapsed);
                 </Link>
               </Button>
 
-              <div className="flex-1 text-center">
-                <div className="text-sm font-semibold">{JOB_TITEL}</div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-center">{JOB_TITEL}</div>
 
-                <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: '80%' }} />
+                <div className="mt-3">
+                  <div className="h-1.5 rounded-full bg-muted/40">
+                    <div
+                      className="h-full rounded-full bg-primary/65 transition-all"
+                      style={{ width: `${progressValue}%` }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="w-11">
-                {isPaginaLaden ? <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" /> : null}
+              {/* Notes button in header */}
+              <div className="flex items-center justify-center">
+                {isPaginaLaden ? (
+                  <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+                ) : (
+                  <PersonalNotes quoteId={quoteId} />
+                )}
               </div>
             </div>
           </div>
@@ -1974,16 +1964,13 @@ setCollapsedSections(rawCollapsed);
         onSave={handleSavePreset} 
         jobTitel={JOB_TITEL} 
         presets={presets}
-        // ✅ ADD THIS LINE:
         defaultName={gekozenPresetId !== 'default' ? presets.find(p => p.id === gekozenPresetId)?.name : ''}
       />
 
-      {/* --- MODAL --- */}
       <MaterialSelectionModal
         open={isExtraModalOpen}
         onOpenChange={setIsExtraModalOpen}
         
-        // This hides the star icon (UI)
         showFavorites={actieveSectie !== 'extra' && !activeGroupId}
         
         defaultCategory={
@@ -2006,7 +1993,6 @@ setCollapsedSections(rawCollapsed);
             return;
           }
 
-          // ✅ CustomGroup: 1 kaart = 1 row_id (dus REPLACE)
           if (activeGroupId) {
             const newMat: MateriaalKeuze = {
               id: String(realId),
@@ -2027,7 +2013,6 @@ setCollapsedSections(rawCollapsed);
             return;
           }
 
-          // Standard sectie
           if (actieveSectie && actieveSectie !== 'extra') {
             const chosenMaterial: MateriaalKeuze = {
               id: String(realId),
@@ -2045,7 +2030,6 @@ setCollapsedSections(rawCollapsed);
             return;
           }
 
-          // Fallback: legacy extra lijst
           const newExtra = {
             id: maakId(),
             naam: item.materiaalnaam || item.naam,
