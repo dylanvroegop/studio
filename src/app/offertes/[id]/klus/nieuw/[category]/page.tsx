@@ -2,73 +2,35 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, notFound } from 'next/navigation'; // Added notFound
 import { ArrowLeft, Search, ChevronRight, Star } from 'lucide-react';
 import { doc, updateDoc, onSnapshot, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
-import type { JobCategory, Quote } from '@/lib/types';
+import type { Quote } from '@/lib/types';
 import { useFirestore, useUser } from '@/firebase';
 import { PersonalNotes } from '@/components/PersonalNotes';
+import { JOB_REGISTRY, JobSubItem } from '@/lib/job-registry'; // Import the new registry
 
-/* ---------------------------------------------
-  DATA (Wanden Options)
---------------------------------------------- */
-type Subcategory = {
-  name: JobCategory;
-  title: string;
-  description: string;
-  slug: string;
-  href: string; // Dynamic, built later
-};
-
-// Base options without the dynamic quoteId/href part
-const WANDEN_OPTIONS = [
-  {
-    name: 'Wanden' as JobCategory,
-    title: 'HSB Voorzetwand',
-    description: 'Enkelzijdig bekleed',
-    slug: 'hsb-voorzetwand',
-  },
-  {
-    name: 'Wanden' as JobCategory,
-    title: 'Metalstud Voorzetwand',
-    description: 'Enkelzijdig bekleed',
-    slug: 'metalstud-voorzetwand',
-  },
-  {
-    name: 'Wanden' as JobCategory,
-    title: 'HSB Tussenwand',
-    description: 'Dubbelzijdig bekleed',
-    slug: 'hsb-tussenwand',
-  },
-  {
-    name: 'Wanden' as JobCategory,
-    title: 'Metalstud Tussenwand',
-    description: 'Dubbelzijdig bekleed',
-    slug: 'metalstud-tussenwand',
-  },
-  {
-    name: 'Wanden' as JobCategory,
-    title: 'HSB Buitenwand',
-    description: 'Binnen/Buitenzijde bekleed',
-    slug: 'hsb-buitenwand',
-  },
-  {
-    name: 'Wanden' as JobCategory,
-    title: 'Overig Wanden',
-    description: 'Afwijkende wandopbouw',
-    slug: 'overig-wanden',
-  },
-];
-
-export default function WandenPage() {
+export default function GenericSubCategoryPage() {
   const params = useParams();
   const router = useRouter();
-  const quoteId = params.id as string;
   
+  const quoteId = params.id as string;
+  const categorySlug = params.category as string; // e.g., "wanden", "vloeren"
+
+  // 1. Validate Category from Registry
+  const categoryConfig = JOB_REGISTRY[categorySlug];
+  
+  // If category doesn't exist in registry, show 404 (optional: or redirect back)
+  if (!categoryConfig) {
+    // You can also router.push back, but notFound() is safer for invalid URLs
+    // notFound(); 
+    // For now, let's just return null to prevent crashes if it renders
+  }
+
   // ✅ Hooks
   const { user } = useUser();
   const firestore = useFirestore();
@@ -89,7 +51,7 @@ export default function WandenPage() {
     setIsMounted(true);
   }, []);
 
-  // 1. Fetch Quote
+  // 2. Fetch Quote
   useEffect(() => {
     async function fetchQuote() {
       if (!quoteId) return;
@@ -101,7 +63,7 @@ export default function WandenPage() {
     fetchQuote();
   }, [quoteId]);
 
-  // 2. Real-time Favorites Sync
+  // 3. Real-time Favorites Sync
   useEffect(() => {
     if (!user || !firestore) return;
     const userRef = doc(firestore, 'users', user.uid);
@@ -115,14 +77,6 @@ export default function WandenPage() {
     });
     return () => unsubscribe();
   }, [user, firestore]);
-
-  // 3. Prepare Data with proper Hrefs (kept for reference, though logic uses item directly)
-  const subcategories: Subcategory[] = useMemo(() => {
-    return WANDEN_OPTIONS.map(opt => ({
-      ...opt,
-      href: `/offertes/${quoteId}/klus/wanden/${opt.slug}` // Just a placeholder, actual routing logic is below
-    }));
-  }, [quoteId]);
 
   // 4. Favorites Logic
   const isFavoriet = useCallback(
@@ -156,7 +110,7 @@ export default function WandenPage() {
   };
 
   // 5. THE CRITICAL LOGIC: Create ID -> Save -> Route
-  const slaKaartOpEnNavigeer = (item: Subcategory) => {
+  const slaKaartOpEnNavigeer = (item: JobSubItem) => {
     if (!quoteId || !firestore) return;
 
     // ✅ 1e klik wint. Alle volgende kliks negeren.
@@ -177,12 +131,14 @@ export default function WandenPage() {
           await updateDoc(quoteRef, {
             [`klussen.${nieuweKlusId}.klusomschrijving`]: {
               title: item.title,
-              type: 'wanden',
+              type: categorySlug, // ✅ Dynamic Type
               description: item.description,
             },
           });
-
-          router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/wanden/${item.slug}`);
+          
+          // ✅ Dynamic Route: /klus/{id}/{category}/{sub-slug}
+          // Note: Next step is the Measurement Page
+          router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}`);
         } catch (err) {
           console.error('Fout bij opslaan klussen.*.klusomschrijving:', err);
           klusAanmakenRef.current = false;
@@ -192,13 +148,16 @@ export default function WandenPage() {
   };
 
   // 6. Filtering Logic
+  // We use valid category items or empty array to avoid crashes if invalid category
+  const activeItems = categoryConfig ? categoryConfig.items : [];
+
   const filteredItems = useMemo(() => {
     const q = zoekterm.trim().toLowerCase();
-    if (!q) return subcategories;
-    return subcategories.filter(
+    if (!q) return activeItems;
+    return activeItems.filter(
       (c) => c.title.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
     );
-  }, [zoekterm, subcategories]);
+  }, [zoekterm, activeItems]);
 
   const visibleFavorieten = useMemo(() => {
     return filteredItems.filter((c) => favorieten.includes(c.title));
@@ -209,10 +168,11 @@ export default function WandenPage() {
   }, [filteredItems, favorieten]);
 
   if (!isMounted) return null;
+  if (!categoryConfig) return <div className="p-10 text-center">Categorie niet gevonden.</div>;
 
   return (
     <main className="relative min-h-screen bg-background flex flex-col">
-      {/* HEADER - WANDEN STYLE (Red Progress Bar) */}
+      {/* HEADER - DYNAMIC */}
       <header className="border-b bg-background/80 backdrop-blur-xl sticky top-0 z-20">
         <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
@@ -253,7 +213,7 @@ export default function WandenPage() {
           <input
             value={zoekterm}
             onChange={(e) => setZoekterm(e.target.value)}
-            placeholder="Zoek wandtype..."
+            placeholder={categoryConfig.searchPlaceholder} 
             className="w-full h-11 rounded-xl border bg-secondary/30 px-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition-all"
           />
         </div>
@@ -288,7 +248,7 @@ export default function WandenPage() {
         <section>
           {visibleFavorieten.length > 0 && (
             <div className="mb-3">
-              <h2 className="text-sm font-semibold text-foreground">Alle wanden</h2>
+              <h2 className="text-sm font-semibold text-foreground">Alle {categoryConfig.title.toLowerCase()}</h2>
             </div>
           )}
           
@@ -310,7 +270,7 @@ export default function WandenPage() {
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted border border-border mb-4">
                 <Search className="h-5 w-5 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-medium">Geen wanden gevonden</h3>
+              <h3 className="text-lg font-medium">Geen {categoryConfig.title.toLowerCase()} gevonden</h3>
               <p className="text-muted-foreground text-sm mt-1">
                 Probeer een andere zoekterm.
               </p>
@@ -323,7 +283,7 @@ export default function WandenPage() {
 }
 
 /* ---------------------------------------------
-  CARD COMPONENT (Identical to NewJobPage)
+  CARD COMPONENT (Identical to before)
 --------------------------------------------- */
 
 function KlusCard({
@@ -333,10 +293,10 @@ function KlusCard({
   onClick,
   disabled
 }: {
-  item: Subcategory;
+  item: JobSubItem;
   isFav: boolean;
   onToggleFav: (title: string) => void;
-  onClick: (item: Subcategory) => void;
+  onClick: (item: JobSubItem) => void;
   disabled: boolean;
 }) {
   const STAR_ZONE_W = 44; 

@@ -71,19 +71,22 @@ export type Quote = {
 export type JobCategory =
   | "Wanden"
   | "Plafonds"
-  | "Vloeren"
-  | "Dakrenovatie"
-  | "Boeiboorden"
-  | "Kozijnen"
-  | "Deuren"
-  | "Gevelbekleding"
-  | "Glas zetten"
-  | "Afwerkingen"
-  | "Dakramen / Lichtkoepel"
-  | "Schutting / Tuinafscheiding"
-  | "Overkapping / Pergola"
+  | "Vloeren & Vlieringen"
   | "Isolatiewerken"
-  | "Overige werkzaamheden";
+  | "Deuren"
+  | "Kozijnen"
+  | "Dakkapellen"
+  | "Dakrenovatie"
+  | "Gevelbekleding"
+  | "Schutting"
+  | "Overkapping & Houtbouw"
+  | "Afwerkingen"
+  | "Glas zetten"
+  | "Trappen"
+  | "Houtrotreparatie"
+  | "Interieur & Kasten"
+  | "Keukens"
+  | "Dakramen / Lichtkoepel";
 
 
 export type Job = {

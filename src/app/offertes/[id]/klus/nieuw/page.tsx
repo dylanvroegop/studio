@@ -22,33 +22,37 @@ import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove } from 'firebase/fires
 type CategoryItem = {
   name: JobCategory;
   description: string;
+  slug: string; // ✅ Added strict slug for routing
 };
 
+
+// We define slugs manually to ensure they match valid URLs and the Registry keys
 const categories: CategoryItem[] = [
-  { name: 'Wanden', description: 'Binnen- en buitenwanden' },
-  { name: 'Plafonds', description: 'Plafonds met houten of metalstud frame' },
-  { name: 'Vloeren', description: 'Houten vloeren en ondervloeren' },
-  { name: 'Isolatiewerken', description: 'Isoleren van wanden, daken, vloeren' },
-
-  { name: 'Afwerkingen', description: 'Plinten, architraven en aftimmering' },
-  { name: 'Deuren', description: 'Afhangen binnen- en buitendeuren' },
-
-  { name: 'Dakrenovatie', description: 'Complete dakvernieuwing' },
-  { name: 'Boeiboorden', description: 'Vervangen en bekleden' },
-  { name: 'Gevelbekleding', description: 'Hout, kunststof of composiet' },
-  { name: 'Schutting / Tuinafscheiding', description: 'Houten of composiet schuttingen' },
-  { name: 'Overkapping / Pergola', description: 'Houtconstructies voor in de tuin' },
-
-  { name: 'Kozijnen', description: 'Plaatsen en vervangen' },
-  { name: 'Glas zetten', description: 'Enkel, dubbel of triple glas' },
-  { name: 'Dakramen / Lichtkoepel', description: 'Plaatsen van Velux of andere merken' },
-
-  { name: 'Overige werkzaamheden', description: 'Specifiek timmerwerk' },
+  { name: 'Wanden', description: 'HSB, Metal Stud & Cinewalls', slug: 'wanden' },
+  { name: 'Plafonds', description: 'Houten & Metal Stud plafonds', slug: 'plafonds' },
+  { name: 'Vloeren & Vlieringen', description: 'Vloeropbouw, vlieringen & afwerkvloeren', slug: 'vloeren' },
+  { name: 'Isolatiewerken', description: 'Dak-, wand- en vloerisolatie', slug: 'isolatiewerken' },
+  
+  { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
+  { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
+  
+  { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },
+  { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeiboorden', slug: 'dakrenovatie' },
+  { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
+  
+  { name: 'Schutting', description: 'Hout, beton of composiet tuinafscheiding', slug: 'schutting' },
+  { name: 'Overkapping & Houtbouw', description: 'Veranda\'s, schuren & tuinhuizen', slug: 'overkapping' },
+  
+  { name: 'Afwerkingen', description: 'Plinten, vensterbanken & betimmering', slug: 'afwerkingen' },
+  { name: 'Glas zetten', description: 'Isolatieglas (HR++) & enkel glas', slug: 'glas-zetten' },
+  
+  { name: 'Trappen', description: 'Traprenovatie, nieuwe trappen & vlizotrappen', slug: 'trappen' },
+  { name: 'Houtrotreparatie', description: 'Herstel met epoxy of inzetstukken', slug: 'houtrotreparatie' },
+  
+  { name: 'Interieur & Kasten', description: 'Inbouwkasten, ensuite & meubels op maat', slug: 'interieur' },
+  { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
+  { name: 'Dakramen / Lichtkoepel', description: 'Velux dakramen & lichtkoepels', slug: 'dakramen' },
 ];
-
-function normalizeSlug(naam: string) {
-  return naam.toLowerCase();
-}
 
 export default function NewJobPage() {
   const params = useParams();
@@ -149,12 +153,14 @@ export default function NewJobPage() {
 
   const favorietCategories = useMemo(() => {
     if (!favorieten.length) return [];
-    const byName = new Map<JobCategory, CategoryItem>(
+    
+    // We match favorites by name, then retrieve the full object (including slug)
+    const byName = new Map<string, CategoryItem>(
       categories.map((c) => [c.name, c])
     );
 
     return favorieten
-      .map((naam) => byName.get(naam as JobCategory))
+      .map((naam) => byName.get(naam))
       .filter((c): c is CategoryItem => Boolean(c));
   }, [favorieten]);
 
@@ -306,7 +312,8 @@ function KlusCard({
   isFav: boolean;
   onToggleFav: (naam: string) => void;
 }) {
-  const href = `/offertes/${quoteId}/klus/${normalizeSlug(category.name)}`;
+  // ✅ ROUTING FIX: Use the clean slug, not the raw name
+  const href = `/offertes/${quoteId}/klus/nieuw/${category.slug}`;
 
   const STAR_ZONE_W = 44; 
 
