@@ -44,7 +44,9 @@ export const MATERIAL_CATEGORY_INFO = {
   Gordijnkoof: { title: 'Gordijnkoof', order: 10 },
   Cinewall: { title: 'Cinewall Elementen', order: 21 },
 
-  // --- VLOEREN ---
+  //#endregion
+
+  //#region --- VLOEREN ---
   Vlonder_Constructie: { title: 'Constructie (Onderbouw)', order: 2 },
   Vloer_Voorbereiding: { title: 'Voorbereiding', order: 2 },
   Vloer_Hout: { title: 'Parket', order: 3 },
@@ -64,6 +66,8 @@ export const MATERIAL_CATEGORY_INFO = {
   Vliering_Isolatie: { title: '4. Isolatie & Elektra', order: 5 },
 } as const;
 
+
+//#region total category extra info
 export type MaterialCategoryKey = keyof typeof MATERIAL_CATEGORY_INFO;
 
 // 2. THE PRESETS (So you don't have to copy-paste orders 100 times)
@@ -141,15 +145,7 @@ export interface CategoryConfig {
   items: JobSubItem[];
 }
 
-
-
-
-
-
-
-
-
-
+//#endregion
 
 // #region 3. MEASUREMENT CONFIGURATIONS
 // ==========================================
@@ -191,26 +187,13 @@ const COUNT_FIELDS: MeasurementField[] = [
 ];
 // #endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
 // ==========================================
 // 4. MATERIAL CONFIGURATIONS (Cards)
 // ==========================================
 
 
 
-// #region--- WANDEN ---
-
+//#region ========================================== MATERIAL SECTIONS - WANDEN ==========================================
 
 const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
@@ -591,8 +574,7 @@ const OVERIG_WANDEN_MATS: MaterialSection[] = [
 
 // #endregion
 
-
-// #region --- PLAFONDS  ---
+//#region ========================================== MATERIAL SECTIONS - PLAFONDS ==========================================
 
 const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE (FRAMEWERK)
@@ -687,7 +669,9 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   { key: 'gips_wapening', label: 'Wapeningsband', categoryFilter: 'Afwerking', category: 'gips_afwerking' },
 ];
 
-// --- VLOEREN & VLIERINGEN (DETAILED) ---
+//#endregion
+
+//#region ========================================== MATERIAL SECTIONS - VLOEREN ==========================================
 
 const MASSIEF_HOUTEN_VLOER_FINISH_MATS: MaterialSection[] = [
   // 1. VOORBEREIDING & ONDERVLOER
@@ -818,11 +802,10 @@ const BALKLAAG_CONSTRUCTIEVLOER_MATS: MaterialSection[] = [
       { key: 'gips_finish', label: 'Finish Pasta', categoryFilter: 'Afwerking', category: 'gips_afwerking' },
     ];
 
-    //#endregion
+//#endregion
 
+//#region ========================================== MATERIAL SECTIONS - KEUKENS ==========================================
 
-
-// #region--- KEUKENS ---
 const KEUKEN_MATS: MaterialSection[] = [
   { key: 'montage', label: 'Montagemateriaal / Kleinmateriaal', categoryFilter: 'Bevestiging' },
   { key: 'blad', label: 'Werkblad & afwerking', categoryFilter: 'Plaatmateriaal' },
@@ -832,8 +815,8 @@ const KEUKEN_MATS: MaterialSection[] = [
 
 // #endregion
 
+//#region ========================================== MATERIAL SECTIONS - INTERIEUR & AFWERKINGEN ==========================================
 
-// #region--- INTERIEUR & KASTEN ---
 const INTERIEUR_MATS: MaterialSection[] = [
   { key: 'constructie', label: 'Basismateriaal / Corpus', categoryFilter: 'Plaatmateriaal' },
   { key: 'fronten', label: 'Fronten & Zichtwerk', categoryFilter: 'Plaatmateriaal' },
@@ -843,9 +826,7 @@ const INTERIEUR_MATS: MaterialSection[] = [
 ];
 // #endregion
 
-
-
-// #region--- AFWERKINGEN  ---
+//#region ========================================== MATERIAL SECTIONS - AFWERKINGEN ==========================================
 
 const VENSTERBANK_MATS: MaterialSection[] = [
   { key: 'voorbereiding', label: 'Voorbereiding – uitvlakken (ondergrond)', categoryFilter: 'Uitvlakken' },
@@ -907,9 +888,7 @@ const OMKASTING_KOVEN_MATS: MaterialSection[] = [
 ];
 // #endregion
 
-
-// #region--- DEUREN  ---
-
+//#region ========================================== MATERIAL SECTIONS - DEUREN ==========================================
 
 const DEUR_BINNEN_MATS: MaterialSection[] = [
   // Deurblad
@@ -961,8 +940,7 @@ const DEUR_BUITEN_MATS: MaterialSection[] = [
 
 // #endregion
 
-
-// #region--- DAKRENOVATIE  ---
+//#region ========================================== MATERIAL SECTIONS - DAKRENOVATIE ==========================================
 
 const DAK_HELLEND_MATS: MaterialSection[] = [
   { key: 'onderdak', label: 'Onderdak – folie (dampopen)', categoryFilter: 'Folies' },
@@ -1015,6 +993,8 @@ const DAK_GOLFPLAAT_MATS: MaterialSection[] = [
 
 // #endregion
 
+//#region ========================================== MATERIAL SECTIONS - BOEIBOORDEN ==========================================
+
 // Re-using the Boeiboord definition from previous context as it wasn't redefined in the input
 const BOEIBOORD_MATS: MaterialSection[] = [
   { key: 'achterhout', label: 'Achterhout / Ventilatie', categoryFilter: 'Balkhout' },
@@ -1023,10 +1003,9 @@ const BOEIBOORD_MATS: MaterialSection[] = [
   { key: 'bevestiging', label: 'Bevestigingsmateriaal', categoryFilter: 'Bevestiging' },
 ];
 
+//#endregion
 
-
-
-// --- GEVELBEKLEDING (DETAILED) ---
+//#region ========================================== MATERIAL SECTIONS - GEVELBEKLEDING ==========================================
 
 const GEVEL_HOUT_MATS: MaterialSection[] = [
   { key: 'folie', label: 'Folie – achterwand (UV-bestendig)', categoryFilter: 'Folies' },
@@ -1061,29 +1040,10 @@ const GEVEL_KUNSTSTOF_MATS: MaterialSection[] = [
   { key: 'waterslagen', label: 'Waterslagen – aanpassing', categoryFilter: 'Daktrim' },
 ];
 
+//#endregion
 
-//---------------------------------------------------------------------------------------------------------------------------------------
+//#region ========================================== MATERIAL SECTIONS - KOZIJNEN ==========================================
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ==========================================
-// 1. BINNEN KOZIJNEN (HOUT)
-// ==========================================
 const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
   // Hout
   { key: 'kozijnhout', label: 'Kozijnhout', categoryFilter: 'hout', category: 'hout' },
@@ -1180,27 +1140,9 @@ const KOZIJN_TIMMERWERK_MATS: MaterialSection[] = [
   { key: 'waterkering', label: 'Lood / DPC', categoryFilter: 'afwerking', category: 'afwerking' },
 ];
 
+//#endregion
 
-
-
-
-
-
-//-------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-// --- SCHUTTINGEN (DETAILED) ---
+//#region ========================================== MATERIAL SECTIONS - SCHUTTING ==========================================
 
 const HOUT_SCHUTTING_MATS: MaterialSection[] = [
   { key: 'palen', label: 'Palen – hardhout/geïmpregneerd', categoryFilter: 'Tuinhout' },
@@ -1226,10 +1168,10 @@ const COMPOSIET_SCHUTTING_MATS: MaterialSection[] = [
   { key: 'verlichting', label: 'Verlichting – inbouwspots (optioneel)', categoryFilter: 'Elektra' },
 ];
 
+//#endregion
 
+//#region ========================================== MATERIAL SECTIONS - HOUTBOUW & OVERKAPPING ==========================================
 
-
-// --- OVERKAPPING & HOUTBOUW ---
 const HOUTBOUW_MATS: MaterialSection[] = [
   { key: 'fundering', label: 'Fundering / Betonpoeren', categoryFilter: 'Beton' },
   { key: 'constructie', label: 'Constructiehout', categoryFilter: 'Tuinhout' },
@@ -1240,9 +1182,10 @@ const HOUTBOUW_MATS: MaterialSection[] = [
 ];
 
 
+//#endregion
 
+//#region ========================================== MATERIAL SECTIONS - TRAPPEN ==========================================
 
-// --- TRAPPEN ---
 const VLIZOTRAP_MATS: MaterialSection[] = [
   { key: 'vlizotrap', label: 'Vlizotrap – cassette unit', categoryFilter: 'Vlizotrappen' },
   { key: 'raveelwerk', label: 'Balkhout – raveelconstructie', categoryFilter: 'Balkhout' },
@@ -1267,9 +1210,10 @@ const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
   { key: 'aftimmering', label: 'Aftimmering – trapgat & raveel', categoryFilter: 'Afwerking' },
 ];
 
+//#endregion
 
+//#region ========================================== MATERIAL SECTIONS - HOUTROTREPARATIE ==========================================
 
-// ---HOUTROTREPARATIE---
 const HOUTROTREPARATIE_MATS: MaterialSection[] = [
   { key: 'voorbereiding', label: 'Voorbereiding – freeswerk & houtrotstop', categoryFilter: 'Voorbereiding' },
   { key: 'hout', label: 'Hout – inzetstukken', categoryFilter: 'Balkhout' },
@@ -1277,9 +1221,9 @@ const HOUTROTREPARATIE_MATS: MaterialSection[] = [
   { key: 'afwerking', label: 'Afwerking – schuren & gronden', categoryFilter: 'Afwerking' },
 ];
 
+//#endregion
 
-
-// --- KEUKENS (DETAILED) ---
+//#region ========================================== MATERIAL SECTIONS - KEUKENS ==========================================
 
 const KEUKEN_MONTAGE_MATS: MaterialSection[] = [
   { key: 'montage', label: 'Boven & onderkasten', categoryFilter: 'Bevestiging' },
@@ -1298,10 +1242,10 @@ const KEUKEN_RENOVATIE_MATS: MaterialSection[] = [
 ];
 
 
+//#endregion
 
+//#region ========================================== MATERIAL SECTIONS - INTERIEUR & KASTEN ==========================================
 
-
-// --- INTERIEUR & KASTEN (DETAILED) ---
 
 const INBOUWKAST_MATS: MaterialSection[] = [
   { key: 'corpus', label: 'Corpus – plaatmateriaal interieur', categoryFilter: 'Plaatmateriaal' },
@@ -1334,9 +1278,10 @@ const MEUBEL_MATS: MaterialSection[] = [
   { key: 'afwerking', label: 'Afwerking – lak/beits/olie', categoryFilter: 'Verf & Afwerking' },
 ];
 
+//#endregion
 
+//#region ========================================== MATERIAL SECTIONS - DAKKAPELLEN ==========================================
 
-// --- DAKKAPELLEN (DETAILED) ---
 
 const DAKKAPEL_NIEUW_MATS: MaterialSection[] = [
   { key: 'casco', label: 'Casco – balkhout & constructieplaat', categoryFilter: 'Hout' },
@@ -1355,9 +1300,9 @@ const DAKKAPEL_RENOVATIE_MATS: MaterialSection[] = [
   { key: 'isolatie', label: 'Na-isolatie – (optioneel)', categoryFilter: 'Isolatie' },
 ];
 
+//#endregion
 
-
-// --- GLAS ZETTEN (DETAILED) ---
+//#region ========================================== MATERIAL SECTIONS - GLAS ZETTEN ==========================================
 
 const ISOLATIEGLAS_MATS: MaterialSection[] = [
   { key: 'glas', label: 'Glas – HR++ of Triple paneel', categoryFilter: 'Glas' },
@@ -1374,7 +1319,9 @@ const ENKEL_GLAS_MATS: MaterialSection[] = [
   { key: 'kit', label: 'Afdichting – beglazingskit', categoryFilter: 'Verf & Afwerking' },
 ];
 
+//#endregion
 
+//#region ========================================== MATERIAL SECTIONS - DAKRAMEN ==========================================
 
 
 const VELUX_MATS: MaterialSection[] = [
@@ -1402,9 +1349,11 @@ const LICHTKOEPEL_MATS: MaterialSection[] = [
 // ==========================================
 
 
+//#endregion
+
 export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
-  // --- TRAPPEN ---
+  //#region --- TRAPPEN ---
   trappen: {
     title: 'Trappen',
     searchPlaceholder: 'Zoek traptype...',
@@ -1444,7 +1393,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- HOUTROTREPARATIE ---
+  //#endregion
+
+  //#region --- HOUTROTREPARATIE ---
   houtrotreparatie: {
     title: 'Houtrotreparatie',
     searchPlaceholder: 'Zoek reparatietype...',
@@ -1460,7 +1411,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- WANDEN ---
+  //#endregion
+
+  //#region --- WANDEN ---
   wanden: {
     title: 'Wanden',
     searchPlaceholder: 'Zoek wandtype...',
@@ -1612,7 +1565,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- PLAFONDS ---
+  //#endregion
+
+  //#region --- PLAFONDS ---
   plafonds: {
     title: 'Plafonds',
     searchPlaceholder: 'Zoek plafondtype...',
@@ -1759,7 +1714,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- DAKKAPELLEN ---
+  //#endregion
+
+  //#region --- DAKKAPELLEN ---
   dakkapellen: {
     title: 'Dakkapellen',
     searchPlaceholder: 'Zoek dakkapelklus...',
@@ -1783,7 +1740,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ]
   },
 
-  // --- INTERIEUR ---
+  //#endregion
+
+  //#region --- INTERIEUR ---
   interieur: {
     title: 'Interieur & Kasten',
     searchPlaceholder: 'Zoek interieurklus...',
@@ -1823,7 +1782,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ]
   },
 
-  // --- AFWERKINGEN ---
+  //#endregion
+
+  //#region --- AFWERKINGEN ---
   afwerkingen: {
     title: 'Afwerkingen',
     searchPlaceholder: 'Zoek afwerking...',
@@ -1874,7 +1835,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
 
 
-  // --- DEUREN ---
+  //#endregion
+
+  //#region --- DEUREN ---
   deuren: {
     title: 'Deuren & Beveiliging',
     searchPlaceholder: 'Zoek deurtype...',
@@ -1920,7 +1883,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- DAKRENOVATIE ---
+  //#endregion
+
+  //#region --- DAKRENOVATIE ---
   dakrenovatie: {
     title: 'Dakrenovatie',
     searchPlaceholder: 'Zoek daktype...',
@@ -1976,7 +1941,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- GEVELBEKLEDING ---
+  //#endregion
+
+  //#region --- GEVELBEKLEDING ---
   gevelbekleding: {
     title: 'Gevelbekleding',
     searchPlaceholder: 'Zoek geveltype...',
@@ -2029,7 +1996,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
 
 
-  // --- KOZIJNEN ---
+  //#endregion
+
+  //#region --- KOZIJNEN ---
   kozijnen: {
     title: 'Kozijnen & Luiken',
     searchPlaceholder: 'Zoek kozijntype...',
@@ -2114,7 +2083,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- SCHUTTING ---
+  //#endregion
+
+  //#region --- SCHUTTING ---
   schutting: {
     title: 'Schutting & Tuin',
     searchPlaceholder: 'Zoek schuttingklus...',
@@ -2146,7 +2117,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ]
   },
 
-  // --- OVERKAPPING ---
+  //#endregion
+
+  //#region --- OVERKAPPING ---
   overkapping: {
     title: 'Overkapping & Houtbouw',
     searchPlaceholder: 'Zoek constructie...',
@@ -2159,7 +2132,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  // --- GLAS ZETTEN ---
+  //#endregion
+
+  //#region --- GLAS ZETTEN ---
   glas_zetten: {
     title: 'Glas zetten',
     searchPlaceholder: 'Zoek glasklus...',
@@ -2183,7 +2158,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ]
   },
 
-  // --- KEUKENS ---
+  //#endregion
+
+  //#region --- KEUKENS ---
   keukens: {
     title: 'Keukens',
     searchPlaceholder: 'Zoek keukenklus...',
@@ -2215,7 +2192,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ]
   },
 
-  // --- DAKRAMEN ---
+  //#endregion
+
+  //#region --- DAKRAMEN ---
   dakramen: {
     title: 'Dakramen / Lichtkoepel',
     searchPlaceholder: 'Zoek dakraamklus...',
@@ -2239,7 +2218,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ]
   },  
 
-  // --- OVERIGE ---
+  //#endregion
+
+
   overige: {
     title: 'Overige werkzaamheden',
     searchPlaceholder: 'Zoek werkzaamheden...',
