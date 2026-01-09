@@ -31,7 +31,6 @@ const categories: CategoryItem[] = [
   { name: 'Wanden', description: 'HSB, Metal Stud & Cinewalls', slug: 'wanden' },
   { name: 'Plafonds', description: 'Houten & Metal Stud plafonds', slug: 'plafonds' },
   { name: 'Vloeren & Vlieringen', description: 'Vloeropbouw, vlieringen & afwerkvloeren', slug: 'vloeren' },
-  { name: 'Isolatiewerken', description: 'Dak-, wand- en vloerisolatie', slug: 'isolatiewerken' },
   
   { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
   { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// ✅ Ensure these components exist in src/components/
+// Components
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup'; 
 import { PersonalNotes } from '@/components/PersonalNotes';
@@ -19,11 +19,12 @@ import {
   Star,
   Loader2,
   Plus,
-  MoreHorizontal,
+  CheckCircle2,
+  ChevronRight,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -55,15 +56,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 
 import {
   collection,
@@ -82,10 +76,14 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
-import { JOB_REGISTRY, MaterialSection } from '@/lib/job-registry';
+import { 
+  JOB_REGISTRY, 
+  MATERIAL_CATEGORY_INFO, 
+  MaterialCategoryKey 
+} from '@/lib/job-registry';
 
 // ==================================
-// HELPER FUNCTIONS 
+// HELPER FUNCTIONS
 // ==================================
 
 function sanitizeNlMoneyInput(raw: string): string {
@@ -198,17 +196,81 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
 }
 
 // ==================================
-// STYLING
+// STYLING CONSTANTS
 // ==================================
 const POSITIVE_BTN_SOFT = 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 hover:border-emerald-500/65 focus-visible:ring-emerald-500 focus-visible:ring-offset-0';
 const DESTRUCTIVE_BTN_SOFT = 'border border-red-500/50 bg-red-500/15 text-red-100 hover:bg-red-500/25 hover:border-red-500/65 focus-visible:ring-red-500 focus-visible:ring-offset-0';
 const SELECT_ITEM_GREEN = 'text-foreground focus:bg-emerald-600/15 focus:text-foreground data-[highlighted]:bg-emerald-600/15 data-[highlighted]:text-foreground data-[state=checked]:bg-emerald-600/15 data-[state=checked]:text-foreground';
-const SELECTED_MATERIAL_TEXT = 'text-emerald-400';
-const ICON_BUTTON_NO_ORANGE = 'hover:bg-muted/50 hover:text-foreground focus-visible:ring-0';
 const TERUG_HOVER_RED = 'hover:bg-destructive hover:text-destructive-foreground hover:border-destructive focus-visible:ring-destructive';
-const SLUITEN_HOVER_RED = 'hover:bg-destructive hover:text-destructive-foreground hover:border-destructive focus-visible:ring-destructive';
-const DIALOG_CLOSE_TAP = '[&_button[aria-label="Close"]]:h-11 [&_button[aria-label="Close"]]:w-11 [&_button[aria-label="Close"]]:p-0 [&_button[aria-label="Close"]]:opacity-100 [&_button[aria-label="Close"]]:hover:bg-muted/50 [&_button[aria-label="Close"]]:hover:text-foreground [&_button[aria-label="Close"]]:focus-visible:ring-0 [&_button[aria-label="Close"]_svg]:h-6 [&_button[aria-label="Close"]_svg]:w-6 [&_button[aria-label="Sluiten"]]:h-11 [&_button[aria-label="Sluiten"]]:w-11 [&_button[aria-label="Sluiten"]]:p-0 [&_button[aria-label="Sluiten"]]:opacity-100 [&_button[aria-label="Sluiten"]]:hover:bg-muted/50 [&_button[aria-label="Sluiten"]]:hover:text-foreground [&_button[aria-label="Sluiten"]]:focus-visible:ring-0 [&_button[aria-label="Sluiten"]_svg]:h-6 [&_button[aria-label="Sluiten"]_svg]:w-6';
-const TEKST_ACTIE_CLASSES = 'inline-flex items-center gap-1 rounded-md px-2 py-2 min-h-[44px] bg-transparent hover:bg-transparent hover:text-inherit hover:opacity-90 active:opacity-80 disabled:opacity-40 disabled:pointer-events-none';
+const DIALOG_CLOSE_TAP = '[&_button[aria-label="Close"]]:h-11 [&_button[aria-label="Close"]]:w-11 [&_button[aria-label="Close"]]:p-0 [&_button[aria-label="Close"]]:opacity-100 [&_button[aria-label="Close"]]:hover:bg-muted/50 [&_button[aria-label="Close"]]:hover:text-foreground [&_button[aria-label="Close"]]:focus-visible:ring-0';
+
+// ==================================
+// MATERIAL ROW COMPONENT
+// ==================================
+
+interface MaterialRowProps {
+  label: string;
+  selected?: any;
+  onClick: () => void;
+  onRemove?: () => void;
+  isCustom?: boolean;
+  onEditTitle?: () => void;
+}
+
+function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle }: MaterialRowProps) {
+  return (
+    <div
+      className={cn(
+        "group relative flex items-center justify-between py-3 px-4 rounded-lg border transition-all",
+        selected ? "border-emerald-500/50 bg-emerald-500/5" : "border-border hover:bg-accent/40"
+      )}
+    >
+      <div 
+        onClick={onClick}
+        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+      >
+        <span className={cn(
+          "font-medium text-sm truncate",
+          selected ? "text-emerald-600" : "text-muted-foreground"
+        )}>
+          {label}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        <div onClick={onClick} className="cursor-pointer flex items-center gap-2 min-w-0">
+          {selected ? (
+            <>
+              <span className="text-xs font-medium text-emerald-600 truncate max-w-[180px] sm:max-w-[200px]">
+                {selected.materiaalnaam}
+              </span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+              <Plus className="h-3.5 w-3.5" />
+              <span>Materiaal toevoegen</span>
+            </div>
+          )}
+        </div>
+
+        {selected && onRemove && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ==================================
 // DIALOG COMPONENTS
@@ -283,7 +345,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
         <DialogContent className={cn('max-w-lg w-full', DIALOG_CLOSE_TAP)}>
           <DialogHeader><DialogTitle>Werkwijzen beheren</DialogTitle></DialogHeader>
           <p className="text-muted-foreground text-sm py-8 text-center">Geen werkwijzen gevonden.</p>
-          <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)} className={cn(SLUITEN_HOVER_RED)}>Sluiten</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Sluiten</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -297,7 +359,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
             <div key={preset.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
               <span className="text-sm font-medium">{preset.name} {preset.isDefault && <span className="text-xs text-muted-foreground ml-2">(standaard)</span>}</span>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => onSetDefault(preset)} disabled={preset.isDefault} className={cn('hover:bg-emerald-600/10', ICON_BUTTON_NO_ORANGE)}><Star className="mr-2 h-4 w-4" /> Standaard</Button>
+                <Button variant="ghost" size="sm" onClick={() => onSetDefault(preset)} disabled={preset.isDefault} className="hover:bg-emerald-600/10"><Star className="mr-2 h-4 w-4" /> Standaard</Button>
                 <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete(preset)}><Trash2 className="mr-2 h-4 w-4" /> Verwijderen</Button>
               </div>
             </div>
@@ -309,11 +371,67 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
   );
 }
 
+function AddExtraMaterialDialog({ open, onOpenChange, onAdd }: any) {
+  const [title, setTitle] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setTitle('');
+    }
+  }, [open]);
+
+  const handleAdd = () => {
+    if (title.trim()) {
+      onAdd(title.trim());
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={cn('max-w-md w-full', DIALOG_CLOSE_TAP)}>
+        <DialogHeader>
+          <DialogTitle>Extra materiaal toevoegen</DialogTitle>
+          <DialogDescription>Geef het materiaal een naam</DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <div className="space-y-2">
+            <Label htmlFor="extra-material-title">Naam *</Label>
+            <Input 
+              id="extra-material-title" 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)} 
+              placeholder="bv. Extra bevestigingsmateriaal"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAdd();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+          <Button 
+            onClick={handleAdd} 
+            disabled={!title.trim()} 
+            variant="outline" 
+            className={cn(POSITIVE_BTN_SOFT)}
+          >
+            Toevoegen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ==================================
 // MAIN COMPONENT
 // ==================================
 
-export default function GenericMaterialsPage() {
+export default function GenericMaterialsPageRedesigned() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
@@ -325,10 +443,22 @@ export default function GenericMaterialsPage() {
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
 
-  // 1. Get Config
   const categoryConfig = JOB_REGISTRY[categorySlug];
   const jobConfig = categoryConfig?.items.find((item) => item.slug === jobSlug);
   const materialSections = jobConfig?.materialSections || [];
+
+  // Group sections by category
+  const groupedSections = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    
+    materialSections.forEach(section => {
+      const cat = section.category || 'extra';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(section);
+    });
+    
+    return groups;
+  }, [materialSections]);
 
   const JOB_KEY = jobSlug;
   const JOB_TITEL = jobConfig?.title || 'Klus';
@@ -346,7 +476,6 @@ export default function GenericMaterialsPage() {
   const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
   const [isPresetsLaden, setPresetsLaden] = useState(true);
 
-  // Dynamic Selections based on Registry Keys
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, any | undefined>>({});
   const [extraMaterials, setExtraMaterials] = useState<any[]>([]);
   const [customGroups, setCustomGroups] = useState<any[]>([]);
@@ -356,7 +485,7 @@ export default function GenericMaterialsPage() {
   const [kleinVastBedragStr, setKleinVastBedragStr] = useState<string>('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
-  const [actieveSectie, setActieveSectie] = useState<string | null>(null); // Key of active section
+  const [actieveSectie, setActieveSectie] = useState<string | null>(null);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<any | null>(null);
@@ -364,6 +493,9 @@ export default function GenericMaterialsPage() {
   const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [favorieten, setFavorieten] = useState<string[]>([]);
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [addExtraMaterialOpen, setAddExtraMaterialOpen] = useState(false);
+  const [newExtraMaterialTitle, setNewExtraMaterialTitle] = useState('');
 
   const userHeeftPresetGewijzigdRef = useRef(false);
   const isHydratingRef = useRef(true);
@@ -438,9 +570,7 @@ export default function GenericMaterialsPage() {
             
             if (klusNode?.materialen) {
                 const mat = klusNode.materialen;
-                // Map saved selections back to full objects
                 const rawSels = mat.selections || {};
-                // We need alleMaterialen loaded to map properly
                 setGekozenMaterialen(rawSels); 
                 setExtraMaterials(mat.extraMaterials || []);
                 setFirestoreCustommateriaal(mat.custommateriaal || null);
@@ -456,7 +586,7 @@ export default function GenericMaterialsPage() {
     hydrate();
   }, [firestore, quoteId, klusId]);
 
-  // Full Object Mapping (Wait for materials)
+  // Full Object Mapping
   useEffect(() => {
       if(!alleMaterialen.length || isHydratingRef.current) return;
       setGekozenMaterialen(prev => {
@@ -464,7 +594,7 @@ export default function GenericMaterialsPage() {
           let changed = false;
           Object.keys(prev).forEach(k => {
               const val = prev[k];
-              if(val && val.id && !val.materiaalnaam) { // It's just an ID wrapper
+              if(val && val.id && !val.materiaalnaam) {
                   const found = alleMaterialen.find(m => m.id === val.id);
                   if(found) { next[k] = found; changed = true; }
                   else next[k] = val;
@@ -481,14 +611,10 @@ export default function GenericMaterialsPage() {
     if (isHydratingRef.current) return;
     if (!firestoreCustommateriaal) return;
 
-    // ✅ FIX: Check if we have items named EXACTLY '(onbekend)'
-    // This matches what is written in Line 183 of your screenshot.
     const hasBrokenItems = customGroups.some((g) => 
         g.materials.some((m: any) => m.materiaalnaam === '(onbekend)')
     );
 
-    // FIX: If groups exist AND they are valid (don't have 'onbekend'), stop here.
-    // BUT: If hasBrokenItems is true, we ignore the length check and force a rebuild!
     if (customGroups.length > 0 && !hasBrokenItems) return;
 
     const built = bouwCustomGroupsUitFirestore(firestoreCustommateriaal, alleMaterialen);
@@ -497,20 +623,15 @@ export default function GenericMaterialsPage() {
 
   // Auto Preset
   useEffect(() => {
-    // 1. We added 'isPaginaLaden' to the checks and dependencies.
-    // This ensures we wait until the initial load is 100% done before deciding to apply a default.
     if (isPaginaLaden || isPresetsLaden || !presets.length || userHeeftPresetGewijzigdRef.current || hasSavedConfigRef.current || gekozenPresetId !== 'default') return;
-    
-    // Safety check: don't overwrite if we somehow have custom groups already
     if (customGroups.length > 0) return;
 
     const defaultPreset = presets.find((p) => p.isDefault) || presets.find((p) => (p.name || '').toLowerCase().includes('standaard'));
     if (defaultPreset) {
-      console.log("Applying Default Preset:", defaultPreset.name); // Debug log
       autoApplyDefaultPresetRef.current = true;
       setGekozenPresetId(defaultPreset.id);
     }
-  }, [isPresetsLaden, presets, gekozenPresetId, customGroups.length, isPaginaLaden]); // <--- Added isPaginaLaden here
+  }, [isPresetsLaden, presets, gekozenPresetId, customGroups.length, isPaginaLaden]);
 
   // Apply Preset Logic
   useEffect(() => {
@@ -530,7 +651,6 @@ export default function GenericMaterialsPage() {
     if(!preset) return;
     if (!userHeeftPresetGewijzigdRef.current && isHydratingRef.current === false && !autoApplyDefaultPresetRef.current) return;
 
-    // Apply
     const newSels: any = {};
     if(preset.slots) {
         Object.keys(preset.slots).forEach(key => {
@@ -557,163 +677,110 @@ export default function GenericMaterialsPage() {
 
   // --- RENDERERS ---
 
-  const renderExtraMateriaalCompact = () => (
-    <div className="space-y-4">
-      {customGroups.map((group) => {
-        const isExpanded = !collapsedSections[group.id];
-        return (
-          <DynamicMaterialGroup
-            key={group.id}
-            id={group.id}
-            title={group.title}
-            materials={group.materials.map((m:any) => ({ ...m, quantity: m.quantity ?? 1 }))}
-            isExpanded={isExpanded}
-            onToggle={(isOpen) => setCollapsedSections((prev: any) => ({ ...prev, [group.id]: !isOpen }))}
-            onUpdateTitle={(val) => setCustomGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, title: val } : g)))}
-            onAddMaterial={() => { setActiveGroupId(group.id); setIsExtraModalOpen(true); }}
-            onEditMaterial={() => { setActiveGroupId(group.id); setIsExtraModalOpen(true); }}
-            onRemoveMaterial={(matId) => setCustomGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, materials: g.materials.filter((m: any) => m.id !== matId) } : g)))}
-            onDeleteGroup={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
-            onUpdateQuantity={(matId, qty) => setCustomGroups((prev) => prev.map((g) => g.id === group.id ? { ...g, materials: g.materials.map((m: any) => m.id === matId ? { ...m, quantity: qty } : m) } : g))}
-          />
-        );
-      })}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between p-4">
-          <CardTitle className="text-lg">Extra materiaal</CardTitle>
-          <Button variant="ghost" size="sm" className="gap-2 text-emerald-500 hover:text-emerald-400" onClick={() => setCustomGroups((prev) => [...prev, { id: maakId(), title: '', materials: [] }])}>
-            <Plus className="h-4 w-4" /> Groep toevoegen
-          </Button>
-        </CardHeader>
-      </Card>
-    </div>
-  );
-
-  // ✅ Fixed Logic to detect 'extra' key
-  const renderSelectieRij = (sectieSleutel: string, titel: string) => {
-    
-    // 1. Intercept 'extra'
-    if (sectieSleutel === 'extra') {
-        return renderExtraMateriaalCompact();
-    }
-
-    // 2. Standard Logic
-    const gekozenMateriaal = gekozenMaterialen[sectieSleutel];
-    const isCollapsed = collapsedSections[sectieSleutel];
-
-    if (isCollapsed) {
-        return (
-            <div onClick={() => toggleSection(sectieSleutel)} className="group flex items-center justify-between rounded-lg border border-border/40 bg-muted/5 px-4 py-2 cursor-pointer transition-all hover:bg-muted/20 hover:border-border/60 hover:opacity-100 opacity-60">
-                <div className="flex flex-col justify-center flex-1 min-w-0 mr-4">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-muted-foreground truncate group-hover:text-foreground transition-colors">{titel}</span>
-                        <span className="text-xs font-normal text-muted-foreground/50 hidden sm:inline-block">· Niet van toepassing</span>
-                    </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                    <button type="button" className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground/70 group-hover:text-foreground')}><ChevronDown className="h-4 w-4" /></button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button type="button" onClick={(e) => e.stopPropagation()} className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground hover:text-foreground')}><MoreHorizontal className="h-4 w-4" /></button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            {gekozenMateriaal && (<DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMateriaalVerwijderen(sectieSleutel); }} className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2"><Trash2 className="h-4 w-4" /><span>Verwijder materiaal</span></DropdownMenuItem>)}
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleSection(sectieSleutel); }} className="cursor-pointer flex items-center gap-2"><ChevronDown className="h-4 w-4" /><span>Openen</span></DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-            </div>
-        );
-    }
-
-    const showRed = !gekozenMateriaal;
-    return (
-        <Card className={cn('transition-all', showRed && 'border-l-2 border-l-destructive')}>
-            <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
-                <div className="space-y-1.5"><CardTitle className="text-lg font-semibold tracking-tight">{titel}</CardTitle></div>
-                <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => toggleSection(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground')}><ChevronUp className="h-5 w-5" /></button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild><button type="button" className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground hover:text-foreground')}><MoreHorizontal className="h-4 w-4" /></button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            {gekozenMateriaal ? (<DropdownMenuItem onClick={() => handleMateriaalVerwijderen(sectieSleutel)} className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2"><Trash2 className="h-4 w-4" /><span>Verwijder materiaal</span></DropdownMenuItem>) : (<div className="p-2 text-xs text-muted-foreground text-center">Geen opties</div>)}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-                <div className="border-t pt-4">
-                    {isMaterialenLaden ? (<div className="h-10 bg-muted/50 rounded animate-pulse" />) : (
-                        <div className="flex items-center justify-between min-h-[40px]">
-                            <div>{gekozenMateriaal ? (<p className={cn('text-sm', SELECTED_MATERIAL_TEXT)}>{gekozenMateriaal.materiaalnaam}</p>) : (<p className="text-sm text-destructive italic">Nog geen materiaal gekozen</p>)}</div>
-                            <div className="flex items-center gap-2">
-                                {gekozenMateriaal ? (
-                                    <button type="button" onClick={() => openMateriaalKiezer(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, 'text-foreground/80 whitespace-nowrap')}><span>Wijzigen</span></button>
-                                ) : (
-                                    <button type="button" onClick={() => openMateriaalKiezer(sectieSleutel)} className={cn(TEKST_ACTIE_CLASSES, 'text-emerald-500 whitespace-nowrap')}><Plus className="h-4 w-4" /><span>Toevoegen</span></button>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    );
-  };
-
   const renderKleinMateriaalSectie = () => {
-      const isCollapsed = !!collapsedSections['klein_materiaal'];
       const { mode, percentage, fixedAmount } = kleinMateriaalConfig;
       
-      const SelectionTile = ({ active, error, title, subtitle, onClick }: any) => (
-        <div onClick={onClick} className={cn('flex flex-col items-center justify-center p-3 rounded-md border cursor-pointer transition-all text-center h-full', active && !error && 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100', active && error && 'border-red-500/50 bg-red-500/10 text-red-100', !active && 'hover:bg-muted/20 hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground')}>
-            <span className="font-semibold text-sm">{title}</span>{subtitle && <span className="text-[10px] opacity-70 mt-0.5">{subtitle}</span>}
-        </div>
-      );
-
-      if (isCollapsed) {
-          return (
-            <div onClick={() => toggleSection('klein_materiaal')} className="group flex items-center justify-between rounded-lg border border-border/40 bg-muted/5 px-4 py-2 cursor-pointer transition-all opacity-60 hover:opacity-100">
-                <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground">Klein materiaal</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </div>
-          );
-      }
-
       return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between p-4 pb-3">
-                <CardTitle className="text-lg">Klein materiaal</CardTitle>
-                <button type="button" onClick={() => toggleSection('klein_materiaal')} className={cn(TEKST_ACTIE_CLASSES, 'text-muted-foreground')}><ChevronUp className="h-5 w-5" /></button>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-                <div className="border-t pt-4 space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <SelectionTile active={mode === 'inschatting'} title="Inschatting" subtitle="Door ons berekend" onClick={() => { setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null }); setKleinVastBedragStr(''); }} />
-                        <SelectionTile active={mode === 'percentage'} title="Percentage" subtitle="% van totaal" onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'percentage' }))} />
-                        <SelectionTile active={mode === 'fixed'} title="Vast bedrag" subtitle="Vaste toeslag" onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'fixed' }))} />
-                        <SelectionTile active={mode === 'none'} title="Geen" onClick={() => { setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null }); setKleinVastBedragStr(''); }} />
-                    </div>
-                    {mode === 'percentage' && (
-                        <div className="flex items-center gap-3 max-w-xs animate-in fade-in slide-in-from-top-1">
-                            <div className="relative w-full">
-                                <Input type="number" step="0.1" placeholder="0" className="pr-8" value={percentage ?? ''} onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })} />
-                                <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground">%</span>
-                            </div>
-                        </div>
-                    )}
-                    {mode === 'fixed' && (
-                        <div className="flex items-center gap-3 max-w-xs animate-in fade-in slide-in-from-top-1">
-                            <EuroInput id="km-fixed" value={kleinVastBedragStr} placeholder="0,00" onChange={(v: string) => { setKleinVastBedragStr(v); setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) }); }} />
-                        </div>
-                    )}
+        <div className="space-y-3">
+          <div className="px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Klein materiaal</h2>
+          </div>
+          
+          {/* Segmented Control - Horizontal Strip */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
+                setKleinVastBedragStr('');
+              }}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                mode === 'inschatting'
+                  ? 'bg-emerald-600 text-white'
+                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+              )}
+            >
+              Inschatting
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'percentage' }))}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                mode === 'percentage'
+                  ? 'bg-emerald-600 text-white'
+                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+              )}
+            >
+              Percentage
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'fixed' }))}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                mode === 'fixed'
+                  ? 'bg-emerald-600 text-white'
+                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+              )}
+            >
+              Vast bedrag
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null });
+                setKleinVastBedragStr('');
+              }}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                mode === 'none'
+                  ? 'bg-emerald-600 text-white'
+                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+              )}
+            >
+              Geen
+            </button>
+
+            {/* Inline Input - Appears right next to buttons */}
+            {mode === 'percentage' && (
+              <div className="flex items-center gap-2 ml-2">
+                <div className="relative w-20">
+                  <Input 
+                    type="number" 
+                    step="0.1" 
+                    placeholder="0" 
+                    className="pr-7 h-9 text-sm" 
+                    value={percentage ?? ''} 
+                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })} 
+                  />
+                  <span className="absolute inset-y-0 right-2 flex items-center text-muted-foreground text-xs pointer-events-none">%</span>
                 </div>
-            </CardContent>
-        </Card>
+              </div>
+            )}
+
+            {mode === 'fixed' && (
+              <div className="ml-2 w-32">
+                <EuroInput 
+                  id="km-fixed" 
+                  value={kleinVastBedragStr} 
+                  placeholder="0,00" 
+                  onChange={(v: string) => { 
+                    setKleinVastBedragStr(v); 
+                    setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) }); 
+                  }} 
+                />
+              </div>
+            )}
+          </div>
+        </div>
       );
   };
 
-  // ✅ SAVE FUNCTIONS RESTORED
   const handleSavePreset = async (presetName: string, isDefault: boolean, existingId?: string) => {
     if (!user || !firestore) return;
     const slots: Record<string, string> = {};
@@ -780,24 +847,20 @@ export default function GenericMaterialsPage() {
     finally { setDeleteConfirmationOpen(false); setPresetToDelete(null); setManagePresetsModalOpen(false); }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.MouseEvent) => {
+      e.preventDefault();
       setIsOpslaan(true);
       try {
           if (!user || !firestore) throw new Error("No connection");
           
-          // Clean Selections
           const cleanSelections: Record<string, {id: string}> = {};
           Object.entries(gekozenMaterialen).forEach(([k, v]) => {
               if (v?.id) cleanSelections[k] = { id: v.id };
           });
 
-          // Clean Extra
           const cleanExtra = extraMaterials.map((m: any) => ({ ...m, aantal: m.aantal || undefined })).filter(m => m.naam);
-
-          // Custom Groups
           const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
 
-          // Build Update Object
           const updatePayload: any = {
               [`klussen.${klusId}.materialen`]: {
                   jobKey: JOB_KEY,
@@ -823,13 +886,11 @@ export default function GenericMaterialsPage() {
 
           await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
           
-          toast({ title: "Opgeslagen!" });
           router.push(`/offertes/${quoteId}/overzicht`);
 
       } catch (e: any) {
           console.error(e);
           toast({ variant: 'destructive', title: "Fout bij opslaan", description: e.message });
-      } finally {
           setIsOpslaan(false);
       }
   };
@@ -837,81 +898,243 @@ export default function GenericMaterialsPage() {
   const handlePresetDeleteWrapper = (preset: any) => { setPresetToDelete(preset); setDeleteConfirmationOpen(true); };
   const handlePresetSetDefaultWrapper = (preset: any) => handleSetDefaultPreset(preset);
 
+  // Page progress (not item completion)
+  // This is the materials page, which is step 3 of 4 (after client info at 0%)
+  // Client info (0%) -> Job selection (25%) -> Job details (50%) -> Materials (75%) -> Overview (100%)
+  const pageProgress = 75;
+
   if(!isMounted) return null;
 
   return (
     <>
-    <main className="flex flex-1 flex-col pb-20">
-       {/* HEADER */}
-       <header className="border-b bg-background/80 backdrop-blur-xl">
-        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
+    <main className="relative min-h-screen bg-background flex flex-col">
+       {/* HEADER - Consistent with other pages */}
+       <header className="border-b bg-background">
+        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
+          <div className="flex items-center gap-3">
+            <Button
+              asChild
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 rounded-xl shrink-0"
+            >
               <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <div className="flex-1 text-center">
-               <div className="text-sm font-semibold">{JOB_TITEL}</div>
-               <div className="mt-3 h-1.5 rounded-full bg-muted/40 mx-auto w-full"><div className="h-full rounded-full bg-primary/65" style={{width: '80%'}} /></div>
+
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-center">{JOB_TITEL}</div>
+
+              <div className="mt-3">
+                <div className="h-1.5 rounded-full bg-muted/40 mx-auto">
+                  <div
+                    className="h-full rounded-full bg-emerald-600/65 transition-all"
+                    style={{ width: `${pageProgress}%` }}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-center">
-                {isPaginaLaden ? (<div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />) : (<PersonalNotes quoteId={quoteId} />)}
+
+            <div className="flex items-center justify-center shrink-0">
+              {isPaginaLaden ? (
+                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+              ) : (
+                <PersonalNotes quoteId={quoteId} />
+              )}
             </div>
+          </div>
         </div>
        </header>
 
        {/* CONTENT */}
-       <div className="p-4 md:p-8 max-w-2xl mx-auto w-full space-y-6">
+       <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
-          {/* Preset Selector */}
-          <div className="mb-8 space-y-2">
-              <Label>Gekozen werkwijze</Label>
+          {/* Preset Selector - Compact */}
+          <div className="space-y-2 pb-6 mb-6 border-b border-border/50">
+              <Label className="text-sm">Werkwijze</Label>
               <div className="flex items-center gap-2">
                   <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
-                      <SelectTrigger className="hover:bg-muted/40"><SelectValue placeholder="Kies..." /></SelectTrigger>
+                      <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
                       <SelectContent>
                           <SelectItem className={SELECT_ITEM_GREEN} value="default">Nieuw</SelectItem>
                           {presets.map(p => (<SelectItem className={SELECT_ITEM_GREEN} key={p.id} value={p.id}>{p.name} {p.isDefault ? '(standaard)' : ''}</SelectItem>))}
                       </SelectContent>
                   </Select>
-                  <Button variant="outline" size="icon" onClick={() => setManagePresetsModalOpen(true)} disabled={presets.length === 0} className={cn('h-11 w-11 rounded-xl', ICON_BUTTON_NO_ORANGE)}><Settings className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => setSavePresetModalOpen(true)} className="h-10 w-10 rounded-xl shrink-0"><Save className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => setManagePresetsModalOpen(true)} disabled={presets.length === 0} className="h-10 w-10 rounded-xl shrink-0"><Settings className="h-4 w-4" /></Button>
               </div>
           </div>
           
-          {/* Dynamic Sections Loop */}
-          <div className="space-y-4">
-             {materialSections.map(section => (
-                 <div key={section.key}>{renderSelectieRij(section.key, section.label)}</div>
-             ))}
-             
-             {/* Extra Material + Klein Material */}
-             <div className="mt-8 space-y-6">
-                {renderSelectieRij('extra', 'Extra materiaal')}
-                {renderKleinMateriaalSectie()}
-             </div>
+          {/* Compact Checklist Structure */}
+          <div className="space-y-6">
+            {/* Use job-specific categoryConfig if available, otherwise fall back to MATERIAL_CATEGORY_INFO */}
+            {(Object.entries(jobConfig?.categoryConfig || MATERIAL_CATEGORY_INFO) as [MaterialCategoryKey, any][])
+              .sort(([, a], [, b]) => a.order - b.order)
+              .map(([categoryKey, categoryInfo]) => {
+                const sections = groupedSections[categoryKey] || [];
+                if (sections.length === 0) return null;
+                
+                return (
+                  <div key={categoryKey} className="space-y-2">
+                    <div className="flex items-center justify-between px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
+                      <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">{categoryInfo.title}</h2>
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      {sections.map(section => (
+                        <MaterialRow
+                          key={section.key}
+                          label={section.label}
+                          selected={gekozenMaterialen[section.key]}
+                          onClick={() => openMateriaalKiezer(section.key)}
+                          onRemove={() => handleMateriaalVerwijderen(section.key)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* Extra Materials Category */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
+                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Extra materialen</h2>
+              </div>
+              
+              <div className="space-y-1.5">
+                {(groupedSections.extra || []).map(section => (
+                  <MaterialRow
+                    key={section.key}
+                    label={section.label}
+                    selected={gekozenMaterialen[section.key]}
+                    onClick={() => openMateriaalKiezer(section.key)}
+                    onRemove={() => handleMateriaalVerwijderen(section.key)}
+                  />
+                ))}
+
+                {customGroups.map((group) => {
+                  const material = group.materials[0];
+                  return (
+                    <MaterialRow
+                      key={group.id}
+                      label={group.title || 'Extra materiaal'}
+                      selected={material}
+                      onClick={() => { setActiveGroupId(group.id); setIsExtraModalOpen(true); }}
+                      onRemove={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
+                      isCustom
+                      onEditTitle={() => setEditingTitleId(group.id)}
+                    />
+                  );
+                })}
+
+                <button
+                  onClick={() => setAddExtraMaterialOpen(true)}
+                  className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-border hover:bg-accent/40 hover:border-emerald-500/50 transition-all cursor-pointer group flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
+                  <span className="text-sm font-medium text-muted-foreground group-hover:text-emerald-500 transition-colors">Extra materiaal toevoegen</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="mt-8">
-             <Button variant="outline" onClick={() => setSavePresetModalOpen(true)} className="w-full hover:bg-emerald-500/14 hover:text-emerald-100 border-dashed"><Save className="mr-2 h-4 w-4" /> Huidige keuzes opslaan als werkwijze</Button>
+          {/* Klein Material - Card style */}
+          <div>
+            {renderKleinMateriaalSectie()}
           </div>
 
-          <div className="flex justify-between items-center pt-8">
-             <Button variant="outline" asChild className={cn(TERUG_HOVER_RED)}>
-                <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>Terug</Link>
-             </Button>
-             <Button onClick={handleSave} disabled={isOpslaan} className={cn(POSITIVE_BTN_SOFT, "px-8")}>
-                {isOpslaan ? <Loader2 className="animate-spin" /> : "Volgende"}
-             </Button>
+          {/* Footer Buttons - Same as measurement page */}
+          <div className="mt-6 flex justify-between items-center">
+            <Button variant="outline" asChild disabled={isOpslaan}>
+              <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>Terug</Link>
+            </Button>
+
+            <Button
+              type="submit"
+              variant="success"
+              disabled={isOpslaan}
+              onClick={handleSave}
+            >
+              {isOpslaan ? 'Opslaan...' : 'Volgende'}
+            </Button>
           </div>
        </div>
     </main>
 
     {/* MODALS */}
-    <ManagePresetsDialog open={managePresetsModalOpen} onOpenChange={setManagePresetsModalOpen} presets={presets} onDelete={handlePresetDeleteWrapper} onSetDefault={handlePresetSetDefaultWrapper} />
-    <SavePresetDialog open={savePresetModalOpen} onOpenChange={setSavePresetModalOpen} onSave={handleSavePreset} jobTitel={JOB_TITEL} presets={presets} defaultName={gekozenPresetId !== 'default' ? presets.find(p => p.id === gekozenPresetId)?.name : ''} />
+    <ManagePresetsDialog 
+      open={managePresetsModalOpen} 
+      onOpenChange={setManagePresetsModalOpen} 
+      presets={presets} 
+      onDelete={handlePresetDeleteWrapper} 
+      onSetDefault={handlePresetSetDefaultWrapper} 
+    />
+    <SavePresetDialog 
+      open={savePresetModalOpen} 
+      onOpenChange={setSavePresetModalOpen} 
+      onSave={handleSavePreset} 
+      jobTitel={JOB_TITEL} 
+      presets={presets} 
+      defaultName={gekozenPresetId !== 'default' ? presets.find(p => p.id === gekozenPresetId)?.name : ''} 
+    />
+    <AddExtraMaterialDialog
+      open={addExtraMaterialOpen}
+      onOpenChange={setAddExtraMaterialOpen}
+      onAdd={(title: string) => {
+        setCustomGroups((prev) => [...prev, { id: maakId(), title, materials: [] }]);
+      }}
+    />
+    
+    {/* Edit Title Dialog */}
+    <Dialog open={editingTitleId !== null} onOpenChange={(open) => !open && setEditingTitleId(null)}>
+      <DialogContent className={cn('max-w-md w-full', DIALOG_CLOSE_TAP)}>
+        <DialogHeader>
+          <DialogTitle>Naam wijzigen</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-title">Naam *</Label>
+            <Input 
+              id="edit-title" 
+              value={customGroups.find(g => g.id === editingTitleId)?.title || ''}
+              onChange={(e) => {
+                setCustomGroups((prev) => 
+                  prev.map((g) => g.id === editingTitleId ? { ...g, title: e.target.value } : g)
+                );
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setEditingTitleId(null);
+              }}
+              autoFocus
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setEditingTitleId(null)}>Sluiten</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Weet u het zeker?</AlertDialogTitle><AlertDialogDescription>Dit kan niet ongedaan worden gemaakt.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Annuleren</AlertDialogCancel><AlertDialogAction onClick={handleDeletePreset} className={buttonVariants({ variant: 'destructive' })}>Verwijderen</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeletePreset} 
+              className={buttonVariants({ variant: 'destructive' })}
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
     </AlertDialog>
 
     <MaterialSelectionModal 

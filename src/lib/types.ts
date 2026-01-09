@@ -72,7 +72,6 @@ export type JobCategory =
   | "Wanden"
   | "Plafonds"
   | "Vloeren & Vlieringen"
-  | "Isolatiewerken"
   | "Deuren"
   | "Kozijnen"
   | "Dakkapellen"
