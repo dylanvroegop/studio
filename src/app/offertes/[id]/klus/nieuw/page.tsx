@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef, useTransition } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Search, ArrowLeft, ChevronRight, Star } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -10,10 +10,11 @@ import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
 import { PersonalNotes } from '@/components/PersonalNotes';
+import { JOB_REGISTRY } from '@/lib/job-registry';
 
 // ✅ Firebase imports
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove, updateDoc } from 'firebase/firestore';
 
 /* ---------------------------------------------
   DATA
@@ -34,32 +35,36 @@ const categories: CategoryItem[] = [
   
   { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
   { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
-  
-  { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },
   { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeiboorden', slug: 'dakrenovatie' },
+
   { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
+  { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },
   
   { name: 'Schutting', description: 'Hout, beton of composiet tuinafscheiding', slug: 'schutting' },
   { name: 'Overkapping & Houtbouw', description: 'Veranda\'s, schuren & tuinhuizen', slug: 'overkapping' },
   
   { name: 'Afwerkingen', description: 'Plinten, vensterbanken & betimmering', slug: 'afwerkingen' },
-  { name: 'Glas zetten', description: 'Isolatieglas (HR++) & enkel glas', slug: 'glas-zetten' },
+  { name: 'Glas zetten', description: 'Isolatieglas (HR++)', slug: 'glas-zetten' },
   
   { name: 'Trappen', description: 'Traprenovatie, nieuwe trappen & vlizotrappen', slug: 'trappen' },
   { name: 'Houtrotreparatie', description: 'Herstel met epoxy of inzetstukken', slug: 'houtrotreparatie' },
   
-  { name: 'Interieur & Kasten', description: 'Inbouwkasten, ensuite & meubels op maat', slug: 'interieur' },
+  { name: 'Inbouwkasten', description: 'Inbouwkasten', slug: 'interieur' },
+  { name: 'Meubels Op Maat', description: 'Meubels op maat', slug: 'MEUBELS_OP_MAAT' },
   { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
   { name: 'Dakramen / Lichtkoepel', description: 'Velux dakramen & lichtkoepels', slug: 'dakramen' },
 ];
 
 export default function NewJobPage() {
   const params = useParams();
+  const router = useRouter();
   const quoteId = params.id as string;
 
   // ✅ Hooks voor User & DB
   const { user } = useUser();
   const firestore = useFirestore();
+  const [isPending, startTransition] = useTransition();
+  const creatingJobRef = useRef(false);
 
   const [isMounted, setIsMounted] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -177,6 +182,48 @@ export default function NewJobPage() {
     return filteredCategories.filter((c) => !favSet.has(c.name));
   }, [filteredCategories, favorieten]);
 
+  // ✅ Handle category click - create job immediately if only 1 item
+  const handleCategoryClick = useCallback((category: CategoryItem) => {
+    if (!quoteId || !firestore || creatingJobRef.current) return;
+
+    const categoryData = JOB_REGISTRY[category.slug];
+    const hasOnlyOneItem = categoryData?.items?.length === 1;
+
+    if (hasOnlyOneItem && categoryData?.items?.[0]) {
+      // Auto-create job for single-item categories
+      creatingJobRef.current = true;
+      const singleItem = categoryData.items[0];
+
+      startTransition(() => {
+        (async () => {
+          try {
+            const quoteRef = doc(firestore, 'quotes', quoteId);
+            const nieuweKlusId =
+              typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+            await updateDoc(quoteRef, {
+              [`klussen.${nieuweKlusId}.klusomschrijving`]: {
+                title: singleItem.title,
+                type: category.slug,
+                description: singleItem.description,
+              },
+            });
+
+            router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${category.slug}/${singleItem.slug}`);
+          } catch (err) {
+            console.error('Error creating job:', err);
+            creatingJobRef.current = false;
+          }
+        })();
+      });
+    } else {
+      // Navigate to selection page for multi-item categories
+      router.push(`/offertes/${quoteId}/klus/nieuw/${category.slug}`);
+    }
+  }, [quoteId, firestore, router, startTransition]);
+
   if (!isMounted) return null;
 
   return (
@@ -251,6 +298,8 @@ export default function NewJobPage() {
                   category={category}
                   isFav
                   onToggleFav={toggleFavoriet}
+                  onClick={handleCategoryClick}
+                  disabled={isPending || creatingJobRef.current}
                 />
               ))}
             </div>
@@ -275,6 +324,8 @@ export default function NewJobPage() {
                 category={category}
                 isFav={isFavoriet(category.name)}
                 onToggleFav={toggleFavoriet}
+                onClick={handleCategoryClick}
+                disabled={isPending || creatingJobRef.current}
               />
             ))}
           </div>
@@ -305,15 +356,16 @@ function KlusCard({
   category,
   isFav,
   onToggleFav,
+  onClick,
+  disabled,
 }: {
   quoteId: string;
   category: CategoryItem;
   isFav: boolean;
   onToggleFav: (naam: string) => void;
+  onClick: (category: CategoryItem) => void;
+  disabled: boolean;
 }) {
-  // ✅ ROUTING FIX: Use the clean slug, not the raw name
-  const href = `/offertes/${quoteId}/klus/nieuw/${category.slug}`;
-
   const STAR_ZONE_W = 44; 
 
   return (
@@ -322,6 +374,7 @@ function KlusCard({
         'relative flex items-center justify-between h-full rounded-xl border bg-card transition-all duration-200 overflow-hidden',
         'hover:border-emerald-600/50 hover:bg-secondary/20',
         'active:scale-[0.98]',
+        disabled && 'opacity-60 pointer-events-none',
         'p-3 sm:p-4',
         'min-h-[64px] sm:min-h-[76px]'
       )}
@@ -330,7 +383,10 @@ function KlusCard({
       <button
         type="button"
         aria-label="Favoriet togglen"
-        onClick={() => onToggleFav(category.name)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFav(category.name);
+        }}
         className={cn(
           'absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center',
           'hover:bg-secondary/30 active:bg-secondary/40',
@@ -346,16 +402,18 @@ function KlusCard({
         />
       </button>
 
-      {/* LINK OVERLAY */}
-      <Link
-        href={href}
-        className="absolute inset-0 z-10"
-        style={{ left: STAR_ZONE_W }}
+      {/* CLICK OVERLAY */}
+      <button
+        type="button"
+        onClick={() => onClick(category)}
+        disabled={disabled}
+        className="absolute inset-0 z-10 cursor-pointer"
+        style={{ left: STAR_ZONE_W, width: `calc(100% - ${STAR_ZONE_W}px)` }}
         aria-label={`${category.name} openen`}
       />
 
       {/* CONTENT */}
-      <div className="relative z-15 flex items-center justify-between w-full">
+      <div className="relative z-0 flex items-center justify-between w-full pointer-events-none">
         <div
           className="flex flex-col min-w-0 pr-2"
           style={{ paddingLeft: STAR_ZONE_W }}

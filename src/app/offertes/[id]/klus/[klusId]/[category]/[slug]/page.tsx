@@ -182,13 +182,19 @@ export default function GenericMeasurementPage() {
   // Use custom label OR fallback to first word
   const itemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
 
+  // ✅ Smart back button: skip category selection for single-item categories
+  const hasOnlyOneItem = categoryConfig?.items?.length === 1;
+  const backUrl = hasOnlyOneItem 
+    ? `/offertes/${quoteId}/klus/nieuw`  // Go to main category page
+    : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`; // Go to category selection
+
   return (
     <main className="relative min-h-screen bg-background">
       <header className="border-b bg-background/80 backdrop-blur-xl">
         <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
             <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
-              <Link href={`/offertes/${quoteId}/klus/nieuw/${categorySlug}`}>
+              <Link href={backUrl}>
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
@@ -286,7 +292,7 @@ export default function GenericMeasurementPage() {
 
             <div className="mt-6 flex justify-between items-center">
               <Button variant="outline" asChild disabled={disabledAll}>
-                 <Link href={`/offertes/${quoteId}/klus/nieuw/${categorySlug}`}>Terug</Link>
+                 <Link href={backUrl}>Terug</Link>
               </Button>
 
               <Button

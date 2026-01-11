@@ -83,8 +83,9 @@ export type JobCategory =
   | "Glas zetten"
   | "Trappen"
   | "Houtrotreparatie"
-  | "Interieur & Kasten"
   | "Keukens"
+  | "Inbouwkasten"
+  | "Meubels Op Maat"
   | "Dakramen / Lichtkoepel";
 
 

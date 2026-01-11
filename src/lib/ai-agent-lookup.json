@@ -1,0 +1,850 @@
+{
+  "traprenovatie-overzettreden": {
+    "basis": [
+      "Hout"
+    ],
+    "afwerking": [
+      "Afwerking",
+      "Beslag"
+    ]
+  },
+  "vlizotrap": {
+    "hout": [
+      "Hout"
+    ],
+    "basis": [
+      "Dakraam"
+    ],
+    "veiligheid": [
+      "Hout",
+      "Beslag"
+    ],
+    "beslag": [
+      "Beslag"
+    ],
+    "afwerking": [
+      "Hout"
+    ]
+  },
+  "nieuwe-trap-plaatsen": {
+    "hout": [
+      "Hout",
+      "Beslag"
+    ],
+    "trap": [
+      "Hout"
+    ],
+    "veiligheid": [
+      "Hout"
+    ],
+    "beslag": [
+      "Beslag"
+    ]
+  },
+  "houtrotreparatie": {
+    "reparatie": [
+      "Verf & Toebehoren",
+      "Bouwstoffen",
+      "Tuinhout"
+    ]
+  },
+  "hsb-voorzetwand": {
+    "hout": [
+      "Balkhout"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "afwerking": [
+      "Plaatmateriaal",
+      "Vensterbanken",
+      "Plinten"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Schakelmateriaal"
+    ],
+    "gips_afwerking": [
+      "Profielen",
+      "Afwerking"
+    ],
+    "Kozijnen": [
+      "Kozijnen",
+      "Glas_of_roosters"
+    ],
+    "Deuren": [
+      "Deuren",
+      "Ijzerwaren",
+      "Ventilatie"
+    ]
+  },
+  "metalstud-voorzetwand": {
+    "metaal": [
+      "Metalstud"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Schakelmateriaal"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "afwerking": [
+      "Plaatmateriaal",
+      "Vensterbanken",
+      "Plinten"
+    ],
+    "gips_afwerking": [
+      "Profielen",
+      "Afwerking"
+    ],
+    "Kozijnen": [
+      "Kozijnen",
+      "Glas_of_roosters"
+    ],
+    "Deuren": [
+      "Deuren",
+      "Ijzerwaren",
+      "Ventilatie"
+    ]
+  },
+  "HBS-buiten-wand": {
+    "hout": [
+      "Balkhout"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Gevelbekleding",
+      "Plaatmateriaal"
+    ],
+    "afwerking_binnen": [
+      "Plaatmateriaal",
+      "Vensterbanken",
+      "Plinten"
+    ],
+    "afwerking_buiten": [
+      "Profielen",
+      "Gevelbekleding",
+      "Tuinhout"
+    ],
+    "gips_afwerking": [
+      "Profielen",
+      "Afwerking"
+    ],
+    "Kozijnen": [
+      "Plaatmateriaal",
+      "Kozijnen",
+      "Glas_of_roosters"
+    ],
+    "Deuren": [
+      "Deuren",
+      "Ijzerwaren"
+    ]
+  },
+  "hsb-tussenwand": {
+    "hout": [
+      "Balkhout"
+    ],
+    "isolatie": [
+      "Isolatie",
+      "Folies"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "afwerking": [
+      "Plaatmateriaal",
+      "Vensterbanken",
+      "Plinten"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Schakelmateriaal"
+    ],
+    "gips_afwerking": [
+      "Profielen",
+      "Afwerking"
+    ],
+    "Kozijnen": [
+      "Kozijnen",
+      "Glas_of_roosters"
+    ],
+    "Deuren": [
+      "Deuren",
+      "Ijzerwaren",
+      "Ventilatie"
+    ]
+  },
+  "metalstud-tussenwand": {
+    "metaal": [
+      "Metalstud"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "afwerking": [
+      "Plaatmateriaal",
+      "Vensterbanken",
+      "Plinten"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Schakelmateriaal"
+    ],
+    "gips_afwerking": [
+      "Profielen",
+      "Afwerking"
+    ],
+    "Kozijnen": [
+      "Kozijnen",
+      "Glas_of_roosters"
+    ],
+    "Deuren": [
+      "Deuren",
+      "Ijzerwaren",
+      "Ventilatie"
+    ]
+  },
+  "knieschotten": {
+    "hout": [
+      "Balkhout"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "afwerking": [
+      "Plinten"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Schakelmateriaal"
+    ],
+    "gips_afwerking": [
+      "Profielen",
+      "Afwerking"
+    ],
+    "Schuifdeuren": [
+      "Ijzerwaren",
+      "Plaatmateriaal"
+    ]
+  },
+  "cinewall-tv-wand": {
+    "hout": [
+      "Balkhout"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Schakelmateriaal"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal",
+      "Wandbekleding"
+    ],
+    "afwerking": [
+      "Plaatmateriaal",
+      "Plinten"
+    ],
+    "gips_afwerking": [
+      "Profielen",
+      "Afwerking"
+    ],
+    "Cinewall": [
+      "Haarden",
+      "Beugels",
+      "Verlichting"
+    ]
+  },
+  "plafond-houten-framework": {
+    "hout": [
+      "Balkhout"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "Gordijnkoof": [
+      "Balkhout",
+      "Plaatmateriaal"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Verlichting",
+      "Schakelmateriaal"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "afwerking": [
+      "Lijstwerk"
+    ],
+    "Toegang": [
+      "Luiken",
+      "Lijstwerk"
+    ],
+    "gips_afwerking": [
+      "Afwerking"
+    ]
+  },
+  "plafond-metalstud": {
+    "metaal": [
+      "Metalstud"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "Gordijnkoof": [
+      "Balkhout",
+      "Plaatmateriaal"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Verlichting",
+      "Schakelmateriaal"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "afwerking": [
+      "Lijstwerk"
+    ],
+    "Toegang": [
+      "Luiken",
+      "Lijstwerk"
+    ],
+    "gips_afwerking": [
+      "Afwerking"
+    ]
+  },
+  "massief-houten-vloer": {
+    "Vloer_Voorbereiding": [
+      "Lijmen",
+      "Plaatmateriaal",
+      "Mortels"
+    ],
+    "Vloer_Hout": [
+      "Vloerdelen",
+      "Lijmen"
+    ],
+    "Vloer_Afwerking": [
+      "Plinten",
+      "Afwerking",
+      "Profielen",
+      "Verf"
+    ]
+  },
+  "laminaat-pvc": {
+    "Vloer_Voorbereiding": [
+      "Vloer",
+      "Folies",
+      "Ondervloer"
+    ],
+    "Vloer_Laminaat": [
+      "Vloer"
+    ],
+    "Vloer_Afwerking": [
+      "Plinten",
+      "Profielen"
+    ]
+  },
+  "vlonder-terras": {
+    "Vlonder_Fundering": [
+      "Folies",
+      "Zand",
+      "Tuinhout",
+      "Tegels"
+    ],
+    "Vlonder_Constructie": [
+      "Tuinhout"
+    ],
+    "Vlonder_Dek": [
+      "Tuinhout",
+      "Bevestiging",
+      "Riolering"
+    ]
+  },
+  "balklaag-constructievloer": {
+    "Constructievloer": [
+      "Balkhout",
+      "Bevestiging"
+    ],
+    "isolatie": [
+      "Isolatie"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ]
+  },
+  "vliering-maken": {
+    "Constructievloer": [
+      "Balkhout",
+      "Bevestiging"
+    ],
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "Toegang": [
+      "Luiken",
+      "Lijstwerk"
+    ],
+    "hout": [
+      "Balkhout"
+    ],
+    "metaal": [
+      "Metalstud"
+    ],
+    "Koof": [
+      "Balkhout",
+      "Plaatmateriaal",
+      "Isolatie"
+    ],
+    "Gordijnkoof": [
+      "Balkhout",
+      "Plaatmateriaal"
+    ],
+    "Installatie": [
+      "Elektra"
+    ],
+    "Schakelmateriaal": [
+      "Verlichting",
+      "Schakelmateriaal"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "beplating_afwerking": [
+      "Plaatmateriaal"
+    ],
+    "afwerking": [
+      "Lijstwerk"
+    ],
+    "gips_afwerking": [
+      "Afwerking"
+    ]
+  },
+  "inbouwkasten": {
+    "basis": [
+      "Platen"
+    ],
+    "afwerking": [
+      "Platen"
+    ],
+    "beslag": [
+      "Beslag"
+    ]
+  },
+  "meubel-op-maat": {
+    "basis": [
+      "Hout"
+    ],
+    "afwerking": [
+      "Beslag",
+      "Verf"
+    ]
+  },
+  "dagkanten": {
+    "hout": [
+      "Hout"
+    ],
+    "afwerking": [
+      "Platen",
+      "Afwerking"
+    ]
+  },
+  "plinten-afwerklatten": {
+    "afwerking": [
+      "Hout"
+    ]
+  },
+  "omkastingen-koven": {
+    "hout": [
+      "Hout"
+    ],
+    "afwerking": [
+      "Platen"
+    ]
+  },
+  "vensterbanken": {
+    "hout": [
+      "Hout"
+    ],
+    "afwerking": [
+      "Hout",
+      "Afwerking",
+      "Verf"
+    ]
+  },
+  "binnendeur-afhangen": {
+    "Deuren": [
+      "deuren"
+    ],
+    "deurbeslag": [
+      "deurbeslag"
+    ],
+    "glas": [
+      "glas"
+    ],
+    "tochtstrips": [
+      "tochtstrips"
+    ],
+    "ventilatie": [
+      "ventilatie"
+    ]
+  },
+  "buitendeur-afhangen": {
+    "Deuren": [
+      "deuren"
+    ],
+    "deurbeslag": [
+      "deurbeslag"
+    ],
+    "glas": [
+      "glas"
+    ],
+    "tochtstrips": [
+      "tochtstrips"
+    ],
+    "ventilatie": [
+      "ventilatie"
+    ]
+  },
+  "Schuifdeuren": {
+    "Deuren": [
+      "deuren"
+    ],
+    "deurbeslag": [
+      "deurbeslag"
+    ],
+    "glas": [
+      "glas"
+    ],
+    "tochtstrips": [
+      "tochtstrips"
+    ],
+    "ventilatie": [
+      "ventilatie"
+    ]
+  },
+  "hellend-dak": {
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "isolatie": [
+      "Isolatie",
+      "Folies"
+    ],
+    "hout": [
+      "Balkhout"
+    ],
+    "dak": [
+      "Dakprofielen",
+      "Dakpannen"
+    ],
+    "afwerking_dak": [
+      "Lood",
+      "HWA"
+    ]
+  },
+  "epdm-dakbedekking": {
+    "beplating": [
+      "Plaatmateriaal"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "dak": [
+      "Dakbedekking"
+    ],
+    "afwerking_dak": [
+      "Daktrim",
+      "HWA",
+      "Lood"
+    ]
+  },
+  "gevelbekleding-compleet": {
+    "hout": [
+      "Balkhout",
+      "Profielen"
+    ],
+    "isolatie": [
+      "Folies",
+      "Isolatie"
+    ],
+    "gevel_hout": [
+      "Tuinhout",
+      "Lijstwerk"
+    ],
+    "gevel_kunststof": [
+      "Gevelbekleding",
+      "Profielen"
+    ],
+    "gevel_plaat": [
+      "Plaatmateriaal"
+    ],
+    "gevel_plaat_lijm": [
+      "Plaatmateriaal"
+    ],
+    "bevestiging": [
+      "Dakprofielen"
+    ]
+  },
+  "binnen-kozijn-hout": {
+    "hout": [
+      "hout",
+      "dorpels"
+    ],
+    "beslag": [
+      "deurbeslag"
+    ],
+    "glas": [
+      "glas"
+    ],
+    "afwerking": [
+      "lijstwerk"
+    ]
+  },
+  "binnen-kozijn-staal": {
+    "Stalen kozijn": [
+      "kozijnen"
+    ],
+    "beslag": [
+      "deurbeslag",
+      "tochtstrips"
+    ],
+    "glas": [
+      "glas"
+    ]
+  },
+  "buiten-kozijn-hout": {
+    "element": [
+      "kozijnen",
+      "hout"
+    ],
+    "afwerking_buiten": [
+      "dorpels",
+      "afwerking"
+    ],
+    "afwerking_binnen": [
+      "plaatmateriaal",
+      "dorpels",
+      "lijstwerk"
+    ]
+  },
+  "buiten-kozijn-kunststof": {
+    "element": [
+      "kozijnen",
+      "dorpels"
+    ],
+    "montage": [
+      "balkhout"
+    ],
+    "afwerking": [
+      "profielen",
+      "daktrim",
+      "accessoires"
+    ]
+  },
+  "zelfgemaakte-kozijnen": {
+    "hout": [
+      "hout",
+      "dorpels"
+    ],
+    "raam": [
+      "hout"
+    ],
+    "beslag": [
+      "deurbeslag",
+      "raambeslag"
+    ],
+    "glas": [
+      "glas",
+      "ventilatie"
+    ],
+    "afwerking": [
+      "tochtstrips",
+      "afwerking"
+    ]
+  },
+  "schutting-compleet": {
+    "fundering": [
+      "Bouwstoffen",
+      "Bestrating",
+      "Ijzerwaren"
+    ],
+    "schutting_hout": [
+      "Tuinhout",
+      "Ijzerwaren"
+    ],
+    "schutting_beton": [
+      "Bestrating",
+      "Ijzerwaren"
+    ],
+    "schutting_composiet": [
+      "Tuinhout",
+      "Ijzerwaren",
+      "Profielen"
+    ],
+    "poort": [
+      "Tuinhout",
+      "Ijzerwaren"
+    ],
+    "beslag": [
+      "Ijzerwaren"
+    ]
+  },
+  "pergola": {
+    "Vlonder_Fundering": [
+      "Folies",
+      "Zand",
+      "Tuinhout",
+      "Tegels"
+    ],
+    "Vlonder_Constructie": [
+      "Tuinhout"
+    ],
+    "Vlonder_Dek": [
+      "Tuinhout",
+      "Bevestiging",
+      "Riolering"
+    ]
+  },
+  "isolatieglas": {
+    "glas": [
+      "Glas",
+      "Deuren & Kozijnen",
+      "Hout"
+    ]
+  },
+  "keuken-montage": {
+    "basis": [
+      "Hout"
+    ],
+    "werkblad": [
+      "Platen",
+      "Afwerking"
+    ],
+    "beslag": [
+      "Afwerking",
+      "Beslag",
+      "Hout"
+    ]
+  },
+  "keuken-renovatie": {
+    "basis": [
+      "Platen"
+    ],
+    "werkblad": [
+      "Platen",
+      "Afwerking"
+    ],
+    "beslag": [
+      "Beslag"
+    ]
+  },
+  "velux-dakraam": {
+    "vensterset": [
+      "Dakraam"
+    ],
+    "venster": [
+      "Dakraam"
+    ],
+    "gootstuk": [
+      "Dakraam"
+    ],
+    "afwerking": [
+      "Hout"
+    ]
+  },
+  "lichtkoepel": {
+    "koepel": [
+      "Dakraam"
+    ],
+    "opstand": [
+      "Dakraam"
+    ],
+    "afwerking": [
+      "Dakbedekking"
+    ]
+  }
+}

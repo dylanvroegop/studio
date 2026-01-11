@@ -1,0 +1,1297 @@
+  
+  {
+  "Treden & Stootborden": {
+    "Overzettrede": {
+      "subsectie": "Vloersystemen",
+      "uitleg": "Selecteer renovatietreden (bijv. eiken, laminaat of PVC) die over bestaande traptreden worden verlijmd."
+    },
+    "Stootbord": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Verticale houten of kunststof platen die tussen de traptreden worden geplaatst."
+    }
+  },
+  "Veiligheid": {
+    "Trapneusprofiel": {
+      "subsectie": "Overig",
+      "uitleg": "Aluminium of kunststof beschermingsprofielen voor de randen van de traptreden tegen slijtage."
+    },
+    "Antislipstrip": {
+      "subsectie": "Overig",
+      "uitleg": "Rubberen of metalen infreesstrips of plakstrips voor extra grip op het loopvlak."
+    },
+    "Veiligheidshek": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Houten of metalen hekwerk (balustrade) ter voorkoming van vallen bij het trapgat."
+    },
+    "Veiligheidspoortje": {
+      "subsectie": "Overig",
+      "uitleg": "Afsluitbaar traphekje voor kinderen of huisdieren, inclusief bijbehorend beslag."
+    }
+  },
+  "Constructie & Raveling": {
+    "Raveling balkhout": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Zware constructiebalken voor het opvangen van de vloerconstructie rondom een nieuw trapgat."
+    },
+    "Balkdrager": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Stalen verbindingsankers of raveeldragers om de constructiebalken blind of zichtbaar te bevestigen."
+    }
+  },
+  "Vlizotrap & Zolderluik": {
+    "Vlizotrap (Complete set)": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Kies een complete inklapbare zoldertrap inclusief houten bak en geïsoleerd luik."
+    },
+    "Zolderluik": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Losluik of inspectieluik voor toegang tot de vliering, vaak voorzien van isolatie en tochtstrips."
+    }
+  },
+  "Hekwerk Beslag": {
+    "Scharnier": {
+      "subsectie": "Overig",
+      "uitleg": "Beslag voor het draaibaar maken van een poortje of luik."
+    },
+    "Grendel / Sluiting": {
+      "subsectie": "Overig",
+      "uitleg": "Handmatige vergrendeling zoals een schuifgrendel of boerenklinkset."
+    },
+    "Zelfsluitende veer": {
+      "subsectie": "Overig",
+      "uitleg": "Mechanische veer om poortjes automatisch te laten sluiten na gebruik."
+    },
+    "Handgreep": {
+      "subsectie": "Overig",
+      "uitleg": "Greep of knop voor het eenvoudig openen van het hekwerk."
+    }
+  },
+  "Afwerking": {
+    "Koplatten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Afwerklijsten of architraven (MDF of hout) voor rondom deurkozijnen of ramen."
+    },
+    "Meubelbeslag": {
+      "subsectie": "Overig",
+      "uitleg": "Klein hang- en sluitwerk voor kasten, zoals magneetsluitingen of ladeknoppen."
+    },
+    "Olie, Lak, Beits": {
+      "subsectie": "Overig",
+      "uitleg": "Vloeibare afwerkingsmiddelen voor het beschermen en kleuren van houten oppervlakken."
+    },
+    "Afwerk Hout": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Diverse houten lijstjes, glaslatten of decoratieve afwerkstrips voor binnenshuis."
+    },
+    "Hoek- of Stopcontactprofielen": {
+      "subsectie": "Overig",
+      "uitleg": "Beschermingsprofielen voor uitwendige hoeken of specifieke randafwerking bij elektra."
+    },
+    "Daktrim": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Aluminium randprofielen voor de waterdichte afwerking van de dakrand op platte daken."
+    },
+    "Daktrim Hoeken": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Geprefabriceerde binnen- of buitenhoeken voor een naadloze aansluiting van de daktrim."
+    },
+    "HWA Stadsuitloop / Onderuitloop": {
+      "subsectie": "Overig",
+      "uitleg": "Onderdelen voor hemelwaterafvoer om water van het dak naar de regenpijp te geleiden."
+    },
+    "Lood": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Bladlood of loodvervanger voor waterkering bij gevelaansluitingen en schoorstenen."
+    },
+    "Waterslagen (Aluminium)": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Buitenprofielen (Aluminium) voor onder het kozijn om regenwater van de gevel af te voeren."
+    },
+    "Neuten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Sierblokken onderaan de koplatten voor de overgang naar de vloerplint."
+    },
+    "Dagkantafwerking": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Plaatwerk (kies NIET boeiboorden.) om de binnenzijde van een raam- of deurnis af te timmeren."
+    },
+    "Inzethorren": {
+      "subsectie": "Overig",
+      "uitleg": "Maatwerk horren die zonder boren in een draaikiepraam geplaatst kunnen worden."
+    },
+    "Tochtkader": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Rubberen afdichtingsprofielen die in de sponning van een kozijn worden geplaatst."
+    },
+    "Lood / DPC": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Waterkerende folie (DPC) of lood voor gebruik in funderingen of kozijnaansluitingen."
+    },
+    "Trapboom": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "De zware dragende zijpanelen van de trap waar de treden in gemonteerd worden."
+    },
+    "Trede": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Losse houten traptreden voor vervanging of maatwerk constructie."
+    },
+    "Stootbord": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Verticale platen tussen de treden voor een dichte trapconstructie."
+    }
+  },
+  "Leuningen & Hekwerken": {
+    "Trapaal": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Verticale hoofdpaal aan het begin of einde van de trap waar de leuning op aansluit."
+    },
+    "Trapleuning": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Ronde of vierkante houten regel voor houvast langs de trap."
+    },
+    "Balustrade": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Hekwerk op de vide of verdiepingsvloer ter beveiliging van het trapgat."
+    }
+  },
+  "Luxe Beslag & Hardware": {
+    "Spijl": {
+      "subsectie": "Overig",
+      "uitleg": "Verticale tussenstaven (hout of metaal) voor in het traphekwerk."
+    },
+    "Leuninghouder": {
+      "subsectie": "Overig",
+      "uitleg": "Metalen dragers om de trapleuning aan de wand te monteren."
+    },
+    "Scharnier": {
+      "subsectie": "Overig",
+      "uitleg": "Hoogwaardig deurbeslag voor het afhangen van binnendeuren."
+    },
+    "Ladegeleider": {
+      "subsectie": "Overig",
+      "uitleg": "Uittrekbare railsystemen voor meubellades (bijv. soft-close)."
+    },
+    "Handgreep": {
+      "subsectie": "Overig",
+      "uitleg": "Design grepen voor kasten of deuren."
+    },
+    "Keukenkraan": {
+      "subsectie": "Overig",
+      "uitleg": "Mengkraan voor montage op het aanrechtblad."
+    }
+  },
+  "Voorbereiding & Vulling": {
+    "Houtrotstop vloeistof": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Fixeermiddel om zacht hout te impregneren voordat het gevuld wordt."
+    },
+    "Houtstabilisator": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Middel om de structuur van aangetast hout te versterken."
+    },
+    "Twee-componenten epoxy vuller": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Hoogwaardige vulpasta voor het duurzaam repareren van grote gaten of houtrot."
+    },
+    "Vervangend hout inzetstuk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Stukken gezond hout om rotte delen in kozijnen te vervangen (deelvervanging)."
+    }
+  },
+  "Framewerk": {
+    "Staanders & Liggers": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Vuren balken voor de hoofdconstructie van wanden of koven."
+    },
+    "Tengelwerk / Rachels": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Selecteer dunne vuren latten of ventilatielatten voor het maken van rachelwerk of een spouw."
+    },
+    "Regelwerk (Nissen & Details)": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Houten latten voor de constructie van nisjes of hoekdetails."
+    },
+    "Achterhout (TV-ophanging)": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Extra houten versteviging (multiplex of balkjes) achter de gipsplaat voor zware montage."
+    },
+    "Randmeting": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Houten kaders langs de randen van plafonds of wanden."
+    },
+    "Stelhout": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Tijdelijk of definitief hout om constructies exact waterpas te stellen."
+    },
+    "Rachelwerk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Vuren latten die haaks op de balklaag worden gezet voor plafondbeplating."
+    }
+  },
+  "Isolatie & Folies": {
+    "Folies": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Selecteer de juiste dampremmende of dampopen folie voor de klimaatbeheersing."
+    },
+    "Isolatiemateriaal": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Minerale wol (glaswol/steenwol) of harde platen (PIR/EPS) voor thermische isolatie."
+    },
+    "Geluidsisolatie Stroken": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Vilt- of rubberstroken om contactgeluid tussen regelwerk en constructie te beperken."
+    },
+    "Dakisolatie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Specifieke isolatieplaten voor gebruik op of onder een schuin of plat dak."
+    },
+    "Folie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Bouwfolie voor diverse bescherming of scheiding."
+    },
+    "Dampremmende Folie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Folie die aan de warme zijde (binnen) wordt geplaatst om condensatie te voorkomen."
+    }
+  },
+  "Beplating": {
+    "Constructieplaat": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Dragend plaatmateriaal zoals OSB of Multiplex voor achter gipsplaten of als vloer."
+    },
+    "Afwerkplaat": {
+      "subsectie": "Gipsplaten & Wandsystemen",
+      "uitleg": "Zichtplaten zoals gipsplaten (AK voor stucwerk, RK voor naden) of MDF."
+    },
+    "Constructieplaat (Zijde 1)": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Eerste laag plaatmateriaal voor een dubbel beplating-systeem."
+    },
+    "Constructieplaat (Zijde 2)": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Plaatmateriaal voor de achterzijde van de wand."
+    },
+    "Afwerkplaat (Zijde 1)": {
+      "subsectie": "Gipsplaten & Wandsystemen",
+      "uitleg": "Eerste laag gips of afwerkplaat voor de voorzijde."
+    },
+    "Afwerkplaat (Zijde 2)": {
+      "subsectie": "Gipsplaten & Wandsystemen",
+      "uitleg": "Afwerkplaat voor de achterzijde van de wand."
+    },
+    "Akoestische Panelen": {
+      "subsectie": "Overig",
+      "uitleg": "Decoratieve panelen met vilt- en lattenstructuur voor geluidsverbetering."
+    },
+    "Afwerk Hout": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Plaatmateriaal bedoeld voor de uiteindelijke zichtbare houten afwerking binnenshuis."
+    }
+  },
+  "Leidingkoof / Omkasting": {
+    "Regelwerk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Houten kader voor het wegwerken van standleidingen of ventilatiebuizen."
+    },
+    "Beplating": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Plaatwerk (meestal gips of MDF) om de koof te sluiten."
+    },
+    "Isolatie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Minerale wol om stromingsgeluiden in de leidingen te dempen."
+    }
+  },
+  "Afwerken": {
+    "Dagkanten": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Plaatwerk voor de afwerking van de binnenzijde van een raam- of deurnis."
+    },
+    "Vensterbanken": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Kies uit houten, natuurstenen of kunststof vensterbanken."
+    },
+    "Vloerplinten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "MDF of houten plinten voor de afwerking tussen wand en vloer."
+    },
+    "Plafondplinten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Sierlijsten voor de overgang tussen wand en plafond."
+    }
+  },
+  "Installatie & Elektra": {
+    "Elektra Buizen / Flex": {
+      "subsectie": "Overig",
+      "uitleg": "PVC buizen of flexibele buis voor het trekken van kabels."
+    },
+    "Hollewanddozen": {
+      "subsectie": "Overig",
+      "uitleg": "Inbouwdozen speciaal voor montage in gipsplaatwanden."
+    },
+    "Installatiekabel": {
+      "subsectie": "Overig",
+      "uitleg": "VD-draad (blauw, bruin, geel/groen) of XMVK/YMVK kabels."
+    },
+    "Centraaldozen": {
+      "subsectie": "Overig",
+      "uitleg": "Verzamelpunten voor elektra in het plafond."
+    }
+  },
+  "Schakelmateriaal": {
+    "Stopcontacten & Schakelaars": {
+      "subsectie": "Overig",
+      "uitleg": "Inbouwelementen inclusief afdekramen en centraalplaten."
+    },
+    "Inbouwspots": {
+      "subsectie": "Overig",
+      "uitleg": "LED spots inclusief drivers en bijbehorende bedrading."
+    },
+    "Schakelaar / Dimmer": {
+      "subsectie": "Overig",
+      "uitleg": "Specifieke bedieningselementen voor verlichting."
+    }
+  },
+  "Naden & Stucwerk": {
+    "Hoekprofielen": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Stucstops of hoeknaaldprofielen voor strakke, sterke hoeken."
+    },
+    "Voegenmiddel": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Gipsgebaseerd vulmiddel voor het vullen van naden tussen platen."
+    },
+    "Finish Pasta": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Kant-en-klare pasta voor de gladde eindafwerking van gipsnaden."
+    },
+    "Wapeningsband": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Zelfklevend gaas of papierband ter voorkoming van scheuren op de naden."
+    }
+  },
+  "Kozijnen": {
+    "Kozijnen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Houten of kunststof raam- of deurprofielen."
+    },
+    "Glas & Roosters": {
+      "subsectie": "Overig",
+      "uitleg": "Isolatieglas (HR++) en bijbehorende ventilatieroosters."
+    },
+    "Raamkozijnen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Specifieke kozijnen voor vaste of draaiende ramen."
+    },
+    "Deurkozijnen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Kozijnen inclusief sponning voor deuren."
+    }
+  },
+  "Deuren": {
+    "Binnendeuren": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Kies type deur: stomp, opdek, board of massief."
+    },
+    "Scharnieren": {
+      "subsectie": "Overig",
+      "uitleg": "Paumelles of bladscharnieren voor het afhangen van de deur."
+    },
+    "Sloten": {
+      "subsectie": "Overig",
+      "uitleg": "Loopsloten, badkamer/vrij-bezet sloten of dag- en nachtsloten."
+    },
+    "Deurbeslag": {
+      "subsectie": "Overig",
+      "uitleg": "Krukken, rozetten of schilden voor de bediening van de deur."
+    },
+    "Deurroosters": {
+      "subsectie": "Overig",
+      "uitleg": "Ventilatieroosters voor montage in of boven de deur."
+    },
+    "Buitendeur": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Zware, geïsoleerde deur geschikt voor buitengebruik."
+    }
+  },
+  "Metal Stud Framewerk": {
+    "Liggers (U-profielen)": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Horizontale metalen profielen voor vloer en plafond."
+    },
+    "Staanders (C-profielen)": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Verticale metalen profielen die in de U-profielen worden geplaatst."
+    },
+    "Verstevigingsprofielen (UA)": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Zwaardere profielen voor deurposten of extra zware belasting."
+    },
+    "Randprofielen": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Metalen hoek- of randstukken voor plafondsystemen."
+    },
+    "Draagprofielen": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Hoofdprofielen voor een vrijdragend plafond."
+    }
+  },
+  "Constructie & Regelwerk": {
+    "Staanders & Liggers": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Constructiehout voor de dragende structuur."
+    },
+    "Regelwerk (Leidingspouw)": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Latten voor het creëren van ruimte voor kabels voor de isolatielaag."
+    },
+    "Ventilatielatten": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Latten met uitsparingen voor luchtcirculatie achter gevelbekleding."
+    }
+  },
+  "Isolatie, Folies & Spouw": {
+    "Folie Buiten": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Dampopen, waterkerende folie voor de koude zijde van de constructie."
+    },
+    "Folie Binnen": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Dampremmende folie voor de warme zijde van de constructie."
+    },
+    "Isolatiemateriaal (Constructie)": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Hoofdisolatie tussen de constructiebalken."
+    },
+    "Isolatiemateriaal (Leidingspouw)": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Extra dunne isolatie voor in de leidingspouw."
+    }
+  },
+  "Beplating & Gevelbekleding": {
+    "Gevelbekleding": {
+      "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+      "uitleg": "Kies materiaal: Hout (Rabat), Composiet of Kunststof delen."
+    },
+    "Constructieplaat (Buiten)": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Watervast verlijmde platen zoals Multiplex of cementgebonden platen."
+    },
+    "Constructieplaat (Binnen)": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Verstevigingsplaat achter the binnenafwerking."
+    },
+    "Afwerkplaat": {
+      "subsectie": "Gipsplaten & Wandsystemen",
+      "uitleg": "Gipsplaten of andere platen voor de binnenafwerking."
+    }
+  },
+  "Binnenafwerking": {
+    "Dagkanten (Binnen)": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Afwerking van de nis rondom ramen aan de binnenzijde."
+    },
+    "Vensterbanken": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Horizontale afwerkbladen onder ramen."
+    },
+    "Vloerplinten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Afwerking bij de overgang naar de vloer."
+    }
+  },
+  "Buitenafwerking": {
+    "Waterslagen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Lekdorpels voor onder de buitenkozijnen."
+    },
+    "Dagkanten (Buiten)": {
+      "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+      "uitleg": "Afwerking van de gevelnis rondom ramen."
+    },
+    "Gevelhoeken": {
+      "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+      "uitleg": "Specifieke hoekprofielen voor een nette overgang van geveldelen."
+    }
+  },
+  "Stucwerk": {
+    "Hoekprofielen": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Metalen stucprofielen voor uitwendige hoeken."
+    },
+    "Voegenmiddel": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Gips om naden te dichten."
+    },
+    "Finish Pasta": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Pasta voor een glad eindresultaat."
+    }
+  },
+  "Kozijnen & Ramen": {
+    "Stelkozijnen": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Houten kaders die in de gevel worden geplaatst om het kozijn in te monteren."
+    },
+    "Raamkozijnen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "De kozijnen zelf voor ramen."
+    },
+    "Deurkozijnen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "De kozijnen zelf voor deuren."
+    },
+    "Glas & Roosters": {
+      "subsectie": "Overig",
+      "uitleg": "Dubbel of triple glas inclusief ventilatievoorziening."
+    }
+  },
+  "Buitendeuren & Hang- en Sluitwerk": {
+    "Buitendeuren": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Zware deuren voor entree of achterdeur."
+    },
+    "Scharnieren": {
+      "subsectie": "Overig",
+      "uitleg": "Veiligheidsscharnieren met SKG keurmerk."
+    },
+    "Sloten": {
+      "subsectie": "Overig",
+      "uitleg": "Cilindersloten of meerpuntsluitingen met SKG keurmerk."
+    },
+    "Deurbeslag": {
+      "subsectie": "Overig",
+      "uitleg": "Veiligheidsbeslag (kerntrekbeveiliging) voor buitendeuren."
+    }
+  },
+  "Koof": {
+    "Regelwerk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Houten latten voor de constructie van een koof."
+    },
+    "Beplating": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Gips- of MDF platen."
+    },
+    "Isolatie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Geluidsisolatie voor leidingen in de koof."
+    }
+  },
+  "metaal": {
+    "Liggers (U-profielen)": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Metalen U-profielen."
+    },
+    "Staanders (C-profielen)": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Metalen C-profielen."
+    },
+    "Verstevigingsprofielen (UA)": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "UA profielen voor extra stijfheid."
+    }
+  },
+  "Schuifdeuren": {
+    "Schuifdeurrails": {
+      "subsectie": "Overig",
+      "uitleg": "Boven- of onderrailsysteem inclusief rolwagens."
+    },
+    "Schuifdeurpanelen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Deurbladen specifiek voor schuifsystemen."
+    },
+    "Komgrepen": {
+      "subsectie": "Overig",
+      "uitleg": "Ingebouwde handgrepen die niet uitsteken."
+    }
+  },
+  "Cinewall Elementen": {
+    "Inbouw Sfeerhaard": {
+      "subsectie": "Overig",
+      "uitleg": "Elektrische haard of waterdamp haard voor inbouw."
+    },
+    "TV-Beugel": {
+      "subsectie": "Overig",
+      "uitleg": "Vlakke of draaibare wandsteun voor de televisie."
+    },
+    "LED-Verlichting": {
+      "subsectie": "Overig",
+      "uitleg": "LED strips inclusief profielen en transformator."
+    }
+  },
+  "Gordijnkoof": {
+    "Regelwerk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Latten voor de constructie boven het raam."
+    },
+    "Beplating": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "MDF of gips voor een strakke afwerking."
+    },
+    "Achterhout": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Versteviging voor de montage van gordijnrails."
+    }
+  },
+  "Toegang & Vlizotrap": {
+    "Luik / Vlizotrap": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Toegangsluik naar bovenliggende ruimte."
+    },
+    "Koplatten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Afwerklijsten rondom het luik."
+    }
+  },
+  "Vloer_Voorbereiding": {
+    "Primer": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Hechtmiddel voor de ondergrond."
+    },
+    "Ondervloer": {
+      "subsectie": "Vloersystemen",
+      "uitleg": "Isolerende of egaliserende tussenlaag."
+    },
+    "Egaline": {
+      "subsectie": "Beton & Metselwerk",
+      "uitleg": "Zelfnivellerende mortel om de vloer vlak te maken."
+    },
+    "Reparatiemortel": {
+      "subsectie": "Beton & Metselwerk",
+      "uitleg": "Middel om gaten in de dekvloer te dichten."
+    },
+    "Dampremmende Folie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Folie tegen optrekkend vocht onder de vloer."
+    }
+  },
+  "Vloer_Hout": {
+    "Houten vloerplanken": {
+      "subsectie": "Vloersystemen",
+      "uitleg": "Massieve of lamelparket vloerdelen voor binnengebruik."
+    },
+    "Parketlijm": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Speciale lijm voor het verlijmen van hout op de ondervloer."
+    }
+  },
+  "Vloer_Afwerking": {
+    "Plinten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Lijsten voor de wandafwerking."
+    },
+    "Deklatten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Platte afdeklijstjes voor randen."
+    },
+    "Overgangsprofielen / Dorpels": {
+      "subsectie": "Overig",
+      "uitleg": "Profielen tussen twee verschillende vloeren."
+    },
+    "Vloerolie": {
+      "subsectie": "Overig",
+      "uitleg": "Beschermolie voor houten vloeren."
+    },
+    "Vloerplinten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Staande plinten."
+    },
+    "Overgangsprofielen / Drempels": {
+      "subsectie": "Overig",
+      "uitleg": "Drempels voor deurovergangen."
+    },
+    "Eindprofielen": {
+      "subsectie": "Overig",
+      "uitleg": "Afsluitprofiel bij bijv. een schuifpui of mat."
+    },
+    "Kruipluik Profiel / Matomranding": {
+      "subsectie": "Overig",
+      "uitleg": "Aluminium hoekprofielen for een mat of luik."
+    }
+  },
+  "Vloer_Laminaat": {
+    "Laminaat / PVC Panelen": {
+      "subsectie": "Vloersystemen",
+      "uitleg": "Kliklaminaat of PVC vloerdelen."
+    }
+  },
+  "Grondwerk & Fundering": {
+    "Worteldoek": {
+      "subsectie": "Overig",
+      "uitleg": "Folie onder bestrating of vlonder tegen onkruid."
+    },
+    "Ophoogzand / Stabilisatie": {
+      "subsectie": "Beton & Metselwerk",
+      "uitleg": "Zand of split voor een stevige ondergrond."
+    },
+    "Piketten / Palen": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Hardhouten piketpalen voor fundering."
+    },
+    "Tegels / Stelpoten": {
+      "subsectie": "Beton & Metselwerk",
+      "uitleg": "Ondersteuning voor een vlonderframe."
+    }
+  },
+  "Constructie (Onderbouw)": {
+    "Moerbalken": {
+      "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)",
+      "uitleg": "Hoofdbalken van de vlonderconstructie."
+    },
+    "Onderregels": {
+      "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)",
+      "uitleg": "Latten waar de vlonderplanken op rusten."
+    }
+  },
+  "Vlonder & Afwerking": {
+    "Vlonderplanken": {
+      "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)",
+      "uitleg": "Houten of composiet planken voor het loopoppervlak."
+    },
+    "Vlonderschroeven / Clips": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "RVS bevestigingsmateriaal specifiek voor vlonders."
+    },
+    "Kantplanken": {
+      "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)",
+      "uitleg": "Zijwaartse afwerking van de vlonder."
+    },
+    "Drainagegoot": {
+      "subsectie": "Overig",
+      "uitleg": "Afvoergoot voor regenwater langs de vlonder."
+    }
+  },
+  "Constructievloer": {
+    "Muurplaat": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Balk die op de muur wordt gemonteerd."
+    },
+    "Randbalken": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Balken aan de omtrek van de vloer."
+    },
+    "Vloerbalken": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Dragende balken tussen de randbalken."
+    },
+    "Balkdragers": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Stalen ophangbeugels."
+    }
+  },
+  "Constructie & Vloer (Bovenzijde)": {
+    "Randbalken": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Afwerk- of constructiebalken bovenzijde."
+    },
+    "Vloerbalken": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Dragende balken."
+    },
+    "Balkdragers": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Ophangbeugels."
+    }
+  },
+  "Beplating (Constructie)": {
+    "Constructieplaat": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Vloerplaten (bijv. Underlayment)."
+    }
+  },
+  "Plafond Framewerk (Hout)": {
+    "Randhout": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Houten regels langs de wanden."
+    },
+    "Stelhout": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Regels voor het waterpas maken."
+    },
+    "Rachelwerk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Latten voor de plafondplaten."
+    }
+  },
+  "Plafond Framewerk (Metal Stud)": {
+    "Randprofielen": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Metalen U-randprofielen."
+    },
+    "Draagprofielen": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Metalen plafondprofielen."
+    }
+  },
+  "Leidingkoof": {
+    "Regelwerk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Frame voor de koof."
+    },
+    "Beplating": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "MDF of gips."
+    },
+    "Isolatie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Geluidsdemper."
+    }
+  },
+  "Beplating (Plafond)": {
+    "Afwerkplaat": {
+      "subsectie": "Gipsplaten & Wandsystemen",
+      "uitleg": "Gipsplaten (bijv. Stucplaat of AK)."
+    }
+  },
+  "Binnenwerk": {
+    "Interieur / Corpus (MDF, Melamine, Multiplex)": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Basiselementen for kastinterieur."
+    }
+  },
+  "Deuren & Fronten": {
+    "Deuren": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Kastdeuren."
+    },
+    "Fronten": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Ladefronten of paneeldeuren."
+    }
+  },
+  "Luxe Beslag & Ladesystemen": {
+    "Ladesystemen": {
+      "subsectie": "Overig",
+      "uitleg": "Complete lade-units inclusief rails."
+    },
+    "Scharnier": {
+      "subsectie": "Overig",
+      "uitleg": "Keukenscharnieren (bijv. Blum)."
+    },
+    "Meubelgreep": {
+      "subsectie": "Overig",
+      "uitleg": "Kastgrepen."
+    },
+    "Push-to-open systeem": {
+      "subsectie": "Overig",
+      "uitleg": "Beslag voor greeploze opening."
+    },
+    "Kledingroede": {
+      "subsectie": "Overig",
+      "uitleg": "Ophangstang voor kasten."
+    }
+  },
+  "Hoofdmateriaal": {
+    "Hoofdmateriaal": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Het belangrijkste basishout of plaatmateriaal voor de opdracht."
+    }
+  },
+  "Constructie Regelwerk": {
+    "Regelwerk": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Balken of latten voor de hoofdconstructie."
+    }
+  },
+  "Afwerklatten": {
+    "Plafondplinten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Latten voor plafondafwerking."
+    },
+    "Koplatten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Latten rondom kozijnen."
+    },
+    "Vloerplinten": {
+      "subsectie": "Plinten & Koplaten",
+      "uitleg": "Plinten bij de vloer."
+    }
+  },
+  "Vensterbank": {
+    "Vensterbank": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Vensterbank materiaal."
+    },
+    "Ventilatieroosters": {
+      "subsectie": "Overig",
+      "uitleg": "Roosters voor luchtcirculatie."
+    },
+    "Olie, Lak of Beits": {
+      "subsectie": "Overig",
+      "uitleg": "Schilderproducten voor afwerking."
+    }
+  },
+  "Deurblad": {
+    "Binnendeuren": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Het losse deurpaneel."
+    }
+  },
+  "Deurbeslag & Sloten": {
+    "Scharnieren / Paumelles": {
+      "subsectie": "Overig",
+      "uitleg": "Draaipunten voor deuren."
+    },
+    "Sloten": {
+      "subsectie": "Overig",
+      "uitleg": "Mechanisme voor sluiting."
+    },
+    "Deurbeslag (Schild & Kruk)": {
+      "subsectie": "Overig",
+      "uitleg": "Zichtbare handgrepen."
+    },
+    "Cilinder": {
+      "subsectie": "Overig",
+      "uitleg": "Slotcilinder voor sleutelbediening."
+    }
+  },
+  "Glas & Beglazing": {
+    "Glas": {
+      "subsectie": "Overig",
+      "uitleg": "Glasplaten op maat."
+    },
+    "Glaslatten": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Latten om glas vast te zetten."
+    },
+    "Neuslatten": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Ventilerende glaslatten for onderzijde."
+    },
+    "Ventilatierooster": {
+      "subsectie": "Overig",
+      "uitleg": "Rooster op het glas."
+    }
+  },
+  "Tochtwering": {
+    "Tochtvaldorp": {
+      "subsectie": "Overig",
+      "uitleg": "Automatische tochtwering onderaan de deur."
+    },
+    "Tochtstrips": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Profielen tegen tocht in de sponning."
+    }
+  },
+  "Ventilatie": {
+    "Deurroosters": {
+      "subsectie": "Overig",
+      "uitleg": "Luchtroosters voor in de deur."
+    }
+  },
+  "Buitendeur": {
+    "Buitendeur": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Zware buitendeur."
+    }
+  },
+  "Beveiliging & Sloten": {
+    "Scharnieren": {
+      "subsectie": "Overig",
+      "uitleg": "Veiligheidsscharnieren."
+    },
+    "Sloten": {
+      "subsectie": "Overig",
+      "uitleg": "Sloten met veiligheidscertificaat."
+    },
+    "Meerpuntsluiting": {
+      "subsectie": "Overig",
+      "uitleg": "Slot dat op meerdere plekken tegelijk sluit."
+    },
+    "Deurbeslag (Schild & Kruk)": {
+      "subsectie": "Overig",
+      "uitleg": "Veiligheidsbeslag."
+    },
+    "Cilinder": {
+      "subsectie": "Overig",
+      "uitleg": "Veiligheidscilinder."
+    }
+  },
+  "deurbeslag": {
+    "Scharnieren": { "subsectie": "Overig", "uitleg": "Scharnieren." },
+    "Sloten": { "subsectie": "Overig", "uitleg": "Sloten." },
+    "Meerpuntsluiting": { "subsectie": "Overig", "uitleg": "Meerpuntsluiting." },
+    "Deurbeslag (Schild & Kruk)": { "subsectie": "Overig", "uitleg": "Beslag." },
+    "Cilinder": { "subsectie": "Overig", "uitleg": "Cilinder." }
+  },
+  "glas": {
+    "Glas": { "subsectie": "Overig", "uitleg": "Glas." },
+    "Glaslatten": { "subsectie": "Kozijnen & Deuren", "uitleg": "Glaslatten." }
+  },
+  "tochtstrips": {
+    "Tochtvaldorp": { "subsectie": "Overig", "uitleg": "Valdorp." },
+    "Tochtstrips": { "subsectie": "Kitwerk & Afdichtingen", "uitleg": "Strips." }
+  },
+  "ventilatie": {
+    "Deurroosters": { "subsectie": "Overig", "uitleg": "Roosters." }
+  },
+  "Dakbeschot": {
+    "Constructieplaat": {
+      "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+      "uitleg": "Platen voor op de dakconstructie (bijv. Multiplex)."
+    }
+  },
+  "Tengels & Panlatten": {
+    "Tengels": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Verticale latten op het dakvlak."
+    },
+    "Panlatten": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Horizontale latten voor de dakpannen."
+    },
+    "Ruiter (Nokbalk)": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Noklat voor de nokvorsten."
+    }
+  },
+  "Dakpannen": {
+    "Dakvoetprofiel / Vogelschroot": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Profiel tegen vogels onder de pannen."
+    },
+    "Dakpannen": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Standaard pannen."
+    },
+    "Gevelpannen / Kantpannen": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Pannen voor de zijkant van het dak."
+    },
+    "Ondervorst": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Ventilerende rol voor onder de nokvorst."
+    },
+    "Nokvorsten": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Pannen voor de nok."
+    }
+  },
+  "5. Afwerking": {
+    "Lood": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Waterdichting bij dakaansluiting."
+    },
+    "Dakgoot": {
+      "subsectie": "Overig",
+      "uitleg": "Goot voor waterafvoer."
+    }
+  },
+  "EPDM": {
+    "EPDM": {
+      "subsectie": "Dakbedekking & Dakramen",
+      "uitleg": "Rubber dakbedekking inclusief lijm."
+    }
+  },
+  "Basis (Regelwerk)": {
+    "Tengelwerk / Rachels": {
+      "subsectie": "Constructiehout (Vuren & SLS)",
+      "uitleg": "Selecteer dunne vuren latten of ventilatielatten voor het maken van rachelwerk of een spouw."
+    },
+    "Ventilatieprofiel (Ongedierte)": {
+      "subsectie": "Metaalprofielen & Bevestiging",
+      "uitleg": "Geperforeerd profiel tegen ongedierte."
+    }
+  },
+  "Isolatie & Folie": {
+    "Folie": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Bouwfolies."
+    },
+    "Isolatiemateriaal": {
+      "subsectie": "Isolatiematerialen",
+      "uitleg": "Isolatieplaten of wol."
+    }
+  },
+  "Hout": {
+    "Houten Bekleding (Rabat/Zweeds)": {
+      "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+      "uitleg": "Houten geveldelen."
+    },
+    "Houten Hoeklatten": {
+      "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+      "uitleg": "Hoekafwerking."
+    }
+  },
+  "Keralit": {
+    "Kunststof Panelen (Keralit)": {
+      "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+      "uitleg": "Kunststof gevelbekleding."
+    },
+    "Keralit Profielen (Start/Eind/Hoek)": {
+      "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+      "uitleg": "Bijbehorende montageprofielen."
+    }
+  },
+  "Trespa/HPL (Geschroefd)": {
+    "Volkern/HPL Plaat (Trespa)": {
+      "subsectie": "Plaatmateriaal Speciaal (Trespa, Rockpanel, Cembrit, Betonplex)",
+      "uitleg": "HPL platen voor gevelmontage."
+    }
+  },
+  "Trespa/HPL (Verlijmd)": {
+    "Volkern/HPL Plaat (Trespa)": {
+      "subsectie": "Plaatmateriaal Speciaal (Trespa, Rockpanel, Cembrit, Betonplex)",
+      "uitleg": "HPL platen voor verlijming."
+    }
+  },
+  "Kozijnhout": {
+    "Kozijnhout": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Geprofileerd hout for kozijnen."
+    },
+    "Binnendorpel": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Dorpel aan de binnenzijde (bijv. natuursteen)."
+    },
+    "Onderdorpel": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Onderzijde van het kozijn."
+    }
+  },
+  "Hang- & Sluitwerk": {
+    "Scharnieren": { "subsectie": "Overig", "uitleg": "Hangen voor ramen/deuren." },
+    "Sluitplaat": { "subsectie": "Overig", "uitleg": "Metalen plaat in het kozijn voor de dagschoot." },
+    "Paumelles": { "subsectie": "Overig", "uitleg": "Insteekscharnieren." },
+    "Aanslagrubber": { "subsectie": "Kitwerk & Afdichtingen", "uitleg": "Rubber profiel in het kozijn." },
+    "Raamboom": { "subsectie": "Overig", "uitleg": "Sluiting voor een raam." },
+    "Raamuitzetter": { "subsectie": "Overig", "uitleg": "Mechanisme om raam open te houden." },
+    "Meerpuntsluiting": { "subsectie": "Overig", "uitleg": "Veiligheidssluiting." }
+  },
+  "Stalen Kozijn": {
+    "Stalen Kozijn": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Kant-en-klaar stalen deurkozijn."
+    }
+  },
+  "Kozijnelement": {
+    "Kozijnelement": { "subsectie": "Kozijnen & Deuren", "uitleg": "Samengesteld kozijn." },
+    "Stelkozijnen": { "subsectie": "Constructiehout (Vuren & SLS)", "uitleg": "Montagekaders." },
+    "Onderdorpel": { "subsectie": "Kozijnen & Deuren", "uitleg": "Dorpel." }
+  },
+  "Afwerking Buiten": {
+    "Raamdorpelstenen": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Stenen lekdorpels."
+    },
+    "Lood / DPC": {
+      "subsectie": "Kitwerk & Afdichtingen",
+      "uitleg": "Waterkering."
+    }
+  },
+  "Afwerking Binnen": {
+    "Dagkantbetimmering": { "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)", "uitleg": "Houten afwerking raamnis." },
+    "Vensterbank": { "subsectie": "Kozijnen & Deuren", "uitleg": "Vensterbank." },
+    "Koplatten": { "subsectie": "Plinten & Koplaten", "uitleg": "Afwerklijsten." }
+  },
+  "Montage": {
+    "Stelkozijn": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Houten stelprofiel."
+    }
+  },
+  "Ramen": {
+    "Raamhout": {
+      "subsectie": "Kozijnen & Deuren",
+      "uitleg": "Hout voor het maken van een raam binnenshuis."
+    }
+  },
+  "Basis & Fundering": {
+    "Snelbeton": { "subsectie": "Beton & Metselwerk", "uitleg": "Betonmortel voor palen." },
+    "Opsluitbanden": { "subsectie": "Beton & Metselwerk", "uitleg": "Randbegrenzing." },
+    "Paalpunthouder": { "subsectie": "Metaalprofielen & Bevestiging", "uitleg": "Metalen houder voor palen in de grond." }
+  },
+  "Optie: Hout": {
+    "Schuttingpalen hout": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Houten palen." },
+    "Paalkappen": { "subsectie": "Overig", "uitleg": "Afdekplaatjes voor palen." },
+    "Tuinscherm hout": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Kant-en-klaar houten scherm." },
+    "Afdeklat hout": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Lat bovenop de schutting." },
+    "Losse tuinplanken": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Planken voor zelfbouw schutting." }
+  },
+  "Optie: Beton": {
+    "Betonpalen": { "subsectie": "Beton & Metselwerk", "uitleg": "Betonpalen." },
+    "Onderplaten": { "subsectie": "Beton & Metselwerk", "uitleg": "Betonnen onderplaten." },
+    "Afdekkappen beton": { "subsectie": "Beton & Metselwerk", "uitleg": "Kappen for betonpalen." },
+    "Unibeslag": { "subsectie": "Metaalprofielen & Bevestiging", "uitleg": "Bevestiging voor schermen aan betonpalen." }
+  },
+  "Optie: Composiet": {
+    "Aluminium palen": { "subsectie": "Metaalprofielen & Bevestiging", "uitleg": "Aluminium staanders." },
+    "Paalvoeten": { "subsectie": "Metaalprofielen & Bevestiging", "uitleg": "Voetplaten voor aluminium palen." },
+    "Tuinscherm composiet": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Composiet schuttingdelen." },
+    "U profielen": { "subsectie": "Metaalprofielen & Bevestiging", "uitleg": "Aluminium U-profielen." }
+  },
+  "Poort & Toegang": {
+    "Tuinpoort": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Complete poort inclusief frame." },
+    "Stalen frame": { "subsectie": "Metaalprofielen & Bevestiging", "uitleg": "Frame voor de poort." },
+    "Kozijnbalken": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Balken voor het poortkozijn." }
+  },
+  "Tuindeur Beslag": {
+    "Hengselset": { "subsectie": "Overig", "uitleg": "Hengen en duimen." },
+    "Hengen": { "subsectie": "Overig", "uitleg": "Hengen." },
+    "Plaatduimen": { "subsectie": "Overig", "uitleg": "Plaatduimen." },
+    "Poortbeslag": { "subsectie": "Overig", "uitleg": "Klinken en grendels." },
+    "Cilinderslot": { "subsectie": "Overig", "uitleg": "Slotcilinder." },
+    "Grondgrendel": { "subsectie": "Overig", "uitleg": "Grendel voor onderin de poort." },
+    "Vloerstop": { "subsectie": "Overig", "uitleg": "Aanslag in de grond." }
+  },
+  "Vlonder_Fundering": {
+    "Worteldoek": { "subsectie": "Overig", "uitleg": "Antiworteldoek." },
+    "Ophoogzand / Stabilisatie": { "subsectie": "Beton & Metselwerk", "uitleg": "Zand." },
+    "Piketten / Palen": { "subsectie": "Constructiehout (Vuren & SLS)", "uitleg": "Funderingspalen." },
+    "Tegels / Stelpoten": { "subsectie": "Beton & Metselwerk", "uitleg": "Dragers." }
+  },
+  "Vlonder_Constructie": {
+    "Moerbalken": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Draagbalken." },
+    "Onderregels": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Constructieregels." }
+  },
+  "Vlonder_Dek": {
+    "Vlonderplanken": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Loopvlakplanken." },
+    "Vlonderschroeven / Clips": { "subsectie": "Metaalprofielen & Bevestiging", "uitleg": "Bevestigingsmiddelen." },
+    "Kantplanken": { "subsectie": "Afwerkingshout (Douglas & Buitenverblijf)", "uitleg": "Zijafwerking." },
+    "Drainagegoot": { "subsectie": "Overig", "uitleg": "Regenwatergoot." }
+  },
+  "Glas & Afwerking": {
+    "Glas": { "subsectie": "Overig", "uitleg": "Glas." },
+    "Ventilatie roosters": { "subsectie": "Overig", "uitleg": "Roosters." },
+    "Glaslatten": { "subsectie": "Kozijnen & Deuren", "uitleg": "Latten." }
+  },
+  "Keukenelementen & Kasten": {
+    "Keukenkast": { "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)", "uitleg": "Kastromp." }
+  },
+  "Werkblad & Apparatuur": {
+    "Aanrechtblad": { "subsectie": "Plaatmateriaal Speciaal (Trespa, Rockpanel, Cembrit, Betonplex)", "uitleg": "Werkblad." },
+    "Inbouwapparaat": { "subsectie": "Overig", "uitleg": "Keukenapparatuur." }
+  },
+  "Luxe Beslag & Accessoires": {
+    "Spoelbak": { "subsectie": "Overig", "uitleg": "Inbouw spoelbak." },
+    "Keukenkraan": { "subsectie": "Overig", "uitleg": "Kraan." },
+    "Handgreep": { "subsectie": "Overig", "uitleg": "Grepen." },
+    "Keukenplint": { "subsectie": "Plinten & Koplaten", "uitleg": "Plint onder de kasten." },
+    "Keukenverlichting": { "subsectie": "Overig", "uitleg": "LED strips of spots voor onder de kasten." }
+  },
+  "Fronten & Zichtwerk": {
+    "Keukenfront": { "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)", "uitleg": "Deurtjes en frontjes." }
+  },
+  "Dakraam Set": {
+    "Velux dakraam set": { "subsectie": "Dakbedekking & Dakramen", "uitleg": "Complete set inclusief gootstukken en isolatie." }
+  },
+  "Dakraam": {
+    "Velux Venster": { "subsectie": "Dakbedekking & Dakramen", "uitleg": "Het losse dakraam." }
+  },
+  "Gootstukken": {
+    "Gootstukken": { "subsectie": "Dakbedekking & Dakramen", "uitleg": "Waterdichte aansluiting voor het dak." }
+  },
+  "Aftimmering": {
+    "Interieur afwerking": { "subsectie": "Plinten & Koplaten", "uitleg": "Houten interieurset voor de binnenzijde van het dakraam." }
+  },
+  "Koepel": {
+    "Lichtkoepel": { "subsectie": "Dakbedekking & Dakramen", "uitleg": "Lichtkoepel set voor platte daken." }
+  },
+  "Opstand": {
+    "Opstand Houtbalk of Prefab Set": { "subsectie": "Constructiehout (Vuren & SLS)", "uitleg": "De verhoging waarop de koepel gemonteerd wordt." }
+  },
+  "Dakafwerking": {
+    "Dakbedekking": { "subsectie": "Dakbedekking & Dakramen", "uitleg": "Materiaal zoals bitumen of EPDM for rondom de koepel." }
+  }
+}

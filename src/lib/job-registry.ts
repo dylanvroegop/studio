@@ -8,16 +8,40 @@ export const MATERIAL_CATEGORY_INFO = {
   hout: { title: 'Framewerk', order: 1 },
   raam: { title: 'Ramen', order: 2 }, // ✅ Added for Custom work
   metaal: { title: 'Framewerk', order: 1 },
-  
+  dak: { title: 'Dakwerk & Bedekking', order: 2 },
+  gevel: { title: 'Gevelbekleding', order: 3 },
+  werkblad: { title: 'werkblad', order: 3 },
+  // --- DAKRAMEN & LICHTKOEPELS ---
+  venster: { title: 'Basis: Het Venster', order: 1 },
+  gootstuk: { title: 'Waterdichtheid: Gootstukken', order: 2 },
+  koepel: { title: 'De Koepel', order: 1 },
+  opstand: { title: 'De Opstand (Basis)', order: 2 },
+  basis: { title: 'Afwerking & Aftimmering', order: 3 },
+  afwerking: { title: 'Afwerking & Aftimmering', order: 3 },
+  trap: { title: 'De Trap (Basis)', order: 1 },
+veiligheid: { title: 'Leuningen & Hekwerken', order: 2 },
   // --- PREFAB / ELEMENTEN ---
+  // --- TUIN & SCHUTTING ---
+  fundering: { title: 'Fundering & Palen', order: 1 },
+  schutting_hout: { title: 'Schutting (Hout)', order: 2 },
+  schutting_beton: { title: 'Schutting (Beton)', order: 2 },
+  schutting_composiet: { title: 'Schutting (Composiet)', order: 2 },
+  poort: { title: 'Poort & Toegang', order: 3 },
   element: { title: 'Elementen', order: 1 }, // ✅ Added for Prefab
   montage: { title: 'Montage & Afdichting', order: 2 }, // ✅ Added for Prefab/Kunststof
-  
+  afwerking_dak: { title: 'Afwerking (Dak)', order: 5 },
   // --- CONSTRUCTIE ---
   Constructievloer: { title: 'Balklaag & Constructie', order: 1 },
   Vlonder_Fundering: { title: 'Grondwerk & Fundering', order: 1 },
   dorpels: { title: 'Dorpels', order: 2 }, // ✅ Added for separate sills
-  
+  // --- GEVEL OPTIES (VARIANTS) ---
+  gevel_hout: { title: 'Gevelbekleding (Hout)', order: 3 },
+  gevel_kunststof: { title: 'Gevelbekleding (Kunststof)', order: 3 },
+  gevel_cement: { title: 'Gevelbekleding (Cementvezel)', order: 3 },
+  gevel_plaat: { title: 'Gevelbekleding (Platen)', order: 3 },
+  gevel_plaat_lijm: { title: 'Gevelbekleding (Platen)', order: 3 },
+  // --- ALGEMEEN ---
+  bevestiging: { title: 'Bevestiging & Montage', order: 99 }, // Generic category for screws/kit
   // --- BESLAG & TOEGANG ---
   deurbeslag: { title: 'Deurbeslag & Sloten', order: 8 },
   beslag: { title: 'Hang- & Sluitwerk', order: 8 },
@@ -25,7 +49,7 @@ export const MATERIAL_CATEGORY_INFO = {
   Deuren: { title: 'Deuren', order: 8 },
   Schuifdeuren: { title: 'Schuifdeuren', order: 8 },
   Toegang: { title: 'Toegang & Vlizotrap', order: 14 },
-
+  vensterset: { title: 'vensterset', order: 14 },
   // --- GLAS & ISOLATIE ---
   glas: { title: 'Glas & Beglazing', order: 9 },
   ventilatie: { title: 'Ventilatie', order: 10 },
@@ -35,7 +59,6 @@ export const MATERIAL_CATEGORY_INFO = {
   // --- AFWERKING ---
   beplating: { title: 'Beplating', order: 3 },
   beplating_afwerking: { title: 'Beplating (Plafond)', order: 11 },
-  afwerking: { title: 'Afwerken', order: 4 },
   afwerking_binnen: { title: 'Afwerken (Binnen)', order: 4 },
   afwerking_buiten: { title: 'Afwerken (Buiten)', order: 5 },
   lijstwerk: { title: 'Lijstwerk', order: 4 }, // ✅ Added for Koplatten/Neuten
@@ -43,8 +66,7 @@ export const MATERIAL_CATEGORY_INFO = {
   Koof: { title: 'Leidingkoof / Omkasting', order: 9 },
   Gordijnkoof: { title: 'Gordijnkoof', order: 10 },
   Cinewall: { title: 'Cinewall Elementen', order: 21 },
-
-  //#endregion
+// --- TUIN & SCHUTTING ---
 
   //#region --- VLOEREN ---
   Vlonder_Constructie: { title: 'Constructie (Onderbouw)', order: 2 },
@@ -57,7 +79,8 @@ export const MATERIAL_CATEGORY_INFO = {
   // --- INSTALLATIE ---
   Installatie: { title: 'Installatie & Elektra', order: 20 },
   Schakelmateriaal: { title: 'Schakelmateriaal', order: 22 },
-
+// --- HOUTROTREPARATIE ---
+reparatie: { title: 'Reparatie & Herstel', order: 1 },
   // --- VLIERING ---
   Vliering_Constructie: { title: '1. Constructie & Vloer (Bovenzijde)', order: 1 },
   Vliering_Plafond_Hout: { title: '2. Plafondafwerking (Hout)', order: 2 },
@@ -193,7 +216,7 @@ const COUNT_FIELDS: MeasurementField[] = [
 
 
 
-//#region ========================================== MATERIAL SECTIONS - WANDEN ==========================================
+//#region ========================================== MATERIAL SECTIONS - WANDEN XXX==========================================
 
 const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
@@ -574,7 +597,7 @@ const OVERIG_WANDEN_MATS: MaterialSection[] = [
 
 // #endregion
 
-//#region ========================================== MATERIAL SECTIONS - PLAFONDS ==========================================
+//#region ========================================== MATERIAL SECTIONS - PLAFONDS XXX==========================================
 
 const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE (FRAMEWERK)
@@ -671,7 +694,7 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
 
 //#endregion
 
-//#region ========================================== MATERIAL SECTIONS - VLOEREN ==========================================
+//#region ========================================== MATERIAL SECTIONS - VLOEREN XXX==========================================
 
 const MASSIEF_HOUTEN_VLOER_FINISH_MATS: MaterialSection[] = [
   // 1. VOORBEREIDING & ONDERVLOER
@@ -807,10 +830,7 @@ const BALKLAAG_CONSTRUCTIEVLOER_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - KEUKENS ==========================================
 
 const KEUKEN_MATS: MaterialSection[] = [
-  { key: 'montage', label: 'Montagemateriaal / Kleinmateriaal', categoryFilter: 'Bevestiging' },
-  { key: 'blad', label: 'Werkblad & afwerking', categoryFilter: 'Plaatmateriaal' },
-  { key: 'apparatuur', label: 'Aansluitmateriaal apparatuur', categoryFilter: 'Installatie' },
-  { key: 'afwerking', label: 'Plinten & Passtukken', categoryFilter: 'Afwerking' },
+
 ];
 
 // #endregion
@@ -828,67 +848,34 @@ const INTERIEUR_MATS: MaterialSection[] = [
 
 //#region ========================================== MATERIAL SECTIONS - AFWERKINGEN ==========================================
 
-const VENSTERBANK_MATS: MaterialSection[] = [
-  { key: 'voorbereiding', label: 'Voorbereiding – uitvlakken (ondergrond)', categoryFilter: 'Uitvlakken' },
-  { key: 'vensterbank_nieuw', label: 'Vensterbank – paneel (nieuw)', categoryFilter: 'Vensterbanken' },
-  { key: 'vensterbank_overzet', label: 'Vensterbank – overzet (renovatie)', categoryFilter: 'Vensterbanken' },
-  { key: 'montage', label: 'Bevestiging – montage (kit/schuim)', categoryFilter: 'Lijmen' },
-  { key: 'ondersteuning', label: 'Ondersteuning – beugels/klossen', categoryFilter: 'Bevestiging' },
-  { key: 'kopschotten', label: 'Afwerking – kopschotten (zijkant)', categoryFilter: 'Accessoires' }, // Vensterbanken accessories
-  { key: 'kitnaden', label: 'Afwerking – kitnaden', categoryFilter: 'Kit' },
-  { key: 'schilderwerk', label: 'Afwerking – schilderwerk (lak)', categoryFilter: 'Verf' },
-  { key: 'dagkanten', label: 'Aansluiting – dagkanten (herstel)', categoryFilter: 'Plaatmateriaal' },
-  { key: 'radiator', label: 'Radiator – ombouw/rooster', categoryFilter: 'Ventilatie' },
-];
 
 const DAGKANT_MATS: MaterialSection[] = [
-  { key: 'voorbereiding', label: 'Voorbereiding – uitvulling (regelwerk)', categoryFilter: 'Balkhout' },
-  { key: 'isolatie', label: 'Isolatie – koudebrug (dunne plaat)', categoryFilter: 'Isolatie' },
-  { key: 'aftimmering', label: 'Aftimmering – dagkantstukken (MDF/Hout)', categoryFilter: 'Plaatmateriaal' },
-  { key: 'beplating', label: 'Beplating – gips/stucplaat', categoryFilter: 'Plaatmateriaal' },
-  { key: 'prefab', label: 'Prefab – kunststof/melamine', categoryFilter: 'Vensterbanken' }, // Often categorized with sills
-  { key: 'montage', label: 'Bevestiging – montage (lijm/schuim)', categoryFilter: 'Lijmen' },
-  { key: 'koplatten', label: 'Afwerking – koplatten (architraaf)', categoryFilter: 'Lijstwerk' },
-  { key: 'hoekprofielen', label: 'Afwerking – hoekprofielen', categoryFilter: 'Profielen' },
-  { key: 'aansluiting', label: 'Aansluiting – kozijn (kit/band)', categoryFilter: 'Kit' },
-  { key: 'schilderwerk', label: 'Afwerking – schilderwerk', categoryFilter: 'Verf' },
+  { key: 'frame', label: 'Regelwerk', categoryFilter: 'Hout', category: 'hout' },
+  { key: 'dagkant', label: 'Afwerk Hout', categoryFilter: 'Platen', category: 'afwerking' },
+  { key: 'hoekprofiel', label: 'Hoek- of Stopcontactprofielen', categoryFilter: 'Afwerking', category: 'afwerking' },
 ];
 
 const PLINTEN_MATS: MaterialSection[] = [
-  { key: 'hoge_plinten', label: 'Hoge plinten – muur', categoryFilter: 'Plinten' },
-  { key: 'systeemplinten', label: 'Systeemplinten – kabelgoot', categoryFilter: 'Plinten' },
-  { key: 'plakplinten', label: 'Plakplinten – vlak', categoryFilter: 'Plinten' },
-  { key: 'plafond_kroon', label: 'Plafondlijsten – kroon/hol', categoryFilter: 'Lijstwerk' },
-  { key: 'plafond_plat', label: 'Plafondlijsten – plat', categoryFilter: 'Lijstwerk' },
-  { key: 'architraven', label: 'Koplatten – architraven', categoryFilter: 'Lijstwerk' },
-  { key: 'neuten', label: 'Neuten – overgangsstukken', categoryFilter: 'Lijstwerk' },
-  { key: 'verlijming', label: 'Bevestiging – verlijmen (High Tack)', categoryFilter: 'Lijmen' },
-  { key: 'mechanisch', label: 'Bevestiging – mechanisch (Schroef/Clip)', categoryFilter: 'Bevestiging' },
-  { key: 'afkitten', label: 'Afwerking – afkitten', categoryFilter: 'Kit' },
-  { key: 'schilderwerk', label: 'Afwerking – schilderwerk', categoryFilter: 'Verf' },
-  { key: 'reparaties', label: 'Reparaties – muurherstel', categoryFilter: 'Vulmiddelen' },
+  { key: 'plinten', label: 'Plafondplinten', categoryFilter: 'Hout', category: 'afwerking' },
+  { key: 'latten', label: 'Koplatten', categoryFilter: 'Hout', category: 'afwerking' },
+  { key: 'latten', label: 'Vloerplinten', categoryFilter: 'Hout', category: 'afwerking' },
 ];
 
 const OMKASTING_KOVEN_MATS: MaterialSection[] = [
-  { key: 'voorbereiding', label: 'Voorbereiding – uitvulling', categoryFilter: 'Balkhout' },
-  { key: 'constructie', label: 'Constructie – basisframe', categoryFilter: 'Balkhout' },
-  { key: 'isolatie', label: 'Isolatie – akoestisch', categoryFilter: 'Isolatie' },
-  { key: 'stucbasis', label: 'Beplating – stucbasis (gips)', categoryFilter: 'Plaatmateriaal' },
-  { key: 'schilderwerk_plaat', label: 'Beplating – schilderwerk (MDF)', categoryFilter: 'Plaatmateriaal' },
-  { key: 'rad_front', label: 'Radiator – frontpaneel (webbing)', categoryFilter: 'Plaatmateriaal' }, // or Decoratie
-  { key: 'rad_rooster', label: 'Radiator – warmtedoorlat (roosters)', categoryFilter: 'Ventilatie' },
-  { key: 'rad_blad', label: 'Radiator – vensterbank (bovenblad)', categoryFilter: 'Vensterbanken' },
-  { key: 'gordijnkof', label: 'Gordijnkof – versteviging', categoryFilter: 'Balkhout' },
-  { key: 'luik', label: 'Toegang – inspectieluik', categoryFilter: 'Luiken' },
-  { key: 'deuren', label: 'Toegang – deuren/scharnieren', categoryFilter: 'Deurbeslag' },
-  { key: 'elektra', label: 'Elektra – spotjes', categoryFilter: 'Verlichting' },
-  { key: 'hoekprofielen', label: 'Afwerking – hoekprofielen', categoryFilter: 'Profielen' },
-  { key: 'naden', label: 'Afwerking – naden & kieren', categoryFilter: 'Kit' },
-  { key: 'schilderwerk', label: 'Afwerking – schilderwerk', categoryFilter: 'Verf' },
+  { key: 'frame', label: 'Regelwerk', categoryFilter: 'Hout', category: 'hout' },
+  { key: 'beplating', label: 'Afwerk Hout', categoryFilter: 'Platen', category: 'afwerking' },
 ];
+
+const VENSTERBANK_MATS: MaterialSection[] = [
+  { key: 'frame', label: 'Regelwerk', categoryFilter: 'Hout', category: 'hout' },
+  { key: 'vensterbank', label: 'Vensterbank', categoryFilter: 'Hout', category: 'afwerking' },
+  { key: 'roosters', label: 'Ventilatieroosters', categoryFilter: 'Afwerking', category: 'afwerking' },
+  { key: 'behandeling', label: 'Olie, Lak of Beits', categoryFilter: 'Verf', category: 'afwerking' },
+];
+
 // #endregion
 
-//#region ========================================== MATERIAL SECTIONS - DEUREN ==========================================
+//#region ========================================== MATERIAL SECTIONS - DEUREN XXX==========================================
 
 const DEUR_BINNEN_MATS: MaterialSection[] = [
   // Deurblad
@@ -897,7 +884,7 @@ const DEUR_BINNEN_MATS: MaterialSection[] = [
   // Beslag & sloten
   { key: 'scharnieren', label: 'Scharnieren / Paumelles', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
   { key: 'slotmechanisme', label: 'Sloten', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
-  { key: 'deurbeslag_kruk', label: 'Deurbeslag', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
+  { key: 'deurbeslag_kruk', label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
   { key: 'cilinder', label: 'Cilinder', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
 
 
@@ -922,7 +909,7 @@ const DEUR_BUITEN_MATS: MaterialSection[] = [
   { key: 'scharnieren', label: 'Scharnieren', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
   { key: 'slotmechanisme', label: 'Sloten', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
   { key: 'meerpuntsluiting', label: 'Meerpuntsluiting', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
-  { key: 'deurbeslag_kruk', label: 'Deurbeslag', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
+  { key: 'deurbeslag_kruk', label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
   { key: 'cilinder', label: 'Cilinder', categoryFilter: 'deurbeslag', category: 'deurbeslag' },
 
 
@@ -943,106 +930,90 @@ const DEUR_BUITEN_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - DAKRENOVATIE ==========================================
 
 const DAK_HELLEND_MATS: MaterialSection[] = [
-  { key: 'onderdak', label: 'Onderdak – folie (dampopen)', categoryFilter: 'Folies' },
-  { key: 'tengels', label: 'Regelwerk – tengels (verticaal)', categoryFilter: 'Balkhout' },
-  { key: 'panlatten', label: 'Regelwerk – panlatten (horizontaal)', categoryFilter: 'Balkhout' },
-  { key: 'dakpannen', label: 'Dakbedekking – dakpannen (vlak)', categoryFilter: 'Dakpannen' },
-  { key: 'nok', label: 'Nokafwerking – ruiter & vorsten', categoryFilter: 'Dakpannen' },
-  { key: 'gevelpannen', label: 'Randafwerking – gevelpannen', categoryFilter: 'Dakpannen' },
-  { key: 'windveren', label: 'Randafwerking – windveren (timmerwerk)', categoryFilter: 'Tuinhout' },
-  { key: 'dakvoet', label: 'Dakvoet – vogelschroot & panlat', categoryFilter: 'Dakpannen' }, // or Accessoires
-  { key: 'kilkepers', label: 'Kilkepers – lood & constructie', categoryFilter: 'Dakbedekking' },
-  { key: 'hoekkepers', label: 'Hoekkepers – ruiter & vorsten', categoryFilter: 'Dakpannen' },
-  { key: 'ventilatie', label: 'Doorvoeren – ventilatiepannen', categoryFilter: 'Dakpannen' },
-  { key: 'dakraam', label: 'Doorvoeren – dakraam aansluiting', categoryFilter: 'Dakramen' },
-  { key: 'schoorsteen', label: 'Schoorsteen – loodloketten', categoryFilter: 'Dakbedekking' },
+  // 1. ONDERGROND & ISOLATIE
+  { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Plaatmateriaal', category: 'beplating' },
+  { key: 'isolatie_dak', label: 'Dakisolatie', categoryFilter: 'Isolatie', category: 'isolatie' },
+  { key: 'folie_buiten', label: 'Folie', categoryFilter: 'Folies', category: 'isolatie' },
+
+// 2. HOUTWERK (Tengels & Panlatten)
+{ key: 'tengels', label: 'Tengels', categoryFilter: 'Balkhout', category: 'hout' },
+{ key: 'panlatten', label: 'Panlatten', categoryFilter: 'Balkhout', category: 'hout' },
+{ key: 'ruiter', label: 'Ruiter (Nokbalk)', categoryFilter: 'Balkhout', category: 'hout' }, // <--- ADD THIS LINE
+
+  // 3. DAKVOET & PANNEN (Category: 'dak')
+  { key: 'dakvoetprofiel', label: 'Dakvoetprofiel / Vogelschroot', categoryFilter: 'Dakprofielen', category: 'dak' },
+  { key: 'dakpannen', label: 'Dakpannen', categoryFilter: 'Dakpannen', category: 'dak' },
+  { key: 'gevelpannen', label: 'Gevelpannen / Kantpannen', categoryFilter: 'Dakpannen', category: 'dak' },
+  { key: 'ondervorst', label: 'Ondervorst', categoryFilter: 'Dakprofielen', category: 'dak' },
+  { key: 'nokvorsten', label: 'Nokvorsten', categoryFilter: 'Dakpannen', category: 'dak' },
+
+  // 4. AFWERKING (Category: 'afwerking_dak') <--- CHANGED THIS
+  { key: 'lood', label: 'Lood', categoryFilter: 'Lood', category: 'afwerking_dak' },
+  { key: 'dakgoot', label: 'Dakgoot', categoryFilter: 'HWA', category: 'afwerking_dak' },
 ];
 
 const DAK_EPDM_MATS: MaterialSection[] = [
-  { key: 'primer', label: 'Ondergrond – voorbehandeling', categoryFilter: 'Lijmen' },
-  { key: 'damprem', label: 'Damprem – folie (onder isolatie)', categoryFilter: 'Folies' },
-  { key: 'isolatie', label: 'Isolatie – PIR platen (EPDM)', categoryFilter: 'Isolatie' },
-  { key: 'bevestiging_iso', label: 'Bevestiging – isolatie (drukverdeel)', categoryFilter: 'Bevestiging' },
-  { key: 'epdm', label: 'Dakbedekking – EPDM membraan', categoryFilter: 'EPDM' },
-  { key: 'lijm_vlak', label: 'Lijm – vlak (bodemlijm)', categoryFilter: 'Lijmen' },
-  { key: 'lijm_rand', label: 'Lijm – randen & opstanden (contact)', categoryFilter: 'Lijmen' },
-  { key: 'kimfixatie', label: 'Kimfixatie – russisch (strip)', categoryFilter: 'Bevestiging' },
-  { key: 'hwa', label: 'Afvoer – HWA (stadsuitloop)', categoryFilter: 'Riolering' },
-  { key: 'noodoverstort', label: 'Afvoer – noodoverstort (spuwer)', categoryFilter: 'Riolering' },
-  { key: 'daktrim', label: 'Randafwerking – daktrim (alu)', categoryFilter: 'Daktrim' },
-  { key: 'knelstrip', label: 'Muuraansluiting – knelstrip', categoryFilter: 'Profielen' },
-  { key: 'loodvervanger', label: 'Muuraansluiting – loodvervanger', categoryFilter: 'Dakbedekking' },
-  { key: 'hoeken', label: 'Hoeken – prefab (binnen/buiten)', categoryFilter: 'EPDM' },
-  { key: 'lichtkoepel', label: 'Lichtkoepel – opstand & inwerken', categoryFilter: 'Dakramen' },
+  // 1. ONDERGROND & ISOLATIE (Opbouw Warm Dak)
+  // Standard 'constructieplaat' key (OSB/Underlayment)
+  { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Plaatmateriaal', category: 'beplating' },
+  // Standard 'folie_binnen' key (Dampremmende folie goes UNDER the insulation)
+  { key: 'folie_binnen', label: 'Dampremmende Folie', categoryFilter: 'Folies', category: 'isolatie' },
+  // Standard 'isolatie_dak' key (PIR Plates)
+  { key: 'isolatie_dak', label: 'Dakisolatie', categoryFilter: 'Isolatie', category: 'isolatie' },
+
+  // 2. DAKBEDEKKING (EPDM)
+  { key: 'epdm_folie', label: 'EPDM', categoryFilter: 'Dakbedekking', category: 'dak' },
+
+  // 3. AFWERKING & DETAILS
+  { key: 'daktrim', label: 'Daktrim', categoryFilter: 'Daktrim', category: 'afwerking_dak' },
+  { key: 'daktrim_hoeken', label: 'Daktrim Hoeken', categoryFilter: 'Daktrim', category: 'afwerking_dak' },
+  { key: 'hwa_uitloop', label: 'HWA Stadsuitloop / Onderuitloop', categoryFilter: 'HWA', category: 'afwerking_dak' },
+  { key: 'lood', label: 'Lood', categoryFilter: 'Lood', category: 'afwerking_dak' },
 ];
 
 const DAK_GOLFPLAAT_MATS: MaterialSection[] = [
-  { key: 'gordingen', label: 'Constructie – gordingen', categoryFilter: 'Balkhout' },
-  { key: 'folie', label: 'Folie – anti-condens (onder metaal)', categoryFilter: 'Folies' },
-  { key: 'golfplaten', label: 'Dakbedekking – golfplaten (dicht)', categoryFilter: 'Golfplaten' },
-  { key: 'lichtplaten', label: 'Dakbedekking – lichtplaten', categoryFilter: 'Golfplaten' },
-  { key: 'schroeven', label: 'Bevestiging – schroeven (top)', categoryFilter: 'Bevestiging' },
-  { key: 'afstandhouders', label: 'Ondersteuning – afstandhouders', categoryFilter: 'Bevestiging' },
-  { key: 'nok', label: 'Nokafwerking – nokstukken', categoryFilter: 'Golfplaten' },
-  { key: 'windveren', label: 'Randafwerking – windveren (gevel)', categoryFilter: 'Golfplaten' },
-  { key: 'afdichting', label: 'Afdichting – profielvulling', categoryFilter: 'Isolatie' },
-  { key: 'muurprofiel', label: 'Aansluiting – muurprofiel', categoryFilter: 'Profielen' },
-  { key: 'doorvoer', label: 'Doorvoeren – buisdoorvoer', categoryFilter: 'Riolering' },
+
 ];
 
 
 // #endregion
 
 //#region ========================================== MATERIAL SECTIONS - BOEIBOORDEN ==========================================
-
 // Re-using the Boeiboord definition from previous context as it wasn't redefined in the input
 const BOEIBOORD_MATS: MaterialSection[] = [
-  { key: 'achterhout', label: 'Achterhout / Ventilatie', categoryFilter: 'Balkhout' },
-  { key: 'bekleding', label: 'Boeideel bekleding', categoryFilter: 'Gevelbekleding' },
-  { key: 'randafwerking', label: 'Randprofielen / Trim', categoryFilter: 'Profielen' },
-  { key: 'bevestiging', label: 'Bevestigingsmateriaal', categoryFilter: 'Bevestiging' },
 ];
 
 //#endregion
 
 //#region ========================================== MATERIAL SECTIONS - GEVELBEKLEDING ==========================================
 
-const GEVEL_HOUT_MATS: MaterialSection[] = [
-  { key: 'folie', label: 'Folie – achterwand (UV-bestendig)', categoryFilter: 'Folies' },
-  { key: 'regelwerk_basis', label: 'Regelwerk – basislaag (ventilatie)', categoryFilter: 'Balkhout' },
-  { key: 'regelwerk_kruis', label: 'Regelwerk – kruislaag (bij verticaal)', categoryFilter: 'Balkhout' },
-  { key: 'ventilatie', label: 'Ventilatie – ongediertewering', categoryFilter: 'Ventilatie' },
-  { key: 'bekleding', label: 'Gevelbekleding – planken (profielhout)', categoryFilter: 'Gevelbekleding' },
-  { key: 'bevestiging_zicht', label: 'Bevestiging – zichtbaar (tacker/schroef)', categoryFilter: 'Bevestiging' },
-  { key: 'bevestiging_blind', label: 'Bevestiging – blind (clips/B-fix)', categoryFilter: 'Bevestiging' },
-  { key: 'hoekafwerking', label: 'Hoekafwerking – buitenhoek (profiel/verstek)', categoryFilter: 'Tuinhout' },
-  { key: 'dagkanten', label: 'Dagkanten – afwerking (negge)', categoryFilter: 'Tuinhout' },
-  { key: 'waterslagen', label: 'Waterslagen – aanpassing', categoryFilter: 'Daktrim' }, // Or Profielen
-  { key: 'aansluiting_dak', label: 'Aansluiting – dakrand (kopschot)', categoryFilter: 'Tuinhout' },
-  { key: 'aansluiting_maaiveld', label: 'Aansluiting – maaiveld (spatrand)', categoryFilter: 'Profielen' },
-  { key: 'behandeling', label: 'Behandeling – coating (olie/verf)', categoryFilter: 'Verf' },
-];
+const GEVEL_BEKLEDING_MATS: MaterialSection[] = [
+  // 1. BASIS (SKELETON) - The same for everyone
+  { key: 'regelwerk_basis', label: 'Tengelwerk / Rachels', categoryFilter: 'Balkhout', category: 'hout' },
+  { key: 'folie_buiten', label: 'Folie', categoryFilter: 'Folies', category: 'isolatie' },
+  { key: 'isolatie_gevel', label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie' },
+  { key: 'ventilatieprofiel', label: 'Ventilatieprofiel (Ongedierte)', categoryFilter: 'Profielen', category: 'hout' },
 
-const GEVEL_KUNSTSTOF_MATS: MaterialSection[] = [
-  { key: 'folie', label: 'Folie – achterwand (dampopen/zwart)', categoryFilter: 'Folies' },
-  { key: 'regelwerk', label: 'Regelwerk – basislaag (ventilatie)', categoryFilter: 'Balkhout' },
-  { key: 'ventilatie', label: 'Ventilatie – ongediertewering', categoryFilter: 'Ventilatie' },
-  { key: 'startprofiel', label: 'Startprofiel – basis (aluminium)', categoryFilter: 'Profielen' },
-  { key: 'panelen', label: 'Gevelpanelen – vlakvulling', categoryFilter: 'Gevelbekleding' }, // Sponningdeel/Potdeksel
-  { key: 'dakrandpanelen', label: 'Dakrandpanelen – boeiboord', categoryFilter: 'Gevelbekleding' },
-  { key: 'bevestiging', label: 'Bevestiging – montage (RVS torx)', categoryFilter: 'Bevestiging' },
-  { key: 'koppeling', label: 'Koppeling – verlenging (tussenstuk)', categoryFilter: 'Profielen' },
-  { key: 'buitenhoek', label: 'Hoekafwerking – buitenhoek', categoryFilter: 'Profielen' },
-  { key: 'binnenhoek', label: 'Hoekafwerking – binnenhoek', categoryFilter: 'Profielen' },
-  { key: 'eindprofiel', label: 'Randafwerking – eindprofiel', categoryFilter: 'Profielen' },
-  { key: 'dagkanten', label: 'Dagkanten – afwerking (negge)', categoryFilter: 'Gevelbekleding' },
-  { key: 'daktrim', label: 'Aansluiting – daktrim (bij boeiboord)', categoryFilter: 'Daktrim' },
-  { key: 'waterslagen', label: 'Waterslagen – aanpassing', categoryFilter: 'Daktrim' },
+  // 2. THE CHOICE (AFWERKPLAAT)
+  // Option A: Wood
+  { key: 'gevelbekleding_hout', label: 'Houten Bekleding (Rabat/Zweeds)', categoryFilter: 'Tuinhout', category: 'gevel_hout' },
+  { key: 'hoek_hout', label: 'Houten Hoeklatten', categoryFilter: 'Lijstwerk', category: 'gevel_hout' },
+
+  // Option B: Keralit (Plastic)
+  { key: 'gevelbekleding_kunststof', label: 'Kunststof Panelen (Keralit)', categoryFilter: 'Gevelbekleding', category: 'gevel_kunststof' },
+  { key: 'profiel_keralit', label: 'Keralit Profielen (Start/Eind/Hoek)', categoryFilter: 'Profielen', category: 'gevel_kunststof' },
+
+  // Option C: Trespa (Plate)
+  { key: 'gevelplaat', label: 'Volkern/HPL Plaat (Trespa)', categoryFilter: 'Plaatmateriaal', category: 'gevel_plaat' },
+
+  { key: 'gevelplaat', label: 'Volkern/HPL Plaat (Trespa)', categoryFilter: 'Plaatmateriaal', category: 'gevel_plaat_lijm' },
+
+  { key: 'waterslag', label: 'Waterslagen (Aluminium)', categoryFilter: 'Dakprofielen', category: 'bevestiging' },
 ];
 
 //#endregion
 
-//#region ========================================== MATERIAL SECTIONS - KOZIJNEN ==========================================
+//#region ========================================== MATERIAL SECTIONS - KOZIJNEN XXX==========================================
 
 const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
   // Hout
@@ -1144,41 +1115,53 @@ const KOZIJN_TIMMERWERK_MATS: MaterialSection[] = [
 
 //#region ========================================== MATERIAL SECTIONS - SCHUTTING ==========================================
 
-const HOUT_SCHUTTING_MATS: MaterialSection[] = [
-  { key: 'palen', label: 'Palen – hardhout/geïmpregneerd', categoryFilter: 'Tuinhout' },
-  { key: 'vulling', label: 'Vulling – tuinschermen/planken', categoryFilter: 'Tuinhout' },
-  { key: 'bevestiging', label: 'Bevestiging – L-beslag & schroeven', categoryFilter: 'IJzerwaren' },
-  { key: 'fundering', label: 'Fundering – snelbeton', categoryFilter: 'Bouwmaterialen' },
-  { key: 'poort', label: 'Poort – deur & kozijn (optioneel)', categoryFilter: 'Tuinhout' },
-  { key: 'poortbeslag', label: 'Poortbeslag – hang- & sluitwerk', categoryFilter: 'Deurbeslag' },
+const SCHUTTING_MATS: MaterialSection[] = [
+  // 1. FUNDERING & PALEN (GENERAL)
+  { key: 'snelbeton', label: 'Snelbeton', categoryFilter: 'Bouwstoffen', category: 'fundering' },
+  { key: 'opsluitbanden', label: 'Opsluitbanden', categoryFilter: 'Bestrating', category: 'fundering' },
+  { key: 'paalpunthouder', label: 'Paalpunthouder', categoryFilter: 'Ijzerwaren', category: 'fundering' },
+
+  // 2. OPTIE: HOUT
+  { key: 'schuttingpalen_hout', label: 'Schuttingpalen hout', categoryFilter: 'Tuinhout', category: 'schutting_hout' },
+  { key: 'paalkap', label: 'Paalkappen', categoryFilter: 'Ijzerwaren', category: 'schutting_hout' },
+  { key: 'tuinscherm_hout', label: 'Tuinscherm hout', categoryFilter: 'Tuinhout', category: 'schutting_hout' },
+  { key: 'afdeklat_hout', label: 'Afdeklat hout', categoryFilter: 'Tuinhout', category: 'schutting_hout' },
+  { key: 'tuinplanken', label: 'Losse tuinplanken', categoryFilter: 'Tuinhout', category: 'schutting_hout' },
+
+  // 3. OPTIE: BETON SYSTEEM
+  { key: 'betonpalen', label: 'Betonpalen', categoryFilter: 'Bestrating', category: 'schutting_beton' },
+  { key: 'onderplaten', label: 'Onderplaten', categoryFilter: 'Bestrating', category: 'schutting_beton' },
+  { key: 'afdekkap_beton', label: 'Afdekkappen beton', categoryFilter: 'Bestrating', category: 'schutting_beton' },
+  { key: 'unibeslag', label: 'Unibeslag', categoryFilter: 'Ijzerwaren', category: 'schutting_beton' },
+
+  // 4. OPTIE: COMPOSIET
+  { key: 'aluminium_palen', label: 'Aluminium palen', categoryFilter: 'Tuinhout', category: 'schutting_composiet' },
+  { key: 'paalvoet', label: 'Paalvoeten', categoryFilter: 'Ijzerwaren', category: 'schutting_composiet' },
+  { key: 'tuinscherm_composiet', label: 'Tuinscherm composiet', categoryFilter: 'Tuinhout', category: 'schutting_composiet' },
+  { key: 'u_profiel', label: 'U profielen', categoryFilter: 'Profielen', category: 'schutting_composiet' },
+
+  // 5. POORT & TOEGANG
+  { key: 'tuinpoort', label: 'Tuinpoort', categoryFilter: 'Tuinhout', category: 'poort' },
+  { key: 'stalen_frame', label: 'Stalen frame', categoryFilter: 'Ijzerwaren', category: 'poort' },
+  { key: 'kozijnbalken', label: 'Kozijnbalken', categoryFilter: 'Tuinhout', category: 'poort' },
+
+  // 6. TUINDEUR BESLAG
+  { key: 'hengselset', label: 'Hengselset', categoryFilter: 'Ijzerwaren', category: 'beslag' },
+  { key: 'hengen', label: 'Hengen', categoryFilter: 'Ijzerwaren', category: 'beslag' },
+  { key: 'plaatduimen', label: 'Plaatduimen', categoryFilter: 'Ijzerwaren', category: 'beslag' },
+  { key: 'poortbeslag', label: 'Poortbeslag', categoryFilter: 'Ijzerwaren', category: 'beslag' },
+  { key: 'cilinderslot', label: 'Cilinderslot', categoryFilter: 'Ijzerwaren', category: 'beslag' },
+  { key: 'grondgrendel', label: 'Grondgrendel', categoryFilter: 'Ijzerwaren', category: 'beslag' },
+  { key: 'vloerstop', label: 'Vloerstop', categoryFilter: 'Ijzerwaren', category: 'beslag' },
 ];
 
-const BETON_HOUT_MATS: MaterialSection[] = [
-  { key: 'betonpalen', label: 'Palen – betonpalen', categoryFilter: 'Bestrating & Tuin' },
-  { key: 'onderplaten', label: 'Onderplaten – beton', categoryFilter: 'Bestrating & Tuin' },
-  { key: 'schermen', label: 'Vulling – houten schermen', categoryFilter: 'Tuinhout' },
-  { key: 'montageset', label: 'Montage – beslagset betonpaal', categoryFilter: 'IJzerwaren' },
-  { key: 'afdeklat', label: 'Afwerking – afdeklat (optioneel)', categoryFilter: 'Tuinhout' },
-];
-
-const COMPOSIET_SCHUTTING_MATS: MaterialSection[] = [
-  { key: 'systeem', label: 'Systeem – palen & strips', categoryFilter: 'Composiet' },
-  { key: 'vulling', label: 'Vulling – composiet panelen', categoryFilter: 'Composiet' },
-  { key: 'bevestiging', label: 'Bevestiging – clips & ankers', categoryFilter: 'IJzerwaren' },
-  { key: 'verlichting', label: 'Verlichting – inbouwspots (optioneel)', categoryFilter: 'Elektra' },
-];
 
 //#endregion
 
 //#region ========================================== MATERIAL SECTIONS - HOUTBOUW & OVERKAPPING ==========================================
 
 const HOUTBOUW_MATS: MaterialSection[] = [
-  { key: 'fundering', label: 'Fundering / Betonpoeren', categoryFilter: 'Beton' },
-  { key: 'constructie', label: 'Constructiehout', categoryFilter: 'Tuinhout' },
-  { key: 'wanden', label: 'Wandbekleding', categoryFilter: 'Gevelbekleding' },
-  { key: 'dak', label: 'Dakconstructie & Bedekking', categoryFilter: 'Dakbedekking' },
-  { key: 'afvoer', label: 'Hemelwaterafvoer', categoryFilter: 'Riolering' },
-  { key: 'bevestiging', label: 'Bevestigingsmateriaal', categoryFilter: 'Bevestiging' },
+  
 ];
 
 
@@ -1186,28 +1169,43 @@ const HOUTBOUW_MATS: MaterialSection[] = [
 
 //#region ========================================== MATERIAL SECTIONS - TRAPPEN ==========================================
 
-const VLIZOTRAP_MATS: MaterialSection[] = [
-  { key: 'vlizotrap', label: 'Vlizotrap – cassette unit', categoryFilter: 'Vlizotrappen' },
-  { key: 'raveelwerk', label: 'Balkhout – raveelconstructie', categoryFilter: 'Balkhout' },
-  { key: 'aftimmering', label: 'Aftimmering – plafondluik', categoryFilter: 'Afwerking' },
-  { key: 'luchtdichting', label: 'Luchtdichting – naden & kieren', categoryFilter: 'Tape' },
-  { key: 'veiligheid', label: 'Veiligheid – hekwerk zolder', categoryFilter: 'Veiligheid' },
-];
 const TRAPRENOVATIE_OVERZETTREDEN_MATS: MaterialSection[] = [
-  { key: 'treden', label: 'Treden – overzetstukken', categoryFilter: 'Treden' },
-  { key: 'stootborden', label: 'Stootborden – tegentreden', categoryFilter: 'Plaatmateriaal' },
-  { key: 'wangen', label: 'Wangen – zijwangbekleding', categoryFilter: 'Plaatmateriaal' },
-  { key: 'bevestiging', label: 'Bevestiging – montagekit', categoryFilter: 'Lijmen' },
-  { key: 'veiligheid', label: 'Veiligheid – antislip strips', categoryFilter: 'Veiligheid' },
-  { key: 'trapleuning', label: 'Trapleuning – leuning & houders', categoryFilter: 'Leuningen' },
-  { key: 'afwerking', label: 'Afwerking – kitnaden', categoryFilter: 'Afwerking' },
+  { key: 'treden', label: 'Overzettrede', categoryFilter: 'Hout', category: 'basis' },
+  { key: 'stootborden', label: 'Stootbord', categoryFilter: 'Hout', category: 'basis' },
+  { key: 'profiel', label: 'Trapneusprofiel', categoryFilter: 'Afwerking', category: 'afwerking' },
+  { key: 'antislip', label: 'Antislipstrip', categoryFilter: 'Beslag', category: 'afwerking' }, // Beslag uitzondering
 ];
+
+const VLIZOTRAP_MATS: MaterialSection[] = [
+  { key: 'balken', label: 'Raveling balkhout', categoryFilter: 'Hout', category: 'hout' },
+  { key: 'trap', label: 'Vlizotrap (Complete set)', categoryFilter: 'Dakraam', category: 'basis' },
+  { key: 'luik', label: 'Zolderluik', categoryFilter: 'Dakraam', category: 'basis' },
+  { key: 'traphek', label: 'Veiligheidshek', categoryFilter: 'Hout', category: 'veiligheid' },
+  { key: 'poortje', label: 'Veiligheidspoortje', categoryFilter: 'Beslag', category: 'veiligheid' },
+  { key: 'scharnieren', label: 'Scharnier', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'sluiting', label: 'Grendel / Sluiting', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'veer', label: 'Zelfsluitende veer', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'handgreep', label: 'Handgreep', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'architraaf', label: 'Koplatten', categoryFilter: 'Hout', category: 'afwerking' },
+];
+
 const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
-  { key: 'trap', label: 'Trap – bouwpakket / maatwerk', categoryFilter: 'Trappen' },
-  { key: 'montage', label: 'Montage – verankering & bevestiging', categoryFilter: 'Bevestiging' },
-  { key: 'hekwerk', label: 'Hekwerk – balustrade vide', categoryFilter: 'Veiligheid' },
-  { key: 'trapleuning', label: 'Trapleuning – wandmontage', categoryFilter: 'Leuningen' },
-  { key: 'aftimmering', label: 'Aftimmering – trapgat & raveel', categoryFilter: 'Afwerking' },
+  // CONSTRUCTIE & RAVELING
+  { key: 'balken', label: 'Raveling balkhout', categoryFilter: 'Hout', category: 'hout' },
+  { key: 'balkdragers', label: 'Balkdrager', categoryFilter: 'Beslag', category: 'hout' }, // Beslag uitzondering
+
+  // DE TRAP (BASIS ONDERDELEN)
+  { key: 'trap', label: 'Bouwpakket trap', categoryFilter: 'Hout', category: 'trap' },
+  { key: 'trapboom', label: 'Trapboom', categoryFilter: 'Hout', category: 'trap' },
+  { key: 'trede', label: 'Trede', categoryFilter: 'Hout', category: 'trap' },
+  { key: 'stootbord', label: 'Stootbord', categoryFilter: 'Hout', category: 'trap' },
+
+  // VEILIGHEID & BESLAG
+  { key: 'trapaal', label: 'Trapaal', categoryFilter: 'Hout', category: 'veiligheid' },
+  { key: 'spijlen', label: 'Spijl', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag uitzondering
+  { key: 'leuning', label: 'Trapleuning', categoryFilter: 'Hout', category: 'veiligheid' },
+  { key: 'houders', label: 'Leuninghouder', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag uitzondering
+  { key: 'balustrade', label: 'Balustrade', categoryFilter: 'Hout', category: 'veiligheid' },
 ];
 
 //#endregion
@@ -1215,10 +1213,13 @@ const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - HOUTROTREPARATIE ==========================================
 
 const HOUTROTREPARATIE_MATS: MaterialSection[] = [
-  { key: 'voorbereiding', label: 'Voorbereiding – freeswerk & houtrotstop', categoryFilter: 'Voorbereiding' },
-  { key: 'hout', label: 'Hout – inzetstukken', categoryFilter: 'Balkhout' },
-  { key: 'vulmiddel', label: 'Vulmiddel – 2-componenten epoxy', categoryFilter: 'Vulmiddelen' },
-  { key: 'afwerking', label: 'Afwerking – schuren & gronden', categoryFilter: 'Afwerking' },
+  // Voorbereiding & Stabilisatie
+  { key: 'houtrotstop', label: 'Houtrotstop vloeistof', categoryFilter: 'Verf & Toebehoren', category: 'reparatie' },
+  { key: 'stabilisator', label: 'Houtstabilisator', categoryFilter: 'Verf & Toebehoren', category: 'reparatie' },
+
+  // Reparatie & Vulling
+  { key: 'epoxy_vuller', label: 'Twee-componenten epoxy vuller', categoryFilter: 'Bouwstoffen', category: 'reparatie' },
+  { key: 'hout_inzetstuk', label: 'Vervangend hout inzetstuk', categoryFilter: 'Tuinhout', category: 'reparatie' },
 ];
 
 //#endregion
@@ -1226,56 +1227,61 @@ const HOUTROTREPARATIE_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - KEUKENS ==========================================
 
 const KEUKEN_MONTAGE_MATS: MaterialSection[] = [
-  { key: 'montage', label: 'Boven & onderkasten', categoryFilter: 'Bevestiging' },
-  { key: 'werkblad', label: 'Werkblad & achterwand', categoryFilter: 'Plaatmateriaal' },
-  { key: 'apparatuur', label: 'Apparatuur – inbouw & aansluiting', categoryFilter: 'Installatie' },
-  { key: 'afwerking', label: 'Afwerking – plinten, passtukken & koof', categoryFilter: 'Afwerking' },
-  { key: 'accessoires', label: 'Accessoires – spoelbak/kraan/grepen', categoryFilter: 'Accessoires' },
+  // BASIS
+  { key: 'corpus', label: 'Keukenkast', categoryFilter: 'Hout', category: 'basis' },
+  { key: 'werkblad', label: 'Aanrechtblad', categoryFilter: 'Platen', category: 'werkblad' },
+  
+  // APPARATUUR & SPOELBAK
+  { key: 'apparatuur', label: 'Inbouwapparaat', categoryFilter: 'Afwerking', category: 'werkblad' },
+  { key: 'spoelbak', label: 'Spoelbak', categoryFilter: 'Afwerking', category: 'beslag' },
+  { key: 'kraan', label: 'Keukenkraan', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag
+  
+  // DETAILS
+  { key: 'grepen', label: 'Handgreep', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag
+  { key: 'plint', label: 'Keukenplint', categoryFilter: 'Hout', category: 'beslag' },
+  { key: 'verlichting', label: 'Keukenverlichting', categoryFilter: 'Afwerking', category: 'beslag' },
 ];
 
 const KEUKEN_RENOVATIE_MATS: MaterialSection[] = [
-  { key: 'fronten', label: 'Fronten – deurtjes & panelen', categoryFilter: 'Plaatmateriaal' },
-  { key: 'werkblad', label: 'Werkblad – vervanging', categoryFilter: 'Plaatmateriaal' },
-  { key: 'scharnieren', label: 'Hang- & Sluitwerk – scharnieren/laderails', categoryFilter: 'Deurbeslag' },
-  { key: 'apparatuur', label: 'Apparatuur – vervanging', categoryFilter: 'Installatie' },
-  { key: 'grepen', label: 'Afwerking – handgrepen & beslag', categoryFilter: 'Deurbeslag' },
+  // ZICHTWERK
+  { key: 'fronten', label: 'Keukenfront', categoryFilter: 'Platen', category: 'basis' },
+  { key: 'werkblad', label: 'Aanrechtblad', categoryFilter: 'Platen', category: 'werkblad' },
+  
+  // HARDWARE (BESLAG)
+  { key: 'scharnieren', label: 'Scharnier', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag
+  { key: 'geleiders', label: 'Ladegeleider', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag
+  { key: 'grepen', label: 'Handgreep', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag
+  
+  // UPGRADES
+  { key: 'apparatuur', label: 'Inbouwapparaat', categoryFilter: 'Afwerking', category: 'werkblad' },
+  { key: 'kraan', label: 'Keukenkraan', categoryFilter: 'Beslag', category: 'beslag' }, // Beslag
 ];
 
 
 //#endregion
 
-//#region ========================================== MATERIAL SECTIONS - INTERIEUR & KASTEN ==========================================
+//#region ========================================== MATERIAL SECTIONS - INBOUWKASTEN ==========================================
 
 
 const INBOUWKAST_MATS: MaterialSection[] = [
-  { key: 'corpus', label: 'Corpus – plaatmateriaal interieur', categoryFilter: 'Plaatmateriaal' },
-  { key: 'fronten', label: 'Fronten – deuren & zichtwerk', categoryFilter: 'Plaatmateriaal' },
-  { key: 'inrichting', label: 'Inrichting – planken/lades/roedes', categoryFilter: 'Interieur' },
-  { key: 'beslag', label: 'Beslag – scharnieren & ladegeleiders', categoryFilter: 'Deurbeslag' },
-  { key: 'afwerking', label: 'Afwerking – paslatten & plinten', categoryFilter: 'Afwerking' },
+  { key: 'corpus', label: 'Interieur / Corpus (MDF, Melamine, Multiplex)', categoryFilter: 'Platen', category: 'basis' },
+  { key: 'fronten', label: 'Deuren', categoryFilter: 'Platen', category: 'afwerking' },
+  { key: 'fronten', label: 'Fronten', categoryFilter: 'Platen', category: 'afwerking' },
+  { key: 'lades', label: 'Ladesystemen', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'scharnieren', label: 'Scharnier', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'grepen', label: 'Meubelgreep', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'snappers', label: 'Push-to-open systeem', categoryFilter: 'Beslag', category: 'beslag' },
+  { key: 'garderobe', label: 'Kledingroede', categoryFilter: 'Beslag', category: 'beslag' },
 ];
 
-const ENSUITE_MATS: MaterialSection[] = [
-  { key: 'constructie', label: 'Constructie – stijl- & regelwerk', categoryFilter: 'Hout' },
-  { key: 'ombouw', label: 'Ombouw – beplating & kasten', categoryFilter: 'Plaatmateriaal' },
-  { key: 'deuren', label: 'Deuren – schuifdeuren & panelen', categoryFilter: 'Deuren' },
-  { key: 'railsysteem', label: 'Railsysteem – rails & rollers', categoryFilter: 'Deurbeslag' },
-  { key: 'afwerking', label: 'Afwerking – lijsten & architraven', categoryFilter: 'Afwerking' },
-];
+//#endregion
 
-const RADIATOR_MATS: MaterialSection[] = [
-  { key: 'basis', label: 'Basis – raamwerk & constructie', categoryFilter: 'Hout' },
-  { key: 'bekleding', label: 'Bekleding – frontpaneel & roosters', categoryFilter: 'Plaatmateriaal' },
-  { key: 'vensterbank', label: 'Topblad – vensterbank/blad', categoryFilter: 'Hout' },
-  { key: 'montage', label: 'Montage – bevestigingsmateriaal', categoryFilter: 'Bevestiging' },
-  { key: 'afwerking', label: 'Afwerking – lakwerk/olie', categoryFilter: 'Verf & Afwerking' },
-];
+//#region ========================================== MATERIAL SECTIONS - MEUBEL OP MAAT ==========================================
 
 const MEUBEL_MATS: MaterialSection[] = [
-  { key: 'basismateriaal', label: 'Basismateriaal – massief/plaat', categoryFilter: 'Hout' },
-  { key: 'onderstel', label: 'Onderstel – poten/frame', categoryFilter: 'IJzerwaren' },
-  { key: 'verbindingen', label: 'Verbindingen – lijm/deuvels/schroeven', categoryFilter: 'Bevestiging' },
-  { key: 'afwerking', label: 'Afwerking – lak/beits/olie', categoryFilter: 'Verf & Afwerking' },
+  { key: 'materiaal', label: 'Hoofdmateriaal', categoryFilter: 'Hout', category: 'basis' },
+  { key: 'beslag', label: 'Meubelbeslag', categoryFilter: 'Beslag', category: 'afwerking' },
+  { key: 'afwerking', label: 'Olie, Lak, Beits', categoryFilter: 'Verf', category: 'afwerking' },
 ];
 
 //#endregion
@@ -1284,20 +1290,10 @@ const MEUBEL_MATS: MaterialSection[] = [
 
 
 const DAKKAPEL_NIEUW_MATS: MaterialSection[] = [
-  { key: 'casco', label: 'Casco – balkhout & constructieplaat', categoryFilter: 'Hout' },
-  { key: 'dak', label: 'Dak – EPDM/Bitumen & isolatie', categoryFilter: 'Dakmaterialen' },
-  { key: 'kozijn', label: 'Kozijn – kunststof/hout & glas', categoryFilter: 'Deuren & Kozijnen' },
-  { key: 'bekleding', label: 'Bekleding – zijwangen & boeiboord', categoryFilter: 'Gevelbekleding' },
-  { key: 'lood', label: 'Waterdichting – lood/vervangende loodslab', categoryFilter: 'Dakmaterialen' },
-  { key: 'binnen', label: 'Binnenafwerking – vensterbank & gips', categoryFilter: 'Afwerking' },
+
 ];
 
 const DAKKAPEL_RENOVATIE_MATS: MaterialSection[] = [
-  { key: 'bekleding', label: 'Bekleding – vervanging wangen/front', categoryFilter: 'Gevelbekleding' },
-  { key: 'dakbedekking', label: 'Dakbedekking – vervanging laag & trim', categoryFilter: 'Dakmaterialen' },
-  { key: 'boeiboord', label: 'Boeiboord – afwerking dakrand', categoryFilter: 'Plaatmateriaal' },
-  { key: 'lood', label: 'Lood – vervanging aansluiting', categoryFilter: 'Dakmaterialen' },
-  { key: 'isolatie', label: 'Na-isolatie – (optioneel)', categoryFilter: 'Isolatie' },
 ];
 
 //#endregion
@@ -1305,18 +1301,9 @@ const DAKKAPEL_RENOVATIE_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - GLAS ZETTEN ==========================================
 
 const ISOLATIEGLAS_MATS: MaterialSection[] = [
-  { key: 'glas', label: 'Glas – HR++ of Triple paneel', categoryFilter: 'Glas' },
-  { key: 'glaslatten', label: 'Glaslatten – neuslatten & opdeklatten', categoryFilter: 'Hout' },
-  { key: 'montage', label: 'Montage – glasband & blokjes', categoryFilter: 'Bouwmaterialen' },
-  { key: 'kit', label: 'Afdichting – beglazingskit', categoryFilter: 'Verf & Afwerking' },
-  { key: 'roosters', label: 'Ventilatie – roosters (optioneel)', categoryFilter: 'Deuren & Kozijnen' },
-];
-
-const ENKEL_GLAS_MATS: MaterialSection[] = [
-  { key: 'glas', label: 'Glas – enkel/gelaagd glas', categoryFilter: 'Glas' },
-  { key: 'glaslatten', label: 'Glaslatten – standaard latten', categoryFilter: 'Hout' },
-  { key: 'montage', label: 'Montage – glasband/kroonband', categoryFilter: 'Bouwmaterialen' },
-  { key: 'kit', label: 'Afdichting – beglazingskit', categoryFilter: 'Verf & Afwerking' },
+  { key: 'glas', label: 'Glas', categoryFilter: 'Glas', category: 'glas' },
+  { key: 'roosters', label: 'Ventilatie roosters', categoryFilter: 'Deuren & Kozijnen', category: 'glas' },
+  { key: 'glaslatten', label: 'Glaslatten', categoryFilter: 'Hout', category: 'glas' },
 ];
 
 //#endregion
@@ -1325,19 +1312,16 @@ const ENKEL_GLAS_MATS: MaterialSection[] = [
 
 
 const VELUX_MATS: MaterialSection[] = [
-  { key: 'dakraam', label: 'Dakraam – tuimel/uitzetvenster', categoryFilter: 'Deuren & Kozijnen' },
-  { key: 'gootstuk', label: 'Gootstuk – aansluiting dakpannen', categoryFilter: 'Dakmaterialen' },
-  { key: 'waterkerend', label: 'Waterkering – manchet (BFX)', categoryFilter: 'Dakmaterialen' },
-  { key: 'aftimmering', label: 'Interieur – aftimmering binnenkant', categoryFilter: 'Plaatmateriaal' },
-  { key: 'raamdecoratie', label: 'Decoratie – rolgordijn/zonwering (optioneel)', categoryFilter: 'Accessoires' },
+  { key: 'venster', label: 'Velux dakraam set', categoryFilter: 'Dakraam', category: 'vensterset' },
+  { key: 'venster', label: 'Velux Venster', categoryFilter: 'Dakraam', category: 'venster' },
+  { key: 'gootstuk', label: 'Gootstukken', categoryFilter: 'Dakraam', category: 'gootstuk' },
+  { key: 'betimmering', label: 'Interieur afwerking', categoryFilter: 'Hout', category: 'afwerking' },
 ];
 
 const LICHTKOEPEL_MATS: MaterialSection[] = [
-  { key: 'koepel', label: 'Lichtkoepel – glas/kunststof schaal', categoryFilter: 'Dakmaterialen' },
-  { key: 'opstand', label: 'Opstand – dakopstand', categoryFilter: 'Dakmaterialen' },
-  { key: 'inplakken', label: 'Inplakken – bitumen/EPDM stroken', categoryFilter: 'Dakmaterialen' },
-  { key: 'binnenafwerking', label: 'Binnenafwerking – uitsparingskader', categoryFilter: 'Plaatmateriaal' },
-  { key: 'beveiliging', label: 'Beveiliging – inbraakwerend beslag', categoryFilter: 'IJzerwaren' },
+  { key: 'koepel', label: 'Lichtkoepel', categoryFilter: 'Dakraam', category: 'koepel' },
+  { key: 'opstand', label: 'Opstand Houtbalk of Prefab Set', categoryFilter: 'Dakraam', category: 'opstand' },
+  { key: 'dakbedekking', label: 'Dakbedekking', categoryFilter: 'Dakbedekking', category: 'afwerking' },
 ];
 
 
@@ -1359,12 +1343,16 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek traptype...',
     items: [
       {
-        title: 'Traprenovatie (Overzettreden)',
+        title: 'Overzettreden',
         description: 'Overzet op bestaande trap',
         slug: 'traprenovatie-overzettreden',
         measurementLabel: 'Trap',
         measurements: STANDARD_FIELDS,
         materialSections: TRAPRENOVATIE_OVERZETTREDEN_MATS,
+        categoryConfig: {
+          basis: { title: 'Treden & Stootborden', order: 1 },
+          afwerking: { title: 'Veiligheid', order: 2 },
+        },
       },
       {
         title: 'Vlizotrap',
@@ -1373,6 +1361,13 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurementLabel: 'Trap',
         measurements: STANDARD_FIELDS,
         materialSections: VLIZOTRAP_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie & Raveling', order: 1 },
+          basis: { title: 'Vlizotrap & Zolderluik', order: 2 },
+          veiligheid: { title: 'Veiligheid', order: 3 },
+          beslag: { title: 'Hekwerk Beslag', order: 4 },
+          afwerking: { title: 'Afwerking', order: 5 },
+        },
       },
       {
         title: 'Nieuwe trap plaatsen',
@@ -1381,14 +1376,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurementLabel: 'Trap',
         measurements: STANDARD_FIELDS,
         materialSections: NIEUWE_TRAP_PLAATSEN_MATS,
-      },
-      { 
-        title: 'Overig Trappen', 
-        description: 'Afwijkende trapklussen', 
-        slug: 'overig-trappen',
-        measurementLabel: 'Trap',
-        measurements: STANDARD_FIELDS,
-        materialSections: [] 
+        categoryConfig: {
+          hout: { title: 'Constructie & Raveling', order: 1 },
+          trap: { title: 'De Trap (Basis)', order: 2 },
+          veiligheid: { title: 'Leuningen & Hekwerken', order: 3 },
+          beslag: { title: 'Luxe Beslag & Hardware', order: 4 },
+        },
       },
     ],
   },
@@ -1407,6 +1400,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurementLabel: 'Onderdeel',
         measurements: STANDARD_FIELDS,
         materialSections: HOUTROTREPARATIE_MATS,
+        categoryConfig: {
+          reparatie: { title: 'Voorbereiding & Vulling', order: 1 },
+        }
       },
     ],
   },
@@ -1727,8 +1723,17 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'dakkapel-nieuw', 
         measurementLabel: 'Dakkapel', 
         measurements: COUNT_FIELDS, 
-        materialSections: DAKKAPEL_NIEUW_MATS 
-      },
+        materialSections: DAKKAPEL_NIEUW_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie & Casco', order: 1 },
+          dak: { title: 'Dakwerk & Bedekking', order: 2 },   // Custom for Dakkapel
+          gevel: { title: 'Gevelbekleding', order: 3 },      // Custom for Dakkapel
+          isolatie: { title: 'Isolatie & Folies', order: 4 },
+          beplating: { title: 'Beplating', order: 5 },
+          afwerking: { title: 'Binnenafwerking', order: 6 },
+          Kozijnen: { title: 'Kozijnen', order: 7 },
+      }
+    },
       { 
         title: 'Dakkapel – Renovatie', 
         description: 'Bekleding/Dakbedekking vervangen', 
@@ -1742,42 +1747,47 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
   //#endregion
 
-  //#region --- INTERIEUR ---
+  //#region --- INBOUWKASTEN ---
   interieur: {
-    title: 'Interieur & Kasten',
+    title: 'INBOUWKASTEN',
     searchPlaceholder: 'Zoek interieurklus...',
     items: [
       { 
-        title: 'Inbouwkasten / Kastenwand', 
+        title: 'Inbouwkasten', 
         description: 'Maatwerk (wandvullend)', 
         slug: 'inbouwkasten', 
         measurementLabel: 'Kast', 
         measurements: STANDARD_FIELDS,
-        materialSections: INBOUWKAST_MATS 
+        materialSections: INBOUWKAST_MATS,
+        categoryConfig: {
+          basis: { title: 'Binnenwerk', order: 1 },
+          afwerking: { title: 'Deuren & Fronten', order: 2 },
+          beslag: { title: 'Luxe Beslag & Ladesystemen', order: 3 },
+        }
       },
-      { 
-        title: 'Ensuite & Scheidingswanden', 
-        description: 'Kamer-en-suite constructies', 
-        slug: 'ensuite-scheidingswanden', 
-        measurementLabel: 'Wand', 
-        measurements: STANDARD_FIELDS,
-        materialSections: ENSUITE_MATS 
-      },
-      { 
-        title: 'Radiatorombouw', 
-        description: 'Radiatorbekleding op maat', 
-        slug: 'radiatorombouw', 
-        measurementLabel: 'Ombouw', 
-        measurements: STANDARD_FIELDS,
-        materialSections: RADIATOR_MATS 
-      },
+    ]
+  },
+
+  //#endregion
+
+  //#region --- MEUBLS OP MAAT ---
+
+  MEUBELS_OP_MAAT: {
+    title: 'MEUBELS OP MAAT',
+    searchPlaceholder: 'Zoek interieurklus...',
+    items: [
       { 
         title: 'Meubel op maat', 
         description: 'Tafels, banken, losse kasten', 
         slug: 'meubel-op-maat', 
         measurementLabel: 'Meubel', 
         measurements: STANDARD_FIELDS,
-        materialSections: MEUBEL_MATS 
+        materialSections: MEUBEL_MATS,
+        categoryConfig: {
+          basis: { title: 'Hoofdmateriaal', order: 1 },
+          beslag: { title: 'Meubelbeslag & Montage', order: 2 },
+          afwerking: { title: 'Afwerking', order: 3 },
+        }
       }
     ]
   },
@@ -1795,7 +1805,11 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'dagkanten', 
         measurementLabel: 'Dagkant', 
         measurements: COUNT_FIELDS, 
-        materialSections: DAGKANT_MATS 
+        materialSections: DAGKANT_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie Regelwerk', order: 1 },
+          afwerking: { title: 'Afwerking', order: 2 },
+        },
       },
       { 
         title: 'Plinten en afwerklatten', 
@@ -1803,7 +1817,11 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'plinten-afwerklatten', 
         measurementLabel: 'Ruimte', 
         measurements: AREA_FIELDS, 
-        materialSections: PLINTEN_MATS 
+        materialSections: PLINTEN_MATS,
+        categoryConfig: {
+          plinten: { title: 'Plinten', order: 1 },
+          afwerking: { title: 'Afwerklatten', order: 2 },
+        },
       },
       { 
         title: 'Omkastingen en koven', 
@@ -1811,7 +1829,11 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'omkastingen-koven', 
         measurementLabel: 'Omkasting', 
         measurements: COUNT_FIELDS, 
-        materialSections: OMKASTING_KOVEN_MATS 
+        materialSections: OMKASTING_KOVEN_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie Regelwerk', order: 1 },
+          afwerking: { title: 'Beplating', order: 2 },
+        },
       },
       { 
         title: 'Vensterbanken', 
@@ -1819,15 +1841,11 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'vensterbanken', 
         measurementLabel: 'Vensterbank', 
         measurements: COUNT_FIELDS, 
-        materialSections: VENSTERBANK_MATS 
-      },
-      { 
-        title: 'Specifiek aftimmerwerk', 
-        description: 'Maatwerk betimmering', 
-        slug: 'specifiek-aftimmerwerk', 
-        measurementLabel: 'Object', 
-        measurements: AREA_FIELDS, 
-        materialSections: OMKASTING_KOVEN_MATS 
+        materialSections: VENSTERBANK_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie Regelwerk', order: 1 },
+          afwerking: { title: 'Vensterbank', order: 2 },
+        },
       },
     ],
   },
@@ -1873,6 +1891,14 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }        
       },
       { 
+        title: 'Schuifdeuren', 
+        description: 'Schuifdeuren systeem', 
+        slug: 'Schuifdeuren', 
+        measurementLabel: 'Deur', 
+        measurements: COUNT_FIELDS, 
+        materialSections: DEUR_BUITEN_MATS,       
+      },
+      { 
         title: 'Overig Deuren', 
         description: 'Afwijkend deurwerk', 
         slug: 'overig-deuren', 
@@ -1896,7 +1922,14 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'hellend-dak', 
         measurementLabel: 'Dakvlak', 
         measurements: AREA_FIELDS, 
-        materialSections: DAK_HELLEND_MATS 
+        materialSections: DAK_HELLEND_MATS,
+        categoryConfig: {
+          beplating: { title: 'Dakbeschot', order: 1 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          hout: { title: 'Tengels & Panlatten', order: 3 },
+          dak: { title: 'Dakpannen', order: 4 }, // Split
+          afwerking_dak: { title: '5. Afwerking', order: 5 }, // New Split
+        },
       },
       { 
         title: 'EPDM Dakbedekking', 
@@ -1904,7 +1937,13 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'epdm-dakbedekking', 
         measurementLabel: 'Dakvlak', 
         measurements: AREA_FIELDS, 
-        materialSections: DAK_EPDM_MATS 
+        materialSections: DAK_EPDM_MATS,
+        categoryConfig: {
+          beplating: { title: 'Beplating', order: 3 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          dak: { title: 'EPDM', order: 3 },
+          afwerking_dak: { title: 'Afwerking', order: 4 },
+        },
       },
       { 
         title: 'Golfplaat Dak', 
@@ -1914,33 +1953,35 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurements: AREA_FIELDS, 
         materialSections: DAK_GOLFPLAAT_MATS 
       },
-      { 
-        title: 'Boeiboord Hout', 
-        description: 'Multiplex of Red Cedar', 
-        slug: 'boeiboord-hout', 
-        measurementLabel: 'Boeiboord', 
-        measurements: AREA_FIELDS, 
-        materialSections: BOEIBOORD_MATS 
-      },
-      { 
-        title: 'Boeiboord Trespa/Keralit', 
-        description: 'Kunststof bekleding', 
-        slug: 'boeiboord-kunststof', 
-        measurementLabel: 'Boeiboord', 
-        measurements: AREA_FIELDS, 
-        materialSections: BOEIBOORD_MATS 
-      },
-      { 
-        title: 'Overig Dakrenovatie', 
-        description: 'Loodwerk/Schoorsteen', 
-        slug: 'overig-dakrenovatie', 
-        measurementLabel: 'Dak', 
-        measurements: AREA_FIELDS, 
-        materialSections: [] 
-      },
     ],
   },
 
+  //#endregion
+
+  //#region --- BOEIBOORDEN ---
+  boeiboorden: {
+    title: 'Boeiboorden',
+    searchPlaceholder: 'Zoek boeiboordtype...',
+    items: [
+  { 
+    title: 'Boeiboord Hout', 
+    description: 'Multiplex of Red Cedar', 
+    slug: 'boeiboord-hout', 
+    measurementLabel: 'Boeiboord', 
+    measurements: AREA_FIELDS, 
+    materialSections: BOEIBOORD_MATS 
+  },
+  { 
+    title: 'Boeiboord Trespa/Keralit', 
+    description: 'Kunststof bekleding', 
+    slug: 'boeiboord-kunststof', 
+    measurementLabel: 'Boeiboord', 
+    measurements: AREA_FIELDS, 
+    materialSections: BOEIBOORD_MATS 
+  },
+],
+  },
+  
   //#endregion
 
   //#region --- GEVELBEKLEDING ---
@@ -1949,53 +1990,29 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek geveltype...',
     items: [
       { 
-        title: 'Houten Gevelbekleding', 
-        description: 'Rabat, channelsiding, open gevel', 
-        slug: 'houten-gevelbekleding', 
+        title: 'Gevelbekleding Vervangen', 
+        description: 'Hout, Keralit of Trespa', 
+        slug: 'gevelbekleding-compleet', 
         measurementLabel: 'Gevel', 
         measurements: AREA_FIELDS, 
-        materialSections: GEVEL_HOUT_MATS 
-      },
-      { 
-        title: 'Keralit / Kunststof Panelen', 
-        description: 'Onderhoudsarm (Sponningdeel/Potdeksel)', 
-        slug: 'keralit-panelen', 
-        measurementLabel: 'Gevel', 
-        measurements: AREA_FIELDS, 
-        materialSections: GEVEL_KUNSTSTOF_MATS 
-      },
-      { 
-        title: 'Overig Gevelbekleding', 
-        description: 'Zink/Leien/Staal', 
-        slug: 'overig-gevelbekleding', 
-        measurementLabel: 'Gevel', 
-        measurements: AREA_FIELDS, 
-        materialSections: [] 
+        materialSections: GEVEL_BEKLEDING_MATS,
+        categoryConfig: {
+          hout: { title: 'Basis (Regelwerk)', order: 1 },
+          isolatie: { title: 'Isolatie & Folie', order: 2 },
+          
+          // The "Flavor" Selection
+          gevel_hout: { title: 'Hout', order: 3 },
+          gevel_kunststof: { title: 'Keralit', order: 4 },
+          gevel_plaat: { title: 'Trespa/HPL (Geschroefd)', order: 5 },
+          
+          
+          gevel_plaat_lijm: { title: 'Trespa/HPL (Verlijmd)', order: 7 },
+
+          bevestiging: { title: 'Afwerking', order: 9 },
+        }
       },
     ],
   },
-
-
-
-//---------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   //#endregion
 
   //#region --- KOZIJNEN ---
@@ -2091,29 +2108,21 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek schuttingklus...',
     items: [
       { 
-        title: 'Houten Schutting', 
-        description: 'Planken of schermen', 
-        slug: 'houten-schutting', 
+        title: 'Schutting plaatsen', 
+        description: 'Hout, Beton of Composiet', 
+        slug: 'schutting-compleet', 
         measurementLabel: 'Schutting', 
         measurements: STANDARD_FIELDS, 
-        materialSections: HOUT_SCHUTTING_MATS 
+        materialSections: SCHUTTING_MATS,
+        categoryConfig: {
+          fundering: { title: 'Basis & Fundering', order: 1 },
+          schutting_hout: { title: 'Optie: Hout', order: 2 },
+          schutting_beton: { title: 'Optie: Beton', order: 3 },
+          schutting_composiet: { title: 'Optie: Composiet', order: 4 },
+          poort: { title: 'Poort & Toegang', order: 5 },
+          beslag: { title: 'Tuindeur Beslag', order: 6 },
+        },
       },
-      { 
-        title: 'Beton / Hout Schutting', 
-        description: 'Betonnen palen & onderplaten', 
-        slug: 'beton-hout-schutting', 
-        measurementLabel: 'Schutting', 
-        measurements: STANDARD_FIELDS, 
-        materialSections: BETON_HOUT_MATS 
-      },
-      { 
-        title: 'Composiet Schutting', 
-        description: 'Onderhoudsarm', 
-        slug: 'composiet-schutting', 
-        measurementLabel: 'Schutting', 
-        measurements: STANDARD_FIELDS, 
-        materialSections: COMPOSIET_SCHUTTING_MATS 
-      }
     ]
   },
 
@@ -2135,26 +2144,21 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
   //#endregion
 
   //#region --- GLAS ZETTEN ---
-  glas_zetten: {
+  'glas-zetten': {
     title: 'Glas zetten',
     searchPlaceholder: 'Zoek glasklus...',
     items: [
       { 
-        title: 'Dubbel Glas (HR++) / Triple', 
+        title: 'Glas zetten', 
         description: 'Isolatieglas zetten', 
         slug: 'isolatieglas', 
         measurementLabel: 'Ruit', 
         measurements: COUNT_FIELDS, 
-        materialSections: ISOLATIEGLAS_MATS 
+        materialSections: ISOLATIEGLAS_MATS,
+        categoryConfig: {
+            glas: { title: 'Glas & Afwerking', order: 1 }
+        }, 
       },
-      { 
-        title: 'Enkel Glas', 
-        description: 'Voor binnen of schuur', 
-        slug: 'enkel-glas', 
-        measurementLabel: 'Ruit', 
-        measurements: COUNT_FIELDS, 
-        materialSections: ENKEL_GLAS_MATS 
-      }
     ]
   },
 
@@ -2171,7 +2175,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'keuken-montage', 
         measurementLabel: 'Keuken', 
         measurements: COUNT_FIELDS, 
-        materialSections: KEUKEN_MONTAGE_MATS 
+        materialSections: KEUKEN_MONTAGE_MATS,
+        categoryConfig: {
+          basis: { title: 'Keukenelementen & Kasten', order: 1 },
+          werkblad: { title: 'Werkblad & Apparatuur', order: 2 },
+          beslag: { title: 'Luxe Beslag & Accessoires', order: 3 },
+        },
       },
       { 
         title: 'Keukenrenovatie', 
@@ -2179,16 +2188,13 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'keuken-renovatie', 
         measurementLabel: 'Keuken', 
         measurements: COUNT_FIELDS, 
-        materialSections: KEUKEN_RENOVATIE_MATS 
+        materialSections: KEUKEN_RENOVATIE_MATS,
+        categoryConfig: {
+          basis: { title: 'Fronten & Zichtwerk', order: 1 },
+          werkblad: { title: 'Werkblad & Apparatuur', order: 2 },
+          beslag: { title: 'Luxe Beslag & Hardware', order: 3 },
+        },
       },
-      { 
-        title: 'Overig Keukens', 
-        description: 'Aanpassingen en reparaties', 
-        slug: 'overig-keukens', 
-        measurementLabel: 'Klus', 
-        measurements: COUNT_FIELDS, 
-        materialSections: [] 
-      }
     ]
   },
 
@@ -2205,7 +2211,13 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'velux-dakraam', 
         measurementLabel: 'Dakraam', 
         measurements: COUNT_FIELDS, 
-        materialSections: VELUX_MATS 
+        materialSections: VELUX_MATS,
+        categoryConfig: {
+          vensterset: { title: 'Dakraam Set', order: 1 },
+          venster: { title: 'Dakraam', order: 1 },
+          gootstuk: { title: 'Gootstukken', order: 2 },
+          afwerking: { title: 'Aftimmering', order: 3 },
+        },
       },
       { 
         title: 'Lichtkoepel', 
@@ -2213,13 +2225,17 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'lichtkoepel', 
         measurementLabel: 'Koepel', 
         measurements: COUNT_FIELDS, 
-        materialSections: LICHTKOEPEL_MATS 
+        materialSections: LICHTKOEPEL_MATS,
+        categoryConfig: {
+          koepel: { title: 'Koepel', order: 1 },
+          opstand: { title: 'Opstand', order: 2 },
+          afwerking: { title: 'Dakafwerking', order: 3 },
+        },
       }
     ]
   },  
 
   //#endregion
-
 
   overige: {
     title: 'Overige werkzaamheden',

@@ -1,0 +1,4106 @@
+[
+  {
+    "hoofdtitel": "Overzettreden",
+    "slug": "traprenovatie-overzettreden",
+    "hoofdcategorie": "Treden & Stootborden",
+    "subcategorie_label": "Overzettrede",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Overzettreden",
+    "slug": "traprenovatie-overzettreden",
+    "hoofdcategorie": "Treden & Stootborden",
+    "subcategorie_label": "Stootbord",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Overzettreden",
+    "slug": "traprenovatie-overzettreden",
+    "hoofdcategorie": "Veiligheid",
+    "subcategorie_label": "Trapneusprofiel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Overzettreden",
+    "slug": "traprenovatie-overzettreden",
+    "hoofdcategorie": "Veiligheid",
+    "subcategorie_label": "Antislipstrip",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Constructie & Raveling",
+    "subcategorie_label": "Raveling balkhout",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Vlizotrap & Zolderluik",
+    "subcategorie_label": "Vlizotrap (Complete set)",
+    "categoryFilter_subsectie": "Dakraam",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Vlizotrap & Zolderluik",
+    "subcategorie_label": "Zolderluik",
+    "categoryFilter_subsectie": "Dakraam",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Veiligheid",
+    "subcategorie_label": "Veiligheidshek",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "veiligheid"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Veiligheid",
+    "subcategorie_label": "Veiligheidspoortje",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "veiligheid"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Hekwerk Beslag",
+    "subcategorie_label": "Scharnier",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Hekwerk Beslag",
+    "subcategorie_label": "Grendel / Sluiting",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Hekwerk Beslag",
+    "subcategorie_label": "Zelfsluitende veer",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Hekwerk Beslag",
+    "subcategorie_label": "Handgreep",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Vlizotrap",
+    "slug": "vlizotrap",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Koplatten",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "Constructie & Raveling",
+    "subcategorie_label": "Raveling balkhout",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "Constructie & Raveling",
+    "subcategorie_label": "Balkdrager",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "De Trap (Basis)",
+    "subcategorie_label": "Bouwpakket trap",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "trap"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "De Trap (Basis)",
+    "subcategorie_label": "Trapboom",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "trap"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "De Trap (Basis)",
+    "subcategorie_label": "Trede",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "trap"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "De Trap (Basis)",
+    "subcategorie_label": "Stootbord",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "trap"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "Leuningen & Hekwerken",
+    "subcategorie_label": "Trapaal",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "veiligheid"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "Luxe Beslag & Hardware",
+    "subcategorie_label": "Spijl",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "Leuningen & Hekwerken",
+    "subcategorie_label": "Trapleuning",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "veiligheid"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "Luxe Beslag & Hardware",
+    "subcategorie_label": "Leuninghouder",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Nieuwe trap plaatsen",
+    "slug": "nieuwe-trap-plaatsen",
+    "hoofdcategorie": "Leuningen & Hekwerken",
+    "subcategorie_label": "Balustrade",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "veiligheid"
+  },
+  {
+    "hoofdtitel": "Houtrotreparatie",
+    "slug": "houtrotreparatie",
+    "hoofdcategorie": "Voorbereiding & Vulling",
+    "subcategorie_label": "Houtrotstop vloeistof",
+    "categoryFilter_subsectie": "Verf & Toebehoren",
+    "category_key": "reparatie"
+  },
+  {
+    "hoofdtitel": "Houtrotreparatie",
+    "slug": "houtrotreparatie",
+    "hoofdcategorie": "Voorbereiding & Vulling",
+    "subcategorie_label": "Houtstabilisator",
+    "categoryFilter_subsectie": "Verf & Toebehoren",
+    "category_key": "reparatie"
+  },
+  {
+    "hoofdtitel": "Houtrotreparatie",
+    "slug": "houtrotreparatie",
+    "hoofdcategorie": "Voorbereiding & Vulling",
+    "subcategorie_label": "Twee-componenten epoxy vuller",
+    "categoryFilter_subsectie": "Bouwstoffen",
+    "category_key": "reparatie"
+  },
+  {
+    "hoofdtitel": "Houtrotreparatie",
+    "slug": "houtrotreparatie",
+    "hoofdcategorie": "Voorbereiding & Vulling",
+    "subcategorie_label": "Vervangend hout inzetstuk",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "reparatie"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Staanders & Liggers",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Tengelwerk / Rachels",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Dagkanten",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vensterbanken",
+    "categoryFilter_subsectie": "Vensterbanken",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Hollewanddozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Stopcontacten & Schakelaars",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Hoekprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Kozijnen",
+    "categoryFilter_subsectie": "Kozijnen",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Glas & Roosters",
+    "categoryFilter_subsectie": "Glas_of_roosters",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Binnendeuren",
+    "categoryFilter_subsectie": "Deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurbeslag",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Voorzetwand",
+    "slug": "hsb-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurroosters",
+    "categoryFilter_subsectie": "Ventilatie",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Metal Stud Framewerk",
+    "subcategorie_label": "Liggers (U-profielen)",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Metal Stud Framewerk",
+    "subcategorie_label": "Staanders (C-profielen)",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Metal Stud Framewerk",
+    "subcategorie_label": "Verstevigingsprofielen (UA)",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Hollewanddozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Stopcontacten & Schakelaars",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Dagkanten",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vensterbanken",
+    "categoryFilter_subsectie": "Vensterbanken",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Hoekprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Wapeningsband",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Raamkozijnen",
+    "categoryFilter_subsectie": "Kozijnen",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Deurkozijnen",
+    "categoryFilter_subsectie": "Kozijnen",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Glas & Roosters",
+    "categoryFilter_subsectie": "Glas_of_roosters",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Binnendeuren",
+    "categoryFilter_subsectie": "Deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurbeslag",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Voorzetwand",
+    "slug": "metalstud-voorzetwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurroosters",
+    "categoryFilter_subsectie": "Ventilatie",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Constructie & Regelwerk",
+    "subcategorie_label": "Staanders & Liggers",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Constructie & Regelwerk",
+    "subcategorie_label": "Regelwerk (Leidingspouw)",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Constructie & Regelwerk",
+    "subcategorie_label": "Ventilatielatten",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Isolatie, Folies & Spouw",
+    "subcategorie_label": "Folie Buiten",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Isolatie, Folies & Spouw",
+    "subcategorie_label": "Folie Binnen",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Isolatie, Folies & Spouw",
+    "subcategorie_label": "Isolatiemateriaal (Constructie)",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Isolatie, Folies & Spouw",
+    "subcategorie_label": "Isolatiemateriaal (Leidingspouw)",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Beplating & Gevelbekleding",
+    "subcategorie_label": "Gevelbekleding",
+    "categoryFilter_subsectie": "Gevelbekleding",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Beplating & Gevelbekleding",
+    "subcategorie_label": "Constructieplaat (Buiten)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Beplating & Gevelbekleding",
+    "subcategorie_label": "Constructieplaat (Binnen)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Beplating & Gevelbekleding",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Binnenafwerking",
+    "subcategorie_label": "Dagkanten (Binnen)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "afwerking_binnen"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Binnenafwerking",
+    "subcategorie_label": "Vensterbanken",
+    "categoryFilter_subsectie": "Vensterbanken",
+    "category_key": "afwerking_binnen"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Binnenafwerking",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking_binnen"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Buitenafwerking",
+    "subcategorie_label": "Waterslagen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "afwerking_buiten"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Buitenafwerking",
+    "subcategorie_label": "Dagkanten (Buiten)",
+    "categoryFilter_subsectie": "Gevelbekleding",
+    "category_key": "afwerking_buiten"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Buitenafwerking",
+    "subcategorie_label": "Gevelhoeken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "afwerking_buiten"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Stucwerk",
+    "subcategorie_label": "Hoekprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Kozijnen & Ramen",
+    "subcategorie_label": "Stelkozijnen",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Kozijnen & Ramen",
+    "subcategorie_label": "Raamkozijnen",
+    "categoryFilter_subsectie": "Kozijnen",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Kozijnen & Ramen",
+    "subcategorie_label": "Deurkozijnen",
+    "categoryFilter_subsectie": "Kozijnen",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Kozijnen & Ramen",
+    "subcategorie_label": "Glas & Roosters",
+    "categoryFilter_subsectie": "Glas_of_roosters",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Buitendeuren & Hang- en Sluitwerk",
+    "subcategorie_label": "Buitendeuren",
+    "categoryFilter_subsectie": "Deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Buitendeuren & Hang- en Sluitwerk",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Buitendeuren & Hang- en Sluitwerk",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Buiten Wand",
+    "slug": "HBS-buiten-wand",
+    "hoofdcategorie": "Buitendeuren & Hang- en Sluitwerk",
+    "subcategorie_label": "Deurbeslag",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Staanders & Liggers",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat (Zijde 1)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat (Zijde 2)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat (Zijde 1)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat (Zijde 2)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Dagkanten",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vensterbanken",
+    "categoryFilter_subsectie": "Vensterbanken",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Hollewanddozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Stopcontacten & Schakelaars",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Hoekprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Kozijnen",
+    "categoryFilter_subsectie": "Kozijnen",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Glas & Roosters",
+    "categoryFilter_subsectie": "Glas_of_roosters",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Binnendeuren",
+    "categoryFilter_subsectie": "Deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurbeslag",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "HSB Tussenwand",
+    "slug": "hsb-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurroosters",
+    "categoryFilter_subsectie": "Ventilatie",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "metaal",
+    "subcategorie_label": "Liggers (U-profielen)",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "metaal",
+    "subcategorie_label": "Staanders (C-profielen)",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "metaal",
+    "subcategorie_label": "Verstevigingsprofielen (UA)",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat (Zijde 1)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat (Zijde 2)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat (Zijde 1)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat (Zijde 2)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Dagkanten",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vensterbanken",
+    "categoryFilter_subsectie": "Vensterbanken",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Hollewanddozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Stopcontacten & Schakelaars",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Hoekprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Wapeningsband",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Raamkozijnen",
+    "categoryFilter_subsectie": "Kozijnen",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Kozijnen",
+    "subcategorie_label": "Glas & Roosters",
+    "categoryFilter_subsectie": "Glas_of_roosters",
+    "category_key": "Kozijnen"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Binnendeuren",
+    "categoryFilter_subsectie": "Deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurbeslag",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Metalstud Tussenwand",
+    "slug": "metalstud-tussenwand",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Deurroosters",
+    "categoryFilter_subsectie": "Ventilatie",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Staanders & Liggers",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Koof",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Hollewanddozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Stopcontacten & Schakelaars",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Hoekprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Schuifdeuren",
+    "subcategorie_label": "Schuifdeurrails",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Schuifdeuren"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Schuifdeuren",
+    "subcategorie_label": "Schuifdeurpanelen",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Schuifdeuren"
+  },
+  {
+    "hoofdtitel": "Knieschotten",
+    "slug": "knieschotten",
+    "hoofdcategorie": "Schuifdeuren",
+    "subcategorie_label": "Komgrepen",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "Schuifdeuren"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Staanders & Liggers",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Regelwerk (Nissen & Details)",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Achterhout (TV-ophanging)",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Hollewanddozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Stopcontacten & Schakelaars",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Akoestische Panelen",
+    "categoryFilter_subsectie": "Wandbekleding",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Dagkanten",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Hoekprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Cinewall Elementen",
+    "subcategorie_label": "Inbouw Sfeerhaard",
+    "categoryFilter_subsectie": "Haarden",
+    "category_key": "Cinewall"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Cinewall Elementen",
+    "subcategorie_label": "TV-Beugel",
+    "categoryFilter_subsectie": "Beugels",
+    "category_key": "Cinewall"
+  },
+  {
+    "hoofdtitel": "Cinewall / TV-wand",
+    "slug": "cinewall-tv-wand",
+    "hoofdcategorie": "Cinewall Elementen",
+    "subcategorie_label": "LED-Verlichting",
+    "categoryFilter_subsectie": "Verlichting",
+    "category_key": "Cinewall"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Randhout",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Stelhout",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Framewerk",
+    "subcategorie_label": "Rachelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Achterhout",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Centraaldozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Inbouwspots",
+    "categoryFilter_subsectie": "Verlichting",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Schakelaar / Dimmer",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Lijstwerk",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Toegang & Vlizotrap",
+    "subcategorie_label": "Luik / Vlizotrap",
+    "categoryFilter_subsectie": "Luiken",
+    "category_key": "Toegang"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Toegang & Vlizotrap",
+    "subcategorie_label": "Koplatten",
+    "categoryFilter_subsectie": "Lijstwerk",
+    "category_key": "Toegang"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Plafond – Houten Framewerk",
+    "slug": "plafond-houten-framework",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Wapeningsband",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Metal Stud Framewerk",
+    "subcategorie_label": "Randprofielen",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Metal Stud Framewerk",
+    "subcategorie_label": "Draagprofielen",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Achterhout",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Centraaldozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Inbouwspots",
+    "categoryFilter_subsectie": "Verlichting",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Schakelaar / Dimmer",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Lijstwerk",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Toegang & Vlizotrap",
+    "subcategorie_label": "Luik / Vlizotrap",
+    "categoryFilter_subsectie": "Luiken",
+    "category_key": "Toegang"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Toegang & Vlizotrap",
+    "subcategorie_label": "Koplatten",
+    "categoryFilter_subsectie": "Lijstwerk",
+    "category_key": "Toegang"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Plafond – Metalstud C/U",
+    "slug": "plafond-metalstud",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Wapeningsband",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Voorbereiding",
+    "subcategorie_label": "Primer",
+    "categoryFilter_subsectie": "Lijmen",
+    "category_key": "Vloer_Voorbereiding"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Voorbereiding",
+    "subcategorie_label": "Ondervloer",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Vloer_Voorbereiding"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Voorbereiding",
+    "subcategorie_label": "Egaline",
+    "categoryFilter_subsectie": "Mortels",
+    "category_key": "Vloer_Voorbereiding"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Hout",
+    "subcategorie_label": "Houten vloerplanken",
+    "categoryFilter_subsectie": "Vloerdelen",
+    "category_key": "Vloer_Hout"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Hout",
+    "subcategorie_label": "Parketlijm",
+    "categoryFilter_subsectie": "Lijmen",
+    "category_key": "Vloer_Hout"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Plinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Deklatten",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Overgangsprofielen / Dorpels",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Massief Houten Vloer (finish)",
+    "slug": "massief-houten-vloer",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Vloerolie",
+    "categoryFilter_subsectie": "Verf",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Voorbereiding",
+    "subcategorie_label": "Egaline",
+    "categoryFilter_subsectie": "Vloer",
+    "category_key": "Vloer_Voorbereiding"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Voorbereiding",
+    "subcategorie_label": "Reparatiemortel",
+    "categoryFilter_subsectie": "Vloer",
+    "category_key": "Vloer_Voorbereiding"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Voorbereiding",
+    "subcategorie_label": "Dampremmende Folie",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "Vloer_Voorbereiding"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Voorbereiding",
+    "subcategorie_label": "Ondervloer",
+    "categoryFilter_subsectie": "Ondervloer",
+    "category_key": "Vloer_Voorbereiding"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Laminaat",
+    "subcategorie_label": "Laminaat / PVC Panelen",
+    "categoryFilter_subsectie": "Vloer",
+    "category_key": "Vloer_Laminaat"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Plinten",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Overgangsprofielen / Drempels",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Eindprofielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
+    "slug": "laminaat-pvc",
+    "hoofdcategorie": "Vloer_Afwerking",
+    "subcategorie_label": "Kruipluik Profiel / Matomranding",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "Vloer_Afwerking"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Grondwerk & Fundering",
+    "subcategorie_label": "Worteldoek",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Grondwerk & Fundering",
+    "subcategorie_label": "Ophoogzand / Stabilisatie",
+    "categoryFilter_subsectie": "Zand",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Grondwerk & Fundering",
+    "subcategorie_label": "Piketten / Palen",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Grondwerk & Fundering",
+    "subcategorie_label": "Tegels / Stelpoten",
+    "categoryFilter_subsectie": "Tegels",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Constructie (Onderbouw)",
+    "subcategorie_label": "Moerbalken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Constructie"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Constructie (Onderbouw)",
+    "subcategorie_label": "Onderregels",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Constructie"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Vlonder & Afwerking",
+    "subcategorie_label": "Vlonderplanken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Vlonder & Afwerking",
+    "subcategorie_label": "Vlonderschroeven / Clips",
+    "categoryFilter_subsectie": "Bevestiging",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Vlonder & Afwerking",
+    "subcategorie_label": "Kantplanken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Vlonder / Terrasconstructie",
+    "slug": "vlonder-terras",
+    "hoofdcategorie": "Vlonder & Afwerking",
+    "subcategorie_label": "Drainagegoot",
+    "categoryFilter_subsectie": "Riolering",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Begane Grond Constructievloer",
+    "slug": "balklaag-constructievloer",
+    "hoofdcategorie": "Constructievloer",
+    "subcategorie_label": "Muurplaat",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Constructievloer"
+  },
+  {
+    "hoofdtitel": "Begane Grond Constructievloer",
+    "slug": "balklaag-constructievloer",
+    "hoofdcategorie": "Constructievloer",
+    "subcategorie_label": "Randbalken",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Constructievloer"
+  },
+  {
+    "hoofdtitel": "Begane Grond Constructievloer",
+    "slug": "balklaag-constructievloer",
+    "hoofdcategorie": "Constructievloer",
+    "subcategorie_label": "Vloerbalken",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Constructievloer"
+  },
+  {
+    "hoofdtitel": "Begane Grond Constructievloer",
+    "slug": "balklaag-constructievloer",
+    "hoofdcategorie": "Constructievloer",
+    "subcategorie_label": "Balkdragers",
+    "categoryFilter_subsectie": "Bevestiging",
+    "category_key": "Constructievloer"
+  },
+  {
+    "hoofdtitel": "Begane Grond Constructievloer",
+    "slug": "balklaag-constructievloer",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Begane Grond Constructievloer",
+    "slug": "balklaag-constructievloer",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Geluidsisolatie Stroken",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Begane Grond Constructievloer",
+    "slug": "balklaag-constructievloer",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Constructie & Vloer (Bovenzijde)",
+    "subcategorie_label": "Randbalken",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Constructievloer"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Constructie & Vloer (Bovenzijde)",
+    "subcategorie_label": "Vloerbalken",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Constructievloer"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Constructie & Vloer (Bovenzijde)",
+    "subcategorie_label": "Balkdragers",
+    "categoryFilter_subsectie": "Bevestiging",
+    "category_key": "Constructievloer"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Beplating (Constructie)",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Toegang & Vlizotrap",
+    "subcategorie_label": "Luik / Vlizotrap",
+    "categoryFilter_subsectie": "Luiken",
+    "category_key": "Toegang"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Toegang & Vlizotrap",
+    "subcategorie_label": "Koplatten",
+    "categoryFilter_subsectie": "Lijstwerk",
+    "category_key": "Toegang"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Plafond Framewerk (Hout)",
+    "subcategorie_label": "Randhout",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Plafond Framewerk (Hout)",
+    "subcategorie_label": "Stelhout",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Plafond Framewerk (Hout)",
+    "subcategorie_label": "Rachelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Plafond Framewerk (Metal Stud)",
+    "subcategorie_label": "Randprofielen",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Plafond Framewerk (Metal Stud)",
+    "subcategorie_label": "Draagprofielen",
+    "categoryFilter_subsectie": "Metalstud",
+    "category_key": "metaal"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Leidingkoof",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Leidingkoof",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Leidingkoof",
+    "subcategorie_label": "Isolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "Koof"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Beplating",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Gordijnkoof",
+    "subcategorie_label": "Achterhout",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "Gordijnkoof"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Elektra Buizen / Flex",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Centraaldozen",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Installatie & Elektra",
+    "subcategorie_label": "Installatiekabel",
+    "categoryFilter_subsectie": "Elektra",
+    "category_key": "Installatie"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Inbouwspots",
+    "categoryFilter_subsectie": "Verlichting",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Schakelmateriaal",
+    "subcategorie_label": "Schakelaar / Dimmer",
+    "categoryFilter_subsectie": "Schakelmateriaal",
+    "category_key": "Schakelmateriaal"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folies",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Beplating (Plafond)",
+    "subcategorie_label": "Afwerkplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating_afwerking"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Afwerken",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Lijstwerk",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Voegenmiddel",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Tussenvloer / Bergzolder",
+    "slug": "vliering-maken",
+    "hoofdcategorie": "Naden & Stucwerk",
+    "subcategorie_label": "Finish Pasta",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "gips_afwerking"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Binnenwerk",
+    "subcategorie_label": "Interieur / Corpus (MDF, Melamine, Multiplex)",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Deuren & Fronten",
+    "subcategorie_label": "Deuren",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Deuren & Fronten",
+    "subcategorie_label": "Fronten",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Luxe Beslag & Ladesystemen",
+    "subcategorie_label": "Ladesystemen",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Luxe Beslag & Ladesystemen",
+    "subcategorie_label": "Scharnier",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Luxe Beslag & Ladesystemen",
+    "subcategorie_label": "Meubelgreep",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Luxe Beslag & Ladesystemen",
+    "subcategorie_label": "Push-to-open systeem",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Inbouwkasten",
+    "slug": "inbouwkasten",
+    "hoofdcategorie": "Luxe Beslag & Ladesystemen",
+    "subcategorie_label": "Kledingroede",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Meubel op maat",
+    "slug": "meubel-op-maat",
+    "hoofdcategorie": "Hoofdmateriaal",
+    "subcategorie_label": "Hoofdmateriaal",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Meubel op maat",
+    "slug": "meubel-op-maat",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Meubelbeslag",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Meubel op maat",
+    "slug": "meubel-op-maat",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Olie, Lak, Beits",
+    "categoryFilter_subsectie": "Verf",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Dagkanten",
+    "slug": "dagkanten",
+    "hoofdcategorie": "Constructie Regelwerk",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Dagkanten",
+    "slug": "dagkanten",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Afwerk Hout",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Dagkanten",
+    "slug": "dagkanten",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Hoek- of Stopcontactprofielen",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Plinten en afwerklatten",
+    "slug": "plinten-afwerklatten",
+    "hoofdcategorie": "Afwerklatten",
+    "subcategorie_label": "Plafondplinten",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Plinten en afwerklatten",
+    "slug": "plinten-afwerklatten",
+    "hoofdcategorie": "Afwerklatten",
+    "subcategorie_label": "Koplatten",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Plinten en afwerklatten",
+    "slug": "plinten-afwerklatten",
+    "hoofdcategorie": "Afwerklatten",
+    "subcategorie_label": "Vloerplinten",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Omkastingen en koven",
+    "slug": "omkastingen-koven",
+    "hoofdcategorie": "Constructie Regelwerk",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Omkastingen en koven",
+    "slug": "omkastingen-koven",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Afwerk Hout",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Vensterbanken",
+    "slug": "vensterbanken",
+    "hoofdcategorie": "Constructie Regelwerk",
+    "subcategorie_label": "Regelwerk",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Vensterbanken",
+    "slug": "vensterbanken",
+    "hoofdcategorie": "Vensterbank",
+    "subcategorie_label": "Vensterbank",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Vensterbanken",
+    "slug": "vensterbanken",
+    "hoofdcategorie": "Vensterbank",
+    "subcategorie_label": "Ventilatieroosters",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Vensterbanken",
+    "slug": "vensterbanken",
+    "hoofdcategorie": "Vensterbank",
+    "subcategorie_label": "Olie, Lak of Beits",
+    "categoryFilter_subsectie": "Verf",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Deurblad",
+    "subcategorie_label": "Binnendeuren",
+    "categoryFilter_subsectie": "deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Deurbeslag & Sloten",
+    "subcategorie_label": "Scharnieren / Paumelles",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Deurbeslag & Sloten",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Deurbeslag & Sloten",
+    "subcategorie_label": "Deurbeslag (Schild & Kruk)",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Deurbeslag & Sloten",
+    "subcategorie_label": "Cilinder",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glas",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glaslatten",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Tochtwering",
+    "subcategorie_label": "Tochtvaldorp",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "tochtstrips"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Tochtwering",
+    "subcategorie_label": "Tochtstrips",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "tochtstrips"
+  },
+  {
+    "hoofdtitel": "Binnendeuren",
+    "slug": "binnendeur-afhangen",
+    "hoofdcategorie": "Ventilatie",
+    "subcategorie_label": "Deurroosters",
+    "categoryFilter_subsectie": "ventilatie",
+    "category_key": "ventilatie"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Buitendeur",
+    "subcategorie_label": "Buitendeur",
+    "categoryFilter_subsectie": "deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Beveiliging & Sloten",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Beveiliging & Sloten",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Beveiliging & Sloten",
+    "subcategorie_label": "Meerpuntsluiting",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Beveiliging & Sloten",
+    "subcategorie_label": "Deurbeslag (Schild & Kruk)",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Beveiliging & Sloten",
+    "subcategorie_label": "Cilinder",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glas",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glaslatten",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Tochtwering",
+    "subcategorie_label": "Tochtvaldorp",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "tochtstrips"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Tochtwering",
+    "subcategorie_label": "Tochtstrips",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "tochtstrips"
+  },
+  {
+    "hoofdtitel": "Buitendeuren",
+    "slug": "buitendeur-afhangen",
+    "hoofdcategorie": "Ventilatie",
+    "subcategorie_label": "Deurroosters",
+    "categoryFilter_subsectie": "ventilatie",
+    "category_key": "ventilatie"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "Deuren",
+    "subcategorie_label": "Buitendeur",
+    "categoryFilter_subsectie": "deuren",
+    "category_key": "Deuren"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "deurbeslag",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "deurbeslag",
+    "subcategorie_label": "Sloten",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "deurbeslag",
+    "subcategorie_label": "Meerpuntsluiting",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "deurbeslag",
+    "subcategorie_label": "Deurbeslag (Schild & Kruk)",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "deurbeslag",
+    "subcategorie_label": "Cilinder",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "deurbeslag"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "glas",
+    "subcategorie_label": "Glas",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "glas",
+    "subcategorie_label": "Glaslatten",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "tochtstrips",
+    "subcategorie_label": "Tochtvaldorp",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "tochtstrips"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "tochtstrips",
+    "subcategorie_label": "Tochtstrips",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "tochtstrips"
+  },
+  {
+    "hoofdtitel": "Schuifdeuren",
+    "slug": "Schuifdeuren",
+    "hoofdcategorie": "ventilatie",
+    "subcategorie_label": "Deurroosters",
+    "categoryFilter_subsectie": "ventilatie",
+    "category_key": "ventilatie"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Dakbeschot",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Dakisolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Folie",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Tengels & Panlatten",
+    "subcategorie_label": "Tengels",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Tengels & Panlatten",
+    "subcategorie_label": "Panlatten",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Tengels & Panlatten",
+    "subcategorie_label": "Ruiter (Nokbalk)",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Dakpannen",
+    "subcategorie_label": "Dakvoetprofiel / Vogelschroot",
+    "categoryFilter_subsectie": "Dakprofielen",
+    "category_key": "dak"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Dakpannen",
+    "subcategorie_label": "Dakpannen",
+    "categoryFilter_subsectie": "Dakpannen",
+    "category_key": "dak"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Dakpannen",
+    "subcategorie_label": "Gevelpannen / Kantpannen",
+    "categoryFilter_subsectie": "Dakpannen",
+    "category_key": "dak"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Dakpannen",
+    "subcategorie_label": "Ondervorst",
+    "categoryFilter_subsectie": "Dakprofielen",
+    "category_key": "dak"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "Dakpannen",
+    "subcategorie_label": "Nokvorsten",
+    "categoryFilter_subsectie": "Dakpannen",
+    "category_key": "dak"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "5. Afwerking",
+    "subcategorie_label": "Lood",
+    "categoryFilter_subsectie": "Lood",
+    "category_key": "afwerking_dak"
+  },
+  {
+    "hoofdtitel": "Hellend Dak Vervangen",
+    "slug": "hellend-dak",
+    "hoofdcategorie": "5. Afwerking",
+    "subcategorie_label": "Dakgoot",
+    "categoryFilter_subsectie": "HWA",
+    "category_key": "afwerking_dak"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "Beplating",
+    "subcategorie_label": "Constructieplaat",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "beplating"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Dampremmende Folie",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "Isolatie & Folies",
+    "subcategorie_label": "Dakisolatie",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "EPDM",
+    "subcategorie_label": "EPDM",
+    "categoryFilter_subsectie": "Dakbedekking",
+    "category_key": "dak"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Daktrim",
+    "categoryFilter_subsectie": "Daktrim",
+    "category_key": "afwerking_dak"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Daktrim Hoeken",
+    "categoryFilter_subsectie": "Daktrim",
+    "category_key": "afwerking_dak"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "HWA Stadsuitloop / Onderuitloop",
+    "categoryFilter_subsectie": "HWA",
+    "category_key": "afwerking_dak"
+  },
+  {
+    "hoofdtitel": "EPDM Dakbedekking",
+    "slug": "epdm-dakbedekking",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Lood",
+    "categoryFilter_subsectie": "Lood",
+    "category_key": "afwerking_dak"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Basis (Regelwerk)",
+    "subcategorie_label": "Tengelwerk / Rachels",
+    "categoryFilter_subsectie": "Balkhout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Isolatie & Folie",
+    "subcategorie_label": "Folie",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Isolatie & Folie",
+    "subcategorie_label": "Isolatiemateriaal",
+    "categoryFilter_subsectie": "Isolatie",
+    "category_key": "isolatie"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Basis (Regelwerk)",
+    "subcategorie_label": "Ventilatieprofiel (Ongedierte)",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Hout",
+    "subcategorie_label": "Houten Bekleding (Rabat/Zweeds)",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "gevel_hout"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Hout",
+    "subcategorie_label": "Houten Hoeklatten",
+    "categoryFilter_subsectie": "Lijstwerk",
+    "category_key": "gevel_hout"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Keralit",
+    "subcategorie_label": "Kunststof Panelen (Keralit)",
+    "categoryFilter_subsectie": "Gevelbekleding",
+    "category_key": "gevel_kunststof"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Keralit",
+    "subcategorie_label": "Keralit Profielen (Start/Eind/Hoek)",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "gevel_kunststof"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Trespa/HPL (Geschroefd)",
+    "subcategorie_label": "Volkern/HPL Plaat (Trespa)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "gevel_plaat"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Trespa/HPL (Verlijmd)",
+    "subcategorie_label": "Volkern/HPL Plaat (Trespa)",
+    "categoryFilter_subsectie": "Plaatmateriaal",
+    "category_key": "gevel_plaat_lijm"
+  },
+  {
+    "hoofdtitel": "Gevelbekleding Vervangen",
+    "slug": "gevelbekleding-compleet",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Waterslagen (Aluminium)",
+    "categoryFilter_subsectie": "Dakprofielen",
+    "category_key": "bevestiging"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Kozijnhout",
+    "subcategorie_label": "Kozijnhout",
+    "categoryFilter_subsectie": "hout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Kozijnhout",
+    "subcategorie_label": "Binnendorpel",
+    "categoryFilter_subsectie": "dorpels",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Sluitplaat",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glas",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glaslatten",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Koplatten",
+    "categoryFilter_subsectie": "lijstwerk",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Binnendeur Kozijnen – Hout",
+    "slug": "binnen-kozijn-hout",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Neuten",
+    "categoryFilter_subsectie": "lijstwerk",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Binnen Kozijnen – Staal",
+    "slug": "binnen-kozijn-staal",
+    "hoofdcategorie": "Stalen Kozijn",
+    "subcategorie_label": "Stalen Kozijn",
+    "categoryFilter_subsectie": "kozijnen",
+    "category_key": "Stalen kozijn"
+  },
+  {
+    "hoofdtitel": "Binnen Kozijnen – Staal",
+    "slug": "binnen-kozijn-staal",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Paumelles",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Binnen Kozijnen – Staal",
+    "slug": "binnen-kozijn-staal",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Aanslagrubber",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Binnen Kozijnen – Staal",
+    "slug": "binnen-kozijn-staal",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glas",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Binnen Kozijnen – Staal",
+    "slug": "binnen-kozijn-staal",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glaslatten",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Buiten kozijnen – Hout",
+    "slug": "buiten-kozijn-hout",
+    "hoofdcategorie": "Kozijnelement",
+    "subcategorie_label": "Kozijnelement",
+    "categoryFilter_subsectie": "kozijnen",
+    "category_key": "element"
+  },
+  {
+    "hoofdtitel": "Buiten kozijnen – Hout",
+    "slug": "buiten-kozijn-hout",
+    "hoofdcategorie": "Kozijnelement",
+    "subcategorie_label": "Stelkozijnen",
+    "categoryFilter_subsectie": "hout",
+    "category_key": "element"
+  },
+  {
+    "hoofdtitel": "Buiten kozijnen – Hout",
+    "slug": "buiten-kozijn-hout",
+    "hoofdcategorie": "Afwerking Buiten",
+    "subcategorie_label": "Raamdorpelstenen",
+    "categoryFilter_subsectie": "dorpels",
+    "category_key": "afwerking_buiten"
+  },
+  {
+    "hoofdtitel": "Buiten kozijnen – Hout",
+    "slug": "buiten-kozijn-hout",
+    "hoofdcategorie": "Afwerking Buiten",
+    "subcategorie_label": "Lood / DPC",
+    "categoryFilter_subsectie": "afwerking",
+    "category_key": "afwerking_buiten"
+  },
+  {
+    "hoofdtitel": "Buiten kozijnen – Hout",
+    "slug": "buiten-kozijn-hout",
+    "hoofdcategorie": "Afwerking Binnen",
+    "subcategorie_label": "Dagkantbetimmering",
+    "categoryFilter_subsectie": "plaatmateriaal",
+    "category_key": "afwerking_binnen"
+  },
+  {
+    "hoofdtitel": "Buiten kozijnen – Hout",
+    "slug": "buiten-kozijn-hout",
+    "hoofdcategorie": "Afwerking Binnen",
+    "subcategorie_label": "Vensterbank",
+    "categoryFilter_subsectie": "dorpels",
+    "category_key": "afwerking_binnen"
+  },
+  {
+    "hoofdtitel": "Buiten kozijnen – Hout",
+    "slug": "buiten-kozijn-hout",
+    "hoofdcategorie": "Afwerking Binnen",
+    "subcategorie_label": "Koplatten",
+    "categoryFilter_subsectie": "lijstwerk",
+    "category_key": "afwerking_binnen"
+  },
+  {
+    "hoofdtitel": "Buiten Kozijnen – Kunststof",
+    "slug": "buiten-kozijn-kunststof",
+    "hoofdcategorie": "Kozijnelement",
+    "subcategorie_label": "Kozijnelement",
+    "categoryFilter_subsectie": "kozijnen",
+    "category_key": "element"
+  },
+  {
+    "hoofdtitel": "Buiten Kozijnen – Kunststof",
+    "slug": "buiten-kozijn-kunststof",
+    "hoofdcategorie": "Kozijnelement",
+    "subcategorie_label": "Onderdorpel",
+    "categoryFilter_subsectie": "dorpels",
+    "category_key": "element"
+  },
+  {
+    "hoofdtitel": "Buiten Kozijnen – Kunststof",
+    "slug": "buiten-kozijn-kunststof",
+    "hoofdcategorie": "Montage",
+    "subcategorie_label": "Stelkozijn",
+    "categoryFilter_subsectie": "balkhout",
+    "category_key": "montage"
+  },
+  {
+    "hoofdtitel": "Buiten Kozijnen – Kunststof",
+    "slug": "buiten-kozijn-kunststof",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Dagkantafwerking",
+    "categoryFilter_subsectie": "profielen",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Buiten Kozijnen – Kunststof",
+    "slug": "buiten-kozijn-kunststof",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Waterslag",
+    "categoryFilter_subsectie": "daktrim",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Buiten Kozijnen – Kunststof",
+    "slug": "buiten-kozijn-kunststof",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Inzethorren",
+    "categoryFilter_subsectie": "accessoires",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Kozijnhout",
+    "subcategorie_label": "Kozijnhout",
+    "categoryFilter_subsectie": "hout",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Kozijnhout",
+    "subcategorie_label": "Onderdorpel",
+    "categoryFilter_subsectie": "dorpels",
+    "category_key": "hout"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Ramen",
+    "subcategorie_label": "Raamhout",
+    "categoryFilter_subsectie": "hout",
+    "category_key": "raam"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Scharnieren",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Raamboom",
+    "categoryFilter_subsectie": "raambeslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Raamuitzetter",
+    "categoryFilter_subsectie": "raambeslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Hang- & Sluitwerk",
+    "subcategorie_label": "Meerpuntsluiting",
+    "categoryFilter_subsectie": "deurbeslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Glas",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Neuslatten",
+    "categoryFilter_subsectie": "glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Glas & Beglazing",
+    "subcategorie_label": "Ventilatierooster",
+    "categoryFilter_subsectie": "ventilatie",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Tochtkader",
+    "categoryFilter_subsectie": "tochtstrips",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Zelf gemaakte houtkozijnen",
+    "slug": "zelfgemaakte-kozijnen",
+    "hoofdcategorie": "Afwerking",
+    "subcategorie_label": "Lood / DPC",
+    "categoryFilter_subsectie": "afwerking",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Basis & Fundering",
+    "subcategorie_label": "Snelbeton",
+    "categoryFilter_subsectie": "Bouwstoffen",
+    "category_key": "fundering"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Basis & Fundering",
+    "subcategorie_label": "Opsluitbanden",
+    "categoryFilter_subsectie": "Bestrating",
+    "category_key": "fundering"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Basis & Fundering",
+    "subcategorie_label": "Paalpunthouder",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "fundering"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Hout",
+    "subcategorie_label": "Schuttingpalen hout",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "schutting_hout"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Hout",
+    "subcategorie_label": "Paalkappen",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "schutting_hout"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Hout",
+    "subcategorie_label": "Tuinscherm hout",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "schutting_hout"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Hout",
+    "subcategorie_label": "Afdeklat hout",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "schutting_hout"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Hout",
+    "subcategorie_label": "Losse tuinplanken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "schutting_hout"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Beton",
+    "subcategorie_label": "Betonpalen",
+    "categoryFilter_subsectie": "Bestrating",
+    "category_key": "schutting_beton"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Beton",
+    "subcategorie_label": "Onderplaten",
+    "categoryFilter_subsectie": "Bestrating",
+    "category_key": "schutting_beton"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Beton",
+    "subcategorie_label": "Afdekkappen beton",
+    "categoryFilter_subsectie": "Bestrating",
+    "category_key": "schutting_beton"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Beton",
+    "subcategorie_label": "Unibeslag",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "schutting_beton"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Composiet",
+    "subcategorie_label": "Aluminium palen",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "schutting_composiet"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Composiet",
+    "subcategorie_label": "Paalvoeten",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "schutting_composiet"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Composiet",
+    "subcategorie_label": "Tuinscherm composiet",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "schutting_composiet"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Optie: Composiet",
+    "subcategorie_label": "U profielen",
+    "categoryFilter_subsectie": "Profielen",
+    "category_key": "schutting_composiet"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Poort & Toegang",
+    "subcategorie_label": "Tuinpoort",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "poort"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Poort & Toegang",
+    "subcategorie_label": "Stalen frame",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "poort"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Poort & Toegang",
+    "subcategorie_label": "Kozijnbalken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "poort"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Tuindeur Beslag",
+    "subcategorie_label": "Hengselset",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Tuindeur Beslag",
+    "subcategorie_label": "Hengen",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Tuindeur Beslag",
+    "subcategorie_label": "Plaatduimen",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Tuindeur Beslag",
+    "subcategorie_label": "Poortbeslag",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Tuindeur Beslag",
+    "subcategorie_label": "Cilinderslot",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Tuindeur Beslag",
+    "subcategorie_label": "Grondgrendel",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Schutting plaatsen",
+    "slug": "schutting-compleet",
+    "hoofdcategorie": "Tuindeur Beslag",
+    "subcategorie_label": "Vloerstop",
+    "categoryFilter_subsectie": "Ijzerwaren",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Fundering",
+    "subcategorie_label": "Worteldoek",
+    "categoryFilter_subsectie": "Folies",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Fundering",
+    "subcategorie_label": "Ophoogzand / Stabilisatie",
+    "categoryFilter_subsectie": "Zand",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Fundering",
+    "subcategorie_label": "Piketten / Palen",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Fundering",
+    "subcategorie_label": "Tegels / Stelpoten",
+    "categoryFilter_subsectie": "Tegels",
+    "category_key": "Vlonder_Fundering"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Constructie",
+    "subcategorie_label": "Moerbalken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Constructie"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Constructie",
+    "subcategorie_label": "Onderregels",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Constructie"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Dek",
+    "subcategorie_label": "Vlonderplanken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Dek",
+    "subcategorie_label": "Vlonderschroeven / Clips",
+    "categoryFilter_subsectie": "Bevestiging",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Dek",
+    "subcategorie_label": "Kantplanken",
+    "categoryFilter_subsectie": "Tuinhout",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Pergola",
+    "slug": "pergola",
+    "hoofdcategorie": "Vlonder_Dek",
+    "subcategorie_label": "Drainagegoot",
+    "categoryFilter_subsectie": "Riolering",
+    "category_key": "Vlonder_Dek"
+  },
+  {
+    "hoofdtitel": "Glas zetten",
+    "slug": "isolatieglas",
+    "hoofdcategorie": "Glas & Afwerking",
+    "subcategorie_label": "Glas",
+    "categoryFilter_subsectie": "Glas",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Glas zetten",
+    "slug": "isolatieglas",
+    "hoofdcategorie": "Glas & Afwerking",
+    "subcategorie_label": "Ventilatie roosters",
+    "categoryFilter_subsectie": "Deuren & Kozijnen",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Glas zetten",
+    "slug": "isolatieglas",
+    "hoofdcategorie": "Glas & Afwerking",
+    "subcategorie_label": "Glaslatten",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "glas"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Keukenelementen & Kasten",
+    "subcategorie_label": "Keukenkast",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Werkblad & Apparatuur",
+    "subcategorie_label": "Aanrechtblad",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "werkblad"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Werkblad & Apparatuur",
+    "subcategorie_label": "Inbouwapparaat",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "werkblad"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Luxe Beslag & Accessoires",
+    "subcategorie_label": "Spoelbak",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Luxe Beslag & Accessoires",
+    "subcategorie_label": "Keukenkraan",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Luxe Beslag & Accessoires",
+    "subcategorie_label": "Handgreep",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Luxe Beslag & Accessoires",
+    "subcategorie_label": "Keukenplint",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenmontage",
+    "slug": "keuken-montage",
+    "hoofdcategorie": "Luxe Beslag & Accessoires",
+    "subcategorie_label": "Keukenverlichting",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenrenovatie",
+    "slug": "keuken-renovatie",
+    "hoofdcategorie": "Fronten & Zichtwerk",
+    "subcategorie_label": "Keukenfront",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "basis"
+  },
+  {
+    "hoofdtitel": "Keukenrenovatie",
+    "slug": "keuken-renovatie",
+    "hoofdcategorie": "Werkblad & Apparatuur",
+    "subcategorie_label": "Aanrechtblad",
+    "categoryFilter_subsectie": "Platen",
+    "category_key": "werkblad"
+  },
+  {
+    "hoofdtitel": "Keukenrenovatie",
+    "slug": "keuken-renovatie",
+    "hoofdcategorie": "Luxe Beslag & Hardware",
+    "subcategorie_label": "Scharnier",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenrenovatie",
+    "slug": "keuken-renovatie",
+    "hoofdcategorie": "Luxe Beslag & Hardware",
+    "subcategorie_label": "Ladegeleider",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenrenovatie",
+    "slug": "keuken-renovatie",
+    "hoofdcategorie": "Luxe Beslag & Hardware",
+    "subcategorie_label": "Handgreep",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Keukenrenovatie",
+    "slug": "keuken-renovatie",
+    "hoofdcategorie": "Werkblad & Apparatuur",
+    "subcategorie_label": "Inbouwapparaat",
+    "categoryFilter_subsectie": "Afwerking",
+    "category_key": "werkblad"
+  },
+  {
+    "hoofdtitel": "Keukenrenovatie",
+    "slug": "keuken-renovatie",
+    "hoofdcategorie": "Luxe Beslag & Hardware",
+    "subcategorie_label": "Keukenkraan",
+    "categoryFilter_subsectie": "Beslag",
+    "category_key": "beslag"
+  },
+  {
+    "hoofdtitel": "Velux Dakraam",
+    "slug": "velux-dakraam",
+    "hoofdcategorie": "Dakraam Set",
+    "subcategorie_label": "Velux dakraam set",
+    "categoryFilter_subsectie": "Dakraam",
+    "category_key": "vensterset"
+  },
+  {
+    "hoofdtitel": "Velux Dakraam",
+    "slug": "velux-dakraam",
+    "hoofdcategorie": "Dakraam",
+    "subcategorie_label": "Velux Venster",
+    "categoryFilter_subsectie": "Dakraam",
+    "category_key": "venster"
+  },
+  {
+    "hoofdtitel": "Velux Dakraam",
+    "slug": "velux-dakraam",
+    "hoofdcategorie": "Gootstukken",
+    "subcategorie_label": "Gootstukken",
+    "categoryFilter_subsectie": "Dakraam",
+    "category_key": "gootstuk"
+  },
+  {
+    "hoofdtitel": "Velux Dakraam",
+    "slug": "velux-dakraam",
+    "hoofdcategorie": "Aftimmering",
+    "subcategorie_label": "Interieur afwerking",
+    "categoryFilter_subsectie": "Hout",
+    "category_key": "afwerking"
+  },
+  {
+    "hoofdtitel": "Lichtkoepel",
+    "slug": "lichtkoepel",
+    "hoofdcategorie": "Koepel",
+    "subcategorie_label": "Lichtkoepel",
+    "categoryFilter_subsectie": "Dakraam",
+    "category_key": "koepel"
+  },
+  {
+    "hoofdtitel": "Lichtkoepel",
+    "slug": "lichtkoepel",
+    "hoofdcategorie": "Opstand",
+    "subcategorie_label": "Opstand Houtbalk of Prefab Set",
+    "categoryFilter_subsectie": "Dakraam",
+    "category_key": "opstand"
+  },
+  {
+    "hoofdtitel": "Lichtkoepel",
+    "slug": "lichtkoepel",
+    "hoofdcategorie": "Dakafwerking",
+    "subcategorie_label": "Dakbedekking",
+    "categoryFilter_subsectie": "Dakbedekking",
+    "category_key": "afwerking"
+  }
+]

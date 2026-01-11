@@ -953,7 +953,7 @@ export default function GenericMaterialsPageRedesigned() {
 
           {/* Preset Selector - Compact */}
           <div className="space-y-2 pb-6 mb-6 border-b border-border/50">
-              <Label className="text-sm">Werkwijze</Label>
+              <Label className="text-sm">Kies Een Werkwijze</Label>
               <div className="flex items-center gap-2">
                   <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
                       <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
