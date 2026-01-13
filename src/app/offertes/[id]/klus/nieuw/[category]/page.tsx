@@ -12,18 +12,19 @@ import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useFirestore, useUser } from '@/firebase';
 import { PersonalNotes } from '@/components/PersonalNotes';
-import { JOB_REGISTRY, JobSubItem } from '@/lib/job-registry'; // Import the new registry
+import { JOB_REGISTRY, JobSubItem } from '@/lib/job-registry';
+import { WizardHeader } from '@/components/WizardHeader';
 
 export default function GenericSubCategoryPage() {
   const params = useParams();
   const router = useRouter();
-  
+
   const quoteId = params.id as string;
   const categorySlug = params.category as string; // e.g., "wanden", "vloeren"
 
   // 1. Validate Category from Registry
   const categoryConfig = JOB_REGISTRY[categorySlug];
-  
+
   // If category doesn't exist in registry, show 404 (optional: or redirect back)
   if (!categoryConfig) {
     // You can also router.push back, but notFound() is safer for invalid URLs
@@ -39,7 +40,7 @@ export default function GenericSubCategoryPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<Quote | null>(null);
-  
+
   // Search & Favorites State
   const [zoekterm, setZoekterm] = useState('');
   const [favorieten, setFavorieten] = useState<string[]>([]);
@@ -135,7 +136,7 @@ export default function GenericSubCategoryPage() {
               description: item.description,
             },
           });
-          
+
           // ✅ Dynamic Route: /klus/{id}/{category}/{sub-slug}
           // Note: Next step is the Measurement Page
           router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}`);
@@ -173,38 +174,18 @@ export default function GenericSubCategoryPage() {
   return (
     <main className="relative min-h-screen bg-background flex flex-col">
       {/* HEADER - DYNAMIC */}
-      <header className="border-b bg-background/80 backdrop-blur-xl sticky top-0 z-20">
-        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl shrink-0">
-              <Link href={`/offertes/${quoteId}/klus/nieuw`}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-center">Kies een klus</div>
-
-              <div className="mt-3">
-                <div className="h-1.5 rounded-full bg-muted/40 mx-auto">
-                  <div
-                    className="h-full rounded-full bg-primary/65 transition-all"
-                    style={{ width: '25%' }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center shrink-0">
-              {loading ? (
-                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
-              ) : (
-                <PersonalNotes quoteId={quoteId} />
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <WizardHeader
+        title="Kies een klus"
+        backLink={`/offertes/${quoteId}/klus/nieuw`}
+        progress={25}
+        rightContent={
+          loading ? (
+            <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+          ) : (
+            <PersonalNotes quoteId={quoteId} />
+          )
+        }
+      />
 
       {/* STICKY SEARCH */}
       <div className="bg-background pt-4 pb-3 px-4 sticky top-[73px] z-10 border-b shadow-sm max-w-5xl mx-auto w-full">
@@ -213,7 +194,7 @@ export default function GenericSubCategoryPage() {
           <input
             value={zoekterm}
             onChange={(e) => setZoekterm(e.target.value)}
-            placeholder={categoryConfig.searchPlaceholder} 
+            placeholder={categoryConfig.searchPlaceholder}
             className="w-full h-11 rounded-xl border bg-secondary/30 px-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition-all"
           />
         </div>
@@ -221,7 +202,7 @@ export default function GenericSubCategoryPage() {
 
       {/* CONTENT GRID */}
       <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
-        
+
         {/* FAVORITES SECTION */}
         {visibleFavorieten.length > 0 && (
           <section>
@@ -251,7 +232,7 @@ export default function GenericSubCategoryPage() {
               <h2 className="text-sm font-semibold text-foreground">Alle {categoryConfig.title.toLowerCase()}</h2>
             </div>
           )}
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {overigeItems.map((item) => (
               <KlusCard
@@ -299,7 +280,7 @@ function KlusCard({
   onClick: (item: JobSubItem) => void;
   disabled: boolean;
 }) {
-  const STAR_ZONE_W = 44; 
+  const STAR_ZONE_W = 44;
 
   return (
     <div
@@ -318,7 +299,7 @@ function KlusCard({
         type="button"
         aria-label="Favoriet togglen"
         onClick={(e) => {
-          e.stopPropagation(); 
+          e.stopPropagation();
           onToggleFav(item.title);
         }}
         className={cn(

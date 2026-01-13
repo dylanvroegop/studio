@@ -11,6 +11,7 @@ import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { JOB_REGISTRY } from '@/lib/job-registry';
+import { WizardHeader } from '@/components/WizardHeader';
 
 // ✅ Firebase imports
 import { useUser, useFirestore } from '@/firebase';
@@ -32,23 +33,23 @@ const categories: CategoryItem[] = [
   { name: 'Wanden', description: 'HSB, Metal Stud & Cinewalls', slug: 'wanden' },
   { name: 'Plafonds', description: 'Houten & Metal Stud plafonds', slug: 'plafonds' },
   { name: 'Vloeren & Vlieringen', description: 'Vloeropbouw, vlieringen & afwerkvloeren', slug: 'vloeren' },
-  
+
   { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
   { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
   { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeiboorden', slug: 'dakrenovatie' },
 
   { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
   { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },
-  
+
   { name: 'Schutting', description: 'Hout, beton of composiet tuinafscheiding', slug: 'schutting' },
   { name: 'Overkapping & Houtbouw', description: 'Veranda\'s, schuren & tuinhuizen', slug: 'overkapping' },
-  
+
   { name: 'Afwerkingen', description: 'Plinten, vensterbanken & betimmering', slug: 'afwerkingen' },
   { name: 'Glas zetten', description: 'Isolatieglas (HR++)', slug: 'glas-zetten' },
-  
+
   { name: 'Trappen', description: 'Traprenovatie, nieuwe trappen & vlizotrappen', slug: 'trappen' },
   { name: 'Houtrotreparatie', description: 'Herstel met epoxy of inzetstukken', slug: 'houtrotreparatie' },
-  
+
   { name: 'Inbouwkasten', description: 'Inbouwkasten', slug: 'interieur' },
   { name: 'Meubels Op Maat', description: 'Meubels op maat', slug: 'MEUBELS_OP_MAAT' },
   { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
@@ -157,7 +158,7 @@ export default function NewJobPage() {
 
   const favorietCategories = useMemo(() => {
     if (!favorieten.length) return [];
-    
+
     // We match favorites by name, then retrieve the full object (including slug)
     const byName = new Map<string, CategoryItem>(
       categories.map((c) => [c.name, c])
@@ -229,43 +230,18 @@ export default function NewJobPage() {
   return (
     <main className="relative min-h-screen bg-background flex flex-col">
       {/* HEADER */}
-      <header className="border-b bg-background">
-        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Button
-              asChild
-              variant="outline"
-              size="icon"
-              className="h-11 w-11 rounded-xl shrink-0"
-            >
-              <Link href={`/offertes/${quoteId}/edit`}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-center">Kies een klus</div>
-
-              <div className="mt-3">
-                <div className="h-1.5 rounded-full bg-muted/40 mx-auto">
-                  <div
-                    className="h-full rounded-full bg-primary/65 transition-all"
-                    style={{ width: '25%' }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center shrink-0">
-              {loading ? (
-                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
-              ) : (
-                <PersonalNotes quoteId={quoteId} />
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <WizardHeader
+        title="Kies een klus"
+        backLink={`/offertes/${quoteId}/edit`}
+        progress={25}
+        rightContent={
+          loading ? (
+            <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+          ) : (
+            <PersonalNotes quoteId={quoteId} />
+          )
+        }
+      />
 
       {/* STICKY SEARCH */}
       <div className="bg-background pt-4 pb-3 px-4 max-w-5xl mx-auto w-full">
@@ -282,7 +258,7 @@ export default function NewJobPage() {
 
       {/* CONTENT */}
       <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
-        
+
         {/* FAVORIETEN */}
         {visibleFavorieten.length > 0 && (
           <section>
@@ -366,7 +342,7 @@ function KlusCard({
   onClick: (category: CategoryItem) => void;
   disabled: boolean;
 }) {
-  const STAR_ZONE_W = 44; 
+  const STAR_ZONE_W = 44;
 
   return (
     <div

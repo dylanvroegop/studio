@@ -13,10 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { PersonalNotes } from '@/components/PersonalNotes';
-import { cn } from '@/lib/utils'; 
+import { cn } from '@/lib/utils';
 
 import { useFirestore } from '@/firebase';
 import { JOB_REGISTRY, MeasurementField } from '@/lib/job-registry';
+import { WizardHeader } from '@/components/WizardHeader';
 
 export default function GenericMeasurementPage() {
   const params = useParams();
@@ -68,7 +69,7 @@ export default function GenericMeasurementPage() {
             // ✅ FIX: Use setItems directly instead of addItem()
             // addItem() appends (0 + 1 + 1 = 2). 
             // This forces it to be exactly 1 item.
-            setItems([createEmptyItem()]); 
+            setItems([createEmptyItem()]);
           }
         }
       } catch (error) {
@@ -105,7 +106,7 @@ export default function GenericMeasurementPage() {
   };
 
   const updateItem = (index: number, key: string, value: any) => {
-    setItems(prev => prev.map((item, i) => 
+    setItems(prev => prev.map((item, i) =>
       i === index ? { ...item, [key]: value } : item
     ));
   };
@@ -119,7 +120,7 @@ export default function GenericMeasurementPage() {
     if (!firestore || !jobConfig) return;
 
     // Validation
-    const hasEmptyFields = items.some(item => 
+    const hasEmptyFields = items.some(item =>
       fields.some(f => f.type === 'number' && !item[f.key])
     );
 
@@ -150,7 +151,7 @@ export default function GenericMeasurementPage() {
         });
 
         router.push(`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`);
-        
+
       } catch (error: any) {
         console.error(error);
         toast({
@@ -178,45 +179,24 @@ export default function GenericMeasurementPage() {
 
   const disabledAll = saving || isPending || loading;
   const progressValue = 50;
-  
+
   // Use custom label OR fallback to first word
   const itemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
 
   // ✅ Smart back button: skip category selection for single-item categories
   const hasOnlyOneItem = categoryConfig?.items?.length === 1;
-  const backUrl = hasOnlyOneItem 
+  const backUrl = hasOnlyOneItem
     ? `/offertes/${quoteId}/klus/nieuw`  // Go to main category page
     : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`; // Go to category selection
 
   return (
     <main className="relative min-h-screen bg-background">
-      <header className="border-b bg-background/80 backdrop-blur-xl">
-        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="h-11 w-11 rounded-xl">
-              <Link href={backUrl}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-center">{jobConfig.title}</div>
-              <div className="mt-3">
-                <div className="h-1.5 rounded-full bg-muted/40 mx-auto">
-                  <div
-                    className="h-full rounded-full bg-primary/65 transition-all"
-                    style={{ width: `${progressValue}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center">
-               <PersonalNotes quoteId={quoteId} />
-            </div>
-          </div>
-        </div>
-      </header>
+      <WizardHeader
+        title={jobConfig.title}
+        backLink={backUrl}
+        progress={progressValue}
+        rightContent={<PersonalNotes quoteId={quoteId} />}
+      />
 
       <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
         <div className="max-w-2xl mx-auto w-full">
@@ -248,21 +228,21 @@ export default function GenericMeasurementPage() {
                   <CardContent className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       {fields.slice(0, 2).map((field) => (
-                         <DynamicInput 
-                           key={field.key}
-                           field={field}
-                           value={item[field.key]}
-                           onChange={(val) => updateItem(index, field.key, val)}
-                           onKeyDown={handleKeyDown}
-                           disabled={disabledAll}
-                           className="col-span-1"
-                         />
+                        <DynamicInput
+                          key={field.key}
+                          field={field}
+                          value={item[field.key]}
+                          onChange={(val) => updateItem(index, field.key, val)}
+                          onKeyDown={handleKeyDown}
+                          disabled={disabledAll}
+                          className="col-span-1"
+                        />
                       ))}
                     </div>
 
                     <div className="space-y-4">
                       {fields.slice(2).map((field) => (
-                        <DynamicInput 
+                        <DynamicInput
                           key={field.key}
                           field={field}
                           value={item[field.key]}
@@ -292,7 +272,7 @@ export default function GenericMeasurementPage() {
 
             <div className="mt-6 flex justify-between items-center">
               <Button variant="outline" asChild disabled={disabledAll}>
-                 <Link href={backUrl}>Terug</Link>
+                <Link href={backUrl}>Terug</Link>
               </Button>
 
               <Button
@@ -332,13 +312,13 @@ function DynamicInput({
         {field.label}
         {field.type === 'number' && ' *'}
       </Label>
-      
+
       {field.type === 'textarea' ? (
         <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">
-                Optioneel. Alleen invullen bij bijzonderheden.
-            </p>
-            <Textarea
+          <p className="text-xs text-muted-foreground">
+            Optioneel. Alleen invullen bij bijzonderheden.
+          </p>
+          <Textarea
             id={field.key}
             placeholder={field.placeholder}
             value={value}
@@ -346,7 +326,7 @@ function DynamicInput({
             disabled={disabled}
             className="resize-none"
             rows={3}
-            />
+          />
         </div>
       ) : (
         <div className="relative">
@@ -360,17 +340,17 @@ function DynamicInput({
             disabled={disabled}
             className={field.suffix ? 'pr-10' : ''}
           />
-           {field.suffix && (
+          {field.suffix && (
             <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground text-sm">
               {field.suffix}
             </div>
           )}
         </div>
       )}
-      
-       {field.key === 'balkafstand' && (
-           <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
-       )}
+
+      {field.key === 'balkafstand' && (
+        <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
+      )}
     </div>
   );
 }

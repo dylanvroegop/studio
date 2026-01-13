@@ -6,8 +6,9 @@ import Link from 'next/link';
 
 // Components
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
-import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup'; 
+import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 import { PersonalNotes } from '@/components/PersonalNotes';
+import { WizardHeader } from '@/components/WizardHeader';
 
 import {
   ArrowLeft,
@@ -78,10 +79,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
-import { 
-  JOB_REGISTRY, 
-  MATERIAL_CATEGORY_INFO, 
-  MaterialCategoryKey 
+import {
+  JOB_REGISTRY,
+  MATERIAL_CATEGORY_INFO,
+  MaterialCategoryKey
 } from '@/lib/job-registry';
 
 // ==================================
@@ -227,7 +228,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
         selected ? "border-emerald-500/50 bg-emerald-500/5" : "border-border hover:bg-accent/40"
       )}
     >
-      <div 
+      <div
         onClick={onClick}
         className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
       >
@@ -284,14 +285,14 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel, presets, defau
   const [isSaving, setIsSaving] = useState(false);
   const existingPreset = useMemo(() => {
     if (!name.trim()) return null;
-    return presets.find((p:any) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+    return presets.find((p: any) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
   }, [name, presets]);
 
   useEffect(() => {
     if (open) {
       if (defaultName) {
         setName(defaultName);
-        const p = presets.find((x:any) => x.name === defaultName);
+        const p = presets.find((x: any) => x.name === defaultName);
         if (p) setIsDefault(p.isDefault);
       } else {
         setName('');
@@ -399,10 +400,10 @@ function AddExtraMaterialDialog({ open, onOpenChange, onAdd }: any) {
         <div className="py-4">
           <div className="space-y-2">
             <Label htmlFor="extra-material-title">Naam *</Label>
-            <Input 
-              id="extra-material-title" 
-              value={title} 
-              onChange={(e) => setTitle(e.target.value)} 
+            <Input
+              id="extra-material-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="bv. Extra bevestigingsmateriaal"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -415,10 +416,10 @@ function AddExtraMaterialDialog({ open, onOpenChange, onAdd }: any) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
-          <Button 
-            onClick={handleAdd} 
-            disabled={!title.trim()} 
-            variant="outline" 
+          <Button
+            onClick={handleAdd}
+            disabled={!title.trim()}
+            variant="outline"
             className={cn(POSITIVE_BTN_SOFT)}
           >
             Toevoegen
@@ -452,13 +453,13 @@ export default function GenericMaterialsPageRedesigned() {
   // Group sections by category
   const groupedSections = useMemo(() => {
     const groups: Record<string, any[]> = {};
-    
+
     materialSections.forEach(section => {
       const cat = section.category || 'extra';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(section);
     });
-    
+
     return groups;
   }, [materialSections]);
 
@@ -564,49 +565,49 @@ export default function GenericMaterialsPageRedesigned() {
   useEffect(() => {
     if (!firestore || !quoteId || !klusId) return;
     const hydrate = async () => {
-        setPaginaLaden(true);
-        try {
-            const snap = await getDoc(doc(firestore, 'quotes', quoteId));
-            if(!snap.exists()) return;
-            const data = snap.data();
-            const klusNode = data?.klussen?.[klusId];
-            
-            if (klusNode?.materialen) {
-                const mat = klusNode.materialen;
-                const rawSels = mat.selections || {};
-                setGekozenMaterialen(rawSels); 
-                setExtraMaterials(mat.extraMaterials || []);
-                setFirestoreCustommateriaal(mat.custommateriaal || null);
-                hasSavedConfigRef.current = true;
-            }
-            if (klusNode?.werkwijze?.workMethodId) setGekozenPresetId(klusNode.werkwijze.workMethodId);
-            if (klusNode?.kleinMateriaal) setKleinMateriaalConfig(klusNode.kleinMateriaal);
-            if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections);
-            isHydratingRef.current = false;
-        } catch(e) { console.error(e); }
-        finally { setPaginaLaden(false); }
+      setPaginaLaden(true);
+      try {
+        const snap = await getDoc(doc(firestore, 'quotes', quoteId));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const klusNode = data?.klussen?.[klusId];
+
+        if (klusNode?.materialen) {
+          const mat = klusNode.materialen;
+          const rawSels = mat.selections || {};
+          setGekozenMaterialen(rawSels);
+          setExtraMaterials(mat.extraMaterials || []);
+          setFirestoreCustommateriaal(mat.custommateriaal || null);
+          hasSavedConfigRef.current = true;
+        }
+        if (klusNode?.werkwijze?.workMethodId) setGekozenPresetId(klusNode.werkwijze.workMethodId);
+        if (klusNode?.kleinMateriaal) setKleinMateriaalConfig(klusNode.kleinMateriaal);
+        if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections);
+        isHydratingRef.current = false;
+      } catch (e) { console.error(e); }
+      finally { setPaginaLaden(false); }
     };
     hydrate();
   }, [firestore, quoteId, klusId]);
 
   // Full Object Mapping
   useEffect(() => {
-      if(!alleMaterialen.length || isHydratingRef.current) return;
-      setGekozenMaterialen(prev => {
-          const next: any = {};
-          let changed = false;
-          Object.keys(prev).forEach(k => {
-              const val = prev[k];
-              if(val && val.id && !val.materiaalnaam) {
-                  const found = alleMaterialen.find(m => m.id === val.id);
-                  if(found) { next[k] = found; changed = true; }
-                  else next[k] = val;
-              } else {
-                  next[k] = val;
-              }
-          });
-          return changed ? next : prev;
+    if (!alleMaterialen.length || isHydratingRef.current) return;
+    setGekozenMaterialen(prev => {
+      const next: any = {};
+      let changed = false;
+      Object.keys(prev).forEach(k => {
+        const val = prev[k];
+        if (val && val.id && !val.materiaalnaam) {
+          const found = alleMaterialen.find(m => m.id === val.id);
+          if (found) { next[k] = found; changed = true; }
+          else next[k] = val;
+        } else {
+          next[k] = val;
+        }
       });
+      return changed ? next : prev;
+    });
   }, [alleMaterialen]);
 
   // Build Custom Groups
@@ -614,8 +615,8 @@ export default function GenericMaterialsPageRedesigned() {
     if (isHydratingRef.current) return;
     if (!firestoreCustommateriaal) return;
 
-    const hasBrokenItems = customGroups.some((g) => 
-        g.materials.some((m: any) => m.materiaalnaam === '(onbekend)')
+    const hasBrokenItems = customGroups.some((g) =>
+      g.materials.some((m: any) => m.materiaalnaam === '(onbekend)')
     );
 
     if (customGroups.length > 0 && !hasBrokenItems) return;
@@ -639,146 +640,146 @@ export default function GenericMaterialsPageRedesigned() {
   // Apply Preset Logic
   useEffect(() => {
     if (gekozenPresetId === 'default') {
-        if (userHeeftPresetGewijzigdRef.current) {
-            setGekozenMaterialen({});
-            setCollapsedSections({});
-            setExtraMaterials([]);
-            setCustomGroups([]);
-            setFirestoreCustommateriaal(null);
-            setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
-        }
-        return;
+      if (userHeeftPresetGewijzigdRef.current) {
+        setGekozenMaterialen({});
+        setCollapsedSections({});
+        setExtraMaterials([]);
+        setCustomGroups([]);
+        setFirestoreCustommateriaal(null);
+        setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
+      }
+      return;
     }
     if (!alleMaterialen.length) return;
     const preset = presets.find(p => p.id === gekozenPresetId);
-    if(!preset) return;
+    if (!preset) return;
     if (!userHeeftPresetGewijzigdRef.current && isHydratingRef.current === false && !autoApplyDefaultPresetRef.current) return;
 
     const newSels: any = {};
-    if(preset.slots) {
-        Object.keys(preset.slots).forEach(key => {
-            const matId = preset.slots[key];
-            const found = alleMaterialen.find(m => m.id === matId);
-            if(found) newSels[key] = found;
-        });
+    if (preset.slots) {
+      Object.keys(preset.slots).forEach(key => {
+        const matId = preset.slots[key];
+        const found = alleMaterialen.find(m => m.id === matId);
+        if (found) newSels[key] = found;
+      });
     }
     setGekozenMaterialen(newSels);
-    if(preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
-    if(preset.custommateriaal) setCustomGroups(bouwCustomGroupsUitFirestore(preset.custommateriaal, alleMaterialen));
+    if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
+    if (preset.custommateriaal) setCustomGroups(bouwCustomGroupsUitFirestore(preset.custommateriaal, alleMaterialen));
     else setCustomGroups([]);
-    if(preset.kleinMateriaalConfig) setKleinMateriaalConfig(preset.kleinMateriaalConfig);
-    
+    if (preset.kleinMateriaalConfig) setKleinMateriaalConfig(preset.kleinMateriaalConfig);
+
     if (autoApplyDefaultPresetRef.current) autoApplyDefaultPresetRef.current = false;
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Handlers
   const onPresetChange = (val: string) => { userHeeftPresetGewijzigdRef.current = true; autoApplyDefaultPresetRef.current = false; setGekozenPresetId(val); };
-  const toggleSection = (key: string) => setCollapsedSections(prev => ({...prev, [key]: !prev[key]}));
-  const toggleCategoryVisibility = (categoryKey: string) => setHiddenCategories(prev => ({...prev, [categoryKey]: !prev[categoryKey]}));
+  const toggleSection = (key: string) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleCategoryVisibility = (categoryKey: string) => setHiddenCategories(prev => ({ ...prev, [categoryKey]: !prev[categoryKey] }));
   const openMateriaalKiezer = (sectieKey: string, groupId: string | null = null) => { setActieveSectie(sectieKey); setActiveGroupId(groupId); setIsExtraModalOpen(true); };
-  const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({...prev, [key]: materiaal})); };
-  const handleMateriaalVerwijderen = (key: string) => { setGekozenMaterialen(prev => { const n = {...prev}; delete n[key]; return n; }); };
+  const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({ ...prev, [key]: materiaal })); };
+  const handleMateriaalVerwijderen = (key: string) => { setGekozenMaterialen(prev => { const n = { ...prev }; delete n[key]; return n; }); };
 
   // --- RENDERERS ---
 
   const renderKleinMateriaalSectie = () => {
-      const { mode, percentage, fixedAmount } = kleinMateriaalConfig;
-      
-      // Subtle emerald style for active state (similar to successGhost but dimmer)
-      const activeStyle = 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-100';
-      const inactiveStyle = 'border border-border text-muted-foreground hover:bg-accent/50';
-      
-      return (
-        <div className="space-y-3">
-          <div className="px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Klein materiaal</h2>
-          </div>
-          
-          {/* Segmented Control - Horizontal Strip */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => {
-                setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
-                setKleinVastBedragStr('');
-              }}
-              className={cn(
-                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'inschatting' ? activeStyle : inactiveStyle
-              )}
-            >
-              Inschatting
-            </button>
+    const { mode, percentage, fixedAmount } = kleinMateriaalConfig;
 
-            <button
-              type="button"
-              onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'percentage' }))}
-              className={cn(
-                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'percentage' ? activeStyle : inactiveStyle
-              )}
-            >
-              Percentage
-            </button>
+    // Subtle emerald style for active state (similar to successGhost but dimmer)
+    const activeStyle = 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-100';
+    const inactiveStyle = 'border border-border text-muted-foreground hover:bg-accent/50';
 
-            <button
-              type="button"
-              onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'fixed' }))}
-              className={cn(
-                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'fixed' ? activeStyle : inactiveStyle
-              )}
-            >
-              Vast bedrag
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null });
-                setKleinVastBedragStr('');
-              }}
-              className={cn(
-                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'none' ? activeStyle : inactiveStyle
-              )}
-            >
-              Geen
-            </button>
-
-            {/* Inline Input - Appears right next to buttons */}
-            {mode === 'percentage' && (
-              <div className="flex items-center gap-2 ml-2">
-                <div className="relative w-20">
-                  <Input 
-                    type="number" 
-                    step="0.1" 
-                    placeholder="0" 
-                    className="pr-7 h-9 text-sm" 
-                    value={percentage ?? ''} 
-                    onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })} 
-                  />
-                  <span className="absolute inset-y-0 right-2 flex items-center text-muted-foreground text-xs pointer-events-none">%</span>
-                </div>
-              </div>
-            )}
-
-            {mode === 'fixed' && (
-              <div className="ml-2 w-32">
-                <EuroInput 
-                  id="km-fixed" 
-                  value={kleinVastBedragStr} 
-                  placeholder="0,00" 
-                  onChange={(v: string) => { 
-                    setKleinVastBedragStr(v); 
-                    setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) }); 
-                  }} 
-                />
-              </div>
-            )}
-          </div>
+    return (
+      <div className="space-y-3">
+        <div className="px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Klein materiaal</h2>
         </div>
-      );
+
+        {/* Segmented Control - Horizontal Strip */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
+              setKleinVastBedragStr('');
+            }}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              mode === 'inschatting' ? activeStyle : inactiveStyle
+            )}
+          >
+            Inschatting
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'percentage' }))}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              mode === 'percentage' ? activeStyle : inactiveStyle
+            )}
+          >
+            Percentage
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'fixed' }))}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              mode === 'fixed' ? activeStyle : inactiveStyle
+            )}
+          >
+            Vast bedrag
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null });
+              setKleinVastBedragStr('');
+            }}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              mode === 'none' ? activeStyle : inactiveStyle
+            )}
+          >
+            Geen
+          </button>
+
+          {/* Inline Input - Appears right next to buttons */}
+          {mode === 'percentage' && (
+            <div className="flex items-center gap-2 ml-2">
+              <div className="relative w-20">
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="0"
+                  className="pr-7 h-9 text-sm"
+                  value={percentage ?? ''}
+                  onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })}
+                />
+                <span className="absolute inset-y-0 right-2 flex items-center text-muted-foreground text-xs pointer-events-none">%</span>
+              </div>
+            </div>
+          )}
+
+          {mode === 'fixed' && (
+            <div className="ml-2 w-32">
+              <EuroInput
+                id="km-fixed"
+                value={kleinVastBedragStr}
+                placeholder="0,00"
+                onChange={(v: string) => {
+                  setKleinVastBedragStr(v);
+                  setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) });
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const handleSavePreset = async (presetName: string, isDefault: boolean, existingId?: string) => {
@@ -848,51 +849,51 @@ export default function GenericMaterialsPageRedesigned() {
   };
 
   const handleSave = async (e: React.MouseEvent) => {
-      e.preventDefault();
-      setIsOpslaan(true);
-      try {
-          if (!user || !firestore) throw new Error("No connection");
-          
-          const cleanSelections: Record<string, {id: string}> = {};
-          Object.entries(gekozenMaterialen).forEach(([k, v]) => {
-              if (v?.id) cleanSelections[k] = { id: v.id };
-          });
+    e.preventDefault();
+    setIsOpslaan(true);
+    try {
+      if (!user || !firestore) throw new Error("No connection");
 
-          const cleanExtra = extraMaterials.map((m: any) => ({ ...m, aantal: m.aantal || undefined })).filter(m => m.naam);
-          const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
+      const cleanSelections: Record<string, { id: string }> = {};
+      Object.entries(gekozenMaterialen).forEach(([k, v]) => {
+        if (v?.id) cleanSelections[k] = { id: v.id };
+      });
 
-          const updatePayload: any = {
-              [`klussen.${klusId}.materialen`]: {
-                  jobKey: JOB_KEY,
-                  selections: cleanSelections,
-                  extraMaterials: cleanExtra,
-                  custommateriaal: customMap,
-                  savedByUid: user.uid
-              },
-              [`klussen.${klusId}.werkwijze`]: {
-                  workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
-                  presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
-                  savedByUid: user.uid
-              },
-              [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
-              [`klussen.${klusId}.updatedAt`]: serverTimestamp()
-          };
+      const cleanExtra = extraMaterials.map((m: any) => ({ ...m, aantal: m.aantal || undefined })).filter(m => m.naam);
+      const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
 
-          if(kleinMateriaalConfig.mode === 'none') {
-              updatePayload[`klussen.${klusId}.kleinMateriaal`] = deleteField();
-          } else {
-              updatePayload[`klussen.${klusId}.kleinMateriaal`] = kleinMateriaalConfig;
-          }
+      const updatePayload: any = {
+        [`klussen.${klusId}.materialen`]: {
+          jobKey: JOB_KEY,
+          selections: cleanSelections,
+          extraMaterials: cleanExtra,
+          custommateriaal: customMap,
+          savedByUid: user.uid
+        },
+        [`klussen.${klusId}.werkwijze`]: {
+          workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
+          presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
+          savedByUid: user.uid
+        },
+        [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
+        [`klussen.${klusId}.updatedAt`]: serverTimestamp()
+      };
 
-          await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
-          
-          router.push(`/offertes/${quoteId}/overzicht`);
-
-      } catch (e: any) {
-          console.error(e);
-          toast({ variant: 'destructive', title: "Fout bij opslaan", description: e.message });
-          setIsOpslaan(false);
+      if (kleinMateriaalConfig.mode === 'none') {
+        updatePayload[`klussen.${klusId}.kleinMateriaal`] = deleteField();
+      } else {
+        updatePayload[`klussen.${klusId}.kleinMateriaal`] = kleinMateriaalConfig;
       }
+
+      await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
+
+      router.push(`/offertes/${quoteId}/overzicht`);
+
+    } catch (e: any) {
+      console.error(e);
+      toast({ variant: 'destructive', title: "Fout bij opslaan", description: e.message });
+      setIsOpslaan(false);
+    }
   };
 
   const handlePresetDeleteWrapper = (preset: any) => { setPresetToDelete(preset); setDeleteConfirmationOpen(true); };
@@ -903,69 +904,44 @@ export default function GenericMaterialsPageRedesigned() {
   // Client info (0%) -> Job selection (25%) -> Job details (50%) -> Materials (75%) -> Overview (100%)
   const pageProgress = 75;
 
-  if(!isMounted) return null;
+  if (!isMounted) return null;
 
   return (
     <>
-    <main className="relative min-h-screen bg-background flex flex-col">
-       {/* HEADER - Consistent with other pages */}
-       <header className="border-b bg-background">
-        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Button
-              asChild
-              variant="outline"
-              size="icon"
-              className="h-11 w-11 rounded-xl shrink-0"
-            >
-              <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
+      <main className="relative min-h-screen bg-background flex flex-col">
+        {/* HEADER - Consistent with other pages */}
+        <WizardHeader
+          title={JOB_TITEL}
+          backLink={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}
+          progress={pageProgress}
+          rightContent={
+            isPaginaLaden ? (
+              <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+            ) : (
+              <PersonalNotes quoteId={quoteId} />
+            )
+          }
+        />
 
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-center">{JOB_TITEL}</div>
-
-              <div className="mt-3">
-                <div className="h-1.5 rounded-full bg-muted/40 mx-auto">
-                  <div
-                    className="h-full rounded-full bg-emerald-600/65 transition-all"
-                    style={{ width: `${pageProgress}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center shrink-0">
-              {isPaginaLaden ? (
-                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
-              ) : (
-                <PersonalNotes quoteId={quoteId} />
-              )}
-            </div>
-          </div>
-        </div>
-       </header>
-
-       {/* CONTENT */}
-       <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
+        {/* CONTENT */}
+        <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
           {/* Preset Selector - Compact */}
           <div className="space-y-2 pb-6 mb-6 border-b border-border/50">
-              <Label className="text-sm">Kies Een Werkwijze</Label>
-              <div className="flex items-center gap-2">
-                  <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
-                      <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
-                      <SelectContent>
-                          <SelectItem className={SELECT_ITEM_GREEN} value="default">Nieuw</SelectItem>
-                          {presets.map(p => (<SelectItem className={SELECT_ITEM_GREEN} key={p.id} value={p.id}>{p.name} {p.isDefault ? '(standaard)' : ''}</SelectItem>))}
-                      </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="icon" onClick={() => setManagePresetsModalOpen(true)} disabled={presets.length === 0} className="h-10 w-10 rounded-xl shrink-0"><Settings className="h-4 w-4" /></Button>
-              </div>
+            <Label className="text-sm">Kies Een Werkwijze</Label>
+            <div className="flex items-center gap-2">
+              <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
+                <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem className={SELECT_ITEM_GREEN} value="default">Nieuw</SelectItem>
+                  {presets.map(p => (<SelectItem className={SELECT_ITEM_GREEN} key={p.id} value={p.id}>{p.name} {p.isDefault ? '(standaard)' : ''}</SelectItem>))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon" onClick={() => setManagePresetsModalOpen(true)} disabled={presets.length === 0} className="h-10 w-10 rounded-xl shrink-0"><Settings className="h-4 w-4" /></Button>
+            </div>
           </div>
-          
+
           {/* Compact Checklist Structure */}
           <div className="space-y-6">
             {/* Use job-specific categoryConfig if available, otherwise fall back to MATERIAL_CATEGORY_INFO */}
@@ -975,7 +951,7 @@ export default function GenericMaterialsPageRedesigned() {
                 const sections = groupedSections[categoryKey] || [];
                 if (sections.length === 0) return null;
                 const isHidden = hiddenCategories[categoryKey];
-                
+
                 return (
                   <div key={categoryKey} className="space-y-2">
                     <div className="flex items-center justify-between px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
@@ -992,7 +968,7 @@ export default function GenericMaterialsPageRedesigned() {
                         {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    
+
                     {!isHidden && (
                       <div className="space-y-1.5">
                         {sections.map(section => (
@@ -1015,7 +991,7 @@ export default function GenericMaterialsPageRedesigned() {
               <div className="flex items-center justify-between px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
                 <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Extra materialen</h2>
               </div>
-              
+
               <div className="space-y-1.5">
                 {(groupedSections.extra || []).map(section => (
                   <MaterialRow
@@ -1057,91 +1033,91 @@ export default function GenericMaterialsPageRedesigned() {
           <div className="pb-24">
             {renderKleinMateriaalSectie()}
           </div>
-       </div>
+        </div>
 
-       {/* Sticky Footer */}
-       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-           <Button variant="outline" asChild disabled={isOpslaan}>
-             <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>Terug</Link>
-           </Button>
+        {/* Sticky Footer */}
+        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+            <Button variant="outline" asChild disabled={isOpslaan}>
+              <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>Terug</Link>
+            </Button>
 
-           <Button
-             variant="outline"
-             onClick={() => setSavePresetModalOpen(true)}
-             className="gap-2"
-           >
-             Opslaan als werkwijze
-             <Save className="h-4 w-4" />
-           </Button>
+            <Button
+              variant="outline"
+              onClick={() => setSavePresetModalOpen(true)}
+              className="gap-2"
+            >
+              Opslaan als werkwijze
+              <Save className="h-4 w-4" />
+            </Button>
 
-           <Button
-             type="submit"
-             variant="success"
-             disabled={isOpslaan}
-             onClick={handleSave}
-           >
-             {isOpslaan ? 'Opslaan...' : 'Volgende'}
-           </Button>
-         </div>
-       </div>
-    </main>
-
-    {/* MODALS */}
-    <ManagePresetsDialog 
-      open={managePresetsModalOpen} 
-      onOpenChange={setManagePresetsModalOpen} 
-      presets={presets} 
-      onDelete={handlePresetDeleteWrapper} 
-      onSetDefault={handlePresetSetDefaultWrapper} 
-    />
-    <SavePresetDialog 
-      open={savePresetModalOpen} 
-      onOpenChange={setSavePresetModalOpen} 
-      onSave={handleSavePreset} 
-      jobTitel={JOB_TITEL} 
-      presets={presets} 
-      defaultName={gekozenPresetId !== 'default' ? presets.find(p => p.id === gekozenPresetId)?.name : ''} 
-    />
-    <AddExtraMaterialDialog
-      open={addExtraMaterialOpen}
-      onOpenChange={setAddExtraMaterialOpen}
-      onAdd={(title: string) => {
-        setCustomGroups((prev) => [...prev, { id: maakId(), title, materials: [] }]);
-      }}
-    />
-    
-    {/* Edit Title Dialog */}
-    <Dialog open={editingTitleId !== null} onOpenChange={(open) => !open && setEditingTitleId(null)}>
-      <DialogContent className={cn('max-w-md w-full', DIALOG_CLOSE_TAP)}>
-        <DialogHeader>
-          <DialogTitle>Naam wijzigen</DialogTitle>
-        </DialogHeader>
-        <div className="py-4">
-          <div className="space-y-2">
-            <Label htmlFor="edit-title">Naam *</Label>
-            <Input 
-              id="edit-title" 
-              value={customGroups.find(g => g.id === editingTitleId)?.title || ''}
-              onChange={(e) => {
-                setCustomGroups((prev) => 
-                  prev.map((g) => g.id === editingTitleId ? { ...g, title: e.target.value } : g)
-                );
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') setEditingTitleId(null);
-              }}
-              autoFocus
-            />
+            <Button
+              type="submit"
+              variant="success"
+              disabled={isOpslaan}
+              onClick={handleSave}
+            >
+              {isOpslaan ? 'Opslaan...' : 'Volgende'}
+            </Button>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setEditingTitleId(null)}>Sluiten</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </main>
 
-    <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
+      {/* MODALS */}
+      <ManagePresetsDialog
+        open={managePresetsModalOpen}
+        onOpenChange={setManagePresetsModalOpen}
+        presets={presets}
+        onDelete={handlePresetDeleteWrapper}
+        onSetDefault={handlePresetSetDefaultWrapper}
+      />
+      <SavePresetDialog
+        open={savePresetModalOpen}
+        onOpenChange={setSavePresetModalOpen}
+        onSave={handleSavePreset}
+        jobTitel={JOB_TITEL}
+        presets={presets}
+        defaultName={gekozenPresetId !== 'default' ? presets.find(p => p.id === gekozenPresetId)?.name : ''}
+      />
+      <AddExtraMaterialDialog
+        open={addExtraMaterialOpen}
+        onOpenChange={setAddExtraMaterialOpen}
+        onAdd={(title: string) => {
+          setCustomGroups((prev) => [...prev, { id: maakId(), title, materials: [] }]);
+        }}
+      />
+
+      {/* Edit Title Dialog */}
+      <Dialog open={editingTitleId !== null} onOpenChange={(open) => !open && setEditingTitleId(null)}>
+        <DialogContent className={cn('max-w-md w-full', DIALOG_CLOSE_TAP)}>
+          <DialogHeader>
+            <DialogTitle>Naam wijzigen</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Naam *</Label>
+              <Input
+                id="edit-title"
+                value={customGroups.find(g => g.id === editingTitleId)?.title || ''}
+                onChange={(e) => {
+                  setCustomGroups((prev) =>
+                    prev.map((g) => g.id === editingTitleId ? { ...g, title: e.target.value } : g)
+                  );
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setEditingTitleId(null);
+                }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTitleId(null)}>Sluiten</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
@@ -1151,62 +1127,62 @@ export default function GenericMaterialsPageRedesigned() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeletePreset} 
+            <AlertDialogAction
+              onClick={handleDeletePreset}
               className={buttonVariants({ variant: 'destructive' })}
             >
               Verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-    </AlertDialog>
+      </AlertDialog>
 
-    <MaterialSelectionModal 
-        open={isExtraModalOpen} 
+      <MaterialSelectionModal
+        open={isExtraModalOpen}
         onOpenChange={setIsExtraModalOpen}
         existingMaterials={alleMaterialen}
         showFavorites={actieveSectie !== 'extra' && !activeGroupId}
         defaultCategory={actieveSectie ? materialSections.find(s => s.key === actieveSectie)?.categoryFilter : undefined}
         onToggleFavorite={toggleFavoriet}
         onSelectExisting={(result: any) => {
-            const mat = result.data || result;
-            const converted: any = {
-                ...mat,
-                id: mat.id || mat.row_id,
-                prijs: typeof mat.prijs === 'number' ? mat.prijs : 0,
-                categorie: mat.subsectie || null,
-                materiaalnaam: mat.materiaalnaam || '',
-                eenheid: mat.eenheid || 'stuk',
-                sort_order: null,
-                quantity: 1
-            };
+          const mat = result.data || result;
+          const converted: any = {
+            ...mat,
+            id: mat.id || mat.row_id,
+            prijs: typeof mat.prijs === 'number' ? mat.prijs : 0,
+            categorie: mat.subsectie || null,
+            materiaalnaam: mat.materiaalnaam || '',
+            eenheid: mat.eenheid || 'stuk',
+            sort_order: null,
+            quantity: 1
+          };
 
-            if(activeGroupId) {
-                setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? {...g, materials: [converted]} : g));
-                setActiveGroupId(null);
-            } else if (actieveSectie) {
-                handleMateriaalSelectie(actieveSectie, converted);
-                setActieveSectie(null);
-            }
-            setIsExtraModalOpen(false);
+          if (activeGroupId) {
+            setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
+            setActiveGroupId(null);
+          } else if (actieveSectie) {
+            handleMateriaalSelectie(actieveSectie, converted);
+            setActieveSectie(null);
+          }
+          setIsExtraModalOpen(false);
         }}
         onMaterialAdded={(newMaterial: any) => {
-             const converted: any = {
-                ...newMaterial,
-                id: newMaterial.id || newMaterial.row_id,
-                prijs: typeof newMaterial.prijs === 'number' ? newMaterial.prijs : 0,
-                quantity: 1
-            };
-            if(activeGroupId) {
-                setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? {...g, materials: [converted]} : g));
-                setActiveGroupId(null);
-            } else if (actieveSectie) {
-                handleMateriaalSelectie(actieveSectie, converted);
-                setActieveSectie(null);
-            }
-            setIsExtraModalOpen(false);
+          const converted: any = {
+            ...newMaterial,
+            id: newMaterial.id || newMaterial.row_id,
+            prijs: typeof newMaterial.prijs === 'number' ? newMaterial.prijs : 0,
+            quantity: 1
+          };
+          if (activeGroupId) {
+            setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
+            setActiveGroupId(null);
+          } else if (actieveSectie) {
+            handleMateriaalSelectie(actieveSectie, converted);
+            setActieveSectie(null);
+          }
+          setIsExtraModalOpen(false);
         }}
-    />
+      />
     </>
   );
 }

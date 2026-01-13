@@ -58,6 +58,7 @@ import {
   FieldPath,
 } from 'firebase/firestore';
 import { PersonalNotes } from '@/components/PersonalNotes';
+import { WizardHeader } from '@/components/WizardHeader';
 
 /* ---------------------------------------------
  Helpers
@@ -426,22 +427,22 @@ export default function OverzichtPage() {
 
   async function schrijfGebruikerInstellingen(partial: Partial<GebruikerInstellingen>) {
     if (!firestore || !user) return;
-   
+
     const ref = userRef();
-   
+
     // 1) UpdateDoc: dotted paths zijn hier WEL correct (nested update)
     const updates: any = {};
     for (const [k, v] of Object.entries(partial)) {
       updates[`instellingen.${k}`] = v;
     }
     updates.updatedAt = serverTimestamp();
-   
+
     try {
       await updateDoc(ref, updates);
-   
+
       // cleanup: verwijder oude "instellingen.xxx" velden die ooit per ongeluk als literal zijn opgeslagen
       await cleanupFouteDotVelden(ref);
-   
+
       return;
     } catch (e1: any) {
       // 2) Fallback setDoc: GEEN dotted keys gebruiken -> nested object schrijven
@@ -454,7 +455,7 @@ export default function OverzichtPage() {
           },
           { merge: true }
         );
-   
+
         // cleanup (ook na setDoc)
         await cleanupFouteDotVelden(ref);
       } catch (e2: any) {
@@ -465,7 +466,7 @@ export default function OverzichtPage() {
       }
     }
   }
-   
+
   // Verwijdert de foute velden met punt in de veldnaam: "instellingen.defaultsConfirmed", etc.
   async function cleanupFouteDotVelden(ref: any) {
     try {
@@ -486,7 +487,7 @@ export default function OverzichtPage() {
       // ignore
     }
   }
-   
+
   /* ---------------------------------------------
    Fetch quote + hydrate + user defaults (veilig)
   --------------------------------------------- */
@@ -633,7 +634,7 @@ export default function OverzichtPage() {
         // Bouwplaatskosten: quote extras, anders standaard pakket
         if (heeftBouwplaatsInQuote) {
           const mArr: any[] = Array.isArray(extras.materieel) ? extras.materieel : [];
-          
+
           // Map saved items
           const mapped: BouwplaatsItem[] = mArr.map((m: any, idx: number) => ({
             id: String(m.id ?? `bk_saved_${idx}_${Date.now()}`),
@@ -653,13 +654,13 @@ export default function OverzichtPage() {
               has.has(b.id) ? (mapped.find((x) => x.id === b.id) as BouwplaatsItem) : b
             ),
             // 2. Add any custom items that aren't defaults
-            ...mapped.filter((x) => !basisIds.has(x.id)), 
+            ...mapped.filter((x) => !basisIds.has(x.id)),
           ];
           setBouwplaatskosten(merged);
         } else {
           const gekozen = packs.find((p) => p.id === stdPackId) ?? null;
           // If no packet selected, load defaults
-          setBouwplaatskosten(pakketNaarItems(gekozen)); 
+          setBouwplaatskosten(pakketNaarItems(gekozen));
         }
 
         isHydratingRef.current = false;
@@ -1460,7 +1461,7 @@ export default function OverzichtPage() {
               onClick={(e) => {
                 e.preventDefault();
                 bevestigDefaultsZonderOpslaan()
-                  .catch(() => {})
+                  .catch(() => { })
                   .finally(() => {
                     setStandaardenPopupOpen(false);
                   });
@@ -1505,26 +1506,26 @@ export default function OverzichtPage() {
           </div>
 
           <AlertDialogFooter>
-  <AlertDialogCancel asChild>
-    <Button variant="secondary">
-      Sluiten
-    </Button>
-  </AlertDialogCancel>
+            <AlertDialogCancel asChild>
+              <Button variant="secondary">
+                Sluiten
+              </Button>
+            </AlertDialogCancel>
 
-  <AlertDialogAction asChild>
-    <Button
-      variant="success"
-      onClick={(e) => {
-        e.preventDefault();
-        saveTransportStandaardAlleen()
-          .then(() => setTransportInstellingenOpen(false))
-          .catch(() => {});
-      }}
-    >
-      Opslaan als standaard
-    </Button>
-  </AlertDialogAction>
-</AlertDialogFooter>
+            <AlertDialogAction asChild>
+              <Button
+                variant="success"
+                onClick={(e) => {
+                  e.preventDefault();
+                  saveTransportStandaardAlleen()
+                    .then(() => setTransportInstellingenOpen(false))
+                    .catch(() => { });
+                }}
+              >
+                Opslaan als standaard
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
 
         </AlertDialogContent>
       </AlertDialog>
@@ -1552,26 +1553,26 @@ export default function OverzichtPage() {
           </div>
 
           <AlertDialogFooter>
-  <AlertDialogCancel asChild>
-    <Button variant="secondary">
-      Sluiten
-    </Button>
-  </AlertDialogCancel>
+            <AlertDialogCancel asChild>
+              <Button variant="secondary">
+                Sluiten
+              </Button>
+            </AlertDialogCancel>
 
-  <AlertDialogAction asChild>
-    <Button
-      variant="success"
-      onClick={(e) => {
-        e.preventDefault();
-        saveWinstStandaardAlleen()
-          .then(() => setWinstInstellingenOpen(false))
-          .catch(() => {});
-      }}
-    >
-      Opslaan als standaard
-    </Button>
-  </AlertDialogAction>
-</AlertDialogFooter>
+            <AlertDialogAction asChild>
+              <Button
+                variant="success"
+                onClick={(e) => {
+                  e.preventDefault();
+                  saveWinstStandaardAlleen()
+                    .then(() => setWinstInstellingenOpen(false))
+                    .catch(() => { });
+                }}
+              >
+                Opslaan als standaard
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
 
         </AlertDialogContent>
       </AlertDialog>
@@ -1622,37 +1623,37 @@ export default function OverzichtPage() {
 
 
           <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-  <AlertDialogCancel asChild>
-    <Button variant="secondary">Sluiten</Button>
-  </AlertDialogCancel>
+            <AlertDialogCancel asChild>
+              <Button variant="secondary">Sluiten</Button>
+            </AlertDialogCancel>
 
-  <AlertDialogAction asChild>
-    <Button
-      variant="success"
-      onClick={(e) => {
-        e.preventDefault();
-        opslaanBouwplaatsAlsNieuw().catch(() => {});
-      }}
-    >
-      Opslaan als nieuw
-    </Button>
-  </AlertDialogAction>
+            <AlertDialogAction asChild>
+              <Button
+                variant="success"
+                onClick={(e) => {
+                  e.preventDefault();
+                  opslaanBouwplaatsAlsNieuw().catch(() => { });
+                }}
+              >
+                Opslaan als nieuw
+              </Button>
+            </AlertDialogAction>
 
-  <AlertDialogAction asChild>
-    <Button
-      variant="outline"
-      disabled={!geselecteerdPakketId || !overschrijfHuidigPakket}
-      onClick={(e) => {
-        e.preventDefault();
-        overschrijfHuidigPakketNu().catch(() => {});
-      }}
-    >
-      Overschrijven
-    </Button>
-  </AlertDialogAction>
-</AlertDialogFooter>
-</AlertDialogContent>
-</AlertDialog>
+            <AlertDialogAction asChild>
+              <Button
+                variant="outline"
+                disabled={!geselecteerdPakketId || !overschrijfHuidigPakket}
+                onClick={(e) => {
+                  e.preventDefault();
+                  overschrijfHuidigPakketNu().catch(() => { });
+                }}
+              >
+                Overschrijven
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
 
       {/* Bouwplaats: Beheer pakketten (alleen bouwplaatskosten) */}
@@ -1753,52 +1754,35 @@ export default function OverzichtPage() {
           </div>
 
           <AlertDialogFooter>
-  <AlertDialogCancel asChild>
-    <Button variant="secondary">
-      Sluiten
-    </Button>
-  </AlertDialogCancel>
+            <AlertDialogCancel asChild>
+              <Button variant="secondary">
+                Sluiten
+              </Button>
+            </AlertDialogCancel>
 
-  <AlertDialogAction asChild>
-  <Button variant="success">Oké</Button>
+            <AlertDialogAction asChild>
+              <Button variant="success">Oké</Button>
 
-  </AlertDialogAction>
-</AlertDialogFooter>
+            </AlertDialogAction>
+          </AlertDialogFooter>
 
 
         </AlertDialogContent>
       </AlertDialog>
 
       {/* HEADER with PersonalNotes */}
-      <header className="border-b bg-background/80 backdrop-blur-xl">
-        <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Button 
-              asChild 
-              variant="outline" 
-              size="icon" 
-              className="h-11 w-11 rounded-xl"
-            >
-              <Link href="/dashboard">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-center">Overzicht & extra's</div>
-            </div>
-
-            {/* Notes button in header */}
-            <div className="flex items-center justify-center">
-              {loading ? (
-                <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
-              ) : (
-                <PersonalNotes quoteId={quoteId} />
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <WizardHeader
+        title="Overzicht & extra's"
+        backLink="/dashboard"
+        progress={100}
+        rightContent={
+          loading ? (
+            <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
+          ) : (
+            <PersonalNotes quoteId={quoteId} />
+          )
+        }
+      />
 
       <div className="flex-1 px-4 py-6 md:py-10">
         <div className="mx-auto max-w-3xl space-y-6">
@@ -1913,14 +1897,14 @@ export default function OverzichtPage() {
                 );
               })}
 
-<Button
-  variant="successGhost"
-  onClick={handleAddJob}
-  className="w-full transition-colors duration-150 ease-out"
->
-  <PlusCircle className="mr-2 h-4 w-4" />
-  Nog een klus toevoegen
-</Button>
+              <Button
+                variant="successGhost"
+                onClick={handleAddJob}
+                className="w-full transition-colors duration-150 ease-out"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Nog een klus toevoegen
+              </Button>
 
             </CardContent>
           </Card>
@@ -1952,7 +1936,7 @@ export default function OverzichtPage() {
                   subtitle="Afstand automatisch berekend"
                   onClick={() => setTransportMode('perKm')}
                 />
-                
+
                 <SelectionTile
                   active={transportMode === 'fixed'}
                   error={!transportIsValid && transportMode === 'fixed'}
@@ -2008,123 +1992,123 @@ export default function OverzichtPage() {
             </CardContent>
           </Card>
 
-       {/* Bouwplaatskosten */}
-  <Card className="border-muted/60">
-  <CardHeader className="pb-3 relative overflow-hidden">
-      {/* ROW 1: Title (Left) + Settings Icon (Right) */}
-      <div className="flex items-start justify-between">
-        <div className="flex flex-col gap-1 min-w-0">
-          <CardTitle>Bouwplaatskosten</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-          </p>
-        </div>
+          {/* Bouwplaatskosten */}
+          <Card className="border-muted/60">
+            <CardHeader className="pb-3 relative overflow-hidden">
+              {/* ROW 1: Title (Left) + Settings Icon (Right) */}
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-1 min-w-0">
+                  <CardTitle>Bouwplaatskosten</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                  </p>
+                </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground shrink-0 -mr-2 -mt-2"
-          onClick={() => setBouwplaatsBeheerOpen(true)}
-          aria-label="Bouwplaatskosten pakketten beheren"
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
-      </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground shrink-0 -mr-2 -mt-2"
+                  onClick={() => setBouwplaatsBeheerOpen(true)}
+                  aria-label="Bouwplaatskosten pakketten beheren"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </div>
 
-      {/* ROW 2: Dropdown (Now Full Width) */}
-      <div className="mt-4">
-        <Select
-          value={geselecteerdPakketId || 'LEEG'}
-          onValueChange={(v) => {
-            if (!v || v === 'LEEG') {
-              setGeselecteerdPakketId('');
-              setBouwplaatskosten(defaultBouwplaatskosten()); // ✅ Loads defaults
-              return;
-            }
-            handleSelectPakket(v);
-          }}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Leeg (handmatig)" />
-          </SelectTrigger>
+              {/* ROW 2: Dropdown (Now Full Width) */}
+              <div className="mt-4">
+                <Select
+                  value={geselecteerdPakketId || 'LEEG'}
+                  onValueChange={(v) => {
+                    if (!v || v === 'LEEG') {
+                      setGeselecteerdPakketId('');
+                      setBouwplaatskosten(defaultBouwplaatskosten()); // ✅ Loads defaults
+                      return;
+                    }
+                    handleSelectPakket(v);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Leeg (handmatig)" />
+                  </SelectTrigger>
 
-          <SelectContent>
-            <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
-            {pakketten.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.naam}
-                {p.id === standaardPakketId ? ' (standaard)' : ''}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </CardHeader>
+                  <SelectContent>
+                    <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
+                    {pakketten.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.naam}
+                        {p.id === standaardPakketId ? ' (standaard)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
 
 
 
-    <CardContent className="space-y-4">
-      {bouwplaatskosten.map((item) => (
-        <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-          <div className="sm:col-span-4">
-            <Label className="text-xs sm:sr-only">Naam</Label>
-            {item.isVast ? (
-              <span className="text-sm">{item.naam}</span>
-            ) : (
-              <Input
-                value={item.naam}
-                onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
-                placeholder="Bijv. Hoogwerker / Gereedschap huur"
-              />
-            )}
-          </div>
+            <CardContent className="space-y-4">
+              {bouwplaatskosten.map((item) => (
+                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                  <div className="sm:col-span-4">
+                    <Label className="text-xs sm:sr-only">Naam</Label>
+                    {item.isVast ? (
+                      <span className="text-sm">{item.naam}</span>
+                    ) : (
+                      <Input
+                        value={item.naam}
+                        onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
+                        placeholder="Bijv. Hoogwerker / Gereedschap huur"
+                      />
+                    )}
+                  </div>
 
-          <EuroInput
-            value={item.prijs}
-            onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
-            className="sm:col-span-5"
-            placeholder="0,00"
-          />
+                  <EuroInput
+                    value={item.prijs}
+                    onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
+                    className="sm:col-span-5"
+                    placeholder="0,00"
+                  />
 
-          <div className="sm:col-span-2">
-            <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dag">dag</SelectItem>
-                <SelectItem value="week">week</SelectItem>
-                <SelectItem value="klus">klus</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                  <div className="sm:col-span-2">
+                    <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dag">dag</SelectItem>
+                        <SelectItem value="week">week</SelectItem>
+                        <SelectItem value="klus">klus</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          <div className="sm:col-span-1 flex sm:justify-end">
-            {!item.isVast && (
+                  <div className="sm:col-span-1 flex sm:justify-end">
+                    {!item.isVast && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRemoveBouwplaats(item.id)}
+                        aria-label="Verwijderen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* ✅ ADD BUTTON: Placed at the bottom, full width */}
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => handleRemoveBouwplaats(item.id)}
-                aria-label="Verwijderen"
+                onClick={handleAddExtraBouwplaats}
+                className="w-full gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 font-medium border border-dashed border-emerald-500/20"
               >
-                <Trash2 className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
+                Toevoegen
               </Button>
-            )}
-          </div>
-        </div>
-      ))}
-
-      {/* ✅ ADD BUTTON: Placed at the bottom, full width */}
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={handleAddExtraBouwplaats}
-        className="w-full gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 font-medium border border-dashed border-emerald-500/20"
-      >
-        <Plus className="h-4 w-4" />
-        Toevoegen
-      </Button>
-    </CardContent>
+            </CardContent>
           </Card>
 
           {/* Winstmarge */}
@@ -2229,17 +2213,17 @@ export default function OverzichtPage() {
           {/* Sticky bottom bar (geen globale settings knop meer) */}
           <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 backdrop-blur-sm">
             <div className="mx-auto max-w-3xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm">
-            <div className="font-medium">
-  Na indienen wordt de offerte berekend
-</div>
+              <div className="text-sm">
+                <div className="font-medium">
+                  Na indienen wordt de offerte berekend
+                </div>
 
 
-  <div className="text-xs text-muted-foreground">
-  Verwachte tijd: 30–60 min • Verstuurd via e-mail of WhatsApp
+                <div className="text-xs text-muted-foreground">
+                  Verwachte tijd: 30–60 min • Verstuurd via e-mail of WhatsApp
 
-  </div>
-</div>
+                </div>
+              </div>
 
 
               <Button
@@ -2252,11 +2236,11 @@ export default function OverzichtPage() {
                 )}
               >
                 {isSubmitting ? (
-  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-) : (
-  <Send className="mr-2 h-4 w-4" />
-)}
-{isSubmitting ? 'Indienen…' : 'Offerte indienen'}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                {isSubmitting ? 'Indienen…' : 'Offerte indienen'}
 
 
               </Button>
