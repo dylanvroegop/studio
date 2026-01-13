@@ -3,14 +3,14 @@
     "hoofdtitel": "Overzettreden",
     "hoofdcategorie": "Treden & Stootborden",
     "subcategorie_label": "Overzettrede",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer overzettreden voor traprenovatie. Focus op eiken, lamelparket of massieve houten toplagen in gangbare diktes voor zichtwerk. Exclusief montagelijm of kit."
   },
   {
     "hoofdtitel": "Overzettreden",
     "hoofdcategorie": "Treden & Stootborden",
     "subcategorie_label": "Stootbord",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
     "Extra_info": "Selecteer stootborden voor de verticale afwerking van de trap. Focus op bijpassend hout of (wit gegrond) plaatmateriaal voor zichtwerk. Exclusief kleine bevestigingsmaterialen."
   },
   {
@@ -31,7 +31,7 @@
     "hoofdtitel": "Vlizotrap",
     "hoofdcategorie": "Constructie & Raveling",
     "subcategorie_label": "Raveling balkhout",
-    "subsectie": "Trappen & Vlieringtrappen",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer vuren balkhout, SLS of CLS voor de constructieve aanpassing van de balklaag (raveling). Focus op dragende kopmaten en negeer kleine metalen verbinders of schroeven."
   },
   {
@@ -52,7 +52,7 @@
     "hoofdtitel": "Vlizotrap",
     "hoofdcategorie": "Veiligheid",
     "subcategorie_label": "Veiligheidshek",
-    "subsectie": "Overig",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer houten onderdelen voor de balustrade rondom het trapgat. Focus op spillen, leuningen en regels voor een veilige afscheiding op de bovenverdieping. Exclusief montagemiddelen."
   },
   {
@@ -94,7 +94,7 @@
     "hoofdtitel": "Vlizotrap",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Koplatten",
-    "subsectie": "Trappen & Vlieringtrappen",
+    "subsectie": "Plinten & Koplatten",
     "Extra_info": "Selecteer houten koplatten of architraven voor de randafwerking tussen de trapbak en het plafond. Focus op gegronde profielen voor een strakke afwerking. Exclusief kit of lijm."
   },
   {
@@ -108,63 +108,63 @@
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "Constructie & Raveling",
     "subcategorie_label": "Balkdrager",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals metalen raveeldragers of balkschoenen voor de structurele ophanging van de balken. Dit is een essentiële mechanische component die handmatig gekozen moet worden."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "De Trap (Basis)",
     "subcategorie_label": "Bouwpakket trap",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer de volledige prefab trap als één bouwpakket. Focus op houten varianten (bijv. vuren of grenen) in standaard afmetingen. Exclusief de montagehardware."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "De Trap (Basis)",
     "subcategorie_label": "Trapboom",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer houten zijwangen (trapbomen) voor de trapconstructie. Focus op de gewenste houtsoort en dikte voor maatwerk. Exclusief kleine montagemiddelen."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "De Trap (Basis)",
     "subcategorie_label": "Trede",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer houten traptreden voor de constructie. Focus op de gewenste houtsoort en dikte passend bij de trapbomen. Geen kit of lijm toevoegen."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "De Trap (Basis)",
     "subcategorie_label": "Stootbord",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
     "Extra_info": "Selecteer houten stootborden voor een dichte trapconstructie. Focus op (wit gegrond) materiaal of bijpassend hout voor zichtwerk. Exclusief kleine bevestigingsmaterialen."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "Leuningen & Hekwerken",
     "subcategorie_label": "Trapaal",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer houten trappalen of spillen voor de structurele stevigheid van het hekwerk. Focus op de gewenste kopmaat en houtsoort."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "Luxe Beslag & Hardware",
     "subcategorie_label": "Spijl",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals houten of metalen trap-spijlen. Focus op het model en de gewenste afwerking voor het zichtwerk. Exclusief montagelijm."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "Leuningen & Hekwerken",
     "subcategorie_label": "Trapleuning",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer houten handregels of trapleuningen. Focus op het gewenste profiel en de houtsoort. Exclusief de leuninghouders."
   },
   {
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "Luxe Beslag & Hardware",
     "subcategorie_label": "Leuninghouder",
-    "subsectie": "Deuren",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals metalen leuninghouders. Focus op de kleur en het materiaal passend bij de leuning. Dit valt onder de beslag-uitzondering."
   },
   {
@@ -220,14 +220,14 @@
     "hoofdtitel": "HSB Voorzetwand",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folies",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische folies zoals dampremmende folie voor de binnenzijde of dampopen folie voor de buitenzijde. Focus op rollen hoofdmateriaal en negeer tape of kit voor de overlap."
   },
   {
     "hoofdtitel": "HSB Voorzetwand",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische isolatie zoals minerale wol (glaswol of steenwol) of PIR-platen. Focus op platen of rollen met de gewenste isolatiewaarde passend tussen de staanders."
   },
   {
@@ -388,7 +388,7 @@
     "hoofdtitel": "HSB Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Deurroosters",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals ventilatieroosters geschikt voor montage in binnendeuren."
   },
   {
@@ -416,14 +416,14 @@
     "hoofdtitel": "Metalstud Voorzetwand",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folies",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische bouwfolies zoals dampremmende folie (PE) voor de binnenzijde van de wand. Focus op rollen hoofdmateriaal en negeer dubbelzijdige tape of kit."
   },
   {
     "hoofdtitel": "Metalstud Voorzetwand",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiematerialen",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische of akoestische isolatieplaten of -rollen (bijv. glaswol of steenwol). Focus op de dikte die exact past bij de geselecteerde Metal Stud profielbreedte."
   },
   {
@@ -598,7 +598,7 @@
     "hoofdtitel": "Metalstud Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Deurroosters",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals ventilatieroosters geschikt voor montage in de binnendeuren."
   },
   {
@@ -626,28 +626,28 @@
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Isolatie, Folies & Spouw",
     "subcategorie_label": "Folie Buiten",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer een dampopen, waterkerende folie voor de koude buitenzijde van de constructie. Focus op rollen technisch textiel voor geveltoepassing. Exclusief kleine bevestigingsmiddelen of tape."
   },
   {
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Isolatie, Folies & Spouw",
     "subcategorie_label": "Folie Binnen",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer een dampremmende of dampdichte folie voor de warme binnenzijde. Focus op het hoofdmateriaal op rol voor een luchtdichte schil. Negeer kleine verbruiksartikelen zoals tape of kit."
   },
   {
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Isolatie, Folies & Spouw",
     "subcategorie_label": "Isolatiemateriaal (Constructie)",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer de hoofd-isolatielaag (zoals minerale wol, houtvezel of PIR). Focus op de dikte die exact past tussen de staanders van de wandconstructie."
   },
   {
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Isolatie, Folies & Spouw",
     "subcategorie_label": "Isolatiemateriaal (Leidingspouw)",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer isolatieplaten bedoeld voor extra thermische of akoestische isolatie binnen de leidingspouw. Focus op gangbare diktes voor spouwvulling."
   },
   {
@@ -745,7 +745,7 @@
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Kozijnen & Ramen",
     "subcategorie_label": "Stelkozijnen",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer multiplex stroken of verduurzaamd hout voor de fabricage van stelkozijnen. Focus op de juiste dikte als stabiele basis voor kozijnmontage."
   },
   {
@@ -808,14 +808,14 @@
     "hoofdtitel": "Knieschotten",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folies",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische bouwfolies zoals dampremmende folie voor de warme binnenzijde. Focus op rollen hoofdmateriaal voor een luchtdichte afwerking. Negeer kleine verbruiksartikelen zoals tape of kit."
   },
   {
     "hoofdtitel": "Knieschotten",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische isolatie zoals minerale wol of PIR-platen. Focus op de gewenste dikte passend binnen het frame van de knieschotten."
   },
   {
@@ -927,7 +927,7 @@
     "hoofdtitel": "Knieschotten",
     "hoofdcategorie": "Schuifdeuren",
     "subcategorie_label": "Schuifdeurpanelen",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer plaatmateriaal in gangbare diktes voor de schuifpanelen (bijv. MDF of multiplex). Focus op panelen geschikt voor zichtwerk en schuiftoepassing."
   },
   {
@@ -990,14 +990,14 @@
     "hoofdtitel": "Cinewall / TV-wand",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folies",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische folies voor bescherming of stofwering. Focus op rollen hoofdmateriaal en negeer kleine verbruiksartikelen zoals tape of lijm."
   },
   {
     "hoofdtitel": "Cinewall / TV-wand",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer akoestische isolatieplaten zoals minerale wol om geluid en galm te minimaliseren. Focus op de gewenste dikte passend binnen het frame."
   },
   {
@@ -1207,14 +1207,14 @@
     "hoofdtitel": "Plafond - Houten Framewerk",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folies",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische folies zoals dampremmende folie voor de warme binnenzijde. Focus op rollen hoofdmateriaal en negeer kleine verbruiksartikelen zoals tape of kit."
   },
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische of akoestische isolatieplaten of rollen (bijv. glaswol of steenwol). Focus op de gewenste dikte passend boven het plafondframe."
   },
   {
@@ -1368,14 +1368,14 @@
     "hoofdtitel": "Plafond - Metalstud C/U",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folies",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische bouwfolies zoals dampremmende folie voor de warme binnenzijde. Focus op rollen hoofdmateriaal en negeer kleine verbruiksartikelen zoals tape."
   },
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische of akoestische isolatieplaten of -rollen. Focus op de gewenste dikte passend in de holle ruimte boven het metal stud plafond."
   },
   {
@@ -1438,14 +1438,14 @@
     "hoofdtitel": "Massief Houten Vloer (finish)",
     "hoofdcategorie": "Vloer_Voorbereiding",
     "subcategorie_label": "Primer",
-    "subsectie": "Lijmen, Kitten & Montagechemie",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer primer of voorstrijkmiddel voor de voorbereiding van de dekvloer. Focus op vloeibare basisproducten voor een goede hechting van egaline of lijm. Negeer kleine verbruiksartikelen zoals kwasten."
   },
   {
     "hoofdtitel": "Massief Houten Vloer (finish)",
     "hoofdcategorie": "Vloer_Voorbereiding",
     "subcategorie_label": "Ondervloer",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer plaatmateriaal zoals multiplex of spaanplaat ondervloerplaten voor een stabiele basis. Focus op platen in gangbare diktes geschikt voor vloervoorbereiding."
   },
   {
@@ -1494,7 +1494,7 @@
     "hoofdtitel": "Massief Houten Vloer (finish)",
     "hoofdcategorie": "Vloer_Afwerking",
     "subcategorie_label": "Vloerolie",
-    "subsectie": "Overig",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer vloerolie of hardwaxolie voor de beschermende eindafwerking van de massieve planken. Focus op het hoofdmateriaal voor duurzaam onderhoud van het hout. Exclusief pads of poetsdoeken."
   },
   {
@@ -1592,28 +1592,28 @@
     "hoofdtitel": "Vlonder / Terrasconstructie",
     "hoofdcategorie": "Constructie (Onderbouw)",
     "subcategorie_label": "Moerbalken",
-    "subsectie": "Tuinhout (Douglas & Lariks)",
+    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
     "Extra_info": "Selecteer zwaar constructiehout (bijv. hardhout of verduurzaamd hout) voor de dragende hoofdconstructie. Focus op balken geschikt voor buitentoepassing in standaard kopmaten."
   },
   {
     "hoofdtitel": "Vlonder / Terrasconstructie",
     "hoofdcategorie": "Constructie (Onderbouw)",
     "subcategorie_label": "Onderregels",
-    "subsectie": "Tuinhout (Douglas & Lariks)",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer houten regels voor de secundaire onderbouw waarop de vlonderplanken worden gemonteerd. Focus op gangbare kopmaten voor terrasbouw."
   },
   {
     "hoofdtitel": "Vlonder / Terrasconstructie",
     "hoofdcategorie": "Vlonder & Afwerking",
     "subcategorie_label": "Vlonderplanken",
-    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
+    "subsectie": "Tuinhout (Douglas & Lariks)",
     "Extra_info": "Selecteer de vlonderplanken voor het loopoppervlak. Focus op de houtsoort (bijv. hardhout, douglas of composiet) en de gewenste profilering van het zichtwerk."
   },
   {
     "hoofdtitel": "Vlonder / Terrasconstructie",
     "hoofdcategorie": "Vlonder & Afwerking",
     "subcategorie_label": "Vlonderschroeven / Clips",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals RVS vlonderschroeven of blinde bevestigingsclips. Dit wordt beschouwd als essentieel hardware-materiaal voor de afwerking."
   },
   {
@@ -1627,14 +1627,14 @@
     "hoofdtitel": "Vlonder / Terrasconstructie",
     "hoofdcategorie": "Vlonder & Afwerking",
     "subcategorie_label": "Drainagegoot",
-    "subsectie": "Overig",
+    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals lijnafwatering of drainagegoten. Focus op complete gootsystemen inclusief roosters voor een effectieve waterafvoer."
   },
   {
     "hoofdtitel": "Begane Grond Constructievloer",
     "hoofdcategorie": "Constructievloer",
     "subcategorie_label": "Muurplaat",
-    "subsectie": "Constructiehout (Vuren & SLS)",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer verduurzaamd constructiehout voor de muurplaat op de fundering. Focus op balkhout in gangbare kopmaten geschikt voor de horizontale basis van de vloerconstructie. Exclusief kleine montagemiddelen."
   },
   {
@@ -1655,21 +1655,21 @@
     "hoofdtitel": "Begane Grond Constructievloer",
     "hoofdcategorie": "Constructievloer",
     "subcategorie_label": "Balkdragers",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals metalen balkdragers of raveeldragers. Dit betreft essentiële mechanische verbinders voor de constructieve ophanging van de balklaag."
   },
   {
     "hoofdtitel": "Begane Grond Constructievloer",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermisch isolatiemateriaal zoals minerale wol of PIR-platen. Focus op de gewenste dikte voor plaatsing tussen de vloerbalken en negeer kleine verbruiksartikelen."
   },
   {
     "hoofdtitel": "Begane Grond Constructievloer",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Geluidsisolatie Stroken",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer akoestische isolatiestroken van vilt of rubber voor plaatsing op de balken. Focus op het minimaliseren van contactgeluid in de vloerconstructie. Exclusief lijm of kleine bevestigingsmiddelen."
   },
   {
@@ -1697,7 +1697,7 @@
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Constructie & Vloer (Bovenzijde)",
     "subcategorie_label": "Balkdragers",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals metalen balkdragers of raveeldragers voor de constructieve ophanging van de balklaag."
   },
   {
@@ -1711,7 +1711,7 @@
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Toegang & Vlizotrap",
     "subcategorie_label": "Luik / Vlizotrap",
-    "subsectie": "Dakbedekking",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals een complete vlizotrap-unit of een geïsoleerd plafondluik inclusief bak en ladder."
   },
   {
@@ -1732,7 +1732,7 @@
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Plafond Framewerk (Hout)",
     "subcategorie_label": "Stelhout",
-    "subsectie": "Constructiehout (Vuren & SLS)",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer houten latten of balken voor het uitvlakken van de onderzijde van de constructie. Exclusief kleine stelblokjes of vulmiddelen."
   },
   {
@@ -1746,14 +1746,14 @@
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Plafond Framewerk (Metal Stud)",
     "subcategorie_label": "Randprofielen",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer metalen randprofielen (U-profielen) voor de omtrekbevestiging van het plafondframe. Exclusief kleine bevestigingsmiddelen."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Plafond Framewerk (Metal Stud)",
     "subcategorie_label": "Draagprofielen",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer metalen draagprofielen (C-profielen) voor de hoofdconstructie van het verlaagde plafond. Focus op de standaard systeemmaten."
   },
   {
@@ -1767,7 +1767,7 @@
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Leidingkoof",
     "subcategorie_label": "Beplating",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer plaatmateriaal zoals gipsplaten of MDF voor het dichtzetten van de koof-constructie."
   },
   {
@@ -1788,70 +1788,70 @@
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Gordijnkoof",
     "subcategorie_label": "Beplating",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer plaatmateriaal in gangbare diktes voor de afwerking van de zichtzijdes van de gordijnkoof."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Gordijnkoof",
     "subcategorie_label": "Achterhout",
-    "subsectie": "Constructiehout (Vuren & SLS)",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer houten verstevigingsmateriaal voor de stevige montage van gordijnrails binnen de koof."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Installatie & Elektra",
     "subcategorie_label": "Elektra Buizen / Flex",
-    "subsectie": "Overig",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer PVC-buizen of flexibele elektra buis voor de veilige geleiding van kabels boven het plafondframe."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Installatie & Elektra",
     "subcategorie_label": "Centraaldozen",
-    "subsectie": "Overig",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals centraaldozen voor de elektrische aansluitpunten in het plafond."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Installatie & Elektra",
     "subcategorie_label": "Installatiekabel",
-    "subsectie": "Overig",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer installatiedraad of stroomkabels (bijv. YMVK of VD-draad) voor de elektrische voorzieningen."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Schakelmateriaal",
     "subcategorie_label": "Inbouwspots",
-    "subsectie": "Overig",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals inbouwspots en bijbehorende armaturen geschikt voor montage in verlaagde plafonds."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Schakelmateriaal",
     "subcategorie_label": "Schakelaar / Dimmer",
-    "subsectie": "Overig",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals dimmers of schakelaars inclusief afdekramen voor de lichtbediening."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folies",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische folies zoals dampremmende folie voor de warme zijde van de constructie. Exclusief kleine verbruiksartikelen zoals tape."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische of akoestische isolatieplaten/rollen (bijv. minerale wol) voor plaatsing in de vloer- of plafondconstructie."
   },
   {
     "hoofdtitel": "Tussenvloer / Bergzolder",
     "hoofdcategorie": "Beplating (Plafond)",
     "subcategorie_label": "Afwerkplaat",
-    "subsectie": "Gipsplaten & Wandsystemen",
+    "subsectie": "Vloersystemen",
     "Extra_info": "Selecteer gipsplaten of gipsvezelplaten voor de zichtzijde van het plafond. Exclusief kleine montagemiddelen zoals gipsschroeven."
   },
   {
@@ -1886,7 +1886,7 @@
     "hoofdtitel": "Inbouwkasten",
     "hoofdcategorie": "Deuren & Fronten",
     "subcategorie_label": "Deuren",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer plaatmateriaal voor de kastdeuren. Focus op decoratieve of overschilderbare platen voor zichtwerk. Exclusief specifiek hardware-beslag zoals scharnieren of grepen."
   },
   {
@@ -1970,7 +1970,7 @@
     "hoofdtitel": "Dagkanten",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Hoek- of Stopcontactprofielen",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Overig",
     "Extra_info": "Selecteer specifiek hardware-beslag of afwerkprofielen zoals metalen hoekprofielen of inbouwframes voor elektra. Dit betreft technische componenten die handmatig geselecteerd moeten worden."
   },
   {
@@ -2026,7 +2026,7 @@
     "hoofdtitel": "Vensterbanken",
     "hoofdcategorie": "Vensterbank",
     "subcategorie_label": "Ventilatieroosters",
-    "subsectie": "Overig",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals ventilatieroosters voor integratie in de vensterbank. Focus op de gewenste kleur en het materiaal passend bij de technische afwerking."
   },
   {
@@ -2075,14 +2075,14 @@
     "hoofdtitel": "Binnendeuren",
     "hoofdcategorie": "Glas & Beglazing",
     "subcategorie_label": "Glas",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer beglazing geschikt voor binnendeuren, zoals matglas, blank glas of veiligheidsglas. Focus op het type glas en de benodigde afmetingen. Exclusief glaslatten."
   },
   {
     "hoofdtitel": "Binnendeuren",
     "hoofdcategorie": "Glas & Beglazing",
     "subcategorie_label": "Glaslatten",
-    "subsectie": "Plinten & Koplatten",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer houten glaslatten voor de bevestiging van het glas in de deur. Focus op profiel en materiaal (bijv. wit gegrond) passend bij het deurblad. Exclusief montagemiddelen."
   },
   {
@@ -2096,14 +2096,14 @@
     "hoofdtitel": "Binnendeuren",
     "hoofdcategorie": "Tochtwering",
     "subcategorie_label": "Tochtstrips",
-    "subsectie": "Lijmen, Kitten & Montagechemie",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer tochtprofielen of kaderprofielen voor de aansluiting tussen deur en kozijn. Focus op het hoofdmateriaal voor effectieve tochtwering en negeer kleine montagemiddelen."
   },
   {
     "hoofdtitel": "Binnendeuren",
     "hoofdcategorie": "Ventilatie",
     "subcategorie_label": "Deurroosters",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals ventilatieroosters geschikt voor montage in binnendeuren. Focus op de gewenste afmeting en kleur passend bij het zichtwerk."
   },
   {
@@ -2152,14 +2152,14 @@
     "hoofdtitel": "Buitendeuren",
     "hoofdcategorie": "Glas & Beglazing",
     "subcategorie_label": "Glas",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer isolerende beglazing voor buitentoepassing (bijv. HR++ of veiligheidsglas). Focus op de benodigde afmetingen en isolatiewaarde. Exclusief glaslatten of kit."
   },
   {
     "hoofdtitel": "Buitendeuren",
     "hoofdcategorie": "Glas & Beglazing",
     "subcategorie_label": "Glaslatten",
-    "subsectie": "Plinten & Koplatten",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer houten glaslatten (bijv. hardhout) voor de buitenzijde. Focus op duurzaamheid en profilering passend bij het deurblad. Negeer kleine montagemiddelen."
   },
   {
@@ -2173,14 +2173,14 @@
     "hoofdtitel": "Buitendeuren",
     "hoofdcategorie": "Tochtwering",
     "subcategorie_label": "Tochtstrips",
-    "subsectie": "Lijmen, Kitten & Montagechemie",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer weerbestendige tochtprofielen of kaderstrips voor de afdichting tussen deur en kozijn. Focus op het hoofdmateriaal voor een duurzame tochtwering."
   },
   {
     "hoofdtitel": "Buitendeuren",
     "hoofdcategorie": "Ventilatie",
     "subcategorie_label": "Deurroosters",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deuren",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals ventilatieroosters voor buitendeuren. Focus op materiaal en kleur passend bij het exterieur en de luchtdoorlaat."
   },
   {
@@ -2194,14 +2194,14 @@
     "hoofdtitel": "Hellend Dak Vervangen",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Dakisolatie",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische dakisolatie zoals PIR-platen, minerale wol of houtvezel. Focus op materialen met de gewenste isolatiewaarde voor hellende daken. Exclusief kleine verbruiksartikelen."
   },
   {
     "hoofdtitel": "Hellend Dak Vervangen",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Folie",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische dakfolies zoals dampopen folie voor de koude buitenzijde of dampremmende folie voor de binnenzijde op rol. Focus op hoofdmateriaal en negeer tape of kit voor de overlap."
   },
   {
@@ -2285,14 +2285,14 @@
     "hoofdtitel": "EPDM Dakbedekking",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Dampremmende Folie",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer technische bouwfolies zoals dampremmende folie voor de warme zijde onder de isolatielaag. Focus op rollen hoofdmateriaal en negeer kleine verbruiksartikelen zoals tape of lijm."
   },
   {
     "hoofdtitel": "EPDM Dakbedekking",
     "hoofdcategorie": "Isolatie & Folies",
     "subcategorie_label": "Dakisolatie",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische dakisolatie geschikt voor platte daken, zoals drukvaste PIR-platen. Focus op de gewenste isolatiewaarde voor de dakconstructie en negeer montageschuim of bevestigers."
   },
   {
@@ -2341,14 +2341,14 @@
     "hoofdtitel": "Gevelbekleding Vervangen",
     "hoofdcategorie": "Isolatie & Folie",
     "subcategorie_label": "Folie",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer dampopen gevelfolie als waterkerende laag voor de achterconstructie. Focus op technisch textiel op rol en negeer kleine verbruiksartikelen zoals tape of lijm."
   },
   {
     "hoofdtitel": "Gevelbekleding Vervangen",
     "hoofdcategorie": "Isolatie & Folie",
     "subcategorie_label": "Isolatiemateriaal",
-    "subsectie": "Folies, Tape & Luchtdichting",
+    "subsectie": "Isolatiematerialen",
     "Extra_info": "Selecteer thermische isolatie zoals minerale wol of PIR-platen voor de gevelconstructie. Focus op de gewenste isolatiewaarde voor de buitenschil en negeer kleine montagemiddelen."
   },
   {
@@ -2418,7 +2418,7 @@
     "hoofdtitel": "Binnendeur Kozijnen - Hout",
     "hoofdcategorie": "Kozijnhout",
     "subcategorie_label": "Binnendorpel",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer binnendorpels van natuursteen, composiet of hardhout voor de vloeraansluiting. Focus op de gewenste breedte en dikte passend bij het kozijn en de vloerafwerking. Exclusief kit of montagelijm."
   },
   {
@@ -2446,7 +2446,7 @@
     "hoofdtitel": "Binnendeur Kozijnen - Hout",
     "hoofdcategorie": "Glas & Beglazing",
     "subcategorie_label": "Glaslatten",
-    "subsectie": "Plinten & Koplatten",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer houten glaslatten voor de bevestiging van het glas in het kozijn. Focus op profielen passend bij de stijl van het kozijnhout voor een uniforme uitstraling. Exclusief kleine bevestigingsmiddelen."
   },
   {
@@ -2460,7 +2460,7 @@
     "hoofdtitel": "Binnendeur Kozijnen - Hout",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Neuten",
-    "subsectie": "Plinten & Koplatten",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer houten neuten voor de onderzijde van de koplatten. Focus op materiaal en afmetingen die naadloos aansluiten op de gekozen koplatten en vloerplinten voor een klassieke afwerking."
   },
   {
@@ -2481,7 +2481,7 @@
     "hoofdtitel": "Binnen Kozijnen - Staal",
     "hoofdcategorie": "Hang- & Sluitwerk",
     "subcategorie_label": "Aanslagrubber",
-    "subsectie": "Lijmen, Kitten & Montagechemie",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals aanslagrubbers of kaderprofielen voor de sponning van het kozijn. Focus op de juiste maatvoering voor geluidsdemping en een luchtdichte afdichting."
   },
   {
@@ -2495,7 +2495,7 @@
     "hoofdtitel": "Binnen Kozijnen - Staal",
     "hoofdcategorie": "Glas & Beglazing",
     "subcategorie_label": "Glaslatten",
-    "subsectie": "Overig",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer glaslatten of klemprofielen die technisch passen bij het stalen kozijnsysteem. Focus op materiaal en kleurafwerking passend bij het hoofdkader."
   },
   {
@@ -2509,35 +2509,35 @@
     "hoofdtitel": "Buiten kozijnen - Hout",
     "hoofdcategorie": "Kozijnelement",
     "subcategorie_label": "Stelkozijnen",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer watervast multiplex of verduurzaamd hout voor de constructie van stelkozijnen. Focus op stroken in gangbare diktes die dienen als montagebasis in de ruwbouw. Exclusief kleine montagemiddelen."
   },
   {
     "hoofdtitel": "Buiten kozijnen - Hout",
     "hoofdcategorie": "Afwerking Buiten",
     "subcategorie_label": "Raamdorpelstenen",
-    "subsectie": "Beton & Metselwerk",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals keramische of natuursteen raamdorpels voor de waterkering onder het kozijn. Focus op het hoofdelement voor de buitenzijde en negeer voegmortel of kit."
   },
   {
     "hoofdtitel": "Buiten kozijnen - Hout",
     "hoofdcategorie": "Afwerking Buiten",
     "subcategorie_label": "Lood / DPC",
-    "subsectie": "Dakbedekking",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer waterkerende materialen zoals bladlood, loodvervangers of DPC-folie voor de aansluiting tussen kozijn en gevel. Focus op rollen hoofdmateriaal voor waterdichting en negeer kleine verbruiksartikelen."
   },
   {
     "hoofdtitel": "Buiten kozijnen - Hout",
     "hoofdcategorie": "Afwerking Binnen",
     "subcategorie_label": "Dagkantbetimmering",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer plaatmateriaal voor de afwerking van de dagkanten aan de binnenzijde, zoals (gegrond) MDF of multiplex. Focus op plaatmateriaal in gangbare diktes voor strak zichtwerk. Exclusief kit of lijm."
   },
   {
     "hoofdtitel": "Buiten kozijnen - Hout",
     "hoofdcategorie": "Afwerking Binnen",
     "subcategorie_label": "Vensterbank",
-    "subsectie": "Overig",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer vensterbanken voor de binnenafwerking. Focus op materialen zoals massief hout, MDF of natuursteen in de gewenste diepte. Exclusief montagelijm of stelblokjes."
   },
   {
@@ -2565,28 +2565,28 @@
     "hoofdtitel": "Buiten Kozijnen - Kunststof",
     "hoofdcategorie": "Montage",
     "subcategorie_label": "Stelkozijn",
-    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer verduurzaamd hout of watervast multiplex voor de constructie van het stelkozijn. Focus op gangbare diktes voor een structurele basis voor de montage. Exclusief kleine verbruiksartikelen."
   },
   {
     "hoofdtitel": "Buiten Kozijnen - Kunststof",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Dagkantafwerking",
-    "subsectie": "Gevelafwerking (Rabat, Siding & Boeidelen)",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals kunststof afwerkprofielen of dagkantpanelen passend bij de kozijnstijl. Focus op kleurbehoud en onderhoudsvriendelijk zichtwerk."
   },
   {
     "hoofdtitel": "Buiten Kozijnen - Kunststof",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Waterslag",
-    "subsectie": "Metaalprofielen",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals aluminium waterslagen voor de waterafvoer aan de buitenzijde onder het kozijn. Focus op de technische afwerking en negeer kleine verbruiksartikelen zoals eindschotjes of schroeven."
   },
   {
     "hoofdtitel": "Buiten Kozijnen - Kunststof",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Inzethorren",
-    "subsectie": "Overig",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals inzethorren passend bij het kunststof kozijnprofiel. Focus op complete units voor draai-kiepramen."
   },
   {
@@ -2649,7 +2649,7 @@
     "hoofdtitel": "Zelf gemaakte houtkozijnen",
     "hoofdcategorie": "Glas & Beglazing",
     "subcategorie_label": "Neuslatten",
-    "subsectie": "Plinten & Koplatten",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer houten of kunststof neuslatten voor de afwerking van de glaslijn aan de onderzijde. Focus op profielen die de onderdorpel beschermen tegen inwatering en negeer kleine bevestigingsmiddelen."
   },
   {
@@ -2663,14 +2663,14 @@
     "hoofdtitel": "Zelf gemaakte houtkozijnen",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Tochtkader",
-    "subsectie": "Lijmen, Kitten & Montagechemie",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals kaderprofielen of tochtstrips voor in de sponning. Focus op het hoofdmateriaal voor een luchtdichte afsluiting van de draaiende delen."
   },
   {
     "hoofdtitel": "Zelf gemaakte houtkozijnen",
     "hoofdcategorie": "Afwerking",
     "subcategorie_label": "Lood / DPC",
-    "subsectie": "Dakbedekking",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer waterkerende materialen zoals bladlood of DPC-folie op rol. Focus op het hoofdmateriaal voor de waterdichte aansluiting tussen het kozijn en de gevel."
   },
   {
@@ -2698,7 +2698,7 @@
     "hoofdtitel": "Schutting plaatsen",
     "hoofdcategorie": "Optie: Hout",
     "subcategorie_label": "Schuttingpalen hout",
-    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
+    "subsectie": "Tuinhout (Douglas & Lariks)",
     "Extra_info": "Selecteer houten schuttingpalen (bijv. Douglas, hardhout of verduurzaamd vuren). Focus op standaard kopmaten die geschikt zijn voor duurzame schuttingconstructies."
   },
   {
@@ -2719,7 +2719,7 @@
     "hoofdtitel": "Schutting plaatsen",
     "hoofdcategorie": "Optie: Hout",
     "subcategorie_label": "Afdeklat hout",
-    "subsectie": "Tuinhout (Douglas & Lariks)",
+    "subsectie": "Plinten & Koplatten",
     "Extra_info": "Selecteer houten afdeklatten of piramideprofielen voor de bovenzijde van de schuttingpanelen. Focus op materiaal en lengtes passend bij de afwerking van de planken."
   },
   {
@@ -2733,7 +2733,7 @@
     "hoofdtitel": "Schutting plaatsen",
     "hoofdcategorie": "Optie: Beton",
     "subcategorie_label": "Betonpalen",
-    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
+    "subsectie": "Beton & Metselwerk",
     "Extra_info": "Selecteer betonnen schuttingpalen voorzien van sleuven. Focus op de gewenste kleur en lengtes geschikt voor beton-hout combinaties."
   },
   {
@@ -2803,7 +2803,7 @@
     "hoofdtitel": "Schutting plaatsen",
     "hoofdcategorie": "Poort & Toegang",
     "subcategorie_label": "Kozijnbalken",
-    "subsectie": "Tuinhout (Douglas & Lariks)",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer zware houten balken voor de opbouw van het poortkozijn. Focus op robuuste kopmaten van hardhout of verduurzaamd hout voor stabiliteit."
   },
   {
@@ -2887,21 +2887,21 @@
     "hoofdtitel": "Pergola",
     "hoofdcategorie": "Vlonder_Constructie",
     "subcategorie_label": "Moerbalken",
-    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
+    "subsectie": "Tuinhout (Douglas & Lariks)",
     "Extra_info": "Selecteer robuuste houten balken voor de hoofdconstructie van de vlonderlaag. Focus op duurzame houtsoorten zoals hardhout of Douglas in constructieve kopmaten."
   },
   {
     "hoofdtitel": "Pergola",
     "hoofdcategorie": "Vlonder_Constructie",
     "subcategorie_label": "Onderregels",
-    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer houten regels of balken voor de secundaire draagstructuur. Focus op verduurzaamd hout in standaard kopmaten geschikt voor buitengebruik."
   },
   {
     "hoofdtitel": "Pergola",
     "hoofdcategorie": "Vlonder_Dek",
     "subcategorie_label": "Vlonderplanken",
-    "subsectie": "Hardhout Buiten (Palen, Vlonder & Beschoeiing)",
+    "subsectie": "Tuinhout (Douglas & Lariks)",
     "Extra_info": "Selecteer vlonderplanken of terrasdelen als zichtzijde van de vloer. Focus op materiaal (bijv. Bankirai of Douglas) en de gewenste profilering. Exclusief bevestigingsmiddelen."
   },
   {
@@ -2929,7 +2929,7 @@
     "hoofdtitel": "Glas zetten",
     "hoofdcategorie": "Glas & Afwerking",
     "subcategorie_label": "Glas",
-    "subsectie": "Overig",
+    "subsectie": "Kozijnen",
     "Extra_info": "Selecteer isolerend dubbel glas (bijv. HR++) of veiligheidsglas als hoofdproduct. Focus op de gewenste dikte en isolatiewaarde passend bij de sponning voor optimaal zichtwerk. Exclusief glasblokjes of kit."
   },
   {
@@ -3090,7 +3090,7 @@
     "hoofdtitel": "Lichtkoepel",
     "hoofdcategorie": "Opstand",
     "subcategorie_label": "Opstand Houtbalk of Prefab Set",
-    "subsectie": "Dakramen",
+    "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer prefab opstanden of zware vuren balken voor de constructieve verhoging van de lichtkoepel. Focus op materialen geschikt voor dakmontage in standaardmaten. Negeer kleine montagemiddelen zoals schroeven of hoekankers."
   },
   {
