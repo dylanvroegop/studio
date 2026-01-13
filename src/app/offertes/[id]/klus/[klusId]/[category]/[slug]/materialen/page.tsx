@@ -21,6 +21,8 @@ import {
   Plus,
   CheckCircle2,
   ChevronRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -484,6 +486,7 @@ export default function GenericMaterialsPageRedesigned() {
   const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<any>({ mode: 'percentage', percentage: null, fixedAmount: null });
   const [kleinVastBedragStr, setKleinVastBedragStr] = useState<string>('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [hiddenCategories, setHiddenCategories] = useState<Record<string, boolean>>({});
 
   const [actieveSectie, setActieveSectie] = useState<string | null>(null);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
@@ -671,6 +674,7 @@ export default function GenericMaterialsPageRedesigned() {
   // Handlers
   const onPresetChange = (val: string) => { userHeeftPresetGewijzigdRef.current = true; autoApplyDefaultPresetRef.current = false; setGekozenPresetId(val); };
   const toggleSection = (key: string) => setCollapsedSections(prev => ({...prev, [key]: !prev[key]}));
+  const toggleCategoryVisibility = (categoryKey: string) => setHiddenCategories(prev => ({...prev, [categoryKey]: !prev[categoryKey]}));
   const openMateriaalKiezer = (sectieKey: string, groupId: string | null = null) => { setActieveSectie(sectieKey); setActiveGroupId(groupId); setIsExtraModalOpen(true); };
   const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({...prev, [key]: materiaal})); };
   const handleMateriaalVerwijderen = (key: string) => { setGekozenMaterialen(prev => { const n = {...prev}; delete n[key]; return n; }); };
@@ -679,6 +683,10 @@ export default function GenericMaterialsPageRedesigned() {
 
   const renderKleinMateriaalSectie = () => {
       const { mode, percentage, fixedAmount } = kleinMateriaalConfig;
+      
+      // Subtle emerald style for active state (similar to successGhost but dimmer)
+      const activeStyle = 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-100';
+      const inactiveStyle = 'border border-border text-muted-foreground hover:bg-accent/50';
       
       return (
         <div className="space-y-3">
@@ -696,9 +704,7 @@ export default function GenericMaterialsPageRedesigned() {
               }}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'inschatting'
-                  ? 'bg-emerald-600 text-white'
-                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+                mode === 'inschatting' ? activeStyle : inactiveStyle
               )}
             >
               Inschatting
@@ -709,9 +715,7 @@ export default function GenericMaterialsPageRedesigned() {
               onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'percentage' }))}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'percentage'
-                  ? 'bg-emerald-600 text-white'
-                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+                mode === 'percentage' ? activeStyle : inactiveStyle
               )}
             >
               Percentage
@@ -722,9 +726,7 @@ export default function GenericMaterialsPageRedesigned() {
               onClick={() => setKleinMateriaalConfig((p:any) => ({ ...p, mode: 'fixed' }))}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'fixed'
-                  ? 'bg-emerald-600 text-white'
-                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+                mode === 'fixed' ? activeStyle : inactiveStyle
               )}
             >
               Vast bedrag
@@ -738,9 +740,7 @@ export default function GenericMaterialsPageRedesigned() {
               }}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                mode === 'none'
-                  ? 'bg-emerald-600 text-white'
-                  : 'border border-border text-muted-foreground hover:bg-accent/50'
+                mode === 'none' ? activeStyle : inactiveStyle
               )}
             >
               Geen
@@ -962,7 +962,6 @@ export default function GenericMaterialsPageRedesigned() {
                           {presets.map(p => (<SelectItem className={SELECT_ITEM_GREEN} key={p.id} value={p.id}>{p.name} {p.isDefault ? '(standaard)' : ''}</SelectItem>))}
                       </SelectContent>
                   </Select>
-                  <Button variant="outline" size="icon" onClick={() => setSavePresetModalOpen(true)} className="h-10 w-10 rounded-xl shrink-0"><Save className="h-4 w-4" /></Button>
                   <Button variant="outline" size="icon" onClick={() => setManagePresetsModalOpen(true)} disabled={presets.length === 0} className="h-10 w-10 rounded-xl shrink-0"><Settings className="h-4 w-4" /></Button>
               </div>
           </div>
@@ -975,24 +974,38 @@ export default function GenericMaterialsPageRedesigned() {
               .map(([categoryKey, categoryInfo]) => {
                 const sections = groupedSections[categoryKey] || [];
                 if (sections.length === 0) return null;
+                const isHidden = hiddenCategories[categoryKey];
                 
                 return (
                   <div key={categoryKey} className="space-y-2">
                     <div className="flex items-center justify-between px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
-                      <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">{categoryInfo.title}</h2>
+                      <h2 className={cn(
+                        "text-sm font-semibold uppercase tracking-wider transition-colors",
+                        isHidden ? "text-muted-foreground" : "text-foreground"
+                      )}>{categoryInfo.title}</h2>
+                      <button
+                        type="button"
+                        onClick={() => toggleCategoryVisibility(categoryKey)}
+                        className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                        title={isHidden ? "Toon categorie" : "Verberg categorie"}
+                      >
+                        {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                     
-                    <div className="space-y-1.5">
-                      {sections.map(section => (
-                        <MaterialRow
-                          key={section.key}
-                          label={section.label}
-                          selected={gekozenMaterialen[section.key]}
-                          onClick={() => openMateriaalKiezer(section.key)}
-                          onRemove={() => handleMateriaalVerwijderen(section.key)}
-                        />
-                      ))}
-                    </div>
+                    {!isHidden && (
+                      <div className="space-y-1.5">
+                        {sections.map(section => (
+                          <MaterialRow
+                            key={section.key}
+                            label={section.label}
+                            selected={gekozenMaterialen[section.key]}
+                            onClick={() => openMateriaalKiezer(section.key)}
+                            onRemove={() => handleMateriaalVerwijderen(section.key)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1041,25 +1054,36 @@ export default function GenericMaterialsPageRedesigned() {
           </div>
 
           {/* Klein Material - Card style */}
-          <div>
+          <div className="pb-24">
             {renderKleinMateriaalSectie()}
           </div>
+       </div>
 
-          {/* Footer Buttons - Same as measurement page */}
-          <div className="mt-6 flex justify-between items-center">
-            <Button variant="outline" asChild disabled={isOpslaan}>
-              <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>Terug</Link>
-            </Button>
+       {/* Sticky Footer */}
+       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+           <Button variant="outline" asChild disabled={isOpslaan}>
+             <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>Terug</Link>
+           </Button>
 
-            <Button
-              type="submit"
-              variant="success"
-              disabled={isOpslaan}
-              onClick={handleSave}
-            >
-              {isOpslaan ? 'Opslaan...' : 'Volgende'}
-            </Button>
-          </div>
+           <Button
+             variant="outline"
+             onClick={() => setSavePresetModalOpen(true)}
+             className="gap-2"
+           >
+             Opslaan als werkwijze
+             <Save className="h-4 w-4" />
+           </Button>
+
+           <Button
+             type="submit"
+             variant="success"
+             disabled={isOpslaan}
+             onClick={handleSave}
+           >
+             {isOpslaan ? 'Opslaan...' : 'Volgende'}
+           </Button>
+         </div>
        </div>
     </main>
 

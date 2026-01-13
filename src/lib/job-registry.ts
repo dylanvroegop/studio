@@ -220,7 +220,7 @@ const COUNT_FIELDS: MeasurementField[] = [
 
 const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
-  { key: 'regelwerk_basis', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
+  { key: 'staanders_en_liggers', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
   { key: 'ventilatie_latten', label: 'Tengelwerk / Rachels', categoryFilter: 'Balkhout', category: 'hout' },
 
   // 2. ISOLATIE & FOLIES
@@ -249,7 +249,7 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // The actual wire to bring power from the nearest point
   { key: 'elektrakabel', label: 'Installatiekabel', categoryFilter: 'Elektra', category: 'Installatie' },
   // The visible finish: Sockets for TV/Haard and Switches for LEDs
-  { key: 'schakelmateriaal_basis', label: 'Stopcontacten & Schakelaars', categoryFilter: 'Schakelmateriaal', category: 'Schakelmateriaal' },
+  { key: 'schakelmateriaal_basis', label: 'Stopcontacten & Schakelaars', categoryFilter: 'Schakelmateriaal', category: 'Installatie' },
   
   // 5. AFWERKEN (GIPS & WAND)
   // This is the new section for smoothing the wall
@@ -329,7 +329,7 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
 const HSB_TUSSENWAND_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
-  { key: 'regelwerk_basis', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
+  { key: 'staanders_en_liggers', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
 
   // 2. ISOLATIE & FOLIES
   { key: 'isolatie_basis', label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie' },
@@ -492,7 +492,7 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
 
 const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE (FRAMEWERK)
-  { key: 'regelwerk_basis', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
+  { key: 'staanders_en_liggers', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
   { key: 'regelwerk_nissen', label: 'Regelwerk (Nissen & Details)', categoryFilter: 'Balkhout', category: 'hout' },
   { key: 'achterhout', label: 'Achterhout (TV-ophanging)', categoryFilter: 'Balkhout', category: 'hout' },
 
@@ -541,7 +541,7 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
 
 const KNIESCHOTTEN_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
-  { key: 'regelwerk_basis', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
+  { key: 'staanders_en_liggers', label: 'Staanders & Liggers', categoryFilter: 'Balkhout', category: 'hout' },
 
   // 2. ISOLATIE & FOLIES
   // Consistent labels with HSB Tussenwand
@@ -1425,13 +1425,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           hout: { title: 'Framewerk', order: 1 },
           isolatie: { title: 'Isolatie & Folies', order: 2 },
           beplating: { title: 'Beplating', order: 3 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 4 },
           afwerking: { title: 'Afwerken', order: 5 },
-          Installatie: { title: 'Installatie & Elektra', order: 6 },
-          Schakelmateriaal: { title: 'Schakelmateriaal', order: 7 },
-          gips_afwerking: { title: 'Naden & Stucwerk', order: 8 },
-          Kozijnen: { title: 'Kozijnen', order: 9 },
-          Deuren: { title: 'Deuren', order: 10 },
+          gips_afwerking: { title: 'Naden & Stucwerk', order: 7 },
+          Kozijnen: { title: 'Kozijnen', order: 8 },
+          Deuren: { title: 'Deuren', order: 9 },
+          Koof: { title: 'Leidingkoof / Omkasting', order: 10 },
+          Installatie: { title: 'Installatie & Elektra', order: 11 },
         }
       },
       { 
