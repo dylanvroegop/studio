@@ -5,6 +5,8 @@ export function initFirebaseAdmin() {
   if (!getApps().length) {
     initializeApp({
       credential: applicationDefault(),
+      // This line is what finally kills the "monospace-13" error
+      projectId: 'studio-6011690104-60fbf',
     });
   }
 
