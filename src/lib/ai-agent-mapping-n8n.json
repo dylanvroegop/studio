@@ -66,7 +66,7 @@
     "hoofdtitel": "Vlizotrap",
     "hoofdcategorie": "Hekwerk Beslag",
     "subcategorie_label": "Scharnier",
-    "subsectie": "Trappen & Vlieringtrappen",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals bladscharnieren of kruishengen voor de montage van het veiligheidspoortje. Focus op materiaal en draagkracht."
   },
   {
@@ -115,7 +115,7 @@
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "De Trap (Basis)",
     "subcategorie_label": "Bouwpakket trap",
-    "subsectie": "Constructiehout (Vuren & SLS)",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer de volledige prefab trap als één bouwpakket. Focus op houten varianten (bijv. vuren of grenen) in standaard afmetingen. Exclusief de montagehardware."
   },
   {
@@ -171,7 +171,7 @@
     "hoofdtitel": "Nieuwe trap plaatsen",
     "hoofdcategorie": "Leuningen & Hekwerken",
     "subcategorie_label": "Balustrade",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Trappen & Vlieringtrappen",
     "Extra_info": "Selecteer de houten hekwerkconstructie of balustrade. Focus op complete sets of losse regels voor de veiligheid op de overloop. Exclusief kleine montagemiddelen."
   },
   {
@@ -367,21 +367,21 @@
     "hoofdtitel": "HSB Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Scharnieren",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals scharnieren of paumelles voor de binnendeuren. Dit valt onder de hardware-uitzondering en moet specifiek gekozen worden."
   },
   {
     "hoofdtitel": "HSB Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Sloten",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals insteeksloten voor de deuren. Focus op het type slot (bijv. loopslot of badkamer/vrij-bezet)."
   },
   {
     "hoofdtitel": "HSB Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Deurbeslag",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals deurkrukken, schilden en rozetten. Focus op stijl en materiaalafwerking voor het zichtwerk."
   },
   {
@@ -577,21 +577,21 @@
     "hoofdtitel": "Metalstud Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Scharnieren",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals scharnieren of paumelles. Dit valt onder de hardware-uitzondering en moet specifiek gekozen worden voor de deurophanging."
   },
   {
     "hoofdtitel": "Metalstud Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Sloten",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals insteeksloten voor de binnendeuren. Focus op de gewenste functionaliteit zoals een loop- of badkamerslot."
   },
   {
     "hoofdtitel": "Metalstud Voorzetwand",
     "hoofdcategorie": "Deuren",
     "subcategorie_label": "Deurbeslag",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals deurkrukken, schilden en rozetten. Focus op materiaal en stijl voor de esthetische afwerking."
   },
   {
@@ -780,21 +780,21 @@
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Buitendeuren & Hang- en Sluitwerk",
     "subcategorie_label": "Scharnieren",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals zware veiligheidsscharnieren (SKG) voor buitentoepassing. Focus op draagkracht en veiligheid voor de buitendeur."
   },
   {
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Buitendeuren & Hang- en Sluitwerk",
     "subcategorie_label": "Sloten",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals veiligheidssloten of meerpuntssluitingen (SKG) voor buitendeuren. Focus op optimale inbraakwerendheid."
   },
   {
     "hoofdtitel": "HSB Buiten Wand",
     "hoofdcategorie": "Buitendeuren & Hang- en Sluitwerk",
     "subcategorie_label": "Deurbeslag",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals veiligheidskrukken, schilden en rozetten. Focus op materiaalafwerking en inbraakwerendheid voor de buitenzijde."
   },
   {
@@ -1445,7 +1445,7 @@
     "hoofdtitel": "Massief Houten Vloer (finish)",
     "hoofdcategorie": "Vloer_Voorbereiding",
     "subcategorie_label": "Ondervloer",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
     "Extra_info": "Selecteer plaatmateriaal zoals multiplex of spaanplaat ondervloerplaten voor een stabiele basis. Focus op platen in gangbare diktes geschikt voor vloervoorbereiding."
   },
   {
@@ -1522,7 +1522,7 @@
     "hoofdtitel": "Laminaat / PVC / Klik-Vinyl",
     "hoofdcategorie": "Vloer_Voorbereiding",
     "subcategorie_label": "Ondervloer",
-    "subsectie": "Vloersystemen",
+    "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
     "Extra_info": "Selecteer de tussenlaag op rol of in plaatvorm voor akoestische of thermische isolatie. Focus op gangbare diktes geschikt voor zwevende vloeren."
   },
   {
@@ -1907,7 +1907,7 @@
     "hoofdtitel": "Inbouwkasten",
     "hoofdcategorie": "Luxe Beslag & Ladesystemen",
     "subcategorie_label": "Scharnier",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals meubelscharnieren of potscharnieren. Focus op het gewenste type opening voor de kastdeuren."
   },
   {
@@ -2047,21 +2047,21 @@
     "hoofdtitel": "Binnendeuren",
     "hoofdcategorie": "Deurbeslag & Sloten",
     "subcategorie_label": "Scharnieren / Paumelles",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals scharnieren of paumelles geschikt voor binnendeuren. Dit betreft technische componenten die handmatig geselecteerd moeten worden."
   },
   {
     "hoofdtitel": "Binnendeuren",
     "hoofdcategorie": "Deurbeslag & Sloten",
     "subcategorie_label": "Sloten",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals insteeksloten, loopsloten of kastsloten voor de binnendeuren. Focus op het type slot passend bij het gebruik en de deurdikte."
   },
   {
     "hoofdtitel": "Binnendeuren",
     "hoofdcategorie": "Deurbeslag & Sloten",
     "subcategorie_label": "Deurbeslag (Schild & Kruk)",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals deurkrukken, rozetten of schilden. Focus op materiaal en kleur passend bij de stijl van de deur voor een uniform zichtwerk."
   },
   {
@@ -2117,14 +2117,14 @@
     "hoofdtitel": "Buitendeuren",
     "hoofdcategorie": "Beveiliging & Sloten",
     "subcategorie_label": "Scharnieren",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals zware veiligheidsscharnieren of kogellagerscharnieren voor buitendeuren. Focus op draagkracht en veiligheidskenmerken voor handmatige selectie."
   },
   {
     "hoofdtitel": "Buitendeuren",
     "hoofdcategorie": "Beveiliging & Sloten",
     "subcategorie_label": "Sloten",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals veiligheidssloten voor buitentoepassing. Focus op sloten met een erkend veiligheidskeurmerk (SKG) voor optimale inbraakwerendheid."
   },
   {
@@ -2138,7 +2138,7 @@
     "hoofdtitel": "Buitendeuren",
     "hoofdcategorie": "Beveiliging & Sloten",
     "subcategorie_label": "Deurbeslag (Schild & Kruk)",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals veiligheidsbeslag inclusief krukken en schilden. Focus op kleur, materiaal en inbraakwerendheid (SKG) voor de esthetische afronding."
   },
   {
@@ -2425,7 +2425,7 @@
     "hoofdtitel": "Binnendeur Kozijnen - Hout",
     "hoofdcategorie": "Hang- & Sluitwerk",
     "subcategorie_label": "Scharnieren",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals kogellagerscharnieren of paumelles voor de ophanging van de binnendeur. Dit betreft technische componenten die handmatig geselecteerd moeten worden op basis van draagkracht."
   },
   {
@@ -2614,7 +2614,7 @@
     "hoofdtitel": "Zelf gemaakte houtkozijnen",
     "hoofdcategorie": "Hang- & Sluitwerk",
     "subcategorie_label": "Scharnieren",
-    "subsectie": "Kozijnen",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals kogellagerscharnieren, inboorscharnieren of veiligheidsscharnieren (SKG). Focus op de draagkracht en veiligheid voor de ophanging van ramen en deuren."
   },
   {
@@ -2838,7 +2838,7 @@
     "hoofdtitel": "Schutting plaatsen",
     "hoofdcategorie": "Tuindeur Beslag",
     "subcategorie_label": "Cilinderslot",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals een poortslot inclusief cilinder. Focus op sloten geschikt voor buitengebruik voor een veilige afsluiting."
   },
   {
@@ -3020,7 +3020,7 @@
     "hoofdtitel": "Keukenrenovatie",
     "hoofdcategorie": "Luxe Beslag & Hardware",
     "subcategorie_label": "Scharnier",
-    "subsectie": "Deuren",
+    "subsectie": "Deurbeslag",
     "Extra_info": "Selecteer specifiek hardware-beslag zoals meubelscharnieren of potscharnieren. Focus op functionaliteit zoals soft-close systemen voor de renovatie van de keukenkastjes."
   },
   {
