@@ -60,26 +60,26 @@ import { useUser, useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
 
 type Client = {
-    id: string;
-    userId?: string;
-    klanttype?: string;
-    voornaam?: string;
-    achternaam?: string;
-    bedrijfsnaam?: string;
-    emailadres?: string;
-    telefoonnummer?: string;
-    straat?: string;
-    huisnummer?: string;
-    postcode?: string;
-    plaats?: string;
-    afwijkendProjectadres?: boolean;
-    projectStraat?: string;
-    projectHuisnummer?: string;
-    projectPostcode?: string;
-    projectPlaats?: string;
-    createdAt?: any;
-    updatedAt?: any;
-  };
+  id: string;
+  userId?: string;
+  klanttype?: string;
+  voornaam?: string;
+  achternaam?: string;
+  bedrijfsnaam?: string;
+  emailadres?: string;
+  telefoonnummer?: string;
+  straat?: string;
+  huisnummer?: string;
+  postcode?: string;
+  plaats?: string;
+  afwijkendProjectadres?: boolean;
+  projectStraat?: string;
+  projectHuisnummer?: string;
+  projectPostcode?: string;
+  projectPlaats?: string;
+  createdAt?: any;
+  updatedAt?: any;
+};
 
 export default function KlantenPage() {
   const { user, isUserLoading } = useUser();
@@ -373,53 +373,40 @@ export default function KlantenPage() {
                             </Button>
 
                             {/* 2-click delete inside menu */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8"
-                                  aria-label="Meer opties"
-                                  title="Meer opties"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                  aria-label="Verwijderen"
                                 >
-                                  <MoreHorizontal className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
-                              </DropdownMenuTrigger>
+                              </AlertDialogTrigger>
 
-                              <DropdownMenuContent align="end">
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem
-                                      onSelect={(e) => e.preventDefault()}
-                                      className="text-red-600 focus:text-red-600"
-                                    >
-                                      <Trash2 className="mr-2 h-4 w-4" />
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Dit verwijdert {client.voornaam} {client.achternaam} uit uw
+                                    adresboek.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annuleren</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDelete(client.id)}
+                                    asChild
+                                  >
+                                    <Button variant="destructiveSoft">
                                       Verwijderen
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Dit verwijdert {client.voornaam} {client.achternaam} uit uw
-                                        adresboek.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Annuleren</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        className="bg-red-600 hover:bg-red-700"
-                                        onClick={() => handleDelete(client.id)}
-                                      >
-                                        Verwijderen
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                    </Button>
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </td>
                       </tr>
@@ -432,8 +419,8 @@ export default function KlantenPage() {
         </div>
       </div>
 
-     {/* Edit modal */}
-     <Dialog open={!!editingClient} onOpenChange={(open) => !open && setEditingClient(null)}>
+      {/* Edit modal */}
+      <Dialog open={!!editingClient} onOpenChange={(open) => !open && setEditingClient(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Klant bewerken</DialogTitle>

@@ -270,22 +270,25 @@ export default function GenericMeasurementPage() {
               <PlusCircle className="mr-2 h-4 w-4" />
               {itemLabel} toevoegen
             </Button>
-
-            <div className="mt-6 flex justify-between items-center">
-              <Button variant="outline" asChild disabled={disabledAll}>
-                <Link href={backUrl}>Terug</Link>
-              </Button>
-
-              <Button
-                type="submit"
-                variant="success"
-                disabled={disabledAll}
-                onClick={handleSave}
-              >
-                {saving ? 'Opslaan...' : 'Volgende'}
-              </Button>
-            </div>
           </form>
+        </div>
+      </div>
+
+      {/* Sticky Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+          <Button variant="outline" asChild disabled={disabledAll}>
+            <Link href={backUrl}>Terug</Link>
+          </Button>
+
+          <Button
+            type="submit"
+            variant="success"
+            disabled={disabledAll}
+            onClick={handleSave}
+          >
+            {saving ? 'Opslaan...' : 'Volgende'}
+          </Button>
         </div>
       </div>
     </main>

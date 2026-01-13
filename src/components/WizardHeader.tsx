@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Menu, Plus, LayoutDashboard, FileText, Ruler, Package, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Menu, Plus, LayoutDashboard, FileText, Ruler, Package, ChevronRight, Pencil, Boxes, Users, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -102,20 +102,11 @@ export function WizardHeader({
     }, [quoteId, firestore]);
 
     return (
-        <header className="border-b bg-background sticky top-0 z-50">
+        <header className="border-b bg-background">
             <div className="pt-3 sm:pt-4 px-4 pb-3 max-w-5xl mx-auto">
                 <div className="flex items-center gap-3">
                     {/* Back Button */}
-                    <Button
-                        asChild
-                        variant="outline"
-                        size="icon"
-                        className="h-11 w-11 rounded-xl shrink-0"
-                    >
-                        <Link href={backLink}>
-                            <ArrowLeft className="h-4 w-4" />
-                        </Link>
-                    </Button>
+
 
                     {/* Menu Button (Conditionally Rendered) */}
                     {quoteId && (
@@ -180,25 +171,50 @@ export function WizardHeader({
                                                     ))}
                                                 </div>
                                             )}
-                                        </div>
 
-                                        <Separator />
-
-                                        {/* Bottom Section */}
-                                        <div className="space-y-2">
-                                            <div className="px-2 text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">
-                                                Algemeen
-                                            </div>
-                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => setMenuOpen(false)}>
+                                                <Link href={`/offertes/${quoteId}/edit`}>
+                                                    <Pencil className="h-4 w-4" />
+                                                    Klant informatie bewerken
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => setMenuOpen(false)}>
                                                 <Link href={`/offertes/${quoteId}/overzicht`}>
                                                     <FileText className="h-4 w-4" />
                                                     Overzicht & Extra's
                                                 </Link>
                                             </Button>
+                                        </div>
+
+                                        <Separator />
+
+                                        <div className="space-y-2">
+                                            <div className="px-2 text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">
+                                                Algemeen
+                                            </div>
+
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
                                                 <Link href="/dashboard">
                                                     <LayoutDashboard className="h-4 w-4" />
                                                     Dashboard
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/materialen">
+                                                    <Boxes className="h-4 w-4" />
+                                                    Producten beheren
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/klanten">
+                                                    <Users className="h-4 w-4" />
+                                                    Klanten beheren
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/instellingen">
+                                                    <Settings className="h-4 w-4" />
+                                                    Instellingen
                                                 </Link>
                                             </Button>
                                         </div>

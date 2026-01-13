@@ -320,7 +320,17 @@ export default function NewJobPage() {
           )}
         </section>
       </div>
-    </main>
+
+
+      {/* Sticky Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+          <Button variant="outline" asChild>
+            <Link href={`/offertes/${quoteId}/edit`}>Terug</Link>
+          </Button>
+        </div>
+      </div>
+    </main >
   );
 }
 

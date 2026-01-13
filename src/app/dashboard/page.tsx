@@ -26,13 +26,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+
 
 import {
   AlertDialog,
@@ -51,7 +45,6 @@ import {
   Boxes,
   Users,
   Calendar,
-  MoreHorizontal,
   Trash2,
 } from 'lucide-react';
 
@@ -68,11 +61,7 @@ type QuoteMetDatums = Quote & {
   offerteNummer?: number | null;
 };
 
-// ✅ Alleen de styling die jij gaf (zelfde look/feel als je andere delete-confirm)
-const DESTRUCTIVE_BTN_SOFT =
-  'border border-red-500/50 bg-red-500/15 text-red-100 ' +
-  'hover:bg-red-500/25 hover:border-red-500/65 ' +
-  'focus-visible:ring-red-500 focus-visible:ring-offset-0';
+
 
 // --- Helpers ---
 
@@ -424,29 +413,15 @@ export default function Dashboard() {
                                 <TooltipContent>Bewerk deze klus</TooltipContent>
                               </Tooltip>
 
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-9 w-9">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">Acties</span>
-                                  </Button>
-                                </DropdownMenuTrigger>
-
-                                <DropdownMenuContent align="end" className="w-44">
-                                  <DropdownMenuSeparator />
-                                  {/* ✅ kleur in menu NIET aangepast — alleen rood label zoals jij wil */}
-                                  <DropdownMenuItem
-                                    onSelect={(e) => {
-                                      e.preventDefault();
-                                      openDeleteDialog(o);
-                                    }}
-                                    className="text-red-600 focus:text-red-600"
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Verwijderen
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                onClick={() => openDeleteDialog(o)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Verwijderen</span>
+                              </Button>
                             </div>
                           </div>
                         );
@@ -483,13 +458,11 @@ export default function Dashboard() {
                 Annuleren
               </AlertDialogCancel>
 
-              {/* Let op: dit is bewust GEEN shadcn "destructive" variant.
-                  Dit gebruikt jouw DESTRUCTIVE_BTN_SOFT classes zodat het exact matcht. */}
               <Button
                 type="button"
                 onClick={confirmDelete}
                 disabled={deleting}
-                className={`rounded-xl ${DESTRUCTIVE_BTN_SOFT}`}
+                variant="destructiveSoft"
               >
                 {deleting ? 'Verwijderen...' : 'Verwijderen'}
               </Button>

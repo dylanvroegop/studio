@@ -221,57 +221,88 @@ interface MaterialRowProps {
 }
 
 function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle }: MaterialRowProps) {
-  return (
-    <div
-      className={cn(
-        "group relative flex items-center justify-between py-3 px-4 rounded-lg border transition-all",
-        selected ? "border-emerald-500/50 bg-emerald-500/5" : "border-border hover:bg-accent/40"
-      )}
-    >
-      <div
-        onClick={onClick}
-        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-      >
-        <span className={cn(
-          "font-medium text-sm truncate",
-          selected ? "text-emerald-600" : "text-muted-foreground"
-        )}>
-          {label}
-        </span>
-      </div>
+  const [deleteConfOpen, setDeleteConfOpen] = useState(false);
 
-      <div className="flex items-center gap-2 shrink-0">
-        <div onClick={onClick} className="cursor-pointer flex items-center gap-2 min-w-0">
-          {selected ? (
-            <>
-              <span className="text-xs font-medium text-emerald-600 truncate max-w-[180px] sm:max-w-[200px]">
-                {selected.materiaalnaam}
-              </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
-            </>
-          ) : (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-              <Plus className="h-3.5 w-3.5" />
-              <span>Materiaal toevoegen</span>
-            </div>
-          )}
+  return (
+    <>
+      <div
+        className={cn(
+          "group relative flex items-center justify-between py-3 px-4 rounded-lg border transition-all",
+          selected ? "border-emerald-500/50 bg-emerald-500/5" : "border-border hover:bg-accent/40"
+        )}
+      >
+        <div
+          onClick={onClick}
+          className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+        >
+          <span className={cn(
+            "font-medium text-sm truncate",
+            selected ? "text-emerald-600" : "text-muted-foreground"
+          )}>
+            {label}
+          </span>
         </div>
 
-        {selected && onRemove && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <div onClick={onClick} className="cursor-pointer flex items-center gap-2 min-w-0">
+            {selected ? (
+              <>
+                <span className="text-xs font-medium text-emerald-600 truncate max-w-[180px] sm:max-w-[200px]">
+                  {selected.materiaalnaam}
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
+              </>
+            ) : (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+                <Plus className="h-3.5 w-3.5" />
+                <span>Materiaal toevoegen</span>
+              </div>
+            )}
+          </div>
+
+          {selected && onRemove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDeleteConfOpen(true);
+              }}
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
-    </div>
+
+      <AlertDialog open={deleteConfOpen} onOpenChange={setDeleteConfOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{selected?.materiaalnaam}</strong> wilt verwijderen uit dit slot?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => { e.stopPropagation(); setDeleteConfOpen(false); }}>
+              Annuleren
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onRemove) onRemove();
+                setDeleteConfOpen(false);
+              }}
+              asChild
+            >
+              <Button variant="destructiveSoft">Verwijderen</Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

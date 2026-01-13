@@ -1387,17 +1387,22 @@ export default function OverzichtPage() {
                 e.preventDefault();
                 confirmDeleteJob();
               }}
-              disabled={isDeletingJob}
-              className={cn('bg-red-600 text-white hover:bg-red-700', isDeletingJob && 'opacity-70')}
+              asChild
             >
-              {isDeletingJob ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verwijderen…
-                </>
-              ) : (
-                'Ja, verwijderen'
-              )}
+              <Button
+                variant="destructiveSoft"
+                disabled={isDeletingJob}
+                className={cn(isDeletingJob && 'opacity-70')}
+              >
+                {isDeletingJob ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verwijderen…
+                  </>
+                ) : (
+                  'Verwijderen'
+                )}
+              </Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1787,22 +1792,23 @@ export default function OverzichtPage() {
 
       <div className="flex-1 px-4 py-6 md:py-10">
         <div className="mx-auto max-w-3xl space-y-6">
-          <div
-            className={cn(
-              'rounded-lg border px-4 py-3 text-sm',
-              statusVariant === 'success' && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
-              statusVariant === 'warn' && 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-              statusVariant === 'error' && 'border-red-500/30 bg-red-500/10 text-red-200'
-            )}
-          >
-            <div className="flex items-start gap-3">
-              <ClipboardList className="mt-0.5 h-4 w-4 opacity-80" />
-              <div>
-                <div className="font-medium">Status</div>
-                <div className="text-xs opacity-90">{primaryHint}</div>
+          {statusVariant !== 'success' && (
+            <div
+              className={cn(
+                'rounded-lg border px-4 py-3 text-sm',
+                statusVariant === 'warn' && 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+                statusVariant === 'error' && 'border-red-500/30 bg-red-500/10 text-red-200'
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <ClipboardList className="mt-0.5 h-4 w-4 opacity-80" />
+                <div>
+                  <div className="font-medium">Status</div>
+                  <div className="text-xs opacity-90">{primaryHint}</div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Klussen */}
           <Card className="border-muted/60">
@@ -2214,18 +2220,24 @@ export default function OverzichtPage() {
           {/* Sticky bottom bar (geen globale settings knop meer) */}
           <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 backdrop-blur-sm">
             <div className="mx-auto max-w-3xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm">
-                <div className="font-medium">
-                  Na indienen wordt de offerte berekend
-                </div>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  asChild
+                  className="shrink-0"
+                >
+                  <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
+                </Button>
 
-
-                <div className="text-xs text-muted-foreground">
-                  Verwachte tijd: 30–60 min • Verstuurd via e-mail of WhatsApp
-
+                <div className="text-sm">
+                  <div className="font-medium">
+                    Na indienen wordt de offerte berekend
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Verwachte tijd: 30–60 min • Verstuurd via e-mail of WhatsApp
+                  </div>
                 </div>
               </div>
-
 
               <Button
                 onClick={handleFinishQuote}

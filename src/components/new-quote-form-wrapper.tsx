@@ -572,8 +572,10 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
             </div>
           )}
 
-          <div className="flex justify-end gap-4 pt-4">
-            <Button variant="outline" asChild><Link href="/">Annuleren</Link></Button>
+          <div className="flex w-full justify-between items-center pt-4">
+            <Button variant="outline" className="oh-annuleren" asChild>
+              <Link href="/">Annuleren</Link>
+            </Button>
             <Button type="submit" variant="success" disabled={isPending}>
               {isPending ? 'Bezig...' : 'Volgende'}
             </Button>

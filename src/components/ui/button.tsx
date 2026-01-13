@@ -21,19 +21,22 @@ const buttonVariants = cva(
         default:
           "bg-primary text-primary-foreground hover:bg-primary/90",
 
-// volgende / opslaan
-success:
-  "border border-emerald-500/50 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 hover:border-emerald-500/65 focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
+        // volgende / opslaan
+        success:
+          "border border-emerald-500/50 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 hover:border-emerald-500/65 focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
 
-  successGhost:
-  "border border-input bg-transparent text-foreground " +
-  "hover:bg-emerald-500/14 hover:border-emerald-500/55 hover:text-emerald-100 " +
-  "focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
+        successGhost:
+          "border border-input bg-transparent text-foreground " +
+          "hover:bg-emerald-500/14 hover:border-emerald-500/55 hover:text-emerald-100 " +
+          "focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
 
 
         // “Sluiten / Annuleren / Verwijderen”
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+
+        destructiveSoft:
+          "rounded-xl border border-red-500/50 bg-red-500/15 text-red-100 hover:bg-red-500/25 hover:border-red-500/65 focus-visible:ring-red-500 focus-visible:ring-offset-0",
 
         // Neutraal secundair
         secondary:
@@ -67,7 +70,7 @@ success:
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }
 
