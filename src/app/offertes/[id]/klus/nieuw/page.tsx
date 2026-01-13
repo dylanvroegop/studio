@@ -234,6 +234,7 @@ export default function NewJobPage() {
         title="Kies een klus"
         backLink={`/offertes/${quoteId}/edit`}
         progress={25}
+        quoteId={quoteId}
         rightContent={
           loading ? (
             <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />

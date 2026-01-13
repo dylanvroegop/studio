@@ -178,6 +178,7 @@ export default function GenericSubCategoryPage() {
         title="Kies een klus"
         backLink={`/offertes/${quoteId}/klus/nieuw`}
         progress={25}
+        quoteId={quoteId}
         rightContent={
           loading ? (
             <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />

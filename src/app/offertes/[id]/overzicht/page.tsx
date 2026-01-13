@@ -1775,6 +1775,7 @@ export default function OverzichtPage() {
         title="Overzicht & extra's"
         backLink="/dashboard"
         progress={100}
+        quoteId={quoteId}
         rightContent={
           loading ? (
             <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />

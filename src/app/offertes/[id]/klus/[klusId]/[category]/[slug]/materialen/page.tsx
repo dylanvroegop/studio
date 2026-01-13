@@ -914,6 +914,7 @@ export default function GenericMaterialsPageRedesigned() {
           title={JOB_TITEL}
           backLink={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}
           progress={pageProgress}
+          quoteId={quoteId}
           rightContent={
             isPaginaLaden ? (
               <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />

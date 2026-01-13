@@ -195,6 +195,7 @@ export default function GenericMeasurementPage() {
         title={jobConfig.title}
         backLink={backUrl}
         progress={progressValue}
+        quoteId={quoteId}
         rightContent={<PersonalNotes quoteId={quoteId} />}
       />
 
