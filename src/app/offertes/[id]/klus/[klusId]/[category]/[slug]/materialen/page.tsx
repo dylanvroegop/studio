@@ -998,14 +998,13 @@ export default function GenericMaterialsPageRedesigned() {
       const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
 
       const updatePayload: any = {
-        [`klussen.${klusId}.materialen`]: {
-          jobKey: JOB_KEY,
-          selections: cleanSelections,
-          custommateriaal: customMap,
-          savedByUid: user.uid,
-          // Explicitly delete legacy field to clean up DB
-          extraMaterials: deleteField()
-        },
+        // Use dot notation for materialen subfields to allow deleteField() to work
+        [`klussen.${klusId}.materialen.jobKey`]: JOB_KEY,
+        [`klussen.${klusId}.materialen.selections`]: cleanSelections,
+        [`klussen.${klusId}.materialen.custommateriaal`]: customMap,
+        [`klussen.${klusId}.materialen.savedByUid`]: user.uid,
+        // Delete legacy field at top level (required by Firestore)
+        [`klussen.${klusId}.materialen.extraMaterials`]: deleteField(),
         [`klussen.${klusId}.werkwijze`]: {
           workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
           presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
