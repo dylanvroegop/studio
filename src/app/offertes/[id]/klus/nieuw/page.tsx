@@ -233,13 +233,13 @@ export default function NewJobPage() {
       <WizardHeader
         title="Kies een klus"
         backLink={`/offertes/${quoteId}/edit`}
-        progress={25}
+        progress={20}
         quoteId={quoteId}
         rightContent={
           loading ? (
             <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
           ) : (
-            <PersonalNotes quoteId={quoteId} />
+            <PersonalNotes quoteId={quoteId} context="Klus keuze" />
           )
         }
       />

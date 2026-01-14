@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
 import { useUser } from '@/firebase';
 
+import { PersonalNotes } from '@/components/PersonalNotes';
+import { WizardHeader } from '@/components/WizardHeader';
+
 function PaginaLaden() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -50,10 +53,6 @@ export default function EditQuotePage() {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
 
-  const totaalStappen = 6;
-  const huidigeStap = 1;
-  const progressValue = (huidigeStap / totaalStappen) * 100;
-
   if (isUserLoading || !user) return <PaginaLaden />;
 
   return (
@@ -88,39 +87,13 @@ export default function EditQuotePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.05),transparent_60%)] opacity-70" />
       </div>
 
-      {/* TOP BAR */}
-      <header className="border-b bg-background/80 backdrop-blur-xl">
-        <div className="pt-[env(safe-area-inset-top)]">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <Button
-              asChild
-              variant="outline"
-              size="icon"
-              className="h-9 w-9 rounded-xl"
-            >
-              <Link href={`/offertes/${quoteId}`}>
-                <ArrowLeft className="h-4 w-4" />
-                <span className="sr-only">Terug naar offerte</span>
-              </Link>
-            </Button>
-
-            <div className="min-w-0 flex-1 text-center">
-              <div className="text-sm font-semibold text-foreground/90 leading-5">
-                Offerte bewerken
-              </div>
-
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted/40 ring-1 ring-border">
-                <div
-                  className="h-full rounded-full bg-primary/70 transition-[width] duration-300"
-                  style={{ width: `${progressValue}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="h-9 w-9" aria-hidden />
-          </div>
-        </div>
-      </header>
+      <WizardHeader
+        title="Offerte bewerken"
+        backLink={`/offertes/${quoteId}`}
+        progress={0}
+        quoteId={quoteId}
+        rightContent={<PersonalNotes quoteId={quoteId} context="Klantgegevens" />}
+      />
 
       {/* CONTENT */}
       <div className="px-4 py-6 sm:px-6 sm:py-8">

@@ -178,7 +178,7 @@ export default function GenericMeasurementPage() {
   }
 
   const disabledAll = saving || isPending || loading;
-  const progressValue = 50;
+  const progressValue = 60;
 
   // Use custom label OR fallback to first word
   const itemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
@@ -196,7 +196,7 @@ export default function GenericMeasurementPage() {
         backLink={backUrl}
         progress={progressValue}
         quoteId={quoteId}
-        rightContent={<PersonalNotes quoteId={quoteId} />}
+        rightContent={<PersonalNotes quoteId={quoteId} context={`Metingen: ${jobConfig.title}`} />}
       />
 
       <div className="px-4 py-6 max-w-5xl mx-auto pb-24">

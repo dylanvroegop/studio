@@ -11,6 +11,7 @@ import {
   orderBy,
   deleteDoc,
   updateDoc,
+  addDoc,
   doc,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -21,12 +22,13 @@ import {
   Trash2,
   Building2,
   User,
-  ArrowLeft,
   Pencil,
   MoreHorizontal,
   Loader2,
+  Plus,
 } from 'lucide-react';
 
+import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,6 +60,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
+import { BottomNav } from '@/components/BottomNav';
 
 type Client = {
   id: string;
@@ -93,6 +96,8 @@ export default function KlantenPage() {
 
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isEditSaving, setIsEditSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [isNewClient, setIsNewClient] = useState(false);
 
   useEffect(() => {
     if (isUserLoading) return;
@@ -179,7 +184,7 @@ export default function KlantenPage() {
         huisnummer: editingClient.huisnummer || '',
         postcode: editingClient.postcode || '',
         plaats: editingClient.plaats || '',
-        afwijkendProjectadres: editingClient.afwijkendProjectadres || false,
+        afwijkendProjectadres: true,
         projectStraat: editingClient.projectStraat || '',
         projectHuisnummer: editingClient.projectHuisnummer || '',
         projectPostcode: editingClient.projectPostcode || '',
@@ -208,6 +213,61 @@ export default function KlantenPage() {
     }
   };
 
+  const handleCreate = async () => {
+    if (!firestore || !user || !editingClient) return;
+
+    setCreating(true);
+    try {
+      const docRef = await addDoc(collection(firestore, 'clients'), {
+        userId: user.uid,
+        voornaam: editingClient.voornaam || '',
+        achternaam: editingClient.achternaam || '',
+        bedrijfsnaam: editingClient.bedrijfsnaam || '',
+        emailadres: editingClient.emailadres || '',
+        telefoonnummer: editingClient.telefoonnummer || '',
+        straat: editingClient.straat || '',
+        huisnummer: editingClient.huisnummer || '',
+        postcode: editingClient.postcode || '',
+        plaats: editingClient.plaats || '',
+        afwijkendProjectadres: true,
+        projectStraat: editingClient.projectStraat || '',
+        projectHuisnummer: editingClient.projectHuisnummer || '',
+        projectPostcode: editingClient.projectPostcode || '',
+        projectPlaats: editingClient.projectPlaats || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        klanttype: editingClient.bedrijfsnaam ? 'Zakelijk' : 'Particulier',
+      });
+
+      const newClient = { ...editingClient, id: docRef.id, userId: user.uid };
+      setClients((prev) => [newClient as Client, ...prev]);
+      setEditingClient(null);
+      setIsNewClient(false);
+
+      toast({
+        title: 'Klant aangemaakt',
+        description: 'De nieuwe klant is succesvol toegevoegd.',
+      });
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Kon klant niet aanmaken.',
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const openNewClientModal = () => {
+    setEditingClient({
+      id: '',
+      afwijkendProjectadres: true
+    } as Client);
+    setIsNewClient(true);
+  };
+
   const filteredClients = clients.filter((c) => {
     const term = searchQuery.toLowerCase();
     const name = `${c.voornaam || ''} ${c.achternaam || ''} ${c.bedrijfsnaam || ''}`.toLowerCase();
@@ -228,24 +288,10 @@ export default function KlantenPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background p-4 md:p-8 pb-24">
-      <div className="mx-auto max-w-6xl space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild className="shrink-0 rounded-xl">
-              <Link href="/dashboard">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Klantenbeheer</h1>
-              <p className="text-muted-foreground text-sm">
-                Beheer uw relaties ({clients.length} totaal)
-              </p>
-            </div>
-          </div>
-
+    <main className="min-h-screen bg-background pb-24">
+      <DashboardHeader user={user} title="Klantenbeheer" />
+      <div className="container mx-auto p-4 md:p-8 space-y-6">
+        <div className="flex items-center justify-between gap-4">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -255,9 +301,15 @@ export default function KlantenPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <Button
+            onClick={openNewClientModal}
+            variant="success"
+            className="h-10 px-4 font-bold shadow-sm shrink-0"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nieuwe Klant
+          </Button>
         </div>
-
-        {/* Table */}
         <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
           <div className="relative w-full overflow-auto">
             <table className="w-full caption-bottom text-sm text-left">
@@ -395,7 +447,9 @@ export default function KlantenPage() {
                                 </AlertDialogHeader>
 
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Annuleren</AlertDialogCancel>
+                                  <AlertDialogCancel asChild>
+                                    <Button variant="ghost">Annuleren</Button>
+                                  </AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleDelete(client.id)}
                                     asChild
@@ -419,150 +473,138 @@ export default function KlantenPage() {
         </div>
       </div>
 
-      {/* Edit modal */}
-      <Dialog open={!!editingClient} onOpenChange={(open) => !open && setEditingClient(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Klant bewerken</DialogTitle>
+      {/* Edit/Create modal */}
+      <Dialog
+        open={!!editingClient}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingClient(null);
+            setIsNewClient(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+            <DialogTitle>{isNewClient ? 'Nieuwe klant toevoegen' : 'Klant bewerken'}</DialogTitle>
           </DialogHeader>
 
           {editingClient && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Voornaam</Label>
-                  <Input
-                    value={editingClient.voornaam || ''}
-                    onChange={(e) =>
-                      setEditingClient({ ...editingClient, voornaam: e.target.value })
-                    }
-                  />
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="grid gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Voornaam</Label>
+                    <Input
+                      value={editingClient.voornaam || ''}
+                      onChange={(e) =>
+                        setEditingClient({ ...editingClient, voornaam: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Achternaam</Label>
+                    <Input
+                      value={editingClient.achternaam || ''}
+                      onChange={(e) =>
+                        setEditingClient({ ...editingClient, achternaam: e.target.value })
+                      }
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Achternaam</Label>
+                  <Label>Bedrijfsnaam (optioneel)</Label>
                   <Input
-                    value={editingClient.achternaam || ''}
+                    value={editingClient.bedrijfsnaam || ''}
                     onChange={(e) =>
-                      setEditingClient({ ...editingClient, achternaam: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Bedrijfsnaam (optioneel)</Label>
-                <Input
-                  value={editingClient.bedrijfsnaam || ''}
-                  onChange={(e) =>
-                    setEditingClient({ ...editingClient, bedrijfsnaam: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>E-mail</Label>
-                  <Input
-                    value={editingClient.emailadres || ''}
-                    onChange={(e) =>
-                      setEditingClient({ ...editingClient, emailadres: e.target.value })
+                      setEditingClient({ ...editingClient, bedrijfsnaam: e.target.value })
                     }
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Telefoon</Label>
-                  <Input
-                    value={editingClient.telefoonnummer || ''}
-                    onChange={(e) =>
-                      setEditingClient({ ...editingClient, telefoonnummer: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>E-mail</Label>
+                    <Input
+                      value={editingClient.emailadres || ''}
+                      onChange={(e) =>
+                        setEditingClient({ ...editingClient, emailadres: e.target.value })
+                      }
+                    />
+                  </div>
 
-              {/* Factuuradres Section */}
-              <div className="flex items-center gap-2 pt-2">
-                <div className="flex-1 border-t" />
-                <span className="text-xs font-medium text-muted-foreground">Factuuradres</span>
-                <div className="flex-1 border-t" />
-              </div>
-
-              <div className="grid grid-cols-4 gap-4">
-                <div className="col-span-3 space-y-2">
-                  <Label>Straat</Label>
-                  <Input
-                    value={editingClient.straat || ''}
-                    onChange={(e) =>
-                      setEditingClient({ ...editingClient, straat: e.target.value })
-                    }
-                  />
+                  <div className="space-y-2">
+                    <Label>Telefoon</Label>
+                    <Input
+                      value={editingClient.telefoonnummer || ''}
+                      onChange={(e) =>
+                        setEditingClient({ ...editingClient, telefoonnummer: e.target.value })
+                      }
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Nr.</Label>
-                  <Input
-                    value={editingClient.huisnummer || ''}
-                    onChange={(e) =>
-                      setEditingClient({ ...editingClient, huisnummer: e.target.value })
-                    }
-                  />
+                {/* Factuuradres Section */}
+                <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-foreground">Factuuradres</span>
+                    <div className="flex-1 border-t" />
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-3 space-y-2">
+                      <Label>Straat</Label>
+                      <Input
+                        value={editingClient.straat || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, straat: e.target.value })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Nr.</Label>
+                      <Input
+                        value={editingClient.huisnummer || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, huisnummer: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Postcode</Label>
+                      <Input
+                        value={editingClient.postcode || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, postcode: e.target.value })
+                        }
+                      />
+                    </div>
+
+                    <div className="col-span-2 space-y-2">
+                      <Label>Plaats</Label>
+                      <Input
+                        value={editingClient.plaats || ''}
+                        onChange={(e) =>
+                          setEditingClient({ ...editingClient, plaats: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Postcode</Label>
-                  <Input
-                    value={editingClient.postcode || ''}
-                    onChange={(e) =>
-                      setEditingClient({ ...editingClient, postcode: e.target.value })
-                    }
-                  />
-                </div>
+                {/* Projectadres Section - Always visible now */}
+                <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-foreground">Projectadres</span>
+                    <div className="flex-1 border-t" />
+                  </div>
 
-                <div className="col-span-2 space-y-2">
-                  <Label>Plaats</Label>
-                  <Input
-                    value={editingClient.plaats || ''}
-                    onChange={(e) =>
-                      setEditingClient({ ...editingClient, plaats: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Projectadres Section */}
-              <div className="flex items-center gap-2 pt-2">
-                <div className="flex-1 border-t" />
-                <span className="text-xs font-medium text-muted-foreground">Projectadres</span>
-                <div className="flex-1 border-t" />
-              </div>
-
-              {/* Toggle for project address */}
-              <div className="flex items-center space-x-2 py-1">
-                <input
-                  type="checkbox"
-                  id="projectToggle"
-                  checked={editingClient.afwijkendProjectadres || false}
-                  onChange={(e) =>
-                    setEditingClient({
-                      ...editingClient,
-                      afwijkendProjectadres: e.target.checked,
-                    })
-                  }
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                <Label htmlFor="projectToggle" className="cursor-pointer">
-                  Afwijkend projectadres
-                </Label>
-              </div>
-
-              {/* Show project address fields if toggle is on */}
-              {editingClient.afwijkendProjectadres && (
-                <>
-                  <div className="grid grid-cols-4 gap-4 p-4 border rounded-md bg-muted/20">
+                  <div className="grid grid-cols-4 gap-4">
                     <div className="col-span-3 space-y-2">
                       <Label>Projectstraat</Label>
                       <Input
@@ -607,23 +649,27 @@ export default function KlantenPage() {
                       />
                     </div>
                   </div>
-                </>
-              )}
+                </div>
+              </div>
             </div>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingClient(null)}>
+          <DialogFooter className="border-t p-6 bg-muted/5 sm:justify-between gap-4 shrink-0">
+            <Button variant="outline" onClick={() => { setEditingClient(null); setIsNewClient(false); }}>
               Annuleren
             </Button>
 
-            <Button variant="success" onClick={handleSaveEdit} disabled={isEditSaving}>
-              {isEditSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Opslaan
+            <Button variant="success" onClick={isNewClient ? handleCreate : handleSaveEdit} disabled={isEditSaving || creating}>
+              {(isEditSaving || creating) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isNewClient ? 'Toevoegen' : 'Opslaan'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
+
+      <BottomNav />
     </main>
   );
 }

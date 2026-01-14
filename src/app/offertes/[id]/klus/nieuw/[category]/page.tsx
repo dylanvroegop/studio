@@ -177,13 +177,13 @@ export default function GenericSubCategoryPage() {
       <WizardHeader
         title="Kies een klus"
         backLink={`/offertes/${quoteId}/klus/nieuw`}
-        progress={25}
+        progress={40}
         quoteId={quoteId}
         rightContent={
           loading ? (
             <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
           ) : (
-            <PersonalNotes quoteId={quoteId} />
+            <PersonalNotes quoteId={quoteId} context="Subcategorie keuze" />
           )
         }
       />

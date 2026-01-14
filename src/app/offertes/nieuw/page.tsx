@@ -8,6 +8,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
 import { useUser } from '@/firebase';
+import { WizardHeader } from '@/components/WizardHeader';
 
 function PaginaLaden() {
   return (
@@ -47,10 +48,6 @@ export default function NewQuotePage() {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
 
-  const totaalStappen = 6;
-  const huidigeStap = 1;
-  const progressValue = (huidigeStap / totaalStappen) * 100;
-
   if (isUserLoading || !user) return <PaginaLaden />;
 
   return (
@@ -68,12 +65,6 @@ export default function NewQuotePage() {
           background-color: hsl(142 71% 45%) !important;
         }
 
-        /* ✅ Annuleren hover rood — werkt alleen als de knop className="oh-annuleren" krijgt */
-        .oh-cta-green .oh-annuleren:hover {
-          background-color: hsl(0 72% 46%) !important;
-          border-color: transparent !important;
-          color: white !important;
-        }
       `}</style>
 
       {/* ambience */}
@@ -86,39 +77,11 @@ export default function NewQuotePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.05),transparent_60%)] opacity-70" />
       </div>
 
-      {/* TOP BAR */}
-      <header className="border-b bg-background/80 backdrop-blur-xl">
-        <div className="pt-[env(safe-area-inset-top)]">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <Button
-              asChild
-              variant="outline"
-              size="icon"
-              className="h-9 w-9 rounded-xl"
-            >
-              <Link href="/dashboard">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="sr-only">Terug</span>
-              </Link>
-            </Button>
-
-            <div className="min-w-0 flex-1 text-center">
-              <div className="text-sm font-semibold text-foreground/90 leading-5">
-                Nieuwe klus
-              </div>
-
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted/40 ring-1 ring-border">
-                <div
-                  className="h-full rounded-full bg-primary/70 transition-[width] duration-300"
-                  style={{ width: `${progressValue}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="h-9 w-9" aria-hidden />
-          </div>
-        </div>
-      </header>
+      <WizardHeader
+        title="Nieuwe offerte"
+        backLink="/dashboard"
+        progress={0}
+      />
 
       {/* Content */}
       <div className="px-4 py-6 sm:px-6 sm:py-8">

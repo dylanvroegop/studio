@@ -1,5 +1,6 @@
 
 'use client';
+import Image from 'next/image';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -12,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { OfferteHulpIcon } from '@/components/icons';
+
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,7 +35,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [passwordConfirmError, setPasswordConfirmError] = useState<string | null>(null);
-  
+
   const router = useRouter();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -54,13 +55,13 @@ export default function RegisterPage() {
     } else {
       setPasswordConfirmError(null);
     }
-    
+
     // KVK validation
     if (kvkNummer && !/^\d{8}$/.test(kvkNummer)) {
       setError('KVK-nummer moet uit 8 cijfers bestaan.');
       return false;
     }
-    
+
     // Required fields validation
     if (!email || !password || !bedrijfsnaam || !kvkNummer || !rol || !offertesPerMaand) {
       setError('Vul alstublieft alle verplichte velden in.');
@@ -72,7 +73,7 @@ export default function RegisterPage() {
       setError('U moet akkoord gaan met de algemene voorwaarden.');
       return false;
     }
-    
+
     return true;
   };
 
@@ -84,10 +85,10 @@ export default function RegisterPage() {
       setPasswordConfirmError(null);
     }
   }, [password, passwordConfirm]);
-  
+
   const handleRegister = async () => {
     setError(null);
-    
+
     if (!validateAndSetError()) {
       return;
     }
@@ -99,10 +100,10 @@ export default function RegisterPage() {
         setError('Firebase services zijn nog niet beschikbaar. Probeer opnieuw.');
         return;
       }
-    
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const newUser = userCredential.user;
-    
+
       const businessData = {
         email: newUser.email,
         bedrijfsnaam,
@@ -113,162 +114,170 @@ export default function RegisterPage() {
         offertesPerMaand,
         createdAt: serverTimestamp(),
       };
-    
+
       const businessDocRef = doc(firestore, 'businesses', newUser.uid);
       setDocumentNonBlocking(businessDocRef, businessData, { merge: true });
-    
+
       router.push('/dashboard');
     } catch (e) {
       const authError = e as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';
-    
+
       switch (authError.code) {
         case 'auth/invalid-email':
           errorMessage = 'Ongeldig emailadres formaat.';
           break;
-    
+
         case 'auth/email-already-in-use':
           errorMessage = 'Dit emailadres is al in gebruik.';
           break;
-    
+
         case 'auth/weak-password':
           errorMessage = 'Wachtwoord is te zwak. Gebruik minimaal 6 tekens.';
           break;
-    
+
         default:
           errorMessage = 'Registratie mislukt. Probeer het opnieuw.';
       }
-    
+
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-    
+
   };
 
   if (isUserLoading || user) {
-      return (
-          <div className="min-h-screen flex items-center justify-center p-4">
-              <div className="p-8 text-center text-gray-500 flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Laden...
-              </div>
-          </div>
-      );
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="p-8 text-center text-gray-500 flex items-center">
+          <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Laden...
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 py-8">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4">
-            <OfferteHulpIcon className="h-12 w-12 text-primary" />
+          <div className="mx-auto mb-4 flex justify-center">
+            <Image
+              src="/logo_final.png"
+              alt="OfferteHulp"
+              width={800}
+              height={224}
+              priority
+              className="h-56 w-auto object-contain"
+              unoptimized
+            />
           </div>
           <CardTitle className="text-2xl">Account aanmaken</CardTitle>
           <CardDescription>Maak een bedrijfsaccount om offertes te maken en beheren.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            
+
             {/* Accountgegevens */}
             <div className="space-y-4">
-                <h3 className="font-medium text-lg">Accountgegevens</h3>
+              <h3 className="font-medium text-lg">Accountgegevens</h3>
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mailadres *</Label>
+                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="email">E-mailadres *</Label>
-                    <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
+                  <Label htmlFor="password">Wachtwoord *</Label>
+                  <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="password">Wachtwoord *</Label>
-                        <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="passwordConfirm">Wachtwoord herhalen *</Label>
-                        <Input id="passwordConfirm" type="password" required value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} disabled={isLoading} />
-                        {passwordConfirmError && <p className="text-sm text-destructive mt-1">{passwordConfirmError}</p>}
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="passwordConfirm">Wachtwoord herhalen *</Label>
+                  <Input id="passwordConfirm" type="password" required value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} disabled={isLoading} />
+                  {passwordConfirmError && <p className="text-sm text-destructive mt-1">{passwordConfirmError}</p>}
                 </div>
+              </div>
             </div>
 
             <Separator />
 
             {/* Bedrijfsgegevens */}
             <div className="space-y-4">
-                 <h3 className="font-medium text-lg">Bedrijfsgegevens</h3>
-                 <div className="space-y-2">
-                    <Label htmlFor="bedrijfsnaam">Bedrijfsnaam *</Label>
-                    <Input id="bedrijfsnaam" required value={bedrijfsnaam} onChange={(e) => setBedrijfsnaam(e.target.value)} disabled={isLoading} />
+              <h3 className="font-medium text-lg">Bedrijfsgegevens</h3>
+              <div className="space-y-2">
+                <Label htmlFor="bedrijfsnaam">Bedrijfsnaam *</Label>
+                <Input id="bedrijfsnaam" required value={bedrijfsnaam} onChange={(e) => setBedrijfsnaam(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="kvk">KVK-nummer *</Label>
+                  <Input id="kvk" required value={kvkNummer} onChange={(e) => setKvkNummer(e.target.value)} disabled={isLoading} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="kvk">KVK-nummer *</Label>
-                        <Input id="kvk" required value={kvkNummer} onChange={(e) => setKvkNummer(e.target.value)} disabled={isLoading} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="btw">BTW-nummer (optioneel)</Label>
-                        <Input id="btw" value={btwNummer} onChange={(e) => setBtwNummer(e.target.value)} disabled={isLoading} />
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="btw">BTW-nummer (optioneel)</Label>
+                  <Input id="btw" value={btwNummer} onChange={(e) => setBtwNummer(e.target.value)} disabled={isLoading} />
                 </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="telefoon">Telefoonnummer (optioneel)</Label>
-                    <Input id="telefoon" type="tel" value={telefoon} onChange={(e) => setTelefoon(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="telefoon">Telefoonnummer (optioneel)</Label>
+                <Input id="telefoon" type="tel" value={telefoon} onChange={(e) => setTelefoon(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rol">Rol / type bedrijf *</Label>
+                  <Select onValueChange={setRol} value={rol} required>
+                    <SelectTrigger id="rol"><SelectValue placeholder="Kies uw rol" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aannemer">Aannemer</SelectItem>
+                      <SelectItem value="timmerman">Timmerman</SelectItem>
+                      <SelectItem value="bouwbedrijf">Bouwbedrijf</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="rol">Rol / type bedrijf *</Label>
-                         <Select onValueChange={setRol} value={rol} required>
-                            <SelectTrigger id="rol"><SelectValue placeholder="Kies uw rol" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="aannemer">Aannemer</SelectItem>
-                                <SelectItem value="timmerman">Timmerman</SelectItem>
-                                <SelectItem value="bouwbedrijf">Bouwbedrijf</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="offertes">Aantal offertes per maand *</Label>
-                        <Select onValueChange={setOffertesPerMaand} value={offertesPerMaand} required>
-                            <SelectTrigger id="offertes"><SelectValue placeholder="Kies een aantal" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="0-10">0–10</SelectItem>
-                                <SelectItem value="10-30">10–30</SelectItem>
-                                <SelectItem value="30+">30+</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="offertes">Aantal offertes per maand *</Label>
+                  <Select onValueChange={setOffertesPerMaand} value={offertesPerMaand} required>
+                    <SelectTrigger id="offertes"><SelectValue placeholder="Kies een aantal" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0-10">0–10</SelectItem>
+                      <SelectItem value="10-30">10–30</SelectItem>
+                      <SelectItem value="30+">30+</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
             </div>
 
             <Separator />
-            
+
             <div className="items-top flex space-x-2">
-            <Checkbox
-  id="terms"
-  checked={termsAccepted}
-  onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-  className="
+              <Checkbox
+                id="terms"
+                checked={termsAccepted}
+                onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                className="
     data-[state=checked]:bg-emerald-600
     data-[state=checked]:border-emerald-600
     data-[state=checked]:text-white
     data-[state=checked]:hover:bg-emerald-600
   "
-/>
+              />
 
-                <div className="grid gap-1.5 leading-none">
-                    <label
-                    htmlFor="terms"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                    Ik ga akkoord met de <a href="#" className="underline">algemene voorwaarden</a> en <a href="#" className="underline">privacyverklaring</a>.
-                    </label>
-                </div>
+              <div className="grid gap-1.5 leading-none">
+                <label
+                  htmlFor="terms"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Ik ga akkoord met de <a href="#" className="underline">algemene voorwaarden</a> en <a href="#" className="underline">privacyverklaring</a>.
+                </label>
+              </div>
             </div>
 
             {error && (
-               <Alert variant="destructive">
+              <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Registratiefout</AlertTitle>
                 <AlertDescription>
@@ -278,15 +287,15 @@ export default function RegisterPage() {
             )}
           </div>
           <div className="mt-6 flex flex-col gap-4">
-          <Button
-  variant="success"
-  onClick={handleRegister}
-  disabled={isLoading}
-  className="w-full"
->
-  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-  {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
-</Button>
+            <Button
+              variant="success"
+              onClick={handleRegister}
+              disabled={isLoading}
+              className="w-full"
+            >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? 'Account aanmaken...' : 'Account aanmaken'}
+            </Button>
 
             <p className="text-center text-sm text-muted-foreground">
               Heb je al een account?{' '}

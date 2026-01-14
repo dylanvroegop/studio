@@ -1,7 +1,7 @@
-// src/app/api/materialen/upsert/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { parsePriceToNumber } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,26 +32,6 @@ function normalizeString(v: unknown): string | null {
   return s.length ? s : null;
 }
 
-function toNumber(v: unknown): number | null {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  if (typeof v !== 'string') return null;
-
-  let s = v.trim();
-  if (!s) return null;
-
-  s = s.replace(/€/g, '').replace(/\s+/g, '');
-  s = s.replace(/[^0-9,.-]/g, '');
-  if (!s) return null;
-
-  const hasDot = s.includes('.');
-  const hasComma = s.includes(',');
-
-  if (hasDot && hasComma) s = s.replace(/\./g, '').replace(',', '.');
-  else if (hasComma && !hasDot) s = s.replace(',', '.');
-
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : null;
-}
 
 function toInt(v: unknown, fallback: number): number {
   if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
@@ -90,9 +70,9 @@ export async function POST(req: Request) {
 
     // ✅ FIXED HERE: We check "typeof === string" so Typescript allows .trim()
     const naam = typeof body.materiaalnaam === 'string' ? body.materiaalnaam.trim() : null;
-    
+
     const eenheid = normalizeString(body.eenheid);
-    const prijsNum = toNumber(body.prijs);
+    const prijsNum = parsePriceToNumber(body.prijs);
 
     const subsectie =
       normalizeString(body.subsectie) ??
@@ -111,14 +91,8 @@ export async function POST(req: Request) {
     if (prijsNum === null) return jsonFail('Prijs is ongeldig.', 400);
     if (prijsNum < 0) return jsonFail('Prijs mag niet negatief zijn.', 400);
 
-    // 4) Supabase service role (server-side)
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !serviceKey) return jsonFail('Server mist SUPABASE_URL of SUPABASE_SERVICE_ROLE_KEY.', 500);
-
-    const supabaseAdmin = createClient(url, serviceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    // 4) Supabase service role (server-side) using shared client
+    // supabaseAdmin is already initialized
 
     // 5) Payload (nooit id/categorie meesturen)
     const payload = {

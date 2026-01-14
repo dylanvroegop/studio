@@ -1,8 +1,7 @@
 'use client';
-
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Menu, Plus, LayoutDashboard, FileText, Ruler, Package, ChevronRight, Pencil, Boxes, Users, Settings } from 'lucide-react';
+import { ArrowLeft, Menu, Plus, LayoutDashboard, FileText, Ruler, Package, ChevronRight, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -82,12 +81,23 @@ export function WizardHeader({
                         job?.meta?.slug ||
                         slugify(title);
 
+                    // Determine completion status
+                    const metingenCompleted = Array.isArray(job?.maatwerk) && job.maatwerk.length > 0;
+
+                    const mat = job?.materialen || {};
+                    const materialenCompleted =
+                        (mat.selections && Object.keys(mat.selections).length > 0) ||
+                        (Array.isArray(mat.extraMaterials) && mat.extraMaterials.length > 0) ||
+                        (mat.custommateriaal && Object.keys(mat.custommateriaal).length > 0);
+
                     extractedJobs.push({
                         id,
                         title,
                         type,
                         slug,
-                        createdAt: job.createdAt
+                        createdAt: job.createdAt,
+                        metingenCompleted,
+                        materialenCompleted
                     });
                 });
 
@@ -155,7 +165,11 @@ export function WizardHeader({
                                                                     onClick={() => setMenuOpen(false)}
                                                                     className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
                                                                 >
-                                                                    <Ruler className="h-3.5 w-3.5" />
+                                                                    {job.metingenCompleted ? (
+                                                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                                                    ) : (
+                                                                        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                                                                    )}
                                                                     Metingen
                                                                 </Link>
                                                                 <Link
@@ -163,7 +177,11 @@ export function WizardHeader({
                                                                     onClick={() => setMenuOpen(false)}
                                                                     className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
                                                                 >
-                                                                    <Package className="h-3.5 w-3.5" />
+                                                                    {job.materialenCompleted ? (
+                                                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                                                    ) : (
+                                                                        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                                                                    )}
                                                                     Materialen
                                                                 </Link>
                                                             </div>

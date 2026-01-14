@@ -16,8 +16,10 @@ import {
 
 import { useFirestore, useUser } from '@/firebase';
 import type { Quote } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { BottomNav } from '@/components/BottomNav';
 
-import { DashboardHeader } from '@/components/dashboard-header';
+import { DashboardHeader } from '@/components/DashboardHeader';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,6 +48,8 @@ import {
   Users,
   Calendar,
   Trash2,
+  FilePlus,
+  LayoutDashboard,
 } from 'lucide-react';
 
 import { format } from 'date-fns';
@@ -107,12 +111,12 @@ function getOverzichtHref(quoteId: string) {
 
 function StatusBadge({ status }: { status: Status }) {
   const statusMap: Record<Status, { text: string; className: string }> = {
-    concept: { text: 'Concept', className: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25' },
-    in_behandeling: { text: 'Bezig', className: 'bg-blue-500/15 text-blue-300 border-blue-500/25' },
-    verzonden: { text: 'Verzonden', className: 'bg-orange-500/15 text-orange-300 border-orange-500/25' },
-    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' },
-    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/15 text-red-300 border-red-500/25' },
-    verlopen: { text: 'Verlopen', className: 'bg-zinc-700 text-zinc-400 border-zinc-600' },
+    concept: { text: 'Concept', className: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
+    in_behandeling: { text: 'Bezig', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+    verzonden: { text: 'Verzonden', className: 'bg-sky-500/10 text-sky-400 border-sky-500/20' },
+    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
+    verlopen: { text: 'Verlopen', className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
   };
 
   const safeStatus: Status = statusMap[status] ? status : 'concept';
@@ -121,7 +125,7 @@ function StatusBadge({ status }: { status: Status }) {
   return (
     <Badge
       variant="outline"
-      className={`font-medium px-2 py-0 text-[10px] uppercase tracking-wider ${className}`}
+      className={`font-semibold px-2.5 py-0.5 text-[10px] uppercase tracking-wider shadow-sm ${className}`}
     >
       {text}
     </Badge>
@@ -270,27 +274,32 @@ export default function Dashboard() {
   return (
     <TooltipProvider>
       <div className="flex min-h-screen flex-col">
-        <DashboardHeader user={user} />
+        <DashboardHeader user={user} title="Dashboard" />
 
         <main className="flex flex-1 flex-col items-center p-4 md:p-6 pb-24">
-          <div className="w-full max-w-3xl space-y-6">
+          <div className="w-full max-w-3xl space-y-10">
             <div className="px-1">
-              <div className="text-lg font-medium leading-tight">{begroeting}</div>
+              <div className="text-3xl font-light tracking-tight">{begroeting}</div>
             </div>
 
-            <Card className="bg-card/50">
-              <CardContent className="p-5 md:p-6">
+            <Card className="relative overflow-hidden border-zinc-800/50 bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/30">
+              <div className="absolute -right-6 -top-6 text-zinc-800/20 rotate-12">
+                <FilePlus className="h-48 w-48" />
+              </div>
+
+              <CardContent className="relative p-6 md:p-8">
                 <div className="flex items-start justify-between gap-6">
-                  <div className="min-w-0">
-                    <h1 className="text-2xl md:text-3xl font-semibold leading-tight">Nieuwe klus</h1>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Start met het uitwerken van een nieuwe klus.
+                  <div className="min-w-0 max-w-lg relative z-10">
+                    <h1 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight text-white">Nieuwe klus</h1>
+                    <p className="mt-2 text-base text-zinc-400">
+                      Start met het uitwerken van een nieuwe klus. <br />
+                      <span className="text-sm opacity-70">Kies een werkwijze en voeg direct materialen toe.</span>
                     </p>
                   </div>
-                  <div className="shrink-0">
-                    <Button asChild variant="success" className="gap-2 h-11 px-5">
+                  <div className="shrink-0 relative z-10 pt-1">
+                    <Button asChild variant="success" className="gap-2 h-12 px-6 shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 hover:shadow-emerald-500/30">
                       <Link href="/offertes/nieuw">
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-5 w-5" />
                         Nieuwe klus starten
                       </Link>
                     </Button>
@@ -300,23 +309,20 @@ export default function Dashboard() {
             </Card>
 
             {lopendeKlus && (
-              <Card className="bg-card/50">
+              <Card className="border-zinc-800/60 bg-zinc-900/20 backdrop-blur-xl">
                 <CardContent className="p-4 md:p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold">Lopende klus</div>
-                      <div className="mt-1 text-sm text-muted-foreground truncate">
-                        {getOfferteNummerLabel(lopendeKlus) ? (
-                          <>
-                            <span className="font-mono text-zinc-300">{getOfferteNummerLabel(lopendeKlus)}</span>
-                            <span className="opacity-30 mx-2">•</span>
-                          </>
-                        ) : null}
+                      <div className="text-sm font-semibold text-emerald-400 mb-1">Lopende klus</div>
+                      <div className="text-base font-medium text-zinc-200 truncate">
                         {getKlantNaam(lopendeKlus)} — {getTitel(lopendeKlus)}
                       </div>
+                      {getOfferteNummerLabel(lopendeKlus) && (
+                        <div className="mt-1 font-mono text-xs text-zinc-500">{getOfferteNummerLabel(lopendeKlus)}</div>
+                      )}
                     </div>
 
-                    <Button asChild variant="secondary" className="shrink-0 gap-2">
+                    <Button asChild variant="secondary" className="shrink-0 gap-2 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50">
                       <Link href={getOverzichtHref(lopendeKlus.id)}>
                         <Pencil className="h-4 w-4" />
                         Bewerken
@@ -327,16 +333,16 @@ export default function Dashboard() {
               </Card>
             )}
 
-            <Card className="bg-card/50">
-              <CardContent className="p-4 md:p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <Card className="border-none bg-transparent shadow-none">
+              <CardContent className="p-0">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6 px-1">
                   <div>
-                    <div className="text-sm font-semibold">Recente klussen</div>
-                    <div className="text-xs text-muted-foreground">Terugvinden en openen.</div>
+                    <div className="text-lg font-semibold tracking-tight text-white">Recente klussen</div>
+                    <div className="text-sm text-zinc-400">Terugvinden en openen.</div>
                   </div>
                   <Input
-                    placeholder="Zoek op klant, adres of #nummer..."
-                    className="w-full md:w-[320px]"
+                    placeholder="Zoek op klus..."
+                    className="w-full md:w-[280px] bg-zinc-900/50 border-zinc-800 focus:bg-zinc-900 transition-colors"
                     value={zoek}
                     onChange={(e) => setZoek(e.target.value)}
                   />
@@ -358,55 +364,61 @@ export default function Dashboard() {
                       Nog geen klussen gevonden.
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {recenteKlussen.map((o) => {
                         const datum = o.updatedAtDate ?? o.createdAtDate;
                         const nrLabel = getOfferteNummerLabel(o);
+                        const totaal = (o as any).totaalbedrag || (o as any).amount || 0;
+
 
                         return (
                           <div
                             key={o.id}
-                            className="flex items-center justify-between gap-4 rounded-xl border border-zinc-800/50 bg-zinc-900/10 px-4 py-3 hover:bg-zinc-800/30 transition-all"
+                            className="group relative flex items-center justify-between gap-4 rounded-xl border border-zinc-800/40 bg-zinc-900/40 px-4 py-3.5 hover:bg-zinc-800/60 hover:border-zinc-700/50 hover:shadow-md transition-all duration-200 backdrop-blur-sm"
                           >
-                            <div className="flex-1 min-w-0">
-                              <Link href={getOverzichtHref(o.id)} className="block">
-                                <div className="flex items-center gap-3 mb-1 min-w-0">
-                                  <span className="font-semibold text-zinc-200 truncate">{getKlantNaam(o)}</span>
+                            {/* Full row click target */}
+                            <Link href={getOverzichtHref(o.id)} className="absolute inset-0 z-0" />
 
-                                  {nrLabel && (
-                                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-md border border-zinc-700/50 bg-zinc-900/20 text-zinc-300 shrink-0">
-                                      {nrLabel}
-                                    </span>
-                                  )}
+                            <div className="flex-1 min-w-0 z-10 pointer-events-none">
+                              <div className="flex items-center gap-3 mb-1 min-w-0">
+                                <span className="font-bold text-zinc-100 truncate text-base">{getKlantNaam(o)}</span>
 
-                                  <StatusBadge status={o.status as Status} />
-                                </div>
+                                {nrLabel && (
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900/50 text-zinc-500 shrink-0">
+                                    {nrLabel}
+                                  </span>
+                                )}
 
-                                <div className="flex items-center gap-3 text-xs text-zinc-500">
-                                  <span className="truncate max-w-[200px] font-medium text-zinc-400">
-                                    {getTitel(o)}
-                                  </span>
-                                  <span className="opacity-20">•</span>
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
-                                  </span>
-                                  <span className="opacity-20">•</span>
-                                  <span className="font-semibold text-emerald-500/80">
-                                    {formatCurrency((o as any).totaalbedrag || (o as any).amount)}
-                                  </span>
-                                </div>
-                              </Link>
+                                <StatusBadge status={o.status as Status} />
+                              </div>
+
+                              <div className="flex items-center gap-3 text-xs text-zinc-500">
+                                <span className="truncate max-w-[200px] font-medium text-zinc-400">
+                                  {getTitel(o)}
+                                </span>
+                                <span className="opacity-20">•</span>
+                                <span className="flex items-center gap-1.5">
+                                  <Calendar className="h-3 w-3 opacity-70" />
+                                  {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
+                                </span>
+                                <span className="opacity-20">•</span>
+                                <span className={cn(
+                                  "font-semibold",
+                                  totaal > 0 ? "text-emerald-400" : "text-zinc-600"
+                                )}>
+                                  {formatCurrency(totaal)}
+                                </span>
+                              </div>
                             </div>
 
-                            {/* ✅ Bewerken + 3-dots menu (zoals Klanten) */}
-                            <div className="flex items-center gap-2">
+                            {/* Actions - visible always */}
+                            <div className="flex items-center gap-2 z-20">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button asChild variant="secondary" size="sm" className="gap-2">
+                                  <Button asChild variant="secondary" size="sm" className="gap-2 h-8 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50">
                                     <Link href={getOverzichtHref(o.id)}>
-                                      <Pencil className="h-4 w-4" />
-                                      Bewerken
+                                      <Pencil className="h-3.5 w-3.5" />
+                                      <span className="hidden sm:inline">Bewerken</span>
                                     </Link>
                                   </Button>
                                 </TooltipTrigger>
@@ -416,8 +428,12 @@ export default function Dashboard() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-9 w-9 text-muted-foreground hover:text-foreground"
-                                onClick={() => openDeleteDialog(o)}
+                                className="h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  openDeleteDialog(o);
+                                }}
                               >
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Verwijderen</span>
@@ -470,29 +486,8 @@ export default function Dashboard() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 backdrop-blur-xl">
-          <div className="mx-auto max-w-3xl px-3 py-2 flex items-center justify-around">
-            <Link
-              href="/klanten"
-              className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Users className="h-5 w-5" /> Klanten
-            </Link>
-            <Link
-              href="/materialen"
-              className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Boxes className="h-5 w-5" /> Producten
-            </Link>
-            <Link
-              href="/instellingen"
-              className="flex flex-col items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Settings className="h-5 w-5" /> Instellingen
-            </Link>
-          </div>
-        </div>
-      </div>
-    </TooltipProvider>
+        <BottomNav />
+      </div >
+    </TooltipProvider >
   );
 }

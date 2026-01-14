@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // Re-using your existing logic from your other route.ts files
 function krijgFirebaseAdminApp() {
@@ -21,19 +21,15 @@ export async function GET(req: Request) {
     const decodedToken = await admin.auth().verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    // 2. Initialize Supabase with Service Role Key (from apphosting.yaml)
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // 2. Use Shared Supabase Admin Client
 
 
-const { data, error } = await supabaseAdmin
-.from('materialen')
-.select('*')
-.eq('gebruikerid', uid)
-.range(0, 5000)
-.order('volgorde', { ascending: true });
+    const { data, error } = await supabaseAdmin
+      .from('materialen')
+      .select('*')
+      .eq('gebruikerid', uid)
+      .range(0, 5000)
+      .order('volgorde', { ascending: true });
 
     if (error) throw error;
 

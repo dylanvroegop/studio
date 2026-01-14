@@ -24,6 +24,8 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Calculator,
+  Sparkles,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -227,33 +229,33 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
     <>
       <div
         className={cn(
-          "group relative flex items-center justify-between py-3 px-4 rounded-lg border transition-all",
-          selected ? "border-emerald-500/50 bg-emerald-500/5" : "border-border hover:bg-accent/40"
+          "group relative flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 rounded-lg border transition-all gap-1 sm:gap-4",
+          selected ? "border-emerald-500/20 bg-emerald-500/5" : "border-border hover:bg-accent/40"
         )}
       >
         <div
           onClick={onClick}
-          className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+          className="flex items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0 cursor-pointer"
         >
           <span className={cn(
             "font-medium text-sm truncate",
-            selected ? "text-emerald-600" : "text-muted-foreground"
+            selected ? "text-emerald-500" : "text-muted-foreground"
           )}>
             {label}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <div onClick={onClick} className="cursor-pointer flex items-center gap-2 min-w-0">
+        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">
+          <div onClick={onClick} className="cursor-pointer flex items-center gap-2 min-w-0 flex-1 sm:flex-initial sm:justify-end">
             {selected ? (
               <>
-                <span className="text-xs font-medium text-emerald-600 truncate max-w-[180px] sm:max-w-[200px]">
+                <span className="text-xs font-medium text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-md break-words text-left sm:text-right leading-tight">
                   {selected.materiaalnaam}
                 </span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
               </>
             ) : (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 ml-auto sm:ml-0">
                 <Plus className="h-3.5 w-3.5" />
                 <span>Materiaal toevoegen</span>
               </div>
@@ -286,8 +288,8 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={(e) => { e.stopPropagation(); setDeleteConfOpen(false); }}>
-              Annuleren
+            <AlertDialogCancel asChild onClick={(e) => { e.stopPropagation(); setDeleteConfOpen(false); }}>
+              <Button variant="ghost">Annuleren</Button>
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
@@ -362,7 +364,7 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel, presets, defau
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuleren</Button>
           <Button onClick={handleSave} disabled={!name || isSaving} variant="outline" className={cn(existingPreset ? DESTRUCTIVE_BTN_SOFT : POSITIVE_BTN_SOFT)}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isSaving ? 'Bezig...' : existingPreset ? 'Overschrijven' : 'Opslaan'}
           </Button>
@@ -379,7 +381,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
         <DialogContent className={cn('max-w-lg w-full', DIALOG_CLOSE_TAP)}>
           <DialogHeader><DialogTitle>Werkwijzen beheren</DialogTitle></DialogHeader>
           <p className="text-muted-foreground text-sm py-8 text-center">Geen werkwijzen gevonden.</p>
-          <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Sluiten</Button></DialogFooter>
+          <DialogFooter><Button variant="secondary" onClick={() => onOpenChange(false)}>Sluiten</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -446,7 +448,7 @@ function AddExtraMaterialDialog({ open, onOpenChange, onAdd }: any) {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuleren</Button>
           <Button
             onClick={handleAdd}
             disabled={!title.trim()}
@@ -511,11 +513,11 @@ export default function GenericMaterialsPageRedesigned() {
   const [isPresetsLaden, setPresetsLaden] = useState(true);
 
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, any | undefined>>({});
-  const [extraMaterials, setExtraMaterials] = useState<any[]>([]);
+  // extraMaterials state removed - unified into customGroups
   const [customGroups, setCustomGroups] = useState<any[]>([]);
   const [firestoreCustommateriaal, setFirestoreCustommateriaal] = useState<any | null>(null);
 
-  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<any>({ mode: 'percentage', percentage: null, fixedAmount: null });
+  const [kleinMateriaalConfig, setKleinMateriaalConfig] = useState<any>({ mode: 'inschatting', percentage: null, fixedAmount: null });
   const [kleinVastBedragStr, setKleinVastBedragStr] = useState<string>('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [hiddenCategories, setHiddenCategories] = useState<Record<string, boolean>>({});
@@ -531,6 +533,11 @@ export default function GenericMaterialsPageRedesigned() {
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [addExtraMaterialOpen, setAddExtraMaterialOpen] = useState(false);
   const [newExtraMaterialTitle, setNewExtraMaterialTitle] = useState('');
+
+  // Safeguard state
+  const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
+  const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
+  const [isAutosaving, setIsAutosaving] = useState(false);
 
   const userHeeftPresetGewijzigdRef = useRef(false);
   const isHydratingRef = useRef(true);
@@ -607,13 +614,31 @@ export default function GenericMaterialsPageRedesigned() {
           const mat = klusNode.materialen;
           const rawSels = mat.selections || {};
           setGekozenMaterialen(rawSels);
-          setExtraMaterials(mat.extraMaterials || []);
-          setFirestoreCustommateriaal(mat.custommateriaal || null);
+
+          // Legacy migration: merge extraMaterials into custommateriaal if needed
+          let mergedCustom = mat.custommateriaal || {};
+          const legacyExtra = mat.extraMaterials || [];
+          if (Array.isArray(legacyExtra) && legacyExtra.length > 0) {
+            const hasExisting = Object.keys(mergedCustom).length > 0;
+            legacyExtra.forEach((m: any, idx: number) => {
+              if (m && m.id) {
+                // Create a pseudo-group for each legacy item
+                const gid = `legacy_migrated_${m.id}_${idx}_${Date.now()}`;
+                mergedCustom[gid] = {
+                  id: m.id,
+                  title: m.materiaalnaam || m.naam || 'Extra materiaal',
+                  order: (hasExisting ? 2000 : 0) + idx
+                };
+              }
+            });
+          }
+          setFirestoreCustommateriaal(mergedCustom);
           hasSavedConfigRef.current = true;
         }
         if (klusNode?.werkwijze?.workMethodId) setGekozenPresetId(klusNode.werkwijze.workMethodId);
         if (klusNode?.kleinMateriaal) setKleinMateriaalConfig(klusNode.kleinMateriaal);
         if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections);
+        if (klusNode?.uiState?.hiddenCategories) setHiddenCategories(klusNode.uiState.hiddenCategories);
         isHydratingRef.current = false;
       } catch (e) { console.error(e); }
       finally { setPaginaLaden(false); }
@@ -674,10 +699,11 @@ export default function GenericMaterialsPageRedesigned() {
       if (userHeeftPresetGewijzigdRef.current) {
         setGekozenMaterialen({});
         setCollapsedSections({});
-        setExtraMaterials([]);
+        setHiddenCategories({});
+        // extraMaterials removed
         setCustomGroups([]);
         setFirestoreCustommateriaal(null);
-        setKleinMateriaalConfig({ mode: 'percentage', percentage: null, fixedAmount: null });
+        setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
       }
       return;
     }
@@ -696,6 +722,7 @@ export default function GenericMaterialsPageRedesigned() {
     }
     setGekozenMaterialen(newSels);
     if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
+    if (preset.hiddenCategories) setHiddenCategories(preset.hiddenCategories); else setHiddenCategories({});
     if (preset.custommateriaal) setCustomGroups(bouwCustomGroupsUitFirestore(preset.custommateriaal, alleMaterialen));
     else setCustomGroups([]);
     if (preset.kleinMateriaalConfig) setKleinMateriaalConfig(preset.kleinMateriaalConfig);
@@ -704,7 +731,25 @@ export default function GenericMaterialsPageRedesigned() {
   }, [gekozenPresetId, presets, alleMaterialen]);
 
   // Handlers
-  const onPresetChange = (val: string) => { userHeeftPresetGewijzigdRef.current = true; autoApplyDefaultPresetRef.current = false; setGekozenPresetId(val); };
+  const onPresetChange = (val: string) => {
+    // If user has manually selected materials (and it's not just the default empty state or same preset), warn them.
+    const hasSelections = Object.keys(gekozenMaterialen).length > 0 || customGroups.length > 0;
+    if (hasSelections && val !== gekozenPresetId) {
+      setPendingPresetId(val);
+      setPresetConfirmOpen(true);
+    } else {
+      applyPresetChange(val);
+    }
+  };
+
+  const applyPresetChange = (val: string) => {
+    userHeeftPresetGewijzigdRef.current = true;
+    autoApplyDefaultPresetRef.current = false;
+    setGekozenPresetId(val);
+    setPresetConfirmOpen(false);
+    setPendingPresetId(null);
+  };
+
   const toggleSection = (key: string) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   const toggleCategoryVisibility = (categoryKey: string) => setHiddenCategories(prev => ({ ...prev, [categoryKey]: !prev[categoryKey] }));
   const openMateriaalKiezer = (sectieKey: string, groupId: string | null = null) => { setActieveSectie(sectieKey); setActiveGroupId(groupId); setIsExtraModalOpen(true); };
@@ -716,98 +761,156 @@ export default function GenericMaterialsPageRedesigned() {
   const renderKleinMateriaalSectie = () => {
     const { mode, percentage, fixedAmount } = kleinMateriaalConfig;
 
-    // Subtle emerald style for active state (similar to successGhost but dimmer)
-    const activeStyle = 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-100';
-    const inactiveStyle = 'border border-border text-muted-foreground hover:bg-accent/50';
-
     return (
-      <div className="space-y-3">
-        <div className="px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
-          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Klein materiaal</h2>
+      <div className="mt-8 rounded-xl border border-border/60 bg-card/30 overflow-hidden shadow-sm">
+        {/* Header Section */}
+        <div className="px-5 py-4 border-b border-border/50 bg-muted/20">
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-2 uppercase tracking-wide">
+            <Calculator className="h-4 w-4 text-emerald-500" />
+            Automatische Klein Materiaal Berekening
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">
+            Dit dekt schroeven, pluggen, tape en ander klein bevestigingsmateriaal dat u niet individueel hoeft te specificeren.
+          </p>
         </div>
 
-        {/* Segmented Control - Horizontal Strip */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => {
-              setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
-              setKleinVastBedragStr('');
-            }}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              mode === 'inschatting' ? activeStyle : inactiveStyle
-            )}
-          >
-            Inschatting
-          </button>
+        {/* Content Section */}
+        <div className="p-5 space-y-6">
 
-          <button
-            type="button"
-            onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'percentage' }))}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              mode === 'percentage' ? activeStyle : inactiveStyle
-            )}
-          >
-            Percentage
-          </button>
+          {/* Recommended Option */}
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest pl-1">Aanbevolen</label>
+            <div
+              onClick={() => {
+                setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
+                setKleinVastBedragStr('');
+              }}
+              className={cn(
+                "relative flex items-start gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer group",
+                mode === 'inschatting'
+                  ? "border-emerald-500/50 bg-emerald-500/5 shadow-sm"
+                  : "border-border/60 hover:border-emerald-500/30 hover:bg-accent/40 bg-background/50"
+              )}
+            >
+              <div className={cn(
+                "mt-0.5 p-2 rounded-lg transition-colors",
+                mode === 'inschatting' ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground group-hover:text-emerald-500"
+              )}>
+                <Sparkles className="h-4.5 w-4.5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="font-semibold text-sm flex items-center gap-2">
+                  Automatische Inschatting
+                  {mode === 'inschatting' && <CheckCircle2 className="h-4 w-4 text-emerald-600 animate-in zoom-in-50 duration-200" />}
+                </div>
 
-          <button
-            type="button"
-            onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'fixed' }))}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              mode === 'fixed' ? activeStyle : inactiveStyle
-            )}
-          >
-            Vast bedrag
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null });
-              setKleinVastBedragStr('');
-            }}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              mode === 'none' ? activeStyle : inactiveStyle
-            )}
-          >
-            Geen
-          </button>
-
-          {/* Inline Input - Appears right next to buttons */}
-          {mode === 'percentage' && (
-            <div className="flex items-center gap-2 ml-2">
-              <div className="relative w-20">
-                <Input
-                  type="number"
-                  step="0.1"
-                  placeholder="0"
-                  className="pr-7 h-9 text-sm"
-                  value={percentage ?? ''}
-                  onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })}
-                />
-                <span className="absolute inset-y-0 right-2 flex items-center text-muted-foreground text-xs pointer-events-none">%</span>
+                {/* Trust explanation - ONLY visible when selected */}
+                {mode === 'inschatting' ? (
+                  <p className="text-xs text-muted-foreground/90 leading-relaxed animate-in fade-in slide-in-from-top-1">
+                    Klein materiaal automatisch meeberekenen op basis van klusomvang.
+                    <br /><span className="opacity-75">Zorgt voor een correcte dekking van kleinverbruik.</span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground group-hover:text-muted-foreground/80">
+                    Automatisch klein materiaal en verbruiksartikelen meenemen.
+                  </p>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
-          {mode === 'fixed' && (
-            <div className="ml-2 w-32">
-              <EuroInput
-                id="km-fixed"
-                value={kleinVastBedragStr}
-                placeholder="0,00"
-                onChange={(v: string) => {
-                  setKleinVastBedragStr(v);
-                  setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) });
+          {/* Alternatives */}
+          <div className="space-y-3">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest pl-1">Handmatige Alternatieven</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'percentage' }))}
+                className={cn(
+                  'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+                  mode === 'percentage'
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
+                    : "border-border/60 bg-background/50 hover:bg-accent/50 text-muted-foreground"
+                )}
+              >
+                Percentage
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'fixed' }))}
+                className={cn(
+                  'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+                  mode === 'fixed'
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
+                    : "border-border/60 bg-background/50 hover:bg-accent/50 text-muted-foreground"
+                )}
+              >
+                Vast bedrag
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null });
+                  setKleinVastBedragStr('');
                 }}
-              />
+                className={cn(
+                  'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+                  mode === 'none'
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
+                    : "border-transparent bg-transparent text-muted-foreground/70 hover:text-foreground hover:bg-secondary/50"
+                )}
+              >
+                Geen
+              </button>
+
+              {/* Inline Inputs - Conditional Rendering */}
+              {mode === 'percentage' && (
+                <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                  <div className="w-px h-6 bg-border mx-1" />
+                  <div className="relative w-24">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      placeholder="0"
+                      className="pr-7 h-9 text-sm"
+                      value={percentage ?? ''}
+                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })}
+                    />
+                    <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground text-xs pointer-events-none">%</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">van materiaalkosten</span>
+                </div>
+              )}
+
+              {mode === 'fixed' && (
+                <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                  <div className="w-px h-6 bg-border mx-1" />
+                  <div className="w-32">
+                    <EuroInput
+                      id="km-fixed-input"
+                      value={kleinVastBedragStr}
+                      placeholder="0,00"
+                      // autoFocus // Can be annoying if switching quickly, but helpful for immediate entry
+                      onChange={(v: string) => {
+                        setKleinVastBedragStr(v);
+                        setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) });
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Percentage Clarification Text */}
+            {mode === 'percentage' && (
+              <p className="text-xs text-muted-foreground/80 leading-relaxed pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                Dit percentage wordt berekend over de <strong>totale materiaalkosten</strong> van deze klus (excl. arbeid & transport).
+              </p>
+            )}
+          </div>
+
         </div>
       </div>
     );
@@ -828,6 +931,7 @@ export default function GenericMaterialsPageRedesigned() {
       isDefault,
       slots: slots,
       collapsedSections,
+      hiddenCategories,
       kleinMateriaalConfig,
       custommateriaal: customMap,
       updatedAt: serverTimestamp(),
@@ -879,27 +983,28 @@ export default function GenericMaterialsPageRedesigned() {
     finally { setDeleteConfirmationOpen(false); setPresetToDelete(null); setManagePresetsModalOpen(false); }
   };
 
-  const handleSave = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsOpslaan(true);
-    try {
-      if (!user || !firestore) throw new Error("No connection");
+  const saveToFirestore = async (options: { navigateTo?: string, silent?: boolean } = {}) => {
+    if (!user || !firestore) return;
 
+    if (!options.silent) setIsOpslaan(true);
+    else setIsAutosaving(true);
+
+    try {
       const cleanSelections: Record<string, { id: string }> = {};
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
         if (v?.id) cleanSelections[k] = { id: v.id };
       });
 
-      const cleanExtra = extraMaterials.map((m: any) => ({ ...m, aantal: m.aantal || undefined })).filter(m => m.naam);
       const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
 
       const updatePayload: any = {
         [`klussen.${klusId}.materialen`]: {
           jobKey: JOB_KEY,
           selections: cleanSelections,
-          extraMaterials: cleanExtra,
           custommateriaal: customMap,
-          savedByUid: user.uid
+          savedByUid: user.uid,
+          // Explicitly delete legacy field to clean up DB
+          extraMaterials: deleteField()
         },
         [`klussen.${klusId}.werkwijze`]: {
           workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
@@ -907,6 +1012,7 @@ export default function GenericMaterialsPageRedesigned() {
           savedByUid: user.uid
         },
         [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
+        [`klussen.${klusId}.uiState.hiddenCategories`]: hiddenCategories,
         [`klussen.${klusId}.updatedAt`]: serverTimestamp()
       };
 
@@ -918,14 +1024,49 @@ export default function GenericMaterialsPageRedesigned() {
 
       await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
 
-      router.push(`/offertes/${quoteId}/overzicht`);
+      if (options.navigateTo) {
+        router.push(options.navigateTo);
+      }
 
     } catch (e: any) {
       console.error(e);
-      toast({ variant: 'destructive', title: "Fout bij opslaan", description: e.message });
-      setIsOpslaan(false);
+      if (!options.silent) toast({ variant: 'destructive', title: "Fout bij opslaan", description: e.message });
+    } finally {
+      if (!options.silent) setIsOpslaan(false);
+      else setIsAutosaving(false);
     }
   };
+
+  // Autosave Effect
+  useEffect(() => {
+    if (!isMounted || isHydratingRef.current || isPaginaLaden) return;
+
+    // Debounce save by 2 seconds
+    const timer = setTimeout(() => {
+      saveToFirestore({ silent: true });
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [
+    gekozenMaterialen,
+    // extraMaterials removed from deps
+    customGroups,
+    kleinMateriaalConfig,
+    collapsedSections,
+    hiddenCategories,
+    gekozenPresetId
+  ]);
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault();
+    saveToFirestore({ navigateTo: `/offertes/${quoteId}/overzicht` });
+  };
+
+  const handleBack = (e: React.MouseEvent) => {
+    e.preventDefault();
+    saveToFirestore({ navigateTo: `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}` });
+  };
+
 
   const handlePresetDeleteWrapper = (preset: any) => { setPresetToDelete(preset); setDeleteConfirmationOpen(true); };
   const handlePresetSetDefaultWrapper = (preset: any) => handleSetDefaultPreset(preset);
@@ -933,7 +1074,7 @@ export default function GenericMaterialsPageRedesigned() {
   // Page progress (not item completion)
   // This is the materials page, which is step 3 of 4 (after client info at 0%)
   // Client info (0%) -> Job selection (25%) -> Job details (50%) -> Materials (75%) -> Overview (100%)
-  const pageProgress = 75;
+  const pageProgress = 80;
 
   if (!isMounted) return null;
 
@@ -950,7 +1091,10 @@ export default function GenericMaterialsPageRedesigned() {
             isPaginaLaden ? (
               <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
             ) : (
-              <PersonalNotes quoteId={quoteId} />
+              <div className="flex items-center gap-2">
+                {isAutosaving && <span className="text-xs text-muted-foreground animate-pulse">Opslaan...</span>}
+                <PersonalNotes quoteId={quoteId} context={`Materialen: ${JOB_TITEL}`} />
+              </div>
             )
           }
         />
@@ -960,8 +1104,8 @@ export default function GenericMaterialsPageRedesigned() {
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
           {/* Preset Selector - Compact */}
-          <div className="space-y-2 pb-6 mb-6 border-b border-border/50">
-            <Label className="text-sm">Kies Een Werkwijze</Label>
+          <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
+            <Label className="text-base font-semibold text-foreground/90">Kies Een Werkwijze</Label>
             <div className="flex items-center gap-2">
               <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
                 <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
@@ -986,19 +1130,20 @@ export default function GenericMaterialsPageRedesigned() {
 
                 return (
                   <div key={categoryKey} className="space-y-2">
-                    <div className="flex items-center justify-between px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
+                    <div
+                      onClick={() => toggleCategoryVisibility(categoryKey)}
+                      className="flex items-center justify-between px-3 py-3 -mx-4 bg-muted/30 hover:bg-muted/60 active:bg-muted/80 rounded-lg cursor-pointer transition-all group select-none"
+                    >
                       <h2 className={cn(
                         "text-sm font-semibold uppercase tracking-wider transition-colors",
                         isHidden ? "text-muted-foreground" : "text-foreground"
                       )}>{categoryInfo.title}</h2>
-                      <button
-                        type="button"
-                        onClick={() => toggleCategoryVisibility(categoryKey)}
-                        className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                      <div
+                        className="p-1.5 rounded-md text-muted-foreground group-hover:text-foreground transition-colors"
                         title={isHidden ? "Toon categorie" : "Verberg categorie"}
                       >
                         {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                      </div>
                     </div>
 
                     {!isHidden && (
@@ -1020,7 +1165,7 @@ export default function GenericMaterialsPageRedesigned() {
 
             {/* Extra Materials Category */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between px-3 py-2 -mx-4 bg-muted/30 rounded-lg">
+              <div className="flex items-center justify-between px-3 py-3 -mx-4 bg-muted/30 rounded-lg">
                 <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Extra materialen</h2>
               </div>
 
@@ -1070,8 +1215,8 @@ export default function GenericMaterialsPageRedesigned() {
         {/* Sticky Footer */}
         <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
           <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-            <Button variant="outline" asChild disabled={isOpslaan}>
-              <Link href={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}>Terug</Link>
+            <Button variant="outline" disabled={isOpslaan} onClick={handleBack}>
+              Terug
             </Button>
 
             <Button
@@ -1087,7 +1232,7 @@ export default function GenericMaterialsPageRedesigned() {
               type="submit"
               variant="success"
               disabled={isOpslaan}
-              onClick={handleSave}
+              onClick={handleNext}
             >
               {isOpslaan ? 'Opslaan...' : 'Volgende'}
             </Button>
@@ -1118,6 +1263,28 @@ export default function GenericMaterialsPageRedesigned() {
           setCustomGroups((prev) => [...prev, { id: maakId(), title, materials: [] }]);
         }}
       />
+
+      <AlertDialog open={presetConfirmOpen} onOpenChange={setPresetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Werkwijze wisselen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Je hebt zelf materialen geselecteerd. Als je nu van werkwijze wisselt, worden deze <strong>overschreven</strong> en gaan je selecties verloren.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingPresetId(null)}>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPresetId) applyPresetChange(pendingPresetId);
+              }}
+              className={buttonVariants({ variant: 'destructive' })}
+            >
+              Overschrijven
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit Title Dialog */}
       <Dialog open={editingTitleId !== null} onOpenChange={(open) => !open && setEditingTitleId(null)}>

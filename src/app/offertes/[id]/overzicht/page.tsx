@@ -1381,7 +1381,9 @@ export default function OverzichtPage() {
           </AlertDialogHeader>
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingJob}>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel asChild>
+              <Button variant="ghost" disabled={isDeletingJob}>Annuleren</Button>
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -1462,17 +1464,20 @@ export default function OverzichtPage() {
           </div>
 
           <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={(e) => {
-                e.preventDefault();
-                bevestigDefaultsZonderOpslaan()
-                  .catch(() => { })
-                  .finally(() => {
-                    setStandaardenPopupOpen(false);
-                  });
-              }}
-            >
-              Alleen offerte genereren
+            <AlertDialogCancel asChild>
+              <Button
+                variant="secondary"
+                onClick={(e) => {
+                  e.preventDefault();
+                  bevestigDefaultsZonderOpslaan()
+                    .catch(() => { })
+                    .finally(() => {
+                      setStandaardenPopupOpen(false);
+                    });
+                }}
+              >
+                Alleen offerte genereren
+              </Button>
             </AlertDialogCancel>
 
             <AlertDialogAction
@@ -1785,7 +1790,7 @@ export default function OverzichtPage() {
           loading ? (
             <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
           ) : (
-            <PersonalNotes quoteId={quoteId} />
+            <PersonalNotes quoteId={quoteId} context="Overzicht" />
           )
         }
       />

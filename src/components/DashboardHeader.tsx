@@ -2,13 +2,13 @@
 
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { signOut, User } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { OfferteHulpIcon } from '@/components/icons';
 
-export function DashboardHeader({ user }: { user: User | null }) {
+export function DashboardHeader({ user, title }: { user: User | null; title?: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const auth = useAuth();
@@ -22,7 +22,7 @@ export function DashboardHeader({ user }: { user: User | null }) {
       });
       return;
     }
-  
+
     try {
       await signOut(auth);
       toast({ title: 'Succes', description: 'U bent uitgelogd.' });
@@ -36,15 +36,31 @@ export function DashboardHeader({ user }: { user: User | null }) {
       });
     }
   };
-  
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-xl sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 sm:pt-8">
-      <div className="flex items-center gap-2 flex-1">
-        <OfferteHulpIcon className="w-7 h-7 text-primary" />
-        <span className="text-lg font-semibold">OfferteHulp</span>
+    <header className="flex h-20 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-xl md:h-24 sm:bg-transparent sm:px-6">
+      {/* Left: Logo */}
+      <div className="flex shrink-0 items-center gap-3">
+        <Image
+          src="/logo_final.png"
+          alt="OfferteHulp Logo"
+          width={500}
+          height={128}
+          className="h-14 w-auto object-contain md:h-20"
+          priority
+          unoptimized
+        />
       </div>
-      <div className="flex items-center gap-2">
+
+      {/* Center: Title */}
+      {title && (
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
+        </div>
+      )}
+
+      {/* Right: Logout */}
+      <div className="flex shrink-0 items-center gap-2">
         {user && (
           <Button onClick={handleLogout} variant="outline" size="sm">
             <LogOut className="mr-2 h-4 w-4" />
