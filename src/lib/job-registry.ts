@@ -1,6 +1,9 @@
 // src/lib/job-registry.ts
 
 
+//helper as categoryfilter; //  {"1": "Constructiehout", "2": "Hardhout", "3": "Aftimmerhout & Plinten", "4": "Kozijnhout, Raamhout, Kozijnstijl, Dorpels & Glaslatten", "5": "Houten Gevelbekleding", "6": "Boeidelen & Windveren", "7": "Gevelplaten & Buitenpanelen", "8": "Plaatmateriaal Exterieur", "9": "Plaatmateriaal Interieur", "10": "Constructieplaten", "11": "Fundering & Bekisting", "12": "Stenen, Lateien & Mortels", "13": "Metalstud Profielen", "14": "Gipsplaten", "15": "Gipsvezelplaten", "16": "Vloerelementen (Estrich)", "17": "Isolatie", "18": "Stuc, vul of finisher & Pleisterwerk", "19": "Egaline & Vloerafwerking", "20": "Wanddecoratie", "21": "Vensterbanken", "22": "Dakwerk & HWA", "23": "Dakramen & Koepels", "24": "Binnendeuren & Beslag", "25": "Binnenkozijnen", "26": "Trappen & Zolderluiken", "27": "Tuinhout, Schuttingen & Tuinpoorten", "28": "Overig"}
+
+
 export const MATERIAL_CATEGORY_INFO = {
   // --- EXISTING STRUCTURE ---
   Stalen_Kozijn: { title: 'Stalen Kozijn', order: 1 }, // Legacy/Fallback
@@ -230,7 +233,7 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 3. BEPLATING
   { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
-  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
+  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { key: 'koof_regelwerk', label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', category_ultra_filter: '' },
@@ -239,7 +242,7 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 4. AFWERKEN (TIMMERWERK)
   // These are the wooden finishes the carpenter installs
-  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Constructieplaten', category: 'afwerking', category_ultra_filter: '' },
+  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking', category_ultra_filter: '' },
   { key: 'vensterbanken', label: 'Vensterbanken', categoryFilter: 'Vensterbanken', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_vloer', label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -286,7 +289,7 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 3. BEPLATING
   { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
-  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
+  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   { key: 'kabelkanaal', label: 'Elektra Buizen / Flex', categoryFilter: 'Overig', category: 'Installatie', category_ultra_filter: '' },
   // The blue boxes that clamp into the hollow wall (ESSENTIAL)
@@ -302,7 +305,7 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   { key: 'koof_isolatie', label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', category_ultra_filter: '' }, // Often needed for drain pipes
 
   // 4. AFWERKEN (TIMMERWERK)
-  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Constructieplaten', category: 'afwerking', category_ultra_filter: '' },
+  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking', category_ultra_filter: '' },
   { key: 'vensterbanken', label: 'Vensterbanken', categoryFilter: 'Vensterbanken', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_vloer', label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -343,7 +346,7 @@ const HSB_TUSSENWAND_MATS: MaterialSection[] = [
   { key: 'beplating_2', label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   // 4. AFWERKEN (TIMMERWERK)
-  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Constructieplaten', category: 'afwerking', category_ultra_filter: '' },
+  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking', category_ultra_filter: '' },
   { key: 'vensterbanken', label: 'Vensterbanken', categoryFilter: 'Vensterbanken', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_vloer', label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -399,7 +402,7 @@ const METALSTUD_TUSSENWAND_MATS: MaterialSection[] = [
   { key: 'beplating_2', label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   // 4. AFWERKEN (TIMMERWERK)
-  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Constructieplaten', category: 'afwerking', category_ultra_filter: '' },
+  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking', category_ultra_filter: '' },
   { key: 'vensterbanken', label: 'Vensterbanken', categoryFilter: 'Vensterbanken', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_vloer', label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -426,7 +429,7 @@ const METALSTUD_TUSSENWAND_MATS: MaterialSection[] = [
   { key: 'gips_finish', label: 'Finish Pasta', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', category_ultra_filter: '' },
 
   // 6. KOZIJNEN
-  { key: 'kozijn_element', label: 'Raamkozijnen', categoryFilter: 'Binnenkozijnen', category: 'Kozijnen', category_ultra_filter: '' },
+  { key: 'kozijn_element', label: 'Binnenkozijnen', categoryFilter: 'Binnenkozijnen', category: 'Kozijnen', category_ultra_filter: '' },
   { key: 'glas_roosters', label: 'Glas & Roosters', categoryFilter: 'Overig', category: 'Kozijnen', category_ultra_filter: '' },
 
   // 7. DEUREN & BESLAG
@@ -458,15 +461,15 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
   { key: 'gevelbekleding', label: 'Gevelbekleding', categoryFilter: 'Houten Gevelbekleding', category: 'beplating', category_ultra_filter: '' },
   { key: 'plaat_buiten', label: 'Constructieplaat (Buiten)', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
   { key: 'osb_binnen', label: 'Constructieplaat (Binnen)', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
-  { key: 'gips_binnen', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
+  { key: 'gips_binnen', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   // 4. AFWERKEN (TIMMERWERK - BINNEN)
-  { key: 'dagkant_binnen', label: 'Dagkanten (Binnen)', categoryFilter: 'Constructieplaten', category: 'afwerking_binnen', category_ultra_filter: '' },
+  { key: 'dagkant_binnen', label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking_binnen', category_ultra_filter: '' },
   { key: 'vensterbank', label: 'Vensterbanken', categoryFilter: 'Vensterbanken', category: 'afwerking_binnen', category_ultra_filter: '' },
   { key: 'plinten', label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking_binnen', category_ultra_filter: '' },
 
   // 5. AFWERKEN (BUITEN)
-  { key: 'waterslag', label: 'Waterslagen', categoryFilter: 'Metalstud Profielen', category: 'afwerking_buiten', category_ultra_filter: '' },
+  { key: 'waterslag', label: 'Waterslagen', categoryFilter: 'Kozijnhout, Raamhout, Kozijnstijl, Dorpels & Glaslatten', category: 'afwerking_buiten', category_ultra_filter: '' },
   { key: 'dagkant_buiten', label: 'Dagkanten (Buiten)', categoryFilter: 'Houten Gevelbekleding', category: 'afwerking_buiten', category_ultra_filter: '' },
   { key: 'hoek_buiten', label: 'Gevelhoeken', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'afwerking_buiten', category_ultra_filter: '' },
 
@@ -477,7 +480,7 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
   { key: 'gips_finish', label: 'Finish Pasta', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', category_ultra_filter: '' },
 
   // 7. KOZIJNEN
-  { key: 'stelkozijn', label: 'Stelkozijnen', categoryFilter: 'Constructieplaten', category: 'Kozijnen', category_ultra_filter: '' },
+  { key: 'stelkozijn', label: 'Stelkozijnen', categoryFilter: 'Overig', category: 'Kozijnen', category_ultra_filter: '' },
   { key: 'kozijn_element', label: 'Raamkozijnen', categoryFilter: 'Binnenkozijnen', category: 'Kozijnen', category_ultra_filter: '' },
   { key: 'deur_kozijn', label: 'Deurkozijnen', categoryFilter: 'Binnenkozijnen', category: 'Kozijnen', category_ultra_filter: '' },
   { key: 'glas_roosters', label: 'Glas & Roosters', categoryFilter: 'Overig', category: 'Kozijnen', category_ultra_filter: '' },
@@ -519,11 +522,11 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
 
   // 4. BEPLATING
   { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
-  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
+  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
   { key: 'akoestische_panelen', label: 'Akoestische Panelen', categoryFilter: 'Wanddecoratie', category: 'beplating', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
-  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Constructieplaten', category: 'afwerking', category_ultra_filter: '' },
+  { key: 'dagkanten', label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_vloer', label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
 
@@ -552,7 +555,7 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
   // 3. BEPLATING
   // For the fixed parts of the knee wall
   { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
-  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
+  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   // 4. AFWERKEN (TIMMERWERK)
   { key: 'plinten_vloer', label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -631,7 +634,7 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
 
   // 7. BEPLATING
   { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
-  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
+  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   // 8. AFWERKEN (TIMMERWERK)
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -678,7 +681,7 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
 
   // 7. BEPLATING
   { key: 'constructieplaat', label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
-  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating', category_ultra_filter: '' },
+  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', category_ultra_filter: '' },
 
   // 8. AFWERKEN (TIMMERWERK)
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -818,7 +821,7 @@ const VLIERING_MATS: MaterialSection[] = [
   { key: 'isolatie_basis', label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', category_ultra_filter: '' },
 
   // --- E. BEPLATING (Plafond) ---
-  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Constructieplaten', category: 'beplating_afwerking', category_ultra_filter: '' },
+  { key: 'beplating', label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating_afwerking', category_ultra_filter: '' },
 
   // --- F. AFWERKING ---
   { key: 'plinten_plafond', label: 'Plafondplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking', category_ultra_filter: '' },
@@ -1303,7 +1306,7 @@ const DAKKAPEL_RENOVATIE_MATS: MaterialSection[] = [
 
 const ISOLATIEGLAS_MATS: MaterialSection[] = [
   { key: 'glas', label: 'Glas', categoryFilter: 'Binnenkozijnen', category: 'glas', category_ultra_filter: '' },
-  { key: 'roosters', label: 'Ventilatie roosters', categoryFilter: 'Deuren & Kozijnen', category: 'glas', category_ultra_filter: '' },
+  { key: 'roosters', label: 'Ventilatie roosters', categoryFilter: 'Overig', category: 'glas', category_ultra_filter: '' },
   { key: 'glaslatten', label: 'Glaslatten', categoryFilter: 'Constructiehout', category: 'glas', category_ultra_filter: '' },
 ];
 
