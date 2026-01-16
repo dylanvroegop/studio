@@ -402,9 +402,7 @@ const METALSTUD_TUSSENWAND_MATS: MaterialSection[] = [
   { label: 'Stopcontacten & Schakelaars', categoryFilter: 'Overig', category: 'Schakelmateriaal', key: 'schakelmateriaal_basis', category_ultra_filter: '' },
 
   // 5. NADEN & STUCWERK
-  { label: 'Hoekprofielen', categoryFilter: 'Overig', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Wapeningsband', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_wapening', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Overig', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' }, { label: 'Voegenmiddel', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
   { label: 'Finish Pasta', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 6. KOZIJNEN
@@ -473,7 +471,7 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE (FRAMEWERK)
   { label: 'Staanders & Liggers', categoryFilter: 'Constructiehout', category: 'hout', key: 'staanders_en_liggers', category_ultra_filter: '' },
   { label: 'Regelwerk (Nissen & Details)', categoryFilter: 'Constructiehout', category: 'hout', key: 'regelwerk_nissen', category_ultra_filter: '' },
-  { label: 'Achterhout (TV-ophanging)', categoryFilter: 'Constructiehout', category: 'hout', key: 'achterhout', category_ultra_filter: '' },
+  { label: 'Achterhout (TV-ophanging)', categoryFilter: 'Constructieplaten', category: 'hout', key: 'achterhout', category_ultra_filter: '' },
 
   // 2. INSTALLATIE & ELEKTRA (Expanded)
   { label: 'Elektra Buizen / Flex', categoryFilter: 'Overig', category: 'Installatie', key: 'kabelkanaal', category_ultra_filter: '' },
@@ -488,6 +486,7 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
 

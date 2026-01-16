@@ -158,22 +158,9 @@ export function WallStructureVisualizer({
     const studWidthPx = Math.max(1.5, STUD_WIDTH_MM * pxPerMm);
     const PLATE_HEIGHT = Math.max(1.5, PLATE_HEIGHT_MM * pxPerMm);
 
-    // Dimension Y Levels (External & Hierarchical)
-    // Top Level (Total Length)
-    const minY = Math.min(yLeft, yRight, yH1, yH2, yH3, shape === 'gable' ? yPeak : 9999);
-    const DIM_Y_TOP = minY - 50;
-
-    // Bottom Levels
-    // 1. Gaps / Centers (Closest to wall)
-    const DIM_Y_GAP = Y_BOTTOM + 50;
-    // 2. Segment Lengths (Further down)
-    const DIM_Y_SEGMENTS = Y_BOTTOM + 90;
-    // 3. Total Length (Previously Bottom, now Top, but keeping variable for reference if needed or removed)
-    // const DIM_Y_TOTAL = Y_BOTTOM + 120; // Moved to Top
-
-    // Height Dimension X Levels
-    const DIM_X_LEFT = WALL_X - 50;
-    const DIM_X_RIGHT = WALL_X + WALL_WIDTH + 50;
+    // Dimension Y Levels
+    const DIM_Y_Gap = Y_BOTTOM + 25; // First row below wall (Stud Centers)
+    const DIM_Y_LENGTH = Y_BOTTOM + 50; // Second row below wall (Total Length)
 
     // Drag Logic
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
@@ -411,32 +398,6 @@ export function WallStructureVisualizer({
             });
         });
 
-        // Add Structural Corners (L/U Shape) to King Studs to prevent grid collision
-        if ((shape === 'l-shape' || shape === 'u-shape') && l1 > 0) {
-            // Corner at L1 (Centered)
-            const cx = l1;
-            kingStuds.push({
-                center: cx,
-                leftEdge: cx - HALF_STUD,
-                rightEdge: cx + HALF_STUD,
-                side: 'left', // Dummy
-                opL: cx, // Dummy
-                opR: cx  // Dummy
-            });
-        }
-        if (shape === 'u-shape' && l1 > 0 && l2 > 0) {
-            // Corner at L1 + L2 (Centered)
-            const cx = l1 + l2;
-            kingStuds.push({
-                center: cx,
-                leftEdge: cx - HALF_STUD,
-                rightEdge: cx + HALF_STUD,
-                side: 'right', // Dummy
-                opL: cx, // Dummy
-                opR: cx  // Dummy
-            });
-        }
-
         // 2b. Grid stud collision and movement rules
         // Opening dimensions are SACRED. King Studs are FIXED.
         // Grid Studs may MOVE to stay adjacent to Kings, but never overlap.
@@ -633,55 +594,33 @@ export function WallStructureVisualizer({
             }
         });
 
-        // 4. Corner/Section Studs Logic (Flush placement)
-        // We need studs at: 0, L1, (L1+L2), etc.
-        // User Requirement: "Last stud in a section is placed flush against the corner."
-        // Our grid `centerMms` handles 0 and L_total.
-        // We need to ensuring studs at L1 and L1+L2 for L/U shapes.
-
-        const forceStudAt = (xMm: number) => {
-            // Check if a beam exists near xMm (within tolerance)
-            const exists = beams.some(b => Math.abs(b.x - (WALL_X + xMm * pxPerMm)) < 5); // 5px tolerance
-            if (!exists) {
-                // Add stud
-                const w = timberW;
-                // Height depends on position
-                const top = getWallTopMm(xMm);
-                const bot = getWallBottomMm(xMm);
-
-                // For a junction stud (e.g. L1), it might need to span the HIGHER wall.
-                // But getWallTopMm(L1) returns h1 (left side) or h2 (right side)?
-                // It usually returns logic for "at this point".
-                // We want the stud to support the corner.
-                // Let's rely on the previous "Corner Stud" logic (which uses max of adjacents)
-                // BUT, that logic pushed to `beams` array directly.
-                // We should check if we NEED to add standard studs too?
-                // The "Corner Stud" added in the previous block (lines 620+) is separate.
-                // Let's keep that separate Corner Stud logic as the "Structural Corner".
-                // This block is for "Grid Studs".
-                // If we have a structural corner stud at L1, we DON'T need a grid stud there.
-                // So we actually want to REMOVE grid studs that conflict with corners?
-                // The `kingStuds` logic handles openings.
-                // Let's treat Corners as "Kings" roughly?
-                // Actually, the previous block (lines 598+) handled Corner Studs explicitly.
-                // I will assume that is sufficient for the "Structural" column.
-            }
-        };
-
-        // L-Shape Corner Stud (Hoekstijl) - Enforced
+        // 4. L-Shape Corner Stud (Hoekstijl)
         if (shape === 'l-shape' && l1 > 0) {
-            const cornerW_mm = 50;
-            const c1_X = l1;
-            const c1_L = c1_X - (cornerW_mm / 2);
-            // Center the stud on the transition line
+            // Place a stud at exactly L1 centered? Or edge at L1? 
+            // User said: "A vertical 'Corner Stud' (Hoekstijl) must be placed at the exact point where L1 ends and L2 begins."
+            // Assuming centered on the line for now, or similar to King Stud logic.
+            // Let's create a King Stud style beam at L1.
 
+            const cornerX = l1;
+            const cornerW_mm = 50;
+            // Center the stud on the transition line? 
+            // If the wall steps, usually you need a stud to catch the corner.
+            // Let's center it on L1.
+            const cornerL = cornerX - (cornerW_mm / 2);
+            // Height? It should be the MAX of h1 and h2? Or it belongs to the taller wall?
+            // Usually the corner post is part of the taller wall to support the corner.
+            // If H1 > H2, stud goes to H1. If H2 > H1, stud goes to H2.
             const cornerH = Math.max(h1, h2);
 
             beams.push({
-                x: WALL_X + c1_L * pxPerMm,
+                x: WALL_X + cornerL * pxPerMm,
                 y: getY(cornerH - PLATE_H), // Top plate allowance
                 w: Math.max(1.5, cornerW_mm * pxPerMm),
-                h: (cornerH - (PLATE_H * 2)) * pxPerMm,
+                h: (cornerH - (PLATE_H * 2)) * pxPerMm, // Minus top and bottom plates?? Or just top?
+                // Standard studs are wallTop - 38 (bottom) - 38 (top) usually.
+                // Let's match King Stud logic: wallTop - PLATE_H - PLATE_H??
+                // Existing King Logic: y: getY(wallTop - PLATE_H), h: (wallTop - 2*PLATE_H)
+                // So yes.
                 type: 'corner'
             });
         }
@@ -804,7 +743,7 @@ export function WallStructureVisualizer({
 
         return { beams, gaps };
 
-    }, [lengteNum, balkafstandNum, WALL_X, WALL_WIDTH, studWidthPx, yLeft, yRight, yPeak, yH1, yH2, shape, pxPerMm, openings, startFromRight, l1, h1, h2, PLATE_HEIGHT, Y_BOTTOM, variant, maxH, h3, l2, l3]);
+    }, [lengteNum, balkafstandNum, WALL_X, WALL_WIDTH, studWidthPx, yLeft, yRight, yPeak, yH1, yH2, shape, pxPerMm, openings, startFromRight, l1, h1, h2]);
 
     const dotGrid = useMemo(() => {
         const dots: { x: number; y: number }[] = [];
@@ -1003,131 +942,6 @@ export function WallStructureVisualizer({
          `;
     }
 
-
-    // --- PLATE GENERATION (Replaces old Path logic) ---
-    // specific types for visual plates
-    type PlateRect = { x: number; y: number; w: number; h: number; type: 'top' | 'bottom' };
-    const plates: PlateRect[] = [];
-
-    // 1. TOP PLATES
-    if (shape === 'slope') {
-        // Slope is unique - it's slanted. We can't use simple rects easily without rotation.
-        // For visual simplicity in 2D, we might stick to a polygon for the slope top plate?
-        // Or render a rotated rect. Let's keep polygon for Slope Top Plate only, or approx with path.
-        // Actually, the user wants "beams connecting".
-        // A sloped top plate is a single beam.
-        // Let's keep the path logic for Slope but render it later as a distinct element if we must.
-        // BUT, for L/U/Rectangle, we MUST use Rects.
-    }
-
-    // Helper to add a horizontal plate
-    const addPlate = (xMm: number, yTopMm: number, wMm: number, type: 'top' | 'bottom') => {
-        plates.push({
-            x: WALL_X + xMm * pxPerMm,
-            y: getY(yTopMm), // Canvas Y for the top-edge of the plate (since Y flips)
-            // Wait, getY(h) returns canvas Y. 
-            // If we have a plate at height H (top of wall), its Top Edge is at getY(H).
-            // Its height is PLATE_HEIGHT.
-            // So visual rect is y: getY(H), h: PLATE_HEIGHT? 
-            // NO. getY(0) is bottom. getY(2600) is top.
-            // A top plate at 2600 extends DOWN. 
-            // SVG Rect y is top-left.
-            // So if `yTopMm` is the physical top of the plate (e.g. 2600), 
-            // Visual Y = getY(yTopMm).
-            // Visual Height = PLATE_HEIGHT.
-            // Does it extend down? 
-            // getY(2600) is e.g. 50px. getY(0) is 500px.
-            // We want plate from 2600 down to 2600-38.
-            // Canvas: 50 to 50+Height? Yes.
-            // So y: getY(yTopMm), h: PLATE_HEIGHT. Correct.
-
-            // For Bottom Plate at 0:
-            // Top of plate is at 38mm? No, bottom plate sits on floor.
-            // So top of plate is 38mm. Bottom is 0.
-            // We pass yTopMm=38?
-            // VISUAL:
-            // Top Plate: Top Edge = H. Rect starts at getY(H) and goes down (h positive).
-            // Bottom Plate: Top Edge = 38 (if flat). Rect starts at getY(38) and goes down to getY(0)?
-            // getY(38) is higher (smaller Y) than getY(0).
-            // So yes.
-            w: wMm * pxPerMm,
-            h: PLATE_HEIGHT,
-            type
-        });
-    };
-
-    if (shape === 'l-shape') {
-        const xL1 = l1;
-
-        if (variant === 'bottom') {
-            // Flat Top (MaxH)
-            addPlate(0, maxH, lengteNum, 'top');
-
-            // Stepped Bottom
-            // Bottom Plate 1: 0 to L1. Sits on floor level "maxH-h1"? 
-            // Wait, "Variatie Onder" means the bottom *cutout* is defined by heights?
-            // If H1=1000, H2=2000. MaxH=2000.
-            // Wall 1 (Left) is 1000 high. Top is at 2000. So Bottom is at 1000.
-            // Wall 2 (Right) is 2000 high. Top at 2000. Bottom at 0.
-            // So B1 is at 1000. B2 is at 0.
-            // We draw plates *at* these levels.
-            // Plate 1: Top=1000+38. Bottom=1000. -> yTopMm = (maxH-h1) + 38.
-            addPlate(0, (maxH - h1) + 38, l1, 'bottom');
-            // Plate 2: Top=38. Bottom=0. (If h2=maxH) -> yTopMm = (maxH-h2) + 38.
-            addPlate(l1, (maxH - h2) + 38, l2, 'bottom');
-
-        } else {
-            // Standard Top Variant (Stepped Top, Flat Bottom)
-            // Top Plate 1: 0 to L1 at H1.
-            addPlate(0, h1, l1, 'top');
-            // Top Plate 2: L1 to Total at H2.
-            addPlate(l1, h2, l2, 'top');
-
-            // Bottom Plate: Flat at 0.
-            addPlate(0, 38, lengteNum, 'bottom');
-        }
-    } else if (shape === 'u-shape') {
-        if (variant === 'bottom') {
-            // Flat Top
-            addPlate(0, maxH, lengteNum, 'top');
-
-            // Stepped Bottoms
-            // P1
-            addPlate(0, (maxH - h1) + 38, l1, 'bottom');
-            // P2
-            addPlate(l1, (maxH - h2) + 38, l2, 'bottom');
-            // P3
-            addPlate(l1 + l2, (maxH - h3) + 38, l3, 'bottom');
-
-        } else {
-            // Stepped Top
-            addPlate(0, h1, l1, 'top');
-            addPlate(l1, h2, l2, 'top');
-            addPlate(l1 + l2, h3, l3, 'top');
-
-            // Flat Bottom
-            addPlate(0, 38, lengteNum, 'bottom');
-        }
-    } else if (shape === 'slope') {
-        // Slope Logic - keeping path for Top, but Rect for Bottom
-        // If variant 'bottom', Top is flat.
-        if (variant === 'bottom') {
-            addPlate(0, maxH, lengteNum, 'top');
-            // Bottom is sloped. Complex path or rotated rect.
-            // We'll keep the path logic for slope bottom.
-        } else {
-            // Top Sloped (path), Bottom Flat.
-            addPlate(0, 38, lengteNum, 'bottom');
-        }
-    } else if (shape === 'gable') {
-        // Gable Top (path), Bottom Flat.
-        addPlate(0, 38, lengteNum, 'bottom');
-    } else {
-        // Rectangle
-        addPlate(0, maxH, lengteNum, 'top');
-        addPlate(0, 38, lengteNum, 'bottom');
-    }
-
     const drawOpenings = useMemo(() => {
         if (!openings || openings.length === 0) return null;
 
@@ -1176,51 +990,35 @@ export function WallStructureVisualizer({
                         <circle key={i} cx={dot.x} cy={dot.y} r="0.7" fill="rgb(255, 255, 255)" opacity="0.15" />
                     ))}
 
-                    {/* --- PLATE RENDERING (Rects) --- */}
-                    {plates.map((p, i) => (
-                        <rect
-                            key={`plate-${i}`}
-                            x={p.x}
-                            y={p.y}
-                            width={p.w}
-                            height={p.h}
-                            fill={timberColor}
-                            stroke={timberStroke}
-                            strokeWidth="2" // Perimeter Plates always 2px
-                        />
-                    ))}
+                    {/* Top Plate */}
+                    <polygon
+                        points={topPlatePath}
+                        fill={timberColor}
+                        stroke={timberStroke}
+                        strokeWidth="0.5"
+                    />
 
-                    {/* --- Sloped/Complex Plate Paths (Fallback) --- */}
-                    {shape === 'slope' && variant !== 'bottom' && (
-                        <polygon points={topPlatePath} fill={timberColor} stroke={timberStroke} strokeWidth="2" />
-                    )}
-                    {shape === 'slope' && variant === 'bottom' && (
-                        <polygon points={bottomPlatePath} fill={timberColor} stroke={timberStroke} strokeWidth="2" />
-                    )}
-                    {shape === 'gable' && (
-                        <polygon points={topPlatePath} fill={timberColor} stroke={timberStroke} strokeWidth="2" />
-                    )}
+                    {/* Bottom Plate */}
+                    <polygon
+                        points={bottomPlatePath}
+                        fill={timberColor}
+                        stroke={timberStroke}
+                        strokeWidth="0.5"
+                    />
 
                     {/* ALL Beams (Studs, Headers, Sills, Cripples) */}
-                    {studData.beams.map((beam, i) => {
-                        // Determine if Perimeter Stud (Leftmost or Rightmost)
-                        const isLeft = Math.abs(beam.x - WALL_X) < 1;
-                        const isRight = Math.abs((beam.x + beam.w) - (WALL_X + WALL_WIDTH)) < 1;
-                        const isPerimeter = isLeft || isRight;
-
-                        return (
-                            <rect
-                                key={i}
-                                x={beam.x}
-                                y={beam.y}
-                                width={beam.w}
-                                height={beam.h}
-                                fill={timberColor}
-                                stroke={timberStroke}
-                                strokeWidth={isPerimeter ? "2" : "1"} // Internal 1px, Outer 2px
-                            />
-                        );
-                    })}
+                    {studData.beams.map((beam, i) => (
+                        <rect
+                            key={i}
+                            x={beam.x}
+                            y={beam.y}
+                            width={beam.w}
+                            height={beam.h}
+                            fill={timberColor}
+                            stroke={timberStroke}
+                            strokeWidth="0.5"
+                        />
+                    ))}
 
                     {/* Render Openings */}
                     {drawOpenings && drawOpenings.map((op) => (
@@ -1344,136 +1142,136 @@ export function WallStructureVisualizer({
                     )}
 
 
-                    {/* --- DIMENSION LAYER (Reference Styles) --- */}
-                    <g className="text-[#10b981] pointer-events-none font-mono">
-                        <defs>
-                            {/* Technical Drawing Markers - Smaller & Refined */}
-                            <marker id="dim-arrow" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
-                                <path d="M0,0 L6,2 L0,4 Z" fill="#10b981" />
-                            </marker>
-                            <marker id="dim-arrow-start" markerWidth="6" markerHeight="4" refX="0" refY="2" orient="auto-start-reverse">
-                                <path d="M0,0 L6,2 L0,4 Z" fill="#10b981" />
-                            </marker>
-                        </defs>
+                    {/* Internal Gap Dimensions */}
+                    {studData.gaps.map((gap, i) => {
+                        const isFirst2 = i < 2;
+                        const isLast2 = i >= studData.gaps.length - 2;
+                        if (!isFirst2 && !isLast2) return null;
 
-                        {/* 0. Total Length (TOP) - UPDATED */}
-                        <g transform="translate(0, -15)">
-                            <line x1={WALL_X} y1={yLeft} x2={WALL_X} y2={DIM_Y_TOP} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
-                            <line x1={WALL_X + WALL_WIDTH} y1={yRight} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_TOP} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
+                        const midX = (gap.centerX1 + gap.centerX2) / 2;
 
-                            <line
-                                x1={WALL_X} y1={DIM_Y_TOP}
-                                x2={WALL_X + WALL_WIDTH} y2={DIM_Y_TOP}
-                                stroke="#10b981" strokeWidth="1"
-                                markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)"
-                            />
-                            <rect x={WALL_X + WALL_WIDTH / 2 - 15} y={DIM_Y_TOP - 6} width="30" height="10" fill="#09090b" opacity="0.8" />
-                            <text x={WALL_X + WALL_WIDTH / 2} y={DIM_Y_TOP + 3} textAnchor="middle" className="fill-[#10b981] text-[9px] font-bold">{lengteDisplay}</text>
-                        </g>
+                        return (
+                            <g key={`gap-${i}`}>
+                                {/* Vertical Extension Lines from Stud Centers down to Dim Line */}
+                                <line
+                                    x1={gap.centerX1}
+                                    y1={Y_BOTTOM}
+                                    x2={gap.centerX1}
+                                    y2={DIM_Y_Gap + 2}
+                                    stroke="#14b8a6"
+                                    strokeWidth="0.5"
+                                    strokeDasharray="1,2"
+                                    opacity="0.5"
+                                />
+                                {/* Only draw right extension if it's the last one visible in this block or end of list */}
+                                <line
+                                    x1={gap.centerX2}
+                                    y1={Y_BOTTOM}
+                                    x2={gap.centerX2}
+                                    y2={DIM_Y_Gap + 2}
+                                    stroke="#14b8a6"
+                                    strokeWidth="0.5"
+                                    strokeDasharray="1,2"
+                                    opacity="0.5"
+                                />
 
-                        {/* 1. Internal Gap Dimensions (H.O.H) - Bottom Layer 1 */}
-                        {studData.gaps.map((gap, i) => {
-                            const isFirst2 = i < 2;
-                            const isLast2 = i >= studData.gaps.length - 2;
-                            if (!isFirst2 && !isLast2) return null; // Simplified view
+                                {/* Horizontal Dim Line */}
+                                <line
+                                    x1={gap.centerX1}
+                                    y1={DIM_Y_Gap}
+                                    x2={gap.centerX2}
+                                    y2={DIM_Y_Gap}
+                                    stroke="#14b8a6"
+                                    strokeWidth="0.5"
+                                    strokeDasharray="2,2"
+                                />
 
-                            const midX = (gap.centerX1 + gap.centerX2) / 2;
-
-                            return (
-                                <g key={`gap-${i}`}>
-                                    <line x1={gap.centerX1} y1={Y_BOTTOM} x2={gap.centerX1} y2={DIM_Y_GAP + 2} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.4" />
-                                    <line x1={gap.centerX2} y1={Y_BOTTOM} x2={gap.centerX2} y2={DIM_Y_GAP + 2} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.4" />
-
-                                    <line x1={gap.centerX1} y1={DIM_Y_GAP} x2={gap.centerX2} y2={DIM_Y_GAP} stroke="#10b981" strokeWidth="0.5" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)" />
-
-                                    <text x={midX} y={DIM_Y_GAP - 2} textAnchor="middle" className="fill-[#10b981] text-[6px]">{Math.round(gap.value)}</text>
-                                </g>
-                            );
-                        })}
-                        {studData.gaps.length > 4 && (
-                            <text x={WALL_X + WALL_WIDTH / 2} y={DIM_Y_GAP} textAnchor="middle" className="fill-[#10b981] text-[8px]">...</text>
-                        )}
-
-                        {/* 2. Segment Dimensions (L1, L2, L3) - Bottom Layer 2 */}
-                        {(shape === 'l-shape' || shape === 'u-shape') && (
-                            <g>
-                                {/* L1 */}
-                                <line x1={WALL_X} y1={Y_BOTTOM} x2={WALL_X} y2={DIM_Y_SEGMENTS + 5} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
-                                <line x1={WALL_X + l1 * pxPerMm} y1={Y_BOTTOM} x2={WALL_X + l1 * pxPerMm} y2={DIM_Y_SEGMENTS + 5} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
-                                <line x1={WALL_X} y1={DIM_Y_SEGMENTS} x2={WALL_X + l1 * pxPerMm} y2={DIM_Y_SEGMENTS} stroke="#10b981" strokeWidth="0.8" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)" />
-                                <text x={WALL_X + (l1 * pxPerMm) / 2} y={DIM_Y_SEGMENTS - 3} textAnchor="middle" className="fill-[#10b981] text-[7px] font-bold">{l1}</text>
-
-                                {/* L2 */}
-                                <line x1={WALL_X + (l1 + l2) * pxPerMm} y1={Y_BOTTOM} x2={WALL_X + (l1 + l2) * pxPerMm} y2={DIM_Y_SEGMENTS + 5} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
-                                <line x1={WALL_X + l1 * pxPerMm} y1={DIM_Y_SEGMENTS} x2={WALL_X + (l1 + l2) * pxPerMm} y2={DIM_Y_SEGMENTS} stroke="#10b981" strokeWidth="0.8" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)" />
-                                <text x={WALL_X + l1 * pxPerMm + (l2 * pxPerMm) / 2} y={DIM_Y_SEGMENTS - 3} textAnchor="middle" className="fill-[#10b981] text-[7px] font-bold">{l2}</text>
-
-                                {/* L3 */}
-                                {shape === 'u-shape' && (
-                                    <>
-                                        <line x1={WALL_X + (l1 + l2 + l3) * pxPerMm} y1={Y_BOTTOM} x2={WALL_X + (l1 + l2 + l3) * pxPerMm} y2={DIM_Y_SEGMENTS + 5} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
-                                        <line x1={WALL_X + (l1 + l2) * pxPerMm} y1={DIM_Y_SEGMENTS} x2={WALL_X + (l1 + l2 + l3) * pxPerMm} y2={DIM_Y_SEGMENTS} stroke="#10b981" strokeWidth="0.8" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)" />
-                                        <text x={WALL_X + (l1 + l2) * pxPerMm + (l3 * pxPerMm) / 2} y={DIM_Y_SEGMENTS - 3} textAnchor="middle" className="fill-[#10b981] text-[7px] font-bold">{l3}</text>
-                                    </>
-                                )}
+                                {/* Text Label */}
+                                <text
+                                    x={midX}
+                                    y={DIM_Y_Gap - 2}
+                                    textAnchor="middle"
+                                    className="fill-teal-500 text-[6px] font-mono select-none"
+                                >
+                                    {Math.round(gap.value)}
+                                </text>
                             </g>
-                        )}
+                        );
+                    })}
 
-                        {/* 3. Height Dimensions (Sides) */}
-                        <g>
-                            {/* Left Height (Total) */}
-                            <line x1={WALL_X} y1={yLeft} x2={DIM_X_LEFT - 5} y2={yLeft} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.4" />
-                            <line x1={WALL_X} y1={Y_BOTTOM} x2={DIM_X_LEFT - 5} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.4" />
-                            <line x1={DIM_X_LEFT} y1={yLeft} x2={DIM_X_LEFT} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="1" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)" />
-                            <text x={DIM_X_LEFT - 5} y={(yLeft + Y_BOTTOM) / 2} textAnchor="end" dominantBaseline="middle" className="fill-[#10b981] text-[8px] font-bold">{Math.round(hLeft)}</text>
+                    {/* 2. Start/End Indicators if many studs hidden */}
+                    {studData.gaps.length > 4 && (
+                        <text x={WALL_X + WALL_WIDTH / 2} y={DIM_Y_Gap} textAnchor="middle" dominantBaseline="middle" className="fill-teal-500/50 text-[10px] select-none">
+                            ...
+                        </text>
+                    )}
 
-                            {/* Right Height (Total) */}
-                            <line x1={WALL_X + WALL_WIDTH} y1={yRight} x2={DIM_X_RIGHT + 5} y2={yRight} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.4" />
-                            <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM} x2={DIM_X_RIGHT + 5} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.4" />
-                            <line x1={DIM_X_RIGHT} y1={yRight} x2={DIM_X_RIGHT} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="1" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)" />
-                            <text x={DIM_X_RIGHT + 5} y={(yRight + Y_BOTTOM) / 2} textAnchor="start" dominantBaseline="middle" className="fill-[#10b981] text-[8px] font-bold">{Math.round(hRight)}</text>
-                        </g>
-
-                        {/* 4. Internal Vertical Dimensions (e.g., U-Shape Void Height) */}
-                        {((shape === 'u-shape' || shape === 'l-shape') && variant !== 'bottom') && (
-                            <g>
-                                {/* Horizontal Inner Dim (Width of L2) */}
-                                {h2 < Math.max(h1, h3) && (
-                                    <>
-                                        {/* Horizontal Void Width */}
-                                        {(() => {
-                                            const voidTop = Math.min(yLeft, yRight);
-                                            const voidBottom = yH2;
-                                            const midY = (voidTop + voidBottom) / 2;
-
-                                            return (
-                                                <>
-                                                    <line x1={WALL_X + l1 * pxPerMm} y1={midY} x2={WALL_X + (l1 + l2) * pxPerMm} y2={midY} stroke="#10b981" strokeWidth="1" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)" />
-                                                    <rect x={WALL_X + l1 * pxPerMm + (l2 * pxPerMm) / 2 - 12} y={midY - 8} width="24" height="9" fill="#09090b" opacity="0.7" />
-                                                    <text x={WALL_X + l1 * pxPerMm + (l2 * pxPerMm) / 2} y={midY - 2} textAnchor="middle" className="fill-[#10b981] text-[9px] font-bold">{l2}</text>
-                                                </>
-                                            )
-                                        })()}
-
-                                        {/* Vertical Void Height */}
-                                        <line
-                                            x1={WALL_X + l1 * pxPerMm + 20} y1={yH2}
-                                            x2={WALL_X + l1 * pxPerMm + 20} y2={Y_BOTTOM}
-                                            stroke="#10b981" strokeWidth="1" markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow)"
-                                        />
-                                        <text x={WALL_X + l1 * pxPerMm + 28} y={(yH2 + Y_BOTTOM) / 2} textAnchor="start" className="fill-[#10b981] text-[9px] font-bold">{h2}</text>
-                                    </>
-                                )}
-                            </g>
-                        )}
-                        {/* Ridge */}
-                        {shape === 'gable' && (
-                            <g>
-                                <line x1={WALL_X + WALL_WIDTH / 2} y1={yPeak} x2={WALL_X + WALL_WIDTH / 2 + 40} y2={yPeak} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2,2" />
-                                <text x={WALL_X + WALL_WIDTH / 2 + 5} y={yPeak - 4} textAnchor="start" className="fill-[#10b981] text-[8px] font-bold">{hP_disp}</text>
-                            </g>
-                        )}
+                    {/* Bottom Length Dimension */}
+                    <g className="text-emerald-500">
+                        <line x1={WALL_X} y1={DIM_Y_LENGTH} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
+                        <line x1={WALL_X} y1={Y_BOTTOM + 2} x2={WALL_X} y2={DIM_Y_LENGTH + 3} stroke="currentColor" strokeWidth="1" />
+                        <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 2} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH + 3} stroke="currentColor" strokeWidth="1" />
+                        <text
+                            x={WALL_X + WALL_WIDTH / 2}
+                            y={DIM_Y_LENGTH + 8}
+                            textAnchor="middle"
+                            className="fill-emerald-400 text-[8px] font-mono font-medium"
+                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        >
+                            {lengteDisplay}
+                        </text>
                     </g>
+
+                    {/* Left Height Dimension */}
+                    {/* Left Height Dimension */}
+                    <g className="text-emerald-500">
+                        <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 25} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                        <line x1={WALL_X - 30} y1={yLeft} x2={WALL_X - 10} y2={yLeft} stroke="currentColor" strokeWidth="1" />
+                        <line x1={WALL_X - 30} y1={Y_BOTTOM} x2={WALL_X - 10} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                        <text
+                            x={WALL_X - 40}
+                            y={(yLeft + Y_BOTTOM) / 2 + 3}
+                            textAnchor="end"
+                            className="fill-emerald-400 text-[8px] font-mono font-medium"
+                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        >
+                            {hL_disp}
+                        </text>
+                    </g>
+
+                    {/* Height Right */}
+                    {(shape === 'slope' || shape === 'gable') && (
+                        <g className="text-emerald-500">
+                            <line x1={WALL_X + WALL_WIDTH + 12} y1={yRight} x2={WALL_X + WALL_WIDTH + 12} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                            <line x1={WALL_X + WALL_WIDTH + 4} y1={yRight} x2={WALL_X + WALL_WIDTH + 15} y2={yRight} stroke="currentColor" strokeWidth="1" />
+                            <line x1={WALL_X + WALL_WIDTH + 4} y1={Y_BOTTOM} x2={WALL_X + WALL_WIDTH + 15} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                            <text
+                                x={WALL_X + WALL_WIDTH + 20}
+                                y={(yRight + Y_BOTTOM) / 2 + 3}
+                                textAnchor="start"
+                                className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                            >
+                                {hR_disp}
+                            </text>
+                        </g>
+                    )}
+
+                    {/* Ridge */}
+                    {shape === 'gable' && (
+                        <g className="text-emerald-500">
+                            <line x1={WALL_X + WALL_WIDTH / 2} y1={yPeak} x2={WALL_X + WALL_WIDTH / 2 + 40} y2={yPeak} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
+                            <text
+                                x={WALL_X + WALL_WIDTH / 2 + 5}
+                                y={yPeak - 4}
+                                textAnchor="start"
+                                className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                            >
+                                {hP_disp}
+                            </text>
+                        </g>
+                    )}
                 </g>
 
                 {/* MAGNIFIER LENS */}
