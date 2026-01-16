@@ -15,8 +15,6 @@ import {
   where,
   getDocs,
   orderBy,
-  runTransaction,
-  setDoc,
 } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
@@ -81,41 +79,7 @@ function schoonObject(obj: any) {
  * - Start bij 260001 als teller nog niet bestaat.
  * - Per user eigen teller (voorkomt dat verschillende gebruikers elkaars nummers beïnvloeden).
  */
-async function reserveerVolgendOfferteNummer(params: {
-  firestore: any;
-  userId: string;
-  startNummer?: number;
-}): Promise<number> {
-  const { firestore, userId, startNummer = 260001 } = params;
 
-  const counterRef = doc(firestore, 'counters', `quoteNumber_${userId}`);
-
-  const offerteNummer = await runTransaction(firestore, async (tx) => {
-    const snap = await tx.get(counterRef);
-
-    const huidigeVolgende: number =
-      snap.exists() && typeof snap.data()?.next === 'number'
-        ? snap.data().next
-        : startNummer;
-
-    const nieuweVolgende = huidigeVolgende + 1;
-
-    // Counter doc updaten/aanmaken binnen dezelfde transaction
-    tx.set(
-      counterRef,
-      {
-        next: nieuweVolgende,
-        updatedAt: serverTimestamp(),
-        userId,
-      },
-      { merge: true }
-    );
-
-    return huidigeVolgende;
-  });
-
-  return offerteNummer;
-}
 
 /* ---------------------------------------------
  Validatie
@@ -215,13 +179,32 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
   }, [user, firestore]);
 
   // Handle Selection
-  const selectClient = (client: any) => {
+  const selectClient = async (client: any) => {
     setInitialKI(client);
     setKlanttype(client.klanttype === 'Zakelijk' ? 'zakelijk' : 'particulier');
     setShowProjectAddress(!!client.afwijkendProjectadres);
     setFormKey((prev) => prev + 1);
     setIsClientModalOpen(false);
-    toast({ title: 'Klant geselecteerd', description: `${client.voornaam} ${client.achternaam} is ingevuld.` });
+
+    if (quoteId && firestore) {
+      try {
+        // Strip metadata unrelated to the quote's embedded client info
+        const { id, userId, createdAt, updatedAt, ...safeClientData } = client;
+
+        await updateDoc(doc(firestore, 'quotes', quoteId), {
+          klantinformatie: safeClientData,
+          updatedAt: serverTimestamp(),
+        });
+
+        toast({
+          title: 'Klant opgeslagen',
+          description: `${client.voornaam} ${client.achternaam} is direct bijgewerkt.`
+        });
+      } catch (e) {
+        console.error('Error auto-saving client selection:', e);
+        toast({ variant: 'destructive', title: 'Fout bij opslaan geselecteerde klant' });
+      }
+    }
   };
 
   // Filter logic
@@ -235,9 +218,25 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
     });
   }, [clients, searchQuery]);
 
+  const handleAutoSave = async (field: string, value: any) => {
+    if (!quoteId || !firestore) return;
+    try {
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        [`klantinformatie.${field}`]: value,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Auto-save error:', error);
+    }
+  };
+
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || !firestore) return;
+    if (!quoteId) {
+      toast({ variant: 'destructive', title: 'Geen offerte ID gevonden.' });
+      return;
+    }
 
     const formData = new FormData(event.currentTarget);
     const raw: any = Object.fromEntries(formData);
@@ -276,7 +275,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
       });
 
       try {
-        // 1) SAVE/UPDATE CLIENT
+        // 1) SAVE/UPDATE CLIENT in Address Book
         const clientRef = collection(firestore, 'clients');
         const q = query(
           clientRef,
@@ -292,30 +291,12 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           await addDoc(clientRef, { ...cleanData, createdAt: serverTimestamp() });
         }
 
-        // 2) SAVE QUOTE
-        if (quoteId) {
-          // Bewerken: geen nieuw offertnummer aanmaken
-          await updateDoc(doc(firestore, 'quotes', quoteId), { klantinformatie: cleanData });
-          router.push(`/offertes/${quoteId}/klus/nieuw`);
-          return;
-        }
-
-        // Nieuw: eerst een uniek offertenummer reserveren (transaction)
-        const offerteNummer = await reserveerVolgendOfferteNummer({
-          firestore,
-          userId: user.uid,
-          startNummer: 260001,
+        // 2) UPDATE QUOTE FINAL CHECK & NAVIGATE
+        await updateDoc(doc(firestore, 'quotes', quoteId), {
+          klantinformatie: cleanData
         });
 
-        const docRef = await addDoc(collection(firestore, 'quotes'), {
-          userId: user.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          offerteNummer, // ✅ jouw nummer zoals 260001
-          klantinformatie: cleanData,
-        });
-
-        router.push(`/offertes/${docRef.id}/klus/nieuw`);
+        router.push(`/offertes/${quoteId}/klus/nieuw`);
       } catch (e) {
         console.error(e);
         toast({ variant: 'destructive', title: 'Fout bij opslaan' });
@@ -419,7 +400,10 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           <RadioGroup
             name="klanttype"
             value={klanttype}
-            onValueChange={(v: any) => setKlanttype(v)}
+            onValueChange={(v: any) => {
+              setKlanttype(v);
+              handleAutoSave('klanttype', v === 'particulier' ? 'Particulier' : 'Zakelijk');
+            }}
             className="flex gap-6"
           >
             <div className="flex items-center space-x-2">
@@ -433,19 +417,31 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           </RadioGroup>
 
           {klanttype === 'zakelijk' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="bedrijfsnaam">Bedrijfsnaam</Label>
-                <Input id="bedrijfsnaam" name="bedrijfsnaam" placeholder="Bedrijf B.V." defaultValue={initialKI?.bedrijfsnaam} />
+                <Input
+                  id="bedrijfsnaam"
+                  name="bedrijfsnaam"
+                  placeholder="Bedrijf B.V."
+                  defaultValue={initialKI?.bedrijfsnaam}
+                  onBlur={(e) => handleAutoSave('bedrijfsnaam', e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="contactpersoon">Contactpersoon</Label>
-                <Input id="contactpersoon" name="contactpersoon" placeholder="Naam contactpersoon" defaultValue={initialKI?.contactpersoon} />
+                <Input
+                  id="contactpersoon"
+                  name="contactpersoon"
+                  placeholder="Naam contactpersoon"
+                  defaultValue={initialKI?.contactpersoon}
+                  onBlur={(e) => handleAutoSave('contactpersoon', e.target.value)}
+                />
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="voornaam">Voornaam *</Label>
               <Input
@@ -454,7 +450,11 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                 placeholder="Voornaam"
                 required
                 defaultValue={initialKI?.voornaam}
-                onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
+                onBlur={(e) => {
+                  const v = formatCapitalize(e.target.value);
+                  e.target.value = v;
+                  handleAutoSave('voornaam', v);
+                }}
               />
             </div>
             <div className="space-y-1.5">
@@ -465,19 +465,39 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                 placeholder="Achternaam"
                 required
                 defaultValue={initialKI?.achternaam}
-                onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
+                onBlur={(e) => {
+                  const v = formatCapitalize(e.target.value);
+                  e.target.value = v;
+                  handleAutoSave('achternaam', v);
+                }}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="emailadres">E-mailadres *</Label>
-              <Input id="emailadres" name="emailadres" type="email" placeholder="naam@voorbeeld.nl" required defaultValue={initialKI?.emailadres} />
+              <Input
+                id="emailadres"
+                name="emailadres"
+                type="email"
+                placeholder="naam@voorbeeld.nl"
+                required
+                defaultValue={initialKI?.emailadres}
+                onBlur={(e) => handleAutoSave('emailadres', e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="telefoonnummer">Telefoonnummer *</Label>
-              <Input id="telefoonnummer" name="telefoonnummer" type="tel" placeholder="06 12345678" required defaultValue={initialKI?.telefoonnummer} />
+              <Input
+                id="telefoonnummer"
+                name="telefoonnummer"
+                type="tel"
+                placeholder="06 12345678"
+                required
+                defaultValue={initialKI?.telefoonnummer}
+                onBlur={(e) => handleAutoSave('telefoonnummer', e.target.value)}
+              />
             </div>
           </div>
 
@@ -486,23 +506,35 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
           {/* FACTUURADRES */}
           <div className="space-y-4">
             <h3 className="font-medium">Factuuradres</h3>
-            <div className="grid grid-cols-6 gap-4">
-              <div className="col-span-4 space-y-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
+              <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="straat">Straat *</Label>
                 <Input
                   id="straat"
                   name="straat"
                   placeholder="Straatnaam"
                   required
+
                   defaultValue={initialKI?.straat}
-                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
+                  onBlur={(e) => {
+                    const v = formatCapitalize(e.target.value);
+                    e.target.value = v;
+                    handleAutoSave('straat', v);
+                  }}
                 />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="sm:col-span-2 space-y-1.5">
                 <Label htmlFor="huisnummer">Nr. *</Label>
-                <Input id="huisnummer" name="huisnummer" placeholder="Nr." required defaultValue={initialKI?.huisnummer} />
+                <Input
+                  id="huisnummer"
+                  name="huisnummer"
+                  placeholder="Nr."
+                  required
+                  defaultValue={initialKI?.huisnummer}
+                  onBlur={(e) => handleAutoSave('huisnummer', e.target.value)}
+                />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="sm:col-span-2 space-y-1.5">
                 <Label htmlFor="postcode">Postcode *</Label>
                 <Input
                   id="postcode"
@@ -510,10 +542,14 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                   placeholder="1234 AB"
                   required
                   defaultValue={initialKI?.postcode}
-                  onBlur={(e) => (e.target.value = formatPostcode(e.target.value))}
+                  onBlur={(e) => {
+                    const v = formatPostcode(e.target.value);
+                    e.target.value = v;
+                    handleAutoSave('postcode', v);
+                  }}
                 />
               </div>
-              <div className="col-span-4 space-y-1.5">
+              <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="plaats">Plaats *</Label>
                 <Input
                   id="plaats"
@@ -521,52 +557,81 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
                   placeholder="Plaatsnaam"
                   required
                   defaultValue={initialKI?.plaats}
-                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
+                  onBlur={(e) => {
+                    const v = formatCapitalize(e.target.value);
+                    e.target.value = v;
+                    handleAutoSave('plaats', v);
+                  }}
                 />
               </div>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            <Switch checked={showProjectAddress} onCheckedChange={setShowProjectAddress} id="project-switch" />
+            <Switch
+              checked={showProjectAddress}
+              onCheckedChange={(c: boolean) => {
+                setShowProjectAddress(c);
+                handleAutoSave('afwijkendProjectadres', c);
+              }}
+              id="project-switch"
+            />
             <Label htmlFor="project-switch">Afwijkend projectadres</Label>
           </div>
 
           {/* PROJECTADRES */}
           {showProjectAddress && (
-            <div className="grid grid-cols-6 gap-4 p-4 border rounded-md bg-muted/20">
-              <div className="col-span-4 space-y-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 p-4 border rounded-md bg-muted/20">
+              <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="projectStraat">Straat</Label>
                 <Input
                   id="projectStraat"
                   name="projectStraat"
                   placeholder="Straatnaam"
                   defaultValue={initialKI?.projectStraat}
-                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
+                  onBlur={(e) => {
+                    const v = formatCapitalize(e.target.value);
+                    e.target.value = v;
+                    handleAutoSave('projectStraat', v);
+                  }}
                 />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="sm:col-span-2 space-y-1.5">
                 <Label htmlFor="projectHuisnummer">Nr.</Label>
-                <Input id="projectHuisnummer" name="projectHuisnummer" placeholder="Nr." defaultValue={initialKI?.projectHuisnummer} />
+                <Input
+                  id="projectHuisnummer"
+                  name="projectHuisnummer"
+                  placeholder="Nr."
+                  defaultValue={initialKI?.projectHuisnummer}
+                  onBlur={(e) => handleAutoSave('projectHuisnummer', e.target.value)}
+                />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="sm:col-span-2 space-y-1.5">
                 <Label htmlFor="projectPostcode">Postcode</Label>
                 <Input
                   id="projectPostcode"
                   name="projectPostcode"
                   placeholder="1234 AB"
                   defaultValue={initialKI?.projectPostcode}
-                  onBlur={(e) => (e.target.value = formatPostcode(e.target.value))}
+                  onBlur={(e) => {
+                    const v = formatPostcode(e.target.value);
+                    e.target.value = v;
+                    handleAutoSave('projectPostcode', v);
+                  }}
                 />
               </div>
-              <div className="col-span-4 space-y-1.5">
+              <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="projectPlaats">Plaats</Label>
                 <Input
                   id="projectPlaats"
                   name="projectPlaats"
                   placeholder="Plaatsnaam"
                   defaultValue={initialKI?.projectPlaats}
-                  onBlur={(e) => (e.target.value = formatCapitalize(e.target.value))}
+                  onBlur={(e) => {
+                    const v = formatCapitalize(e.target.value);
+                    e.target.value = v;
+                    handleAutoSave('projectPlaats', v);
+                  }}
                 />
               </div>
             </div>
@@ -577,7 +642,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
               <Link href="/">Annuleren</Link>
             </Button>
             <Button type="submit" variant="success" disabled={isPending}>
-              {isPending ? 'Bezig...' : 'Volgende'}
+              {isPending ? 'Bezig...' : 'Opslaan'}
             </Button>
           </div>
         </form>

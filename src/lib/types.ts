@@ -9,7 +9,7 @@ export type User = {
 };
 
 export type Client = {
-  id:string;
+  id: string;
   userId: string;
   naam: string;
   adres: string;
@@ -86,7 +86,12 @@ export type JobCategory =
   | "Keukens"
   | "Inbouwkasten"
   | "Meubels Op Maat"
-  | "Dakramen / Lichtkoepel";
+  | "Dakramen / Lichtkoepel"
+  | "Boeiboorden"
+  | "Sloopwerk & Logistiek"
+  | "Constructief"
+  | "Beveiliging"
+  | "Isolatiewerken";
 
 
 export type Job = {
@@ -100,8 +105,22 @@ export type Job = {
   diepteMm?: number;
   aantal: number;
   notities?: string;
+  measurements?: Record<string, any>;
+
   createdAt: string;
+  components?: JobComponent[];
 };
+
+export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank';
+
+export interface JobComponent {
+  id: string; // Unique ID (child ID)
+  type: JobComponentType;
+  label: string; // e.g. "Kozijn 1"
+  measurements: Record<string, number | string>; // specific measurements
+  materials?: any[]; // optional internal materials if needed locally
+  slug?: string; // Link to the JOB_REGISTRY item for loading default materials
+}
 
 export type MaterialCategory = "hout" | "isolatie" | "plaat" | "gips" | "bevestiging" | "afwerking" | "extra";
 export type MaterialUnit = "m1" | "m2" | "st" | "pak" | "uur";
@@ -118,19 +137,19 @@ export type JobMaterial = {
 };
 
 export type Material = {
-    id: string;
-    userId: string;
-    categorie: string;
-    materiaalnaam: string;
-    prijs: number;
-    eenheid: string;
-    leverancier: string;
-    updatedAt: Timestamp;
+  id: string;
+  userId: string;
+  categorie: string;
+  materiaalnaam: string;
+  prijs: number;
+  eenheid: string;
+  leverancier: string;
+  updatedAt: Timestamp;
 };
 
 export type MateriaalKeuze = Omit<Material, 'prijs'> & {
-    id: string;
-    prijs: number;
+  id: string;
+  prijs: number;
 };
 
 

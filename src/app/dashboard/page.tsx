@@ -50,7 +50,10 @@ import {
   Trash2,
   FilePlus,
   LayoutDashboard,
+  Loader2,
 } from 'lucide-react';
+
+import { createEmptyQuote } from '@/lib/firestore-actions';
 
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -173,6 +176,22 @@ export default function Dashboard() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<QuoteMetDatums | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // ✅ creating flow
+  const [isCreating, setIsCreating] = useState(false);
+
+  async function handleNewQuote() {
+    if (!user || !firestore) return;
+    setIsCreating(true);
+    try {
+      const id = await createEmptyQuote(firestore, user.uid);
+      router.push(`/offertes/${id}/klant`);
+    } catch (e: any) {
+      console.error(e);
+      setFout(e.message || 'Kon nieuwe klus niet aanmaken.');
+      setIsCreating(false);
+    }
+  }
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -297,11 +316,18 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <div className="shrink-0 relative z-10 pt-1">
-                    <Button asChild variant="success" className="gap-2 h-12 px-6 shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 hover:shadow-emerald-500/30">
-                      <Link href="/offertes/nieuw">
+                    <Button
+                      variant="success"
+                      className="gap-2 h-12 px-6 shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 hover:shadow-emerald-500/30"
+                      onClick={handleNewQuote}
+                      disabled={isCreating}
+                    >
+                      {isCreating ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
                         <Plus className="h-5 w-5" />
-                        Nieuwe klus starten
-                      </Link>
+                      )}
+                      {isCreating ? 'Bezig...' : 'Nieuwe klus starten'}
                     </Button>
                   </div>
                 </div>

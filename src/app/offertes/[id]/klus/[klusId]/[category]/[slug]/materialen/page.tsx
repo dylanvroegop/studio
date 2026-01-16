@@ -9,6 +9,8 @@ import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { WizardHeader } from '@/components/WizardHeader';
+import { JobComponentsManager } from '@/components/JobComponentsManager';
+import { JobComponent, Job } from '@/lib/types';
 
 import {
   ArrowLeft,
@@ -26,6 +28,8 @@ import {
   EyeOff,
   Calculator,
   Sparkles,
+  Edit2,
+  Box,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -220,9 +224,10 @@ interface MaterialRowProps {
   onRemove?: () => void;
   isCustom?: boolean;
   onEditTitle?: () => void;
+  isSubSection?: boolean;
 }
 
-function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle }: MaterialRowProps) {
+function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle, isSubSection = false }: MaterialRowProps) {
   const [deleteConfOpen, setDeleteConfOpen] = useState(false);
 
   return (
@@ -255,9 +260,14 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
                 <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
               </>
             ) : (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 ml-auto sm:ml-0">
-                <Plus className="h-3.5 w-3.5" />
-                <span>Materiaal toevoegen</span>
+              <div className={cn(
+                "flex items-center gap-1.5 text-xs shrink-0 ml-auto sm:ml-0 transition-colors",
+                isSubSection
+                  ? "text-muted-foreground/50 hover:text-muted-foreground/80"
+                  : "text-emerald-600 hover:text-emerald-500 font-medium"
+              )}>
+                <Plus className={cn("h-3.5 w-3.5", isSubSection && "opacity-60")} />
+                <span>{isSubSection ? '+ Toevoegen' : 'Materiaal toevoegen'}</span>
               </div>
             )}
           </div>
@@ -533,6 +543,35 @@ export default function GenericMaterialsPageRedesigned() {
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [addExtraMaterialOpen, setAddExtraMaterialOpen] = useState(false);
   const [newExtraMaterialTitle, setNewExtraMaterialTitle] = useState('');
+  const [components, setComponents] = useState<JobComponent[]>([]);
+  const [kozijnenModalOpen, setKozijnenModalOpen] = useState(false);
+  const [activeComponentType, setActiveComponentType] = useState<string | null>(null);
+  const [activeComponentId, setActiveComponentId] = useState<string | null>(null);
+  const [editingComponentId, setEditingComponentId] = useState<string | null>(null); // For JobComponentsManager control
+  const [klus, setKlus] = useState<Job | null>(null);
+
+  const handleComponentMaterialSelect = (compId: string, sectionKey: string, material: any) => {
+    setComponents(prev => prev.map(comp => {
+      if (comp.id !== compId) return comp;
+      // Store materials in a generic internal selection array: { sectionKey, material }
+      const current = (comp.materials || []) as any[];
+      // Remove existing for this section
+      const others = current.filter((m: any) => m.sectionKey !== sectionKey);
+      return { ...comp, materials: [...others, { sectionKey, material }] };
+    }));
+  };
+
+  const handleComponentMaterialRemove = (compId: string, sectionKey: string) => {
+    setComponents(prev => prev.map(comp => {
+      if (comp.id !== compId) return comp;
+      const current = (comp.materials || []) as any[];
+      return { ...comp, materials: current.filter((m: any) => m.sectionKey !== sectionKey) };
+    }));
+  };
+
+  const handleComponentDelete = (compId: string) => {
+    setComponents(prev => prev.filter(c => c.id !== compId));
+  };
 
   // Safeguard state
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
@@ -609,6 +648,12 @@ export default function GenericMaterialsPageRedesigned() {
         if (!snap.exists()) return;
         const data = snap.data();
         const klusNode = data?.klussen?.[klusId];
+
+        if (klusNode) setKlus(klusNode as unknown as Job);
+
+        if (klusNode?.components && Array.isArray(klusNode.components)) {
+          setComponents(klusNode.components);
+        }
 
         if (klusNode?.materialen) {
           const mat = klusNode.materialen;
@@ -999,6 +1044,7 @@ export default function GenericMaterialsPageRedesigned() {
 
       const updatePayload: any = {
         // Use dot notation for materialen subfields to allow deleteField() to work
+        [`klussen.${klusId}.components`]: components,
         [`klussen.${klusId}.materialen.jobKey`]: JOB_KEY,
         [`klussen.${klusId}.materialen.selections`]: cleanSelections,
         [`klussen.${klusId}.materialen.custommateriaal`]: customMap,
@@ -1102,6 +1148,112 @@ export default function GenericMaterialsPageRedesigned() {
         <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
+          {/* Helper: Main Job Measurements */}
+          {(() => {
+            if (!klus) return null;
+
+            const knownKeys: Record<string, string> = {
+              'lengte': 'Lengte', 'lengteMm': 'Lengte',
+              'breedte': 'Breedte', 'breedteMm': 'Breedte',
+              'hoogte': 'Hoogte', 'hoogteMm': 'Hoogte',
+              'diepte': 'Diepte', 'diepteMm': 'Diepte',
+              'aantal': 'Aantal',
+              'balkafstand': 'Balkafstand',
+              'latafstand': 'Latafstand'
+            };
+
+            // Logic to group measurements
+            const groups: { title?: string, items: { key: string, label: string, value: any }[] }[] = [];
+
+            // 1. Top Level & Measurements Object (Generic)
+            const genericItems: { key: string, label: string, value: any }[] = [];
+
+            // Top level
+            for (const [key, label] of Object.entries(knownKeys)) {
+              if ((klus as any)[key] && (klus as any)[key] !== 0) {
+                genericItems.push({ key, label, value: (klus as any)[key] });
+              }
+            }
+            // Measurements object
+            if ((klus as any).measurements) {
+              Object.entries((klus as any).measurements).forEach(([k, v]) => {
+                if (k === 'notities' || !v) return;
+                const label = knownKeys[k] || k;
+                if (!genericItems.find(e => e.label === label)) {
+                  genericItems.push({ key: k, label, value: v });
+                }
+              });
+            }
+            if (genericItems.length > 0) groups.push({ items: genericItems });
+
+            // 2. Maatwerk (Grouped)
+            if ((klus as any).maatwerk) {
+              Object.entries((klus as any).maatwerk).forEach(([k, v]) => {
+                if (k === 'notities' || !v) return;
+
+                if (typeof v === 'object' && v !== null) {
+                  // Nested group (e.g. Wand 1)
+                  const groupItems: any[] = [];
+                  Object.entries(v).forEach(([subK, subV]) => {
+                    if (subK === 'notities' || !subV) return;
+                    const subLabel = knownKeys[subK] || (subK.charAt(0).toUpperCase() + subK.slice(1));
+                    groupItems.push({ key: subK, label: subLabel, value: subV });
+                  });
+
+                  if (groupItems.length > 0) {
+                    // Format title: "wand_1" -> "Wand 1"
+                    let title = k.replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    groups.push({ title, items: groupItems });
+                  }
+                } else {
+                  // Direct value case -> Add to generic items if exists, or create new group
+                  const label = knownKeys[k] || (k.charAt(0).toUpperCase() + k.slice(1));
+                  if (groups.length === 0) groups.push({ items: [] });
+                  // Add to first group (typically generic)
+                  // Check for duplicates
+                  if (!groups[0].items.find(e => e.key === k)) {
+                    groups[0].items.push({ key: k, label, value: v });
+                  }
+                }
+              });
+            }
+
+            if (groups.length === 0) return null;
+
+            return (
+              <div className="flex flex-col gap-2 px-1 -mb-2">
+                {groups.map((group, idx) => {
+                  let displayTitle = group.title;
+                  // If title is just a number (like "0"), format it as "Wand 1"
+                  if (displayTitle && /^\d+$/.test(displayTitle)) {
+                    const catItem = JOB_REGISTRY[params.category as any]?.items.find((i: any) => i.slug === params.slug);
+                    const label = catItem?.measurementLabel || 'Onderdeel';
+                    displayTitle = `${label} ${parseInt(displayTitle) + 1}`;
+                  }
+
+                  return (
+                    <div key={idx} className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1 flex items-center gap-1">
+                        {idx === 0 && <Box className="w-3 h-3" />}
+                        {displayTitle || 'Metingen'}:
+                      </span>
+                      {group.items.map((e) => {
+                        const isMm = ['Lengte', 'Breedte', 'Hoogte', 'Diepte', 'Balkafstand', 'Latafstand'].includes(e.label);
+                        const valStr = String(e.value);
+                        const showSuffix = isMm && /^\d+(\.\d+)?$/.test(valStr);
+                        return (
+                          <span key={e.key} className="text-[10px] font-medium bg-muted/50 border px-1.5 py-0.5 rounded text-foreground/70">
+                            {e.label}: <span className="text-foreground">{e.value}</span>{showSuffix ? 'mm' : ''}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            );
+          })()}
+
           {/* Preset Selector - Compact */}
           <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
             <Label className="text-base font-semibold text-foreground/90">Kies Een Werkwijze</Label>
@@ -1121,41 +1273,238 @@ export default function GenericMaterialsPageRedesigned() {
           <div className="space-y-6">
             {/* Use job-specific categoryConfig if available, otherwise fall back to MATERIAL_CATEGORY_INFO */}
             {(Object.entries(jobConfig?.categoryConfig || MATERIAL_CATEGORY_INFO) as [MaterialCategoryKey, any][])
-              .sort(([, a], [, b]) => a.order - b.order)
+              .sort(([keyA, a], [keyB, b]) => {
+                // Check if this is a complex job with component injection sections
+                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand'));
+
+                const isAComponentSection = isComplexJob && (
+                  keyA === 'Kozijnen' || (keyA as string).toLowerCase() === 'kozijnen' ||
+                  keyA === 'Deuren' || (keyA as string).toLowerCase() === 'deuren'
+                );
+                const isBComponentSection = isComplexJob && (
+                  keyB === 'Kozijnen' || (keyB as string).toLowerCase() === 'kozijnen' ||
+                  keyB === 'Deuren' || (keyB as string).toLowerCase() === 'deuren'
+                );
+
+                // Push component sections to the end
+                if (isAComponentSection && !isBComponentSection) return 1;
+                if (!isAComponentSection && isBComponentSection) return -1;
+
+                // Otherwise sort by order
+                return a.order - b.order;
+              })
               .map(([categoryKey, categoryInfo]) => {
                 const sections = groupedSections[categoryKey] || [];
                 if (sections.length === 0) return null;
                 const isHidden = hiddenCategories[categoryKey];
 
+                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand'));
+                const isKozijnenSection = (categoryKey === 'Kozijnen' || (categoryKey as string).toLowerCase() === 'kozijnen');
+                const isDeurenSection = (categoryKey === 'Deuren' || (categoryKey as string).toLowerCase() === 'deuren');
+
+                const targetComponentType = (isComplexJob && isKozijnenSection) ? 'kozijn' :
+                  ((isComplexJob && isDeurenSection) ? 'deur' : null);
+
                 return (
                   <div key={categoryKey} className="space-y-2">
                     <div
-                      onClick={() => toggleCategoryVisibility(categoryKey)}
-                      className="flex items-center justify-between px-3 py-3 -mx-4 bg-muted/30 hover:bg-muted/60 active:bg-muted/80 rounded-lg cursor-pointer transition-all group select-none"
+                      onClick={(e) => {
+                        if (targetComponentType) {
+                          if (isHidden) toggleCategoryVisibility(categoryKey);
+                          setActiveComponentType(targetComponentType);
+                          setKozijnenModalOpen(true);
+                        } else {
+                          toggleCategoryVisibility(categoryKey);
+                        }
+                      }}
+                      className="flex items-center justify-between px-3 py-3 -mx-4 hover:bg-muted/40 active:bg-muted/60 rounded-lg cursor-pointer transition-all group select-none border-l-2 border-b border-b-border/30 min-h-[44px] mt-2" style={{ borderLeftColor: '#4A5568' }}
                     >
-                      <h2 className={cn(
-                        "text-sm font-semibold uppercase tracking-wider transition-colors",
-                        isHidden ? "text-muted-foreground" : "text-foreground"
-                      )}>{categoryInfo.title}</h2>
-                      <div
-                        className="p-1.5 rounded-md text-muted-foreground group-hover:text-foreground transition-colors"
-                        title={isHidden ? "Toon categorie" : "Verberg categorie"}
-                      >
-                        {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </div>
+                      {targetComponentType ? (
+                        <div className="flex items-center gap-2 text-emerald-500 hover:text-emerald-400 font-medium w-full">
+                          <Plus className="h-4 w-4" />
+                          <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>{targetComponentType === 'kozijn' ? 'Kozijn' : 'Deur'} toevoegen</span>
+                        </div>
+                      ) : (
+                        <h2 className={cn(
+                          "text-sm font-semibold uppercase transition-colors",
+                          isHidden ? "text-muted-foreground" : "text-foreground"
+                        )} style={{ letterSpacing: '0.05em' }}>{categoryInfo.title}</h2>
+                      )}
+
+                      {(!targetComponentType || components.some(c => c.type === targetComponentType)) ? (
+                        <div
+                          className="p-1.5 rounded-md text-muted-foreground group-hover:text-foreground transition-colors"
+                          title={isHidden ? "Toon categorie" : "Verberg categorie"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleCategoryVisibility(categoryKey);
+                          }}
+                        >
+                          {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </div>
+                      ) : (
+                        <div className="p-1.5 w-7" /> /* Spacer for consistent height */
+                      )}
                     </div>
 
                     {!isHidden && (
                       <div className="space-y-1.5">
-                        {sections.map(section => (
-                          <MaterialRow
-                            key={section.key}
-                            label={section.label}
-                            selected={gekozenMaterialen[section.key]}
-                            onClick={() => openMateriaalKiezer(section.key)}
-                            onRemove={() => handleMateriaalVerwijderen(section.key)}
-                          />
-                        ))}
+                        {targetComponentType ? (
+                          <div className="pl-0 sm:pl-2 space-y-8">
+                            {/* Manager purely for the "Add/Edit Dialog" functionality. We hide the list. */}
+                            <JobComponentsManager
+                              components={components}
+                              onChange={setComponents}
+                              limitToType={targetComponentType}
+                              hideAddButton={true}
+                              forceOpen={kozijnenModalOpen && activeComponentType === targetComponentType}
+                              onOpenChange={(open) => {
+                                setKozijnenModalOpen(open);
+                                if (!open) {
+                                  setEditingComponentId(null);
+                                  setActiveComponentType(null);
+                                }
+                              }}
+                              renderList={false}
+                              externalEditingId={editingComponentId}
+                              onEditingIdChange={setEditingComponentId}
+                            />
+
+                            {/* Custom Rendering of Components with Expanded Materials */}
+                            {components.filter(c => c.type === targetComponentType).map((comp, idx) => {
+                              // Lookup variant config from registry via slug
+                              let variantItem = null;
+                              if (targetComponentType === 'kozijn') {
+                                variantItem = comp.slug ? JOB_REGISTRY.kozijnen.items.find((i: any) => i.slug === comp.slug) : null;
+                              } else if (targetComponentType === 'deur') {
+                                variantItem = comp.slug ? JOB_REGISTRY.deuren.items.find((i: any) => i.slug === comp.slug) : null;
+                              }
+
+                              const compSections = variantItem?.materialSections || [];
+
+                              let sectionMap: { key: string; label: string }[] = [];
+
+                              if (variantItem?.categoryConfig) {
+                                // Dynamic loading from job-registry
+                                sectionMap = Object.entries(variantItem.categoryConfig)
+                                  .sort(([, a]: any, [, b]: any) => a.order - b.order)
+                                  .map(([key, config]: any) => ({
+                                    key: key,
+                                    label: config.title
+                                  }));
+                              } else {
+                                // Fallback defaults
+                                sectionMap = targetComponentType === 'kozijn' ? [
+                                  { key: 'hout', label: 'Kozijnhout' },
+                                  { key: 'beslag', label: 'Hang- & Sluitwerk' },
+                                  { key: 'glas', label: 'Glas & Beglazing' },
+                                  { key: 'afwerking', label: 'Afwerking' },
+                                  { key: 'Stalen kozijn', label: 'Stalen Kozijn' }
+                                ] : [
+                                  { key: 'Deuren', label: 'Deur' },
+                                  { key: 'deurbeslag', label: 'Beslag' },
+                                  { key: 'glas', label: 'Glas' },
+                                  { key: 'tochtstrips', label: 'Tochtwering' },
+                                  { key: 'ventilatie', label: 'Ventilatie' }
+                                ];
+                              }
+
+                              return (
+                                <div key={comp.id} className="mt-6 mb-4 group pl-4 rounded-lg" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderLeft: '2px solid rgb(16, 185, 129)' }}>
+                                  {/* Component Header - Anchor Style */}
+                                  <div className="flex items-center justify-between py-3 px-4 -ml-4 mb-3 border-b border-b-border/20" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
+                                    <div className="flex items-center gap-4">
+                                      <h3 className="text-sm font-semibold uppercase flex items-center gap-2 text-foreground" style={{ letterSpacing: '0.05em' }}>
+                                        <Box className="h-4 w-4 text-emerald-500" />
+                                        <span>{comp.label}</span>
+                                      </h3>
+
+                                      <div className="hidden sm:flex items-center gap-2">
+                                        {Object.entries(comp.measurements || {}).filter(([k]) => k !== 'subtitle' && k !== '_variantMode').map(([k, v]) => (
+                                          <span key={k} className="text-[10px] bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded text-muted-foreground">
+                                            {k}: <span className="text-foreground">{v as any}</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 hover:bg-background/80"
+                                        onClick={() => {
+                                          setActiveComponentType(targetComponentType);
+                                          setEditingComponentId(comp.id);
+                                          setKozijnenModalOpen(true);
+                                        }}
+                                        title="Afmetingen wijzigen"
+                                      >
+                                        <Edit2 className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleComponentDelete(comp.id)} title="Onderdeel verwijderen">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* Material Sections for this Component */}
+                                  <div className="space-y-6">
+                                    {/* Group by Category Mapping */}
+                                    {sectionMap.map(catConfig => {
+                                      const sectionsForCat = compSections.filter((s: any) =>
+                                        (s.category || 'hout').toLowerCase() === catConfig.key.toLowerCase()
+                                      );
+
+                                      if (sectionsForCat.length === 0) return null;
+
+                                      return (
+                                        <div key={catConfig.key}>
+                                          <div className="flex items-center justify-between py-2 select-none mb-2 mt-4">
+                                            <h4 className="text-xs font-medium tracking-wide text-foreground/70">
+                                              {catConfig.label}
+                                            </h4>
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            {sectionsForCat.map((section: any) => {
+                                              const selectedForThis = (comp.materials || []).find((m: any) => m.sectionKey === section.key)?.material;
+
+                                              return (
+                                                <MaterialRow
+                                                  key={section.key}
+                                                  label={section.label}
+                                                  selected={selectedForThis}
+                                                  isSubSection={true}
+                                                  onClick={() => {
+                                                    // Open modal in context of this component
+                                                    setActiveComponentId(comp.id);
+                                                    setActieveSectie(section.key);
+                                                    setIsExtraModalOpen(true);
+                                                  }}
+                                                  onRemove={() => handleComponentMaterialRemove(comp.id, section.key)}
+                                                />
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          sections.map(section => (
+                            <MaterialRow
+                              key={section.key}
+                              label={section.label}
+                              selected={gekozenMaterialen[section.key]}
+                              onClick={() => openMateriaalKiezer(section.key)}
+                              onRemove={() => handleMateriaalVerwijderen(section.key)}
+                            />
+                          ))
+                        )}
                       </div>
                     )}
                   </div>
@@ -1164,83 +1513,88 @@ export default function GenericMaterialsPageRedesigned() {
 
             {/* Extra Materials Category */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between px-3 py-3 -mx-4 bg-muted/30 rounded-lg">
-                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Extra materialen</h2>
+              <div
+                onClick={() => setAddExtraMaterialOpen(true)}
+                className="flex items-center justify-between px-3 py-3 -mx-4 hover:bg-muted/40 active:bg-muted/60 rounded-lg cursor-pointer transition-all group select-none border-l-2 border-b border-b-border/30 min-h-[44px]"
+                style={{ borderLeftColor: '#4A5568' }}
+              >
+                <div className="flex items-center gap-2 text-emerald-500 hover:text-emerald-400 font-medium w-full">
+                  <Plus className="h-4 w-4" />
+                  <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>Extra materiaal toevoegen</span>
+                </div>
+                <div className="p-1.5 w-7" /> {/* Spacer for consistent height */}
               </div>
 
-              <div className="space-y-1.5">
-                {(groupedSections.extra || []).map(section => (
-                  <MaterialRow
-                    key={section.key}
-                    label={section.label}
-                    selected={gekozenMaterialen[section.key]}
-                    onClick={() => openMateriaalKiezer(section.key)}
-                    onRemove={() => handleMateriaalVerwijderen(section.key)}
-                  />
-                ))}
-
-                {customGroups.map((group) => {
-                  const material = group.materials[0];
-                  return (
+              {/* Show added extra materials below */}
+              {((groupedSections.extra || []).length > 0 || customGroups.length > 0) && (
+                <div className="space-y-1.5">
+                  {(groupedSections.extra || []).map(section => (
                     <MaterialRow
-                      key={group.id}
-                      label={group.title || 'Extra materiaal'}
-                      selected={material}
-                      onClick={() => { setActiveGroupId(group.id); setIsExtraModalOpen(true); }}
-                      onRemove={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
-                      isCustom
-                      onEditTitle={() => setEditingTitleId(group.id)}
+                      key={section.key}
+                      label={section.label}
+                      selected={gekozenMaterialen[section.key]}
+                      onClick={() => openMateriaalKiezer(section.key)}
+                      onRemove={() => handleMateriaalVerwijderen(section.key)}
                     />
-                  );
-                })}
+                  ))}
 
-                <button
-                  onClick={() => setAddExtraMaterialOpen(true)}
-                  className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-border hover:bg-accent/40 hover:border-emerald-500/50 transition-all cursor-pointer group flex items-center justify-center gap-2"
-                >
-                  <Plus className="h-4 w-4 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
-                  <span className="text-sm font-medium text-muted-foreground group-hover:text-emerald-500 transition-colors">Extra materiaal toevoegen</span>
-                </button>
-              </div>
+                  {customGroups.map((group) => {
+                    const material = group.materials[0];
+                    return (
+                      <MaterialRow
+                        key={group.id}
+                        label={group.title || 'Extra materiaal'}
+                        selected={material}
+                        onClick={() => { setActiveGroupId(group.id); setIsExtraModalOpen(true); }}
+                        onRemove={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
+                        isCustom
+                        onEditTitle={() => setEditingTitleId(group.id)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* (Legacy Helper Removed) */}
 
           {/* Klein Material - Card style */}
           <div className="pb-24">
             {renderKleinMateriaalSectie()}
           </div>
         </div>
-
-        {/* Sticky Footer */}
-        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-            <Button variant="outline" disabled={isOpslaan} onClick={handleBack}>
-              Terug
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => setSavePresetModalOpen(true)}
-              className="gap-2"
-            >
-              Opslaan als werkwijze
-              <Save className="h-4 w-4" />
-            </Button>
-
-            <Button
-              type="submit"
-              variant="success"
-              disabled={isOpslaan}
-              onClick={handleNext}
-            >
-              {isOpslaan ? 'Opslaan...' : 'Volgende'}
-            </Button>
-          </div>
-        </div>
       </main>
 
+      {/* Sticky Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+          <Button variant="outline" disabled={isOpslaan} onClick={handleBack}>
+            Terug
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setSavePresetModalOpen(true)}
+            className="gap-2"
+          >
+            Opslaan als werkwijze
+            <Save className="h-4 w-4" />
+          </Button>
+
+          <Button
+            type="submit"
+            variant="success"
+            disabled={isOpslaan}
+            onClick={handleNext}
+          >
+            {isOpslaan ? 'Opslaan...' : 'Volgende'}
+          </Button>
+        </div>
+      </div >
+
       {/* MODALS */}
-      <ManagePresetsDialog
+      < ManagePresetsDialog
         open={managePresetsModalOpen}
         onOpenChange={setManagePresetsModalOpen}
         presets={presets}
@@ -1339,8 +1693,8 @@ export default function GenericMaterialsPageRedesigned() {
         open={isExtraModalOpen}
         onOpenChange={setIsExtraModalOpen}
         existingMaterials={alleMaterialen}
-        showFavorites={actieveSectie !== 'extra' && !activeGroupId}
-        defaultCategory={actieveSectie ? materialSections.find(s => s.key === actieveSectie)?.categoryFilter : undefined}
+        showFavorites={actieveSectie !== 'extra' && !activeGroupId && !activeComponentId}
+        defaultCategory={actieveSectie ? materialSections.find(s => s.key === actieveSectie)?.categoryFilter : undefined} // Note: For components, we might want to pass category too?
         onToggleFavorite={toggleFavoriet}
         onSelectExisting={(result: any) => {
           const mat = result.data || result;
@@ -1355,7 +1709,11 @@ export default function GenericMaterialsPageRedesigned() {
             quantity: 1
           };
 
-          if (activeGroupId) {
+          if (activeComponentId && actieveSectie) {
+            handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
+            setActiveComponentId(null);
+            setActieveSectie(null);
+          } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
             setActiveGroupId(null);
           } else if (actieveSectie) {
@@ -1371,7 +1729,11 @@ export default function GenericMaterialsPageRedesigned() {
             prijs: typeof newMaterial.prijs === 'number' ? newMaterial.prijs : 0,
             quantity: 1
           };
-          if (activeGroupId) {
+          if (activeComponentId && actieveSectie) {
+            handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
+            setActiveComponentId(null);
+            setActieveSectie(null);
+          } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
             setActiveGroupId(null);
           } else if (actieveSectie) {

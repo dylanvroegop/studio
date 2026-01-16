@@ -37,6 +37,7 @@ const categories: CategoryItem[] = [
   { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
   { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
   { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeiboorden', slug: 'dakrenovatie' },
+  { name: 'Boeiboorden', description: 'Hout of kunststof boeiboorden vervangen', slug: 'boeiboorden' },
 
   { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
   { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },
@@ -54,6 +55,10 @@ const categories: CategoryItem[] = [
   { name: 'Meubels Op Maat', description: 'Meubels op maat', slug: 'MEUBELS_OP_MAAT' },
   { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
   { name: 'Dakramen / Lichtkoepel', description: 'Velux dakramen & lichtkoepels', slug: 'dakramen' },
+  { name: 'Sloopwerk & Logistiek', description: 'Sloopwerk, afvoer en bescherming', slug: 'sloopwerk' },
+  { name: 'Constructief', description: 'Stalen balken & Stempelwerk', slug: 'constructief' },
+  { name: 'Beveiliging', description: 'Politiekeurmerk Veilig Wonen', slug: 'beveiliging' },
+  { name: 'Isolatiewerken', description: 'Zolder- en vloerisolatie', slug: 'isolatie' },
 ];
 
 export default function NewJobPage() {
