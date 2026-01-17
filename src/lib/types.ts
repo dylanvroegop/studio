@@ -64,6 +64,18 @@ export type Quote = {
   // optioneel
   amount?: number;
   sentAt?: Timestamp | Date;
+
+  // ✅ Financial Armor (Settings per quote)
+  instellingen: QuoteSettings;
+};
+
+export type QuoteSettings = {
+  btwTarief: number;          // e.g. 21
+  winstmargeMaterialen: number; // e.g. 15
+  winstmargeArbeid: number;     // e.g. 0
+  uurTarief: number;            // e.g. 55.00
+  voorrijkosten: number;        // e.g. 45.00
+  afvalPercentage: number;      // e.g. 10
 };
 
 
@@ -108,10 +120,25 @@ export type Job = {
   measurements?: Record<string, any>;
 
   createdAt: string;
+
+  // ✅ Optimized Structure
+  maatwerk?: any[]; // The array of measurements (segments)
+  materialen?: {
+    selections: Record<string, { id: string; naam: string; prijs: number; eenheid: string }>;
+    custommateriaal: Record<string, any>;
+  };
+  kleinMateriaal?: KleinMateriaalConfig;
+
   components?: JobComponent[];
+
+  // UI ONLY (Strip before calculation)
+  uiState?: {
+    collapsedSections?: Record<string, boolean>;
+    hiddenCategories?: Record<string, boolean>;
+  };
 };
 
-export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank';
+export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank' | 'vlizotrap';
 
 export interface JobComponent {
   id: string; // Unique ID (child ID)

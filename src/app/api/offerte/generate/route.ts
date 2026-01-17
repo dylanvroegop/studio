@@ -76,12 +76,127 @@ export async function POST(req: Request) {
     const uid = await bepaalUid(req);
     const db = krijgFirestore();
 
-    const quote = await haalQuoteOp(db, quoteId);
+    const quote = await haalQuoteOp(db, quoteId) as any;
+
+    try {
+      // 1. Collect all Material IDs to fetch
+      const materialIdsToBeFetched = new Set<string>();
+      if (quote.klussen) {
+        Object.values(quote.klussen).forEach((job: any) => {
+          if (job?.materialen?.selections) {
+            Object.values(job.materialen.selections).forEach((sel: any) => {
+              if (sel?.id) materialIdsToBeFetched.add(sel.id);
+            });
+          }
+        });
+      }
+
+      // 2. Fetch full material details from Supabase (if we have IDs)
+      let materialMap = new Map<string, any>();
+      if (materialIdsToBeFetched.size > 0 && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        try {
+          const { createClient } = require('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+          );
+
+          const { data: materials, error } = await supabase
+            .from('materialen')
+            .select('*')
+            .in('id', Array.from(materialIdsToBeFetched));
+
+          if (!error && materials) {
+            materials.forEach((m: any) => {
+              // Ensure numeric price
+              const pr = typeof m.prijs === 'number' ? m.prijs : Number(m.prijs);
+              materialMap.set(m.id, { ...m, prijs: isNaN(pr) ? 0 : pr });
+            });
+          }
+        } catch (err) {
+          console.error("Failed to enrich materials:", err);
+        }
+      }
+
+      // 3. Process Jobs: Flatten, Enrich Materials, Convert Dimensions
+      const jobArray = quote.klussen
+        ? Object.values(quote.klussen)
+          .map((job: any) => {
+            const { uiState, ...rest } = job;
+            const enrichedJob = { ...rest };
+
+            // A. Enrich Materials
+            if (enrichedJob.materialen?.selections) {
+              const enrichedSelections: any = {};
+              Object.entries(enrichedJob.materialen.selections).forEach(([key, val]: [string, any]) => {
+                if (val?.id && materialMap.has(val.id)) {
+                  // Inject full details (Name, Price, Unit)
+                  enrichedSelections[key] = materialMap.get(val.id);
+                } else {
+                  // Fallback to existing
+                  enrichedSelections[key] = val;
+                }
+              });
+              enrichedJob.materialen.selections = enrichedSelections;
+            }
+
+            // B. Force Dimensions to Numbers
+            if (enrichedJob.maatwerk && Array.isArray(enrichedJob.maatwerk)) {
+              enrichedJob.maatwerk = enrichedJob.maatwerk.map((item: any) => {
+                const newItem = { ...item };
+                // List of keys known to be numeric dimensions
+                const numericKeys = [
+                  'lengte', 'hoogte', 'diepte', 'breedte',
+                  'lengte1', 'lengte2', 'lengte3',
+                  'hoogte1', 'hoogte2', 'hoogte3',
+                  'hoogteLinks', 'hoogteRechts', 'hoogteNok',
+                  'hoogteZijkant', 'balkafstand', 'latafstand'
+                ];
+
+                numericKeys.forEach(key => {
+                  if (newItem[key] !== undefined && newItem[key] !== null && newItem[key] !== '') {
+                    const parsed = Number(newItem[key]);
+                    if (!isNaN(parsed)) newItem[key] = parsed;
+                  }
+                });
+
+                // Also fix openings
+                if (Array.isArray(newItem.openings)) {
+                  newItem.openings = newItem.openings.map((op: any) => {
+                    const newOp = { ...op };
+                    ['width', 'height', 'fromLeft', 'fromBottom'].forEach(k => {
+                      if (newOp[k] !== undefined) newOp[k] = Number(newOp[k]);
+                    });
+                    return newOp;
+                  });
+                }
+
+                return newItem;
+              });
+            }
+
+            return enrichedJob;
+          })
+          .sort((a: any, b: any) => (a.volgorde || 9999) - (b.volgorde || 9999))
+        : [];
+
+      quote.klussen = jobArray; // Assign processed array
+
+    } catch (e) {
+      console.warn("Error during N8N payload optimization:", e);
+      // Fallback: If optimization crashes, sending raw (but flattened) list is better than failing
+      // But 'klussen' logic above handles the flattening. This catch is for extra safety.
+      if (quote.klussen && !Array.isArray(quote.klussen)) {
+        quote.klussen = Object.values(quote.klussen).map((j: any) => { const { uiState, ...r } = j; return r; });
+      }
+    }
+
+    const optimizedQuote = quote;
 
     const payload = {
       quoteId,
       uid,
-      quote,
+      quote: optimizedQuote,
     };
 
     const res = await fetch(process.env.N8N_WEBHOOK_URL, {

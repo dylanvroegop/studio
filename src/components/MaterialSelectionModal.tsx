@@ -13,7 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils'; 
+import { cn } from '@/lib/utils';
 
 // ==========================================
 // 1. HELPER FUNCTIONS (Logic Core)
@@ -22,26 +22,26 @@ import { cn } from '@/lib/utils';
 // Centralized logic for naming. Used by both Preview and Save.
 // This ensures WYSIWYG (What You See Is What You Get).
 function constructFinalName(
-  baseName: string, 
-  isCalculatie: boolean, 
-  dimensions: { 
-    lengte: string, 
-    breedte: string, 
-    dikte: string, 
-    hoogte: string, 
-    maatUnit: string, 
-    eenheid: string 
+  baseName: string,
+  isCalculatie: boolean,
+  dimensions: {
+    lengte: string,
+    breedte: string,
+    dikte: string,
+    hoogte: string,
+    maatUnit: string,
+    eenheid: string
   }
 ): string {
   const cleanName = (baseName || '').trim();
   if (!cleanName) return '';
-  
+
   if (!isCalculatie) return cleanName;
 
   const l = dimensions.lengte.trim();
   const b = dimensions.breedte.trim();
   const u = (dimensions.maatUnit || 'mm').trim();
-  
+
   // Determine the 3rd dimension based on unit type (p/m3 uses height, others use thickness)
   const thirdDim = dimensions.eenheid === 'p/m3' ? dimensions.hoogte.trim() : dimensions.dikte.trim();
 
@@ -120,9 +120,17 @@ function InputMetSuffix(props: {
     <div className="relative">
       <Input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const val = e.target.value.replace(/[^0-9.,]/g, '');
+          onChange(val);
+        }}
+        onKeyDown={(e) => {
+          if (['e', 'E', '+', '-'].includes(e.key)) {
+            e.preventDefault();
+          }
+        }}
         placeholder={placeholder}
-        type="text"            
+        type="text"
         inputMode="decimal" // Better for mobile keyboards
         className="pr-12"
       />
@@ -149,7 +157,7 @@ export type ExistingMaterial = {
   subsectie?: string | null;
   leverancier?: string | null;
   isFavorite?: boolean;
-  [key: string]: any; 
+  [key: string]: any;
 };
 
 interface MaterialSelectionModalProps {
@@ -163,17 +171,17 @@ interface MaterialSelectionModalProps {
   showFavorites?: boolean;
 }
 
-export function MaterialSelectionModal({ 
-  open, 
-  onOpenChange, 
-  existingMaterials = [], 
+export function MaterialSelectionModal({
+  open,
+  onOpenChange,
+  existingMaterials = [],
   onSelectExisting,
   onMaterialAdded,
   defaultCategory,
   onToggleFavorite,
-  showFavorites = true 
+  showFavorites = true
 }: MaterialSelectionModalProps) {
-  
+
   const [step, setStep] = useState<'search' | 'choice' | 'form'>('search');
   const [savingCustom, setSavingCustom] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -191,6 +199,10 @@ export function MaterialSelectionModal({
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>('');
 
+  // --- AUTOCOMPLETE FOCUS STATES ---
+  const [categorieDropdownOpen, setCategorieDropdownOpen] = useState(false);
+  const [leverancierDropdownOpen, setLeverancierDropdownOpen] = useState(false);
+
   const [maatUnit, setMaatUnit] = useState<string>('mm');
   const [maatLengte, setMaatLengte] = useState<string>('');
   const [maatBreedte, setMaatBreedte] = useState<string>('');
@@ -201,12 +213,12 @@ export function MaterialSelectionModal({
   useEffect(() => {
     if (open) {
       // 1. Reset UI Flow
-      setStep('search'); 
+      setStep('search');
       setError(null);
       setSearchTerm('');
       setCategoryFilter(defaultCategory || 'all');
       setDisplayLimit(50);
-      
+
       // 2. Reset Form Fields (CLEAN SLATE)
       setCustomNaam('');
       setCustomEenheid('');
@@ -240,6 +252,24 @@ export function MaterialSelectionModal({
     return Array.from(cats).sort() as string[];
   }, [existingMaterials]);
 
+  const uniqueLeveranciers = useMemo(() => {
+    const levs = new Set(existingMaterials.map(m => m.leverancier).filter(Boolean));
+    return Array.from(levs).sort() as string[];
+  }, [existingMaterials]);
+
+  // Filtered autocomplete suggestions based on current input
+  const filteredCategories = useMemo(() => {
+    if (!customSubsectie.trim()) return uniqueCategories;
+    const lower = customSubsectie.toLowerCase();
+    return uniqueCategories.filter(cat => cat.toLowerCase().includes(lower));
+  }, [uniqueCategories, customSubsectie]);
+
+  const filteredLeveranciers = useMemo(() => {
+    if (!customLeverancier.trim()) return uniqueLeveranciers;
+    const lower = customLeverancier.toLowerCase();
+    return uniqueLeveranciers.filter(lev => lev.toLowerCase().includes(lower));
+  }, [uniqueLeveranciers, customLeverancier]);
+
   const allFilteredMaterials = useMemo(() => {
     let result = existingMaterials;
 
@@ -251,10 +281,10 @@ export function MaterialSelectionModal({
       const lower = searchTerm.toLowerCase();
       result = result.filter(m => (m.materiaalnaam || '').toLowerCase().includes(lower));
     }
-    
+
     return result.sort((a, b) => {
-        if (a.isFavorite === b.isFavorite) return 0;
-        return a.isFavorite ? -1 : 1;
+      if (a.isFavorite === b.isFavorite) return 0;
+      return a.isFavorite ? -1 : 1;
     });
   }, [existingMaterials, searchTerm, categoryFilter]);
 
@@ -267,17 +297,15 @@ export function MaterialSelectionModal({
   const prijsNum = parsePriceToNumber(customPrijs);
   const isPrijsOk = prijsNum != null && prijsNum >= 0;
   const isEenheidOk = (customEenheid || '').trim().length > 0;
-  
+
   const isMaatOk = useMemo(() => {
     if (!isCalculatie) return true;
     const l = maatLengte.trim();
     const b = maatBreedte.trim();
     const u = maatUnit.trim();
-    if (!l || !b || !u) return false;
-    
-    if (customEenheid === 'p/m3') return maatHoogte.trim().length > 0;
-    return maatDikte.trim().length > 0;
-  }, [isCalculatie, maatLengte, maatBreedte, maatUnit, customEenheid, maatDikte, maatHoogte]);
+    // Only require lengte and breedte - dikte/hoogte is optional
+    return l.length > 0 && b.length > 0 && u.length > 0;
+  }, [isCalculatie, maatLengte, maatBreedte, maatUnit]);
 
   const canSaveCustom = useMemo(() => {
     const basisCheck = !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
@@ -332,13 +360,13 @@ export function MaterialSelectionModal({
 
       // 3. Prepare Payload
       const payload: any = {
-        materiaalnaam: finalNameToSend, 
+        materiaalnaam: finalNameToSend,
         eenheid,
         prijs: prijsNumLocal,
         categorie: customSubsectie.trim() || 'Overig',
         leverancier: customLeverancier.trim() || null,
       };
-      
+
       // 4. API Call
       // (Assuming `haalFirebaseIdToken` is available globally or imported)
       const { getAuth } = await import('firebase/auth');
@@ -361,14 +389,14 @@ export function MaterialSelectionModal({
 
       // 5. Success Callback
       if (onMaterialAdded) {
-         onMaterialAdded({
-            ...payload, 
-            id: realId,
-            row_id: realId,
-            prijs: prijsNumLocal, 
-         });
+        onMaterialAdded({
+          ...payload,
+          id: realId,
+          row_id: realId,
+          prijs: prijsNumLocal,
+        });
       }
-      onOpenChange(false); 
+      onOpenChange(false);
 
     } catch (e: any) {
       console.error("❌ Fout bij opslaan:", e);
@@ -377,7 +405,7 @@ export function MaterialSelectionModal({
       setSavingCustom(false);
     }
   };
-  
+
   const handleSelectExisting = (m: ExistingMaterial) => {
     if (onSelectExisting) {
       onSelectExisting(m);
@@ -387,180 +415,180 @@ export function MaterialSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
+      <DialogContent
         className={cn(
-          "sm:max-w-[640px] w-full p-0 transition-all duration-200", 
-          step === 'search' 
-            ? "h-[85vh] flex flex-col overflow-hidden gap-0" 
-            : "h-auto block" 
+          "sm:max-w-[640px] w-full p-0 transition-all duration-200",
+          step === 'search'
+            ? "h-[85vh] flex flex-col overflow-hidden gap-0"
+            : "h-auto block"
         )}
       >
-        
+
         {/* === STEP 1: SEARCH & FILTER === */}
         {step === 'search' && (
           <>
             <div className="p-6 pb-2 shrink-0">
-                <div className="flex items-center justify-between mb-4">
-                    <DialogTitle className="text-xl font-semibold">Kies materiaal</DialogTitle>
-                    <DialogDescription className="sr-only">
-                        Zoek en selecteer een materiaal uit de lijst of maak een nieuwe aan.
-                    </DialogDescription>
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <DialogTitle className="text-xl font-semibold">Kies materiaal</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Zoek en selecteer een materiaal uit de lijst of maak een nieuwe aan.
+                </DialogDescription>
+              </div>
 
-                <div className="mb-4">
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Of maak nieuw</div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button 
-                            onClick={() => { setIsCalculatie(true); setStep('form'); }} 
-                            className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/50 hover:border-foreground/20 transition-all"
-                        >
-                            <Calculator className="h-4 w-4 text-emerald-500" />
-                            <div className="text-left">
-                                <div className="text-xs font-semibold text-foreground">Calculatie</div>
-                                <div className="text-[9px] text-muted-foreground">Maten verplicht</div>
-                            </div>
-                        </button>
-
-                        <button 
-                            onClick={() => { setIsCalculatie(false); setStep('form'); }} 
-                            className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/50 hover:border-foreground/20 transition-all"
-                        >
-                            <Package className="h-4 w-4 text-emerald-500" />
-                            <div className="text-left">
-                                <div className="text-xs font-semibold text-foreground">Los Artikel</div>
-                                <div className="text-[9px] text-muted-foreground">Geen maten</div>
-                            </div>
-                        </button>
+              <div className="mb-4">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Of maak nieuw</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => { setIsCalculatie(true); setStep('form'); }}
+                    className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/50 hover:border-foreground/20 transition-all"
+                  >
+                    <Calculator className="h-4 w-4 text-emerald-500" />
+                    <div className="text-left">
+                      <div className="text-xs font-semibold text-foreground">Calculatie</div>
+                      <div className="text-[9px] text-muted-foreground">Maten verplicht</div>
                     </div>
+                  </button>
+
+                  <button
+                    onClick={() => { setIsCalculatie(false); setStep('form'); }}
+                    className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/50 hover:border-foreground/20 transition-all"
+                  >
+                    <Package className="h-4 w-4 text-emerald-500" />
+                    <div className="text-left">
+                      <div className="text-xs font-semibold text-foreground">Los Artikel</div>
+                      <div className="text-[9px] text-muted-foreground">Geen maten</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    autoFocus
+                    placeholder="Zoek op materiaalnaam..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/50"
+                  />
                 </div>
 
-                <div className="space-y-3">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            autoFocus
-                            placeholder="Zoek op materiaalnaam..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/50"
-                        />
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-full h-9 text-xs border-muted-foreground/20 bg-transparent">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Filter className="h-3 w-3" />
+                      <span>{categoryFilter === 'all' ? 'Filter op categorie...' : categoryFilter}</span>
                     </div>
-                    
-                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger className="w-full h-9 text-xs border-muted-foreground/20 bg-transparent">
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                                <Filter className="h-3 w-3" />
-                                <span>{categoryFilter === 'all' ? 'Filter op categorie...' : categoryFilter}</span>
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Toon alles</SelectItem>
-                            {uniqueCategories.map(cat => (
-                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toon alles</SelectItem>
+                    {uniqueCategories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto border-t">
-               <ul className="divide-y divide-border">
-                 {visibleMaterials.map((mat) => (
-                   <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
-                     <div className="w-full flex items-stretch">
-                        
-                        {/* FAVORITE */}
-                        {showFavorites && (
-                            <div 
-                                className="flex items-center justify-center px-4 border-r border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                                onClick={(e) => {
-                                    e.stopPropagation(); 
-                                    if (onToggleFavorite) onToggleFavorite(mat.id);
-                                }}
-                            >
-                                <button
-                                    type="button"
-                                    className="text-muted-foreground/30 hover:text-yellow-400 focus:outline-none transition-colors"
-                                >
-                                    <Star className={cn("h-4 w-4", mat.isFavorite ? "fill-yellow-400 text-yellow-400" : "")} />
-                                </button>
-                            </div>
-                        )}
+              <ul className="divide-y divide-border">
+                {visibleMaterials.map((mat) => (
+                  <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
+                    <div className="w-full flex items-stretch">
 
-                        {/* CONTENT */}
-                        <div 
-                            className="flex-1 flex items-center justify-between gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
-                            onClick={() => handleSelectExisting(mat)}
+                      {/* FAVORITE */}
+                      {showFavorites && (
+                        <div
+                          className="flex items-center justify-center px-4 border-r border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onToggleFavorite) onToggleFavorite(mat.id);
+                          }}
                         >
-                            <div className="flex-1 min-w-0">
-                                <div className="font-medium text-foreground group-hover:text-emerald-600 transition-colors break-words whitespace-normal text-sm">
-                                    {mat.materiaalnaam}
-                                </div>
-                                {(mat.subsectie || mat.leverancier) && (
-                                    <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                                    {[mat.subsectie, mat.leverancier].filter(Boolean).join(' • ')}
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="text-right shrink-0">
-                                <div className="text-sm font-medium">
-                                    {formatEuro(parsePriceToNumber(mat.prijs))}
-                                </div>
-                                <div className="text-[10px] text-muted-foreground">
-                                    per {mat.eenheid}
-                                </div>
-                            </div>
+                          <button
+                            type="button"
+                            className="text-muted-foreground/30 hover:text-yellow-400 focus:outline-none transition-colors"
+                          >
+                            <Star className={cn("h-4 w-4", mat.isFavorite ? "fill-yellow-400 text-yellow-400" : "")} />
+                          </button>
                         </div>
-                     </div>
-                   </li>
-                 ))}
-                 
-                 {visibleMaterials.length < allFilteredMaterials.length && (
-                   <li className="p-4 flex justify-center">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setDisplayLimit(prev => prev + 50)}
-                        className="w-full text-muted-foreground"
-                      >
-                        <ChevronDown className="mr-2 h-4 w-4" />
-                        Meer laden
-                      </Button>
-                   </li>
-                 )}
+                      )}
 
-                 {allFilteredMaterials.length === 0 && (
-                   <li className="p-8 text-center text-muted-foreground text-sm">
-                      Geen materialen gevonden.
-                   </li>
-                 )}
-               </ul>
+                      {/* CONTENT */}
+                      <div
+                        className="flex-1 flex items-center justify-between gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleSelectExisting(mat)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-foreground group-hover:text-emerald-600 transition-colors break-words whitespace-normal text-sm">
+                            {mat.materiaalnaam}
+                          </div>
+                          {(mat.subsectie || mat.leverancier) && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                              {[mat.subsectie, mat.leverancier].filter(Boolean).join(' • ')}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-medium">
+                            {formatEuro(parsePriceToNumber(mat.prijs))}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            per {mat.eenheid}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+
+                {visibleMaterials.length < allFilteredMaterials.length && (
+                  <li className="p-4 flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDisplayLimit(prev => prev + 50)}
+                      className="w-full text-muted-foreground"
+                    >
+                      <ChevronDown className="mr-2 h-4 w-4" />
+                      Meer laden
+                    </Button>
+                  </li>
+                )}
+
+                {allFilteredMaterials.length === 0 && (
+                  <li className="p-8 text-center text-muted-foreground text-sm">
+                    Geen materialen gevonden.
+                  </li>
+                )}
+              </ul>
             </div>
-            
-             <DialogFooter className="border-t p-3 bg-muted/5 flex justify-between items-center sm:justify-between">
-                <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground">
-                  Annuleren
-                </Button>
-             </DialogFooter>
+
+            <DialogFooter className="border-t p-3 bg-muted/5 flex justify-between items-center sm:justify-between">
+              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground">
+                Annuleren
+              </Button>
+            </DialogFooter>
           </>
         )}
 
         {/* === STEP 2: FORM === */}
         {step === 'form' && (
           <div className="flex flex-col">
-             <DialogHeader className="px-6 pt-6 flex flex-row items-center gap-4 space-y-0 text-left border-b border-zinc-800 pb-6 shrink-0 bg-background">
-               <Button size="icon" variant="ghost" className="-ml-2 h-8 w-8" onClick={() => setStep('search')}>
-                  <ArrowLeft className="h-4 w-4" />
-               </Button>
-               <div className="flex flex-col gap-1">
-                 <DialogTitle className="text-xl font-bold text-white leading-none">
-                   Nieuw {isCalculatie ? 'Calculatie Product' : 'Los Artikel'}
-                 </DialogTitle>
-                 <DialogDescription className="text-zinc-400 text-sm">
-                   Vul de gegevens van het materiaal in.
-                 </DialogDescription>
-               </div>
+            <DialogHeader className="px-6 pt-6 flex flex-row items-center gap-4 space-y-0 text-left border-b border-zinc-800 pb-6 shrink-0 bg-background">
+              <Button size="icon" variant="ghost" className="-ml-2 h-8 w-8" onClick={() => setStep('search')}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex flex-col gap-1">
+                <DialogTitle className="text-xl font-bold text-white leading-none">
+                  Nieuw {isCalculatie ? 'Calculatie Product' : 'Los Artikel'}
+                </DialogTitle>
+                <DialogDescription className="text-zinc-400 text-sm">
+                  Vul de gegevens van het materiaal in.
+                </DialogDescription>
+              </div>
             </DialogHeader>
 
             <div className="space-y-4 px-6 py-4">
@@ -571,9 +599,15 @@ export function MaterialSelectionModal({
               )}
               <div className="space-y-2">
                 <div className="text-sm font-medium">Materiaalnaam *</div>
-                <Input 
-                  value={customNaam} 
-                  onChange={(e) => setCustomNaam(e.target.value)} 
+                <Input
+                  value={customNaam}
+                  onChange={(e) => setCustomNaam(e.target.value)}
+                  onBlur={() => {
+                    if (customNaam.trim()) {
+                      const capitalized = customNaam.charAt(0).toUpperCase() + customNaam.slice(1);
+                      setCustomNaam(capitalized);
+                    }
+                  }}
                   placeholder={isCalculatie ? "bijv. Gipsplaat AK" : "bijv. Keukenkraan chroom"}
                 />
               </div>
@@ -585,13 +619,13 @@ export function MaterialSelectionModal({
                       <SelectValue placeholder="Kies" />
                     </SelectTrigger>
                     <SelectContent>
-                      {isCalculatie 
+                      {isCalculatie
                         ? EENHEDEN.filter(e => e.includes('p/m') || e === 'stuk').map((e) => (
-                            <SelectItem key={e} value={e}>{e}</SelectItem>
-                          ))
+                          <SelectItem key={e} value={e}>{e}</SelectItem>
+                        ))
                         : EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
-                            <SelectItem key={e} value={e}>{e}</SelectItem>
-                          ))
+                          <SelectItem key={e} value={e}>{e}</SelectItem>
+                        ))
                       }
                     </SelectContent>
                   </Select>
@@ -600,11 +634,20 @@ export function MaterialSelectionModal({
                   <div className="text-sm font-medium">Prijs per eenheid (€) *</div>
                   <Input
                     value={customPrijs}
-                    onChange={(e) => setCustomPrijs(e.target.value)}
-                    type="number"  
-                    step="0.01"
-                    placeholder="0,00"
+                    onChange={(e) => {
+                      // Allow numbers, commas, dots
+                      const val = e.target.value.replace(/[^0-9.,]/g, '');
+                      setCustomPrijs(val);
+                    }}
+                    onKeyDown={(e) => {
+                      // Block 'e', 'E', '+', '-' 
+                      if (['e', 'E', '+', '-'].includes(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    type="text"
                     inputMode="decimal"
+                    placeholder="0,00"
                   />
                 </div>
               </div>
@@ -656,57 +699,115 @@ export function MaterialSelectionModal({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Categorie (optioneel)</div>
-                  <Input
-                    value={customSubsectie}
-                    onChange={(e) => setCustomSubsectie(e.target.value)}
-                    placeholder="Bijv. Balkhout"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={customSubsectie}
+                      onChange={(e) => setCustomSubsectie(e.target.value)}
+                      onFocus={() => setCategorieDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setCategorieDropdownOpen(false), 150)}
+                      placeholder="Bijv. Balkhout"
+                      autoComplete="off"
+                      className={uniqueCategories.length > 0 ? "pr-10" : ""}
+                    />
+                    {uniqueCategories.length > 0 && (
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setCategorieDropdownOpen(!categorieDropdownOpen); }}
+                        className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    )}
+                    {categorieDropdownOpen && filteredCategories.length > 0 && (
+                      <div className="absolute z-50 bottom-full left-0 right-0 mb-1 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
+                        {filteredCategories.map(cat => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); setCustomSubsectie(cat); setCategorieDropdownOpen(false); }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Leverancier (optioneel)</div>
-                  <Input
-                    value={customLeverancier}
-                    onChange={(e) => setCustomLeverancier(e.target.value)}
-                    placeholder="Bijv. Bouwmaat"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={customLeverancier}
+                      onChange={(e) => setCustomLeverancier(e.target.value)}
+                      onFocus={() => setLeverancierDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setLeverancierDropdownOpen(false), 150)}
+                      placeholder="Bijv. Bouwmaat"
+                      autoComplete="off"
+                      className={uniqueLeveranciers.length > 0 ? "pr-10" : ""}
+                    />
+                    {uniqueLeveranciers.length > 0 && (
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setLeverancierDropdownOpen(!leverancierDropdownOpen); }}
+                        className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    )}
+                    {leverancierDropdownOpen && filteredLeveranciers.length > 0 && (
+                      <div className="absolute z-50 bottom-full left-0 right-0 mb-1 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
+                        {filteredLeveranciers.map(lev => (
+                          <button
+                            key={lev}
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); setCustomLeverancier(lev); setLeverancierDropdownOpen(false); }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                          >
+                            {lev}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-               {/* CHECK BAR (RED) */}
-               {isPrijsOk && (isCalculatie ? isMaatOk : true) && customEenheid && (
-                  <div className="mx-0 mb-2 mt-4 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-destructive uppercase tracking-widest leading-none">Controle</span>
-                        <span className="text-sm font-semibold text-white mt-1 italic whitespace-nowrap">
-                          {previewNaam}
-                        </span>
-                      </div>
+              {/* CHECK BAR (RED) */}
+              {/* RECEIPT PREVIEW CARD */}
+              {isPrijsOk && (isCalculatie ? isMaatOk : true) && customEenheid && (
+                <div className="mx-0 mb-2 mt-6 flex items-center justify-between rounded-r-lg rounded-l-sm border border-border/50 bg-card/50 px-5 py-4 shadow-sm border-l-4 border-l-emerald-500 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10">
+                      <Package className="h-4 w-4 text-emerald-500" />
                     </div>
-
-                    <div className="text-right ml-4">
-                      <div className="text-lg font-black text-white leading-none">
-                        {formatEuro(isCalculatie 
-                          ? (calculatePiecePrice(prijsNum!, customEenheid, maatLengte, maatBreedte, maatUnit) ?? prijsNum)
-                          : prijsNum
-                        )}
-                      </div>
-                      <div className="text-[10px] font-bold uppercase text-zinc-400 mt-1">
-                        {isCalculatie ? 'Totaal per stuk' : `Per ${customEenheid}`}
-                      </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Voorvertoning</span>
+                      <span className="text-base font-bold text-white mt-1.5 leading-tight">
+                        {previewNaam}
+                      </span>
                     </div>
                   </div>
-                )}
+
+                  <div className="text-right ml-6 shrink-0">
+                    <div className="text-xl font-bold text-white leading-none tracking-tight">
+                      {formatEuro(isCalculatie
+                        ? (calculatePiecePrice(prijsNum!, customEenheid, maatLengte, maatBreedte, maatUnit) ?? prijsNum)
+                        : prijsNum
+                      )}
+                    </div>
+                    <div className="text-[11px] font-medium text-muted-foreground mt-1.5 uppercase tracking-wide">
+                      {isCalculatie ? 'Totaal per stuk' : `Per ${customEenheid}`}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <DialogFooter className="border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3 shrink-0">
-              <Button 
-                type="button" 
-                variant="ghost" 
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => setStep('search')}
                 className="h-11"
               >

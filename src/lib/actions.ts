@@ -259,3 +259,27 @@ export async function submitQuoteAction(quoteId: string) {
   revalidatePath('/');
   redirect('/');
 }
+
+/* ---------------------------------------------
+ Selection Helpers (Client)
+--------------------------------------------- */
+
+export async function getQuotesForSelectionAction() {
+  const { getActiveQuotes } = await import('./data');
+  const quotes = await getActiveQuotes();
+
+  // Serialize for client
+  return quotes.map((q) => ({
+    ...q,
+    createdAt: q.createdAt instanceof Date ? q.createdAt.toISOString() : q.createdAt,
+    updatedAt: q.updatedAt instanceof Date ? q.updatedAt.toISOString() : q.updatedAt,
+    // Ensure nested dates are also serialized if any (klantinformatie usually plain objects)
+  }));
+}
+
+export async function getJobsForQuoteSelectionAction(quoteId: string) {
+  const { getJobsForQuote } = await import('./data');
+  const jobs = await getJobsForQuote(quoteId);
+  // Jobs already have string createdAt from getJobsForQuote
+  return jobs;
+}

@@ -37,7 +37,8 @@ import { JOB_REGISTRY, MeasurementField } from '@/lib/job-registry';
 import { WizardHeader } from '@/components/WizardHeader';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
 import { JobComponent } from '@/lib/types';
-import { WallStructureVisualizer } from '@/components/WallStructureVisualizer';
+// import { WallStructureVisualizer } from '@/components/WallStructureVisualizer'; // Replaced by Controller
+import { VisualizerController } from '@/components/visualizers/VisualizerController';
 
 export default function GenericMeasurementPage() {
   const params = useParams();
@@ -96,6 +97,13 @@ export default function GenericMeasurementPage() {
   const categoryConfig = JOB_REGISTRY[categorySlug];
   const jobConfig = categoryConfig?.items.find((item) => item.slug === jobSlug);
   const fields = jobConfig?.measurements || [];
+
+  // Logic to determine if "Openings" (Windows/Doors/Sparingen) section is relevant
+  const isWallCategory = categorySlug === 'wanden' || (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand')));
+  const isCeilingCategory = categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond'));
+  const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
+  const hasWallFields = fields.some(f => f.key === 'balkafstand');
+  const showOpeningsSection = isWallCategory || hasWallFields || isCeilingCategory || isRoofCategory;
 
   // 3. State: Array of Item Objects
   const [items, setItems] = useState<Record<string, any>[]>([]);
@@ -171,6 +179,41 @@ export default function GenericMeasurementPage() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'e' || e.key === 'E') e.preventDefault();
+  };
+
+  const handleShapeChange = (index: number, newShape: string) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+
+      // Create a new object to ensure React detects the change
+      const newItem: Record<string, any> = {};
+
+      // Copy all properties first
+      Object.keys(item).forEach(key => {
+        newItem[key] = item[key];
+      });
+
+      // Update shape
+      newItem.shape = newShape;
+
+      // Reset dimensions that don't make sense across shapes
+      // We explicitly clear these to prevent confusion
+      // NOTE: h.o.h. fields (balkafstand, latafstand) are NOT reset - they keep their values
+      const dimensionsToReset = [
+        'lengte', 'hoogte',
+        'lengte1', 'lengte2', 'lengte3',
+        'hoogte1', 'hoogte2', 'hoogte3',
+        'hoogteLinks', 'hoogteRechts',
+        'hoogteNok',
+        'variant'
+      ];
+
+      dimensionsToReset.forEach(key => {
+        newItem[key] = '';
+      });
+
+      return newItem;
+    }));
   };
 
   const handleSave = async (e: React.MouseEvent) => {
@@ -259,7 +302,7 @@ export default function GenericMeasurementPage() {
       />
 
       <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
-        <div className="max-w-2xl mx-auto w-full">
+        <div className="max-w-full mx-auto w-full">
           <form>
             <div className="space-y-6">
               {items.map((item, index) => (
@@ -277,18 +320,32 @@ export default function GenericMeasurementPage() {
                           { id: 'rectangle', icon: Square, label: 'Recht' },
                           { id: 'slope', icon: Slash, label: 'Schuin' },
                           { id: 'gable', icon: Triangle, label: 'Punt' },
-                          { id: 'l-shape', icon: CornerDownRight, label: 'L-Vorm' },
-                          { id: 'u-shape', icon: ArrowDownToLine, label: 'U-Vorm' }
+                          { id: 'l-shape', icon: null, label: 'L-Vorm', customIcon: 'L' },
+                          { id: 'u-shape', icon: null, label: 'U-Vorm', customIcon: 'U' }
                         ].map((shapeOption) => {
                           const currentShape = item.shape || 'rectangle';
                           const isActive = currentShape === shapeOption.id;
                           const Icon = shapeOption.icon;
 
+                          // Custom L-shape icon (simple L)
+                          const LShapeIcon = () => (
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M6 4 L6 18 L20 18" />
+                            </svg>
+                          );
+
+                          // Custom U-shape icon (straight U)
+                          const UShapeIcon = () => (
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 4 L4 18 L20 18 L20 4" />
+                            </svg>
+                          );
+
                           return (
                             <button
                               key={shapeOption.id}
                               type="button"
-                              onClick={() => updateItem(index, 'shape', shapeOption.id)}
+                              onClick={() => handleShapeChange(index, shapeOption.id)}
                               className={cn(
                                 "flex items-center gap-2 px-3 py-1 text-xs font-medium transition-all rounded-md",
                                 isActive
@@ -297,7 +354,13 @@ export default function GenericMeasurementPage() {
                               )}
                               title={shapeOption.label}
                             >
-                              <Icon className={cn("h-3.5 w-3.5", shapeOption.id === 'slope' && "-rotate-12")} />
+                              {shapeOption.customIcon === 'L' ? (
+                                <LShapeIcon />
+                              ) : shapeOption.customIcon === 'U' ? (
+                                <UShapeIcon />
+                              ) : Icon ? (
+                                <Icon className={cn("h-3.5 w-3.5", shapeOption.id === 'slope' && "-rotate-12")} />
+                              ) : null}
                               <span className="hidden sm:inline">{shapeOption.label}</span>
                             </button>
                           );
@@ -322,43 +385,7 @@ export default function GenericMeasurementPage() {
 
                   <CardContent className="space-y-6">
 
-                    {/* Variant Toggle (Top/Bottom) - Only for Slope and L-Shape */}
-                    {(item.shape === 'slope' || item.shape === 'l-shape' || item.shape === 'u-shape') && (
-                      <div className="flex justify-center -mt-2 mb-4">
-                        <div className="inline-flex items-center p-1 bg-muted/50 rounded-lg border border-border/50">
-                          <button
-                            type="button"
-                            onClick={() => updateItem(index, 'variant', 'top')}
-                            className={cn(
-                              "px-3 py-1 text-xs font-medium rounded-md transition-all",
-                              (!item.variant || item.variant === 'top')
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                            )}
-                          >
-                            {item.shape === 'slope' && "Schuinte Boven"}
-                            {/* For L/U shapes "Boven" means the cutout/step is at the top? Or the shape is defined by top heights? 
-                                  Standard L-Shape (Step Up/Down) varies the TOP height. Bottom is flat.
-                                  "Boven" = Flat Bottom, Variable Top.
-                              */}
-                            {(item.shape === 'l-shape' || item.shape === 'u-shape') && "Variatie Boven"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateItem(index, 'variant', 'bottom')}
-                            className={cn(
-                              "px-3 py-1 text-xs font-medium rounded-md transition-all",
-                              item.variant === 'bottom'
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                            )}
-                          >
-                            {item.shape === 'slope' && "Schuinte Onder"}
-                            {(item.shape === 'l-shape' || item.shape === 'u-shape') && "Variatie Onder"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+
 
                     {/* First row: Lengte & Hoogte(s) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -636,275 +663,520 @@ export default function GenericMeasurementPage() {
 
                     {/* Middle fields (balkafstand, etc.) - excluding textarea */}
                     <div className="space-y-4">
-                      {fields.slice(2).filter(f => f.type !== 'textarea').map((field) => (
-                        <div key={field.key} className="space-y-1">
-                          <DynamicInput
-                            field={field}
-                            value={item[field.key]}
-                            onChange={(val) => updateItem(index, field.key, val)}
-                            onKeyDown={handleKeyDown}
-                            disabled={disabledAll}
-                            className="w-full"
-                          />
-                          {field.key === 'balkafstand' && (
-                            <div className="flex items-center space-x-2 mt-2">
-                              <button
-                                type="button"
-                                onClick={() => updateItem(index, 'startFromRight', !item.startFromRight)}
-                                className={cn(
-                                  "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2",
-                                  item.startFromRight ? "bg-emerald-600" : "bg-zinc-700"
-                                )}
-                                role="switch"
-                                aria-checked={item.startFromRight}
-                              >
-                                <span
-                                  aria-hidden="true"
-                                  className={cn(
-                                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                    item.startFromRight ? "translate-x-4" : "translate-x-0"
-                                  )}
+                      {(() => {
+                        const fieldsToRender = fields.slice(2).filter(f => f.type !== 'textarea' && f.key !== 'balkafstand' && f.key !== 'latafstand');
+
+                        // Group adjacent fields with the same group property
+                        const groupedFields = fieldsToRender.reduce((acc, field) => {
+                          const lastGroup = acc[acc.length - 1];
+                          if (field.group && lastGroup && lastGroup[0].group === field.group) {
+                            lastGroup.push(field);
+                          } else {
+                            acc.push([field]);
+                          }
+                          return acc;
+                        }, [] as typeof fields[]);
+
+                        return groupedFields.map((group, groupIndex) => (
+                          <div key={groupIndex} className={cn(group.length > 1 && "grid grid-cols-1 sm:grid-cols-2 gap-4")}>
+                            {group.map(field => (
+                              <div key={field.key} className="space-y-1">
+                                <DynamicInput
+                                  field={field}
+                                  value={item[field.key]}
+                                  onChange={(val) => updateItem(index, field.key, val)}
+                                  onKeyDown={handleKeyDown}
+                                  disabled={disabledAll}
+                                  className="w-full"
                                 />
-                              </button>
-                              <Label onClick={() => updateItem(index, 'startFromRight', !item.startFromRight)} className="text-xs text-muted-foreground font-normal cursor-pointer select-none">
-                                Startindeling vanaf rechts
-                              </Label>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+
+                              </div>
+                            ))}
+                          </div>
+                        ));
+                      })()}
                     </div>
 
 
-                    {/* Wall Structure Visualizer - above opmerkingen */}
-                    {fields.some(f => f.key === 'balkafstand') && (
-                      <>
-                        <WallStructureVisualizer
-                          lengte={item['lengte'] || ''}
-                          hoogte={item['hoogte'] || ''}
-                          shape={item.shape || 'rectangle'}
-                          hoogteLinks={item.hoogteLinks}
-                          hoogteRechts={item.hoogteRechts}
-                          hoogteNok={item.hoogteNok}
-                          // L/U-Shape props
-                          lengte1={item.lengte1}
-                          hoogte1={item.hoogte1}
-                          lengte2={item.lengte2}
-                          hoogte2={item.hoogte2}
-                          lengte3={item.lengte3}
-                          hoogte3={item.hoogte3}
-                          variant={item.variant || 'top'}
+                    {/* Visualizer Controller with Overlay Controls */}
+                    <div className="relative group border rounded-lg overflow-hidden border-border/30 bg-secondary/5">
+                      <VisualizerController
+                        category={categorySlug}
+                        slug={jobSlug}
+                        item={item}
+                        fields={fields}
+                        isMagnifier={isMagnifier}
+                        fitContainer={true}
+                        className="min-h-[400px]" // Ensure minimum height
+                        onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                      />
 
-                          balkafstand={item['balkafstand'] || ''}
-                          openings={item.openings || []}
-                          startFromRight={item.startFromRight || false}
-                          onOpeningsChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
-                          isMagnifier={isMagnifier}
-                          className="rounded-lg border border-border/30"
-                        />
+                      {/* Floating Controls - Bottom Left */}
+                      <div className="absolute bottom-3 left-3 flex gap-2 transition-opacity duration-200">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="secondary"
+                              size="icon"
+                              className="h-8 w-8 bg-background/80 hover:bg-background backdrop-blur-sm border border-border/50 shadow-sm"
+                              title="Vergroten"
+                            >
+                              <Maximize2 className="h-4 w-4 text-foreground" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-[95vw] w-full h-[85vh] flex flex-col p-0 bg-zinc-950/95 border-zinc-800 overflow-hidden">
+                            <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
+                              <DialogTitle className="text-lg font-medium text-zinc-200">
+                                Technische Tekening
+                              </DialogTitle>
+                            </div>
+                            <div className="flex-1 w-full h-full p-2 sm:p-4 flex items-center justify-center bg-zinc-900/20 overflow-auto">
+                              <div className="w-full h-full flex items-center justify-center relative">
+                                <VisualizerController
+                                  category={categorySlug}
+                                  slug={jobSlug}
+                                  item={item}
+                                  fields={fields}
+                                  isMagnifier={isMagnifier}
+                                  fitContainer={true}
+                                  className="w-full h-full"
+                                  onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                                />
+                                <div className="absolute bottom-4 right-4 text-[10px] sm:text-xs text-zinc-500 font-medium pointer-events-none select-none font-mono">
+                                  {(() => {
+                                    const shape = item.shape || 'rectangle';
+                                    const L = parseFloat(String(item.lengte || 0));
+                                    const H = parseFloat(String(item.hoogte || 0));
 
-                        <div className="flex justify-between mt-2">
-                          <Button
-                            variant={isMagnifier ? "secondary" : "ghost"}
-                            size="sm"
-                            className={cn(
-                              "text-xs h-8",
-                              isMagnifier ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20" : "text-muted-foreground"
-                            )}
-                            onClick={() => setIsMagnifier(!isMagnifier)}
-                            type="button"
-                          >
-                            <Search className="h-3 w-3 mr-2" />
-                            Details vergroten
-                          </Button>
+                                    let areaMm2 = 0;
 
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-8">
-                                <Maximize2 className="h-3 w-3 mr-2" />
-                                Tekening vergroten
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-[95vw] w-full h-[85vh] flex flex-col p-0 bg-zinc-950/95 border-zinc-800 overflow-hidden">
-                              <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
-                                <DialogTitle className="text-lg font-medium text-zinc-200">
-                                  Technische Tekening
-                                </DialogTitle>
-                              </div>
-                              <div className="flex-1 w-full h-full p-2 sm:p-4 flex items-center justify-center bg-zinc-900/20 overflow-auto">
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <WallStructureVisualizer
-                                    lengte={item['lengte'] || ''}
-                                    hoogte={item['hoogte'] || ''}
-                                    shape={item.shape || 'rectangle'}
-                                    hoogteLinks={item.hoogteLinks}
-                                    hoogteRechts={item.hoogteRechts}
-                                    hoogteNok={item.hoogteNok}
-                                    // L-Shape props
-                                    lengte1={item.lengte1}
-                                    hoogte1={item.hoogte1}
-                                    lengte2={item.lengte2}
-                                    hoogte2={item.hoogte2}
+                                    if (shape === 'rectangle') {
+                                      areaMm2 = L * H;
+                                    } else if (shape === 'slope') {
+                                      const hL = parseFloat(String(item.hoogteLinks || 0));
+                                      const hR = parseFloat(String(item.hoogteRechts || 0));
+                                      const avgH = (hL + hR) / 2;
+                                      areaMm2 = L * avgH;
+                                    } else if (shape === 'gable') {
+                                      const hNok = parseFloat(String(item.hoogteNok || 0));
+                                      areaMm2 = L * ((H + hNok) / 2);
+                                    } else if (shape === 'l-shape') {
+                                      const l1 = parseFloat(String(item.lengte1 || 0));
+                                      const h1 = parseFloat(String(item.hoogte1 || 0));
+                                      const h2 = parseFloat(String(item.hoogte2 || 0));
+                                      areaMm2 = (l1 * h1) + ((L - l1) * h2);
+                                    } else if (shape === 'u-shape') {
+                                      const l1 = parseFloat(String(item.lengte1 || 0));
+                                      const l2 = parseFloat(String(item.lengte2 || 0));
+                                      const h1 = parseFloat(String(item.hoogte1 || 0));
+                                      const h2 = parseFloat(String(item.hoogte2 || 0));
+                                      const h3 = parseFloat(String(item.hoogte3 || 0));
+                                      areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
+                                    } else {
+                                      areaMm2 = L * H;
+                                    }
 
-                                    balkafstand={item['balkafstand'] || ''}
-                                    openings={item.openings || []}
-                                    // Also allow editing in expanded view
-                                    onOpeningsChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
-                                    fitContainer={true}
-                                    isMagnifier={isMagnifier}
-                                    startFromRight={item.startFromRight || false}
-                                    className="w-full h-full"
-                                  />
+                                    return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                  })()} m²
                                 </div>
                               </div>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
 
-                        {/* OPENINGS SECTION - Moved Here */}
-                        <div className="mt-6 pt-6 border-t border-border/50 space-y-4">
-                          {showOpeningsTip && (
-                            <div className="flex items-start gap-3 bg-red-500/10 text-red-500 p-3 rounded-md text-sm relative animate-in fade-in slide-in-from-top-2">
-                              <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                              <p className="pr-6">Tip: Voor een basis materiaalberekening (platen/balken) is het detailleren van openingen vaak niet nodig. Het systeem rekent standaard met een dichte wand tenzij u hieronder details toevoegt.</p>
-                              <button type="button" onClick={dismissTip} className="absolute top-2 right-2 text-red-400 hover:text-red-300">
-                                <X className="h-4 w-4" />
-                                <span className="sr-only">Sluiten</span>
+                      {/* Floating Controls - Bottom Right (Area Helper) */}
+                      {/* Floating Controls - Bottom Right (Area Helper) */}
+                      <div className="absolute bottom-2 right-3 text-[10px] sm:text-xs text-muted-foreground/50 font-medium pointer-events-none select-none font-mono">
+                        {(() => {
+                          const shape = item.shape || 'rectangle';
+                          const L = parseFloat(String(item.lengte || 0));
+                          const H = parseFloat(String(item.hoogte || 0));
+
+                          let areaMm2 = 0;
+
+                          if (shape === 'rectangle') {
+                            areaMm2 = L * H;
+                          } else if (shape === 'slope') {
+                            const hL = parseFloat(String(item.hoogteLinks || 0));
+                            const hR = parseFloat(String(item.hoogteRechts || 0));
+                            const avgH = (hL + hR) / 2;
+                            areaMm2 = L * avgH;
+                          } else if (shape === 'gable') {
+                            const hNok = parseFloat(String(item.hoogteNok || 0));
+                            areaMm2 = L * ((H + hNok) / 2);
+                          } else if (shape === 'l-shape') {
+                            const l1 = parseFloat(String(item.lengte1 || 0));
+                            const h1 = parseFloat(String(item.hoogte1 || 0));
+                            const h2 = parseFloat(String(item.hoogte2 || 0));
+                            areaMm2 = (l1 * h1) + ((L - l1) * h2);
+                          } else if (shape === 'u-shape') {
+                            const l1 = parseFloat(String(item.lengte1 || 0));
+                            const l2 = parseFloat(String(item.lengte2 || 0));
+                            const h1 = parseFloat(String(item.hoogte1 || 0));
+                            const h2 = parseFloat(String(item.hoogte2 || 0));
+                            const h3 = parseFloat(String(item.hoogte3 || 0));
+                            areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
+                          } else {
+                            areaMm2 = L * H;
+                          }
+
+                          return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        })()} m²
+                      </div>
+                    </div>
+
+                    {/* Controls Moved Here */}
+                    {/* Controls Moved Here */}
+                    <div className="flex flex-col gap-6 mt-6 w-full max-w-4xl mx-auto">
+
+
+
+                      {/* Grid for Balken & Latten */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                        {/* Column 1: Balken (Vertical) */}
+                        {fields.some(f => f.key === 'balkafstand') && (
+                          <div className="flex flex-col gap-3">
+                            {/* Input */}
+                            {(() => {
+                              const field = fields.find(f => f.key === 'balkafstand')!;
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <Label htmlFor={`balk-${index}`} className="text-sm font-medium text-foreground">{field.label}</Label>
+                                  </div>
+                                  <div className="relative">
+                                    <Input
+                                      id={`balk-${index}`}
+                                      type="number"
+                                      placeholder={field.placeholder}
+                                      value={item[field.key]}
+                                      onChange={(e) => updateItem(index, field.key, e.target.value)}
+                                      disabled={disabledAll}
+                                      className="pr-8"
+                                    />
+                                    <span className="absolute right-3 top-2 text-sm text-muted-foreground">mm</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Startindeling Controls */}
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-medium text-muted-foreground block">Startindeling</span>
+                              <div className="inline-flex w-full items-center p-1 bg-muted/50 rounded-lg border border-border/50">
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(index, 'startFromRight', false)}
+                                  className={cn(
+                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
+                                    !item.startFromRight
+                                      ? "bg-background text-foreground shadow-sm"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  Links
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(index, 'startFromRight', true)}
+                                  className={cn(
+                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
+                                    item.startFromRight
+                                      ? "bg-background text-foreground shadow-sm"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  Rechts
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Schuinte / Variant Controls (Moved Here) */}
+                            {(item.shape === 'slope' || item.shape === 'l-shape' || item.shape === 'u-shape') && (
+                              <div className="space-y-1.5 pt-2">
+                                <span className="text-xs font-medium text-muted-foreground block">Schuinte</span>
+                                <div className="inline-flex w-full items-center p-1 bg-muted/50 rounded-lg border border-border/50">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'variant', 'top')}
+                                    className={cn(
+                                      "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
+                                      (!item.variant || item.variant === 'top')
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                  >
+                                    {item.shape === 'slope' && "Schuinte Boven"}
+                                    {(item.shape === 'l-shape' || item.shape === 'u-shape') && "Variatie Boven"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'variant', 'bottom')}
+                                    className={cn(
+                                      "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
+                                      item.variant === 'bottom'
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                  >
+                                    {item.shape === 'slope' && "Schuinte Onder"}
+                                    {(item.shape === 'l-shape' || item.shape === 'u-shape') && "Variatie Onder"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Column 2: Latten (Horizontal) */}
+                        {fields.some(f => f.key === 'latafstand') && (
+                          <div className="flex flex-col gap-3">
+                            {/* Input */}
+                            {(() => {
+                              const field = fields.find(f => f.key === 'latafstand')!;
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <Label htmlFor={`lat-${index}`} className="text-sm font-medium text-foreground">{field.label}</Label>
+                                  </div>
+                                  <div className="relative">
+                                    <Input
+                                      id={`lat-${index}`}
+                                      type="number"
+                                      placeholder={field.placeholder}
+                                      value={item[field.key]}
+                                      onChange={(e) => updateItem(index, field.key, e.target.value)}
+                                      disabled={disabledAll}
+                                      className="pr-8"
+                                    />
+                                    <span className="absolute right-3 top-2 text-sm text-muted-foreground">mm</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Startindeling Controls */}
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-medium text-muted-foreground block">Startindeling</span>
+                              <div className="inline-flex w-full items-center p-1 bg-muted/50 rounded-lg border border-border/50">
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(index, 'startLattenFromBottom', false)}
+                                  className={cn(
+                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
+                                    !item.startLattenFromBottom
+                                      ? "bg-background text-foreground shadow-sm"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  Boven
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(index, 'startLattenFromBottom', true)}
+                                  className={cn(
+                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
+                                    item.startLattenFromBottom
+                                      ? "bg-background text-foreground shadow-sm"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  Onder
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+
+
+                    {/* OPENINGS SECTION - Moved Here */}
+                    {showOpeningsSection && (
+                      <div className="mt-6 pt-6 border-t border-border/50 space-y-4">
+                        {showOpeningsTip && (
+                          <div className="flex items-start gap-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 p-4 rounded-lg text-sm relative animate-in fade-in slide-in-from-top-2">
+                            <Info className="h-5 w-5 flex-shrink-0 mt-0.5 text-sky-400" />
+                            <div className="flex-1 pr-6">
+                              <p className="font-medium text-sky-300 mb-1">Tip</p>
+                              <p className="text-sky-200/90 leading-relaxed">
+                                Voor een basis materiaalberekening (platen/balken) is het detailleren van openingen vaak niet nodig.
+                                Het systeem rekent standaard met een dichte wand tenzij u hieronder details toevoegt.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={dismissTip}
+                                className="text-xs font-medium text-sky-400 hover:text-sky-300 underline mt-2 transition-colors"
+                              >
+                                Niet meer tonen
                               </button>
                             </div>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() => setShowOpeningsTip(false)}
+                              className="absolute top-2 right-2 text-sky-500/50 hover:text-sky-400 transition-colors"
+                            >
+                              <X className="h-4 w-4" />
+                              <span className="sr-only">Sluiten</span>
+                            </button>
+                          </div>
+                        )}
 
-                          {(item.openings || []).map((op: any, opIdx: number) => (
-                            <div key={op.id} className="p-4 rounded-lg bg-muted/20 border border-border/50 space-y-4 animate-in fade-in slide-in-from-top-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-foreground">Opening {opIdx + 1}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                  onClick={() => {
-                                    const newOpenings = (item.openings || []).filter((_: any, i: number) => i !== opIdx);
+                        {(item.openings || []).map((op: any, opIdx: number) => (
+                          <div key={op.id} className="p-4 rounded-lg bg-muted/20 border border-border/50 space-y-4 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-foreground">Opening {opIdx + 1}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                onClick={() => {
+                                  const newOpenings = (item.openings || []).filter((_: any, i: number) => i !== opIdx);
+                                  updateItem(index, 'openings', newOpenings);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-xs font-medium text-muted-foreground">Type</label>
+                                <select
+                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                  value={op.type}
+                                  onChange={(e) => {
+                                    const newOpenings = [...(item.openings || [])];
+                                    newOpenings[opIdx] = { ...op, type: e.target.value };
                                     updateItem(index, 'openings', newOpenings);
                                   }}
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                  {isWallCategory ? (
+                                    <>
+                                      <option value="window">Kozijn</option>
+                                      <option value="door">Deur</option>
+                                      <option value="opening">Sparing</option>
+                                      <option value="other">Overig</option>
+                                    </>
+                                  ) : categorySlug === 'dakrenovatie' ? (
+                                    <>
+                                      <option value="dakraam">Dakraam</option>
+                                      <option value="schoorsteen">Schoorsteen</option>
+                                      <option value="opening">Sparing</option>
+                                      <option value="other">Overig</option>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <option value="opening">Sparing / Trapgat</option>
+                                      <option value="Lichtkoepel">Lichtkoepel</option>
+                                      <option value="hatch">Luik / Vlieringtrap</option>
+                                      <option value="other">Overig</option>
+                                    </>
+                                  )}
+                                </select>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-muted-foreground">Breedte</label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                      value={op.width}
+                                      onChange={(e) => {
+                                        const newOpenings = [...(item.openings || [])];
+                                        newOpenings[opIdx] = { ...op, width: parseFloat(e.target.value) || 0 };
+                                        updateItem(index, 'openings', newOpenings);
+                                      }}
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-muted-foreground">Lengte</label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                      value={op.height}
+                                      onChange={(e) => {
+                                        const newOpenings = [...(item.openings || [])];
+                                        newOpenings[opIdx] = { ...op, height: parseFloat(e.target.value) || 0 };
+                                        updateItem(index, 'openings', newOpenings);
+                                      }}
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
+                                  </div>
+                                </div>
                               </div>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-2">
-                                  <label className="text-xs font-medium text-muted-foreground">Type</label>
-                                  <select
-                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                    value={op.type}
-                                    onChange={(e) => {
-                                      const newOpenings = [...(item.openings || [])];
-                                      newOpenings[opIdx] = { ...op, type: e.target.value };
-                                      updateItem(index, 'openings', newOpenings);
-                                    }}
-                                  >
-                                    <option value="window">Raamkozijn</option>
-                                    <option value="door">Deur</option>
-                                    <option value="opening">Vrije sparing</option>
-                                  </select>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div className="space-y-2">
-                                    <label className="text-xs font-medium text-muted-foreground">Breedte</label>
-                                    <div className="relative">
-                                      <input
-                                        type="number"
-                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        value={op.width}
-                                        onChange={(e) => {
-                                          const newOpenings = [...(item.openings || [])];
-                                          newOpenings[opIdx] = { ...op, width: parseFloat(e.target.value) || 0 };
-                                          updateItem(index, 'openings', newOpenings);
-                                        }}
-                                      />
-                                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-xs font-medium text-muted-foreground">Hoogte</label>
-                                    <div className="relative">
-                                      <input
-                                        type="number"
-                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        value={op.height}
-                                        onChange={(e) => {
-                                          const newOpenings = [...(item.openings || [])];
-                                          newOpenings[opIdx] = { ...op, height: parseFloat(e.target.value) || 0 };
-                                          updateItem(index, 'openings', newOpenings);
-                                        }}
-                                      />
-                                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                    </div>
+                                  <label className="text-xs font-medium text-muted-foreground">Vanaf Links</label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                      value={op.fromLeft}
+                                      onChange={(e) => {
+                                        const newOpenings = [...(item.openings || [])];
+                                        newOpenings[opIdx] = { ...op, fromLeft: parseFloat(e.target.value) || 0 };
+                                        updateItem(index, 'openings', newOpenings);
+                                      }}
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
                                   </div>
                                 </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div className="space-y-2">
-                                    <label className="text-xs font-medium text-muted-foreground">Van links</label>
-                                    <div className="relative">
-                                      <input
-                                        type="number"
-                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        value={op.fromLeft}
-                                        onChange={(e) => {
-                                          const newOpenings = [...(item.openings || [])];
-                                          newOpenings[opIdx] = { ...op, fromLeft: parseFloat(e.target.value) || 0 };
-                                          updateItem(index, 'openings', newOpenings);
-                                        }}
-                                      />
-                                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-xs font-medium text-muted-foreground">Van onder</label>
-                                    <div className="relative">
-                                      <input
-                                        type="number"
-                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        value={op.fromBottom}
-                                        onChange={(e) => {
-                                          const newOpenings = [...(item.openings || [])];
-                                          newOpenings[opIdx] = { ...op, fromBottom: parseFloat(e.target.value) || 0 };
-                                          updateItem(index, 'openings', newOpenings);
-                                        }}
-                                      />
-                                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                    </div>
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-muted-foreground">
+                                    {isWallCategory ? 'Vanaf Vloer' : 'Vanaf Boven'}
+                                  </label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                      value={op.fromBottom}
+                                      onChange={(e) => {
+                                        const newOpenings = [...(item.openings || [])];
+                                        newOpenings[opIdx] = { ...op, fromBottom: parseFloat(e.target.value) || 0 };
+                                        updateItem(index, 'openings', newOpenings);
+                                      }}
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          ))}
+                          </div>
+                        ))}
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const newOpening = {
-                                id: crypto.randomUUID(),
-                                type: 'window',
-                                width: 1000,
-                                height: 1000,
-                                fromLeft: 500,
-                                fromBottom: 900
-                              };
-                              updateItem(index, 'openings', [...(item.openings || []), newOpening]);
-                            }}
-                            className="w-full sm:w-auto border-dashed"
-                          >
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Opening toevoegen (Optioneel)
-                          </Button>
-                        </div>
-                      </>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newOpening = {
+                              id: crypto.randomUUID(),
+                              type: 'opening',
+                              width: 600,
+                              height: 600,
+                              fromLeft: 1000,
+                              fromBottom: 1000
+                            };
+                            updateItem(index, 'openings', [...(item.openings || []), newOpening]);
+                          }}
+                          className="w-full sm:w-auto border-dashed"
+                        >
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          Opening toevoegen (Optioneel)
+                        </Button>
+                      </div>
                     )}
+
 
                     {/* Textarea fields (opmerkingen) - at bottom */}
                     <div className="space-y-4">
@@ -929,11 +1201,10 @@ export default function GenericMeasurementPage() {
 
           </form>
         </div>
-      </div>
-
+      </div >
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+      < div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50" >
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
           <Button variant="outline" asChild disabled={disabledAll}>
             <Link href={backUrl}>Terug</Link>
@@ -944,7 +1215,7 @@ export default function GenericMeasurementPage() {
             variant="outline"
             onClick={addItem}
             disabled={disabledAll}
-            className="text-emerald-500 border-emerald-500/50 hover:text-emerald-400 hover:border-emerald-400 hover:bg-emerald-500/10"
+            className=""
           >
             <PlusCircle className="mr-2 h-4 w-4" />
             Extra {itemLabel} toevoegen
@@ -959,7 +1230,7 @@ export default function GenericMeasurementPage() {
             {saving ? 'Opslaan...' : 'Opslaan'}
           </Button>
         </div>
-      </div>
+      </div >
 
       {/* Delete Confirmation Dialog */}
       < AlertDialog open={pendingDeleteIndex !== null
@@ -987,9 +1258,9 @@ export default function GenericMeasurementPage() {
               <Button variant="destructiveSoft">Verwijderen</Button>
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </main>
+        </AlertDialogContent >
+      </AlertDialog >
+    </main >
   );
 }
 
@@ -1050,9 +1321,7 @@ function DynamicInput({
         </div>
       )}
 
-      {field.key === 'balkafstand' && (
-        <p className="text-xs text-muted-foreground">Hart-op-hart afstand tussen de balken.</p>
-      )}
+
     </div>
   );
 }

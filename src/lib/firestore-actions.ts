@@ -57,6 +57,14 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
             klanttype: 'Particulier', // Default
             // Initialize with empty strings if needed, or leave mostly empty.
             // We'll trust the form to fill these in on update.
+        },
+        instellingen: {
+            btwTarief: 21,
+            winstmargeMaterialen: 15,
+            winstmargeArbeid: 0,
+            uurTarief: 55.00,
+            voorrijkosten: 45.00,
+            afvalPercentage: 10,
         }
     });
 

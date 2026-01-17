@@ -22,7 +22,7 @@ Vensterbanken
 Dakwerk & HWA
 Dakramen & Koepels
 Binnendeuren
-Deurbeslag
+Deurtoebehoren
 Buitendeuren
 Binnenkozijnen
 Trappen & Zolderluiken

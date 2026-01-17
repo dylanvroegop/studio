@@ -291,7 +291,7 @@ export default function MaterialenPage() {
       "Constructieplaten",
       "Fundering & Bekisting",
       "Stenen, Lateien & Mortels",
-      "Metalstud Profielen",
+      "Metalstud Profielen & Systeemplafonds",
       "Gipsplaten",
       "Gipsvezelplaten",
       "Vloerelementen (Estrich)",

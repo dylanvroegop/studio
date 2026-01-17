@@ -90,6 +90,7 @@ import {
   MATERIAL_CATEGORY_INFO,
   MaterialCategoryKey
 } from '@/lib/job-registry';
+import { COMPONENT_REGISTRY } from '@/lib/component-registry';
 
 // ==================================
 // HELPER FUNCTIONS
@@ -233,14 +234,14 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
   return (
     <>
       <div
+        onClick={onClick}
         className={cn(
-          "group relative flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 rounded-lg border transition-all gap-1 sm:gap-4",
+          "group relative flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 rounded-lg border transition-all gap-1 sm:gap-4 cursor-pointer",
           selected ? "border-emerald-500/20 bg-emerald-500/5" : "border-border hover:bg-accent/40"
         )}
       >
         <div
-          onClick={onClick}
-          className="flex items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0 cursor-pointer"
+          className="flex items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0"
         >
           <span className={cn(
             "font-medium text-sm truncate",
@@ -251,7 +252,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
         </div>
 
         <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">
-          <div onClick={onClick} className="cursor-pointer flex items-center gap-2 min-w-0 flex-1 sm:flex-initial sm:justify-end">
+          <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial sm:justify-end">
             {selected ? (
               <>
                 <span className="text-xs font-medium text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-md break-words text-left sm:text-right leading-tight">
@@ -637,6 +638,14 @@ export default function GenericMaterialsPageRedesigned() {
       return next;
     });
   }, [user]);
+
+  // Merge favorites into materials for the modal
+  const enrichedMaterials = useMemo(() => {
+    return alleMaterialen.map(m => ({
+      ...m,
+      isFavorite: favorieten.includes(m.id)
+    }));
+  }, [alleMaterialen, favorieten]);
 
   // Hydrate from Firestore
   useEffect(() => {
@@ -1178,6 +1187,7 @@ export default function GenericMaterialsPageRedesigned() {
             if ((klus as any).measurements) {
               Object.entries((klus as any).measurements).forEach(([k, v]) => {
                 if (k === 'notities' || !v) return;
+                if (typeof v === 'object') return; // Skip complex objects
                 const label = knownKeys[k] || k;
                 if (!genericItems.find(e => e.label === label)) {
                   genericItems.push({ key: k, label, value: v });
@@ -1196,6 +1206,7 @@ export default function GenericMaterialsPageRedesigned() {
                   const groupItems: any[] = [];
                   Object.entries(v).forEach(([subK, subV]) => {
                     if (subK === 'notities' || !subV) return;
+                    if (typeof subV === 'object') return; // Skip complex objects (openings array, etc.)
                     const subLabel = knownKeys[subK] || (subK.charAt(0).toUpperCase() + subK.slice(1));
                     groupItems.push({ key: subK, label: subLabel, value: subV });
                   });
@@ -1275,16 +1286,23 @@ export default function GenericMaterialsPageRedesigned() {
             {(Object.entries(jobConfig?.categoryConfig || MATERIAL_CATEGORY_INFO) as [MaterialCategoryKey, any][])
               .sort(([keyA, a], [keyB, b]) => {
                 // Check if this is a complex job with component injection sections
-                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand'));
+                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat'));
+                const isCeilingJob = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
+                const isBoeiboordSection = (keyA === 'boeiboord' || (keyA as string).toLowerCase() === 'boeiboorden');
+                const isVlizotrapSectionA = (keyA === 'Toegang' || keyA === 'Vliering_Toegang' || (keyA as string).toLowerCase().includes('vlizotrap') || (keyA as string).toLowerCase().includes('toegang'));
+                const isVlizotrapSectionB = (keyB === 'Toegang' || keyB === 'Vliering_Toegang' || (keyB as string).toLowerCase().includes('vlizotrap') || (keyB as string).toLowerCase().includes('toegang'));
 
-                const isAComponentSection = isComplexJob && (
+                const isAComponentSection = (isComplexJob && (
                   keyA === 'Kozijnen' || (keyA as string).toLowerCase() === 'kozijnen' ||
-                  keyA === 'Deuren' || (keyA as string).toLowerCase() === 'deuren'
-                );
-                const isBComponentSection = isComplexJob && (
+                  keyA === 'Deuren' || (keyA as string).toLowerCase() === 'deuren' ||
+                  isBoeiboordSection
+                )) || (isCeilingJob && isVlizotrapSectionA);
+
+                const isBComponentSection = (isComplexJob && (
                   keyB === 'Kozijnen' || (keyB as string).toLowerCase() === 'kozijnen' ||
-                  keyB === 'Deuren' || (keyB as string).toLowerCase() === 'deuren'
-                );
+                  keyB === 'Deuren' || (keyB as string).toLowerCase() === 'deuren' ||
+                  (keyB === 'boeiboord' || (keyB as string).toLowerCase() === 'boeiboorden')
+                )) || (isCeilingJob && isVlizotrapSectionB);
 
                 // Push component sections to the end
                 if (isAComponentSection && !isBComponentSection) return 1;
@@ -1298,12 +1316,17 @@ export default function GenericMaterialsPageRedesigned() {
                 if (sections.length === 0) return null;
                 const isHidden = hiddenCategories[categoryKey];
 
-                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand'));
+                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat'));
+                const isCeilingJob = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
                 const isKozijnenSection = (categoryKey === 'Kozijnen' || (categoryKey as string).toLowerCase() === 'kozijnen');
                 const isDeurenSection = (categoryKey === 'Deuren' || (categoryKey as string).toLowerCase() === 'deuren');
+                const isBoeiboordSection = (categoryKey === 'boeiboord' || (categoryKey as string).toLowerCase() === 'boeiboorden');
+                const isVlizotrapSection = (categoryKey === 'Toegang' || categoryKey === 'Vliering_Toegang' || (categoryKey as string).toLowerCase().includes('vlizotrap') || (categoryKey as string).toLowerCase().includes('toegang'));
 
                 const targetComponentType = (isComplexJob && isKozijnenSection) ? 'kozijn' :
-                  ((isComplexJob && isDeurenSection) ? 'deur' : null);
+                  ((isComplexJob && isDeurenSection) ? 'deur' :
+                    ((isComplexJob && isBoeiboordSection) ? 'boeiboord' :
+                      ((isCeilingJob && isVlizotrapSection) ? 'vlizotrap' : null)));
 
                 return (
                   <div key={categoryKey} className="space-y-2">
@@ -1311,8 +1334,21 @@ export default function GenericMaterialsPageRedesigned() {
                       onClick={(e) => {
                         if (targetComponentType) {
                           if (isHidden) toggleCategoryVisibility(categoryKey);
-                          setActiveComponentType(targetComponentType);
-                          setKozijnenModalOpen(true);
+
+                          // Vlizotrap doesn't need measurements - add directly
+                          if (targetComponentType === 'vlizotrap') {
+                            const newVlizotrap = {
+                              id: `vlizotrap-${Date.now()}`,
+                              type: 'vlizotrap' as const,
+                              label: 'Vlizotrap',
+                              measurements: {},
+                              materiaalKeuzes: {}
+                            };
+                            setComponents(prev => [...prev, newVlizotrap]);
+                          } else {
+                            setActiveComponentType(targetComponentType);
+                            setKozijnenModalOpen(true);
+                          }
                         } else {
                           toggleCategoryVisibility(categoryKey);
                         }
@@ -1322,7 +1358,7 @@ export default function GenericMaterialsPageRedesigned() {
                       {targetComponentType ? (
                         <div className="flex items-center gap-2 text-emerald-500 hover:text-emerald-400 font-medium w-full">
                           <Plus className="h-4 w-4" />
-                          <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>{targetComponentType === 'kozijn' ? 'Kozijn' : 'Deur'} toevoegen</span>
+                          <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>{targetComponentType === 'kozijn' ? 'Kozijn' : (targetComponentType === 'deur' ? 'Deur' : (targetComponentType === 'vlizotrap' ? 'Vlizotrap' : 'Boeiboord'))} toevoegen</span>
                         </div>
                       ) : (
                         <h2 className={cn(
@@ -1380,7 +1416,7 @@ export default function GenericMaterialsPageRedesigned() {
                                 variantItem = comp.slug ? JOB_REGISTRY.deuren.items.find((i: any) => i.slug === comp.slug) : null;
                               }
 
-                              const compSections = variantItem?.materialSections || [];
+                              const compSections = variantItem?.materialSections || COMPONENT_REGISTRY[comp.type]?.defaultMaterials || [];
 
                               let sectionMap: { key: string; label: string }[] = [];
 
@@ -1400,13 +1436,21 @@ export default function GenericMaterialsPageRedesigned() {
                                   { key: 'glas', label: 'Glas & Beglazing' },
                                   { key: 'afwerking', label: 'Afwerking' },
                                   { key: 'Stalen kozijn', label: 'Stalen Kozijn' }
-                                ] : [
+                                ] : (targetComponentType === 'deur' ? [
                                   { key: 'Deuren', label: 'Deur' },
                                   { key: 'deurbeslag', label: 'Beslag' },
                                   { key: 'glas', label: 'Glas' },
                                   { key: 'tochtstrips', label: 'Tochtwering' },
                                   { key: 'ventilatie', label: 'Ventilatie' }
-                                ];
+                                ] : (targetComponentType === 'vlizotrap' ? [
+                                  { key: 'hout', label: 'Raveling & Hout' },
+                                  { key: 'basis', label: 'Vlizotrap & Luik' },
+                                  { key: 'afwerking', label: 'Afwerking' }
+                                ] : [
+                                  // Fallback for Boeiboorden or others
+                                  { key: 'beplating', label: 'Beplating' },
+                                  { key: 'afwerking', label: 'Afwerking' }
+                                ]));
                               }
 
                               return (
@@ -1692,7 +1736,7 @@ export default function GenericMaterialsPageRedesigned() {
       <MaterialSelectionModal
         open={isExtraModalOpen}
         onOpenChange={setIsExtraModalOpen}
-        existingMaterials={alleMaterialen}
+        existingMaterials={enrichedMaterials}
         showFavorites={actieveSectie !== 'extra' && !activeGroupId && !activeComponentId}
         defaultCategory={actieveSectie ? materialSections.find(s => s.key === actieveSectie)?.categoryFilter : undefined} // Note: For components, we might want to pass category too?
         onToggleFavorite={toggleFavoriet}

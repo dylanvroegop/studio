@@ -1,5 +1,5 @@
 import { initializeFirebaseServer } from '@/firebase/server';
-import { doc, getDoc, collection, getDocs, query } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import type { Client, Quote, Job, JobMaterial } from './types';
 
 // This file will be deprecated in favor of direct Firestore calls.
@@ -166,4 +166,37 @@ export const getFullQuoteDetails = async (quoteId: string) => {
     client,
     jobs: jobsWithMaterials,
   };
+};
+
+/* ---------------------------------------------
+ Active Quotes (for Selection)
+--------------------------------------------- */
+
+export const getActiveQuotes = async (limitCount = 50): Promise<Quote[]> => {
+  const { firestore } = initializeFirebaseServer();
+  const q = query(
+    collection(firestore, 'quotes'),
+    orderBy('updatedAt', 'desc'),
+    limit(limitCount)
+  );
+
+  const querySnapshot = await getDocs(q);
+  const quotes: Quote[] = [];
+
+  querySnapshot.forEach((d) => {
+    const data: any = d.data();
+    quotes.push({
+      id: d.id,
+      ...data,
+      // Convert Timestamps to Strings or Dates as per existing pattern
+      // NOTE: The Quote type defines Timestamp, but here we might need to be careful.
+      // The existing pattern uses assertions. I'll stick to returning what looks like a Quote but with Dates if possible,
+      // or depend on the caller to serialize if needed.
+      // However, for Client components, we usually want ISO strings.
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+    } as unknown as Quote);
+  });
+
+  return quotes;
 };

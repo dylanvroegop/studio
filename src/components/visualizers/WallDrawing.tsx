@@ -12,7 +12,7 @@ export interface WallOpening {
     fromBottom: number;
 }
 
-interface WallStructureVisualizerProps {
+export interface WallDrawingProps {
     lengte: string | number;
     hoogte?: string | number;
     // Sloped / Gable props
@@ -39,7 +39,7 @@ interface WallStructureVisualizerProps {
     startFromRight?: boolean;
 }
 
-export function WallStructureVisualizer({
+export function WallDrawing({
     lengte,
     hoogte,
     shape = 'rectangle',
@@ -60,7 +60,7 @@ export function WallStructureVisualizer({
     fitContainer,
     isMagnifier,
     startFromRight
-}: WallStructureVisualizerProps) {
+}: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
 
@@ -848,7 +848,14 @@ export function WallStructureVisualizer({
                                 const levelStep = 10;
 
                                 return sorted.map((op, i) => {
-                                    const levelY = baselineY - (i * levelStep);
+                                    // Horizontal Dimensions (From Left) - CLOSEST to drawing (below)
+                                    const stackStep = 15;
+                                    const bottomBaseY = Y_BOTTOM + 30; // Start 30px below wall
+                                    const dimY = bottomBaseY + (i * stackStep);
+
+                                    // Vertical Dimensions (From Bottom) - CLOSEST to drawing (left)
+                                    const leftBaseX = WALL_X - 30; // Start 30px left of wall
+                                    const dimX = leftBaseX - (i * stackStep);
 
                                     return (
                                         <g key={`dim-${op.id}`}>
@@ -863,64 +870,71 @@ export function WallStructureVisualizer({
                                                 {op.width} x {op.height}
                                             </text>
 
-                                            {/* 2. From Bottom Dimension (Vertical line) - Only if > 0 */}
+                                            {/* 2. From Bottom Dimension (Vertical) */}
                                             {op.fromBottom > 0 && (
                                                 <>
-                                                    <line x1={op.drawX + op.drawW / 2} y1={Y_BOTTOM} x2={op.drawX + op.drawW / 2} y2={op.drawY + op.drawH} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2,1" opacity="0.7" />
-                                                    <text x={op.drawX + op.drawW / 2 + 3} y={(Y_BOTTOM + (op.drawY + op.drawH)) / 2} textAnchor="start" dominantBaseline="middle" className="fill-emerald-500/80 text-[6px] font-mono select-none font-medium text-xs">{op.fromBottom}</text>
+                                                    {/* Main Vertical Line (Dimension Line) */}
+                                                    <line
+                                                        x1={dimX} y1={Y_BOTTOM}
+                                                        x2={dimX} y2={op.drawY + op.drawH}
+                                                        stroke="#10b981" strokeWidth="0.5"
+                                                    />
+
+                                                    {/* Extension Left/Right at Floor (Baseline) */}
+                                                    <line x1={dimX} y1={Y_BOTTOM} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
+
+                                                    {/* Extension Left/Right at Opening Bottom Height - CLIPPED AT WALL EDGE */}
+                                                    <line x1={dimX} y1={op.drawY + op.drawH} x2={WALL_X} y2={op.drawY + op.drawH} stroke="#10b981" strokeWidth="0.5" />
+
+                                                    {/* Circle Dots at Intersections with Dim Line */}
+                                                    <circle cx={dimX} cy={Y_BOTTOM} r="1.5" fill="#10b981" />
+                                                    <circle cx={dimX} cy={op.drawY + op.drawH} r="1.5" fill="#10b981" />
+
+                                                    {/* Text Label - Vertical, On Line */}
+                                                    <g transform={`translate(${dimX}, ${(Y_BOTTOM + (op.drawY + op.drawH)) / 2}) rotate(-90)`}>
+                                                        <rect x="-8" y="-4" width="16" height="8" fill="#09090b" opacity="1" />
+                                                        <text
+                                                            textAnchor="middle"
+                                                            dominantBaseline="middle"
+                                                            fill="#10b981"
+                                                            className="text-[8px] font-mono select-none font-medium"
+                                                        >
+                                                            {op.fromBottom}
+                                                        </text>
+                                                    </g>
                                                 </>
                                             )}
 
-                                            {/* 3. From Left Dimension (Stacked Above Wall) */}
+                                            {/* 3. From Left Dimension (Horizontal) */}
                                             {/* Main Horizontal Line */}
                                             <line
-                                                x1={WALL_X}
-                                                y1={levelY}
-                                                x2={op.drawX}
-                                                y2={levelY}
-                                                stroke="#10b981"
-                                                strokeWidth="0.5"
-                                                opacity="0.8"
+                                                x1={WALL_X} y1={dimY}
+                                                x2={op.drawX} y2={dimY}
+                                                stroke="#10b981" strokeWidth="0.5"
                                             />
 
-                                            {/* Extension Line Left (Wall Start) */}
-                                            <line
-                                                x1={WALL_X}
-                                                y1={yLeft}
-                                                x2={WALL_X}
-                                                y2={levelY}
-                                                stroke="#10b981"
-                                                strokeWidth="0.5"
-                                                strokeDasharray="1,2"
-                                                opacity="0.3"
-                                            />
+                                            {/* Extension Up/Down at Start (Wall Left) */}
+                                            <line x1={WALL_X} y1={dimY} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
 
-                                            {/* Extension Line Right (Opening Start) */}
-                                            <line
-                                                x1={op.drawX}
-                                                y1={op.drawY}
-                                                x2={op.drawX}
-                                                y2={levelY}
-                                                stroke="#10b981"
-                                                strokeWidth="0.5"
-                                                strokeDasharray="1,2"
-                                                opacity="0.3"
-                                            />
+                                            {/* Extension Up/Down at End (Opening Left) - CLIPPED AT BOTTOM EDGE */}
+                                            <line x1={op.drawX} y1={dimY} x2={op.drawX} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
 
-                                            {/* Text Label (On the line) */}
-                                            <rect x={(WALL_X + op.drawX) / 2 - 6} y={levelY - 3} width="12" height="6" fill="#09090b" opacity="0.8" />
+                                            {/* Dots */}
+                                            <circle cx={WALL_X} cy={dimY} r="1.5" fill="#10b981" />
+                                            <circle cx={op.drawX} cy={dimY} r="1.5" fill="#10b981" />
+
+                                            {/* Text Label - Horizontal, On Line */}
+                                            <rect x={(WALL_X + op.drawX) / 2 - 8} y={dimY - 4} width="16" height="8" fill="#09090b" opacity="1" />
                                             <text
                                                 x={(WALL_X + op.drawX) / 2}
-                                                y={levelY + 2} // centered vertically text
+                                                y={dimY + 0.5}
                                                 textAnchor="middle"
-                                                className="fill-emerald-500/90 text-[6px] font-mono select-none font-medium"
+                                                dominantBaseline="middle"
+                                                fill="#10b981"
+                                                className="text-[8px] font-mono select-none font-medium"
                                             >
                                                 {op.fromLeft}
                                             </text>
-
-                                            {/* Arrow ticks */}
-                                            <line x1={WALL_X} y1={levelY - 2} x2={WALL_X} y2={levelY + 2} stroke="#10b981" strokeWidth="0.5" />
-                                            <line x1={op.drawX} y1={levelY - 2} x2={op.drawX} y2={levelY + 2} stroke="#10b981" strokeWidth="0.5" />
                                         </g>
                                     );
                                 });
@@ -1039,7 +1053,7 @@ export function WallStructureVisualizer({
                                                 x={midX}
                                                 y={dimY + 3}
                                                 textAnchor="middle"
-                                                className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
                                                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
                                             >
                                                 {Math.round(seg.len)}
@@ -1051,24 +1065,34 @@ export function WallStructureVisualizer({
                         </g>
                     )}
 
-                    {/* Bottom Length Dimension */}
+                    {/* Bottom Length Dimension - FURTHEST from drawing */}
                     <g className="text-emerald-500">
-                        <line x1={WALL_X} y1={DIM_Y_LENGTH} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        {/* Extension Lines */}
-                        <line x1={WALL_X} y1={Y_BOTTOM + 2} x2={WALL_X} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 2} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        {/* Dots */}
-                        <circle cx={WALL_X} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
-                        <circle cx={WALL_X + WALL_WIDTH} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
-                        <text
-                            x={WALL_X + WALL_WIDTH / 2}
-                            y={DIM_Y_LENGTH + 8}
-                            textAnchor="middle"
-                            className="fill-emerald-400 text-[8px] font-mono font-medium"
-                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                        >
-                            {lengteDisplay}
-                        </text>
+                        {(() => {
+                            const totalWidthY = Y_BOTTOM + 80; // Place furthest below
+                            return (
+                                <>
+                                    <line x1={WALL_X} y1={totalWidthY} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" />
+                                    {/* Extension Lines */}
+                                    <line x1={WALL_X} y1={Y_BOTTOM + 5} x2={WALL_X} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                                    <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 5} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                                    {/* Dots */}
+                                    <circle cx={WALL_X} cy={totalWidthY} r="1.5" fill="currentColor" />
+                                    <circle cx={WALL_X + WALL_WIDTH} cy={totalWidthY} r="1.5" fill="currentColor" />
+                                    {/* Text label */}
+                                    <rect x={WALL_X + WALL_WIDTH / 2 - 12} y={totalWidthY - 5} width="24" height="10" fill="#09090b" opacity="1" />
+                                    <text
+                                        x={WALL_X + WALL_WIDTH / 2}
+                                        y={totalWidthY + 3}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        className="fill-emerald-400 text-[12px] font-mono font-bold"
+                                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                    >
+                                        {lengteDisplay}
+                                    </text>
+                                </>
+                            );
+                        })()}
                     </g>
 
                     {/* Left Height Dimension */}
@@ -1125,7 +1149,7 @@ export function WallStructureVisualizer({
                                             x={totalLineX - textPad}
                                             y={(yLeft + Y_BOTTOM) / 2 + 3}
                                             textAnchor="end"
-                                            className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                            className="fill-emerald-400 text-[12px] font-mono font-bold"
                                             style={{ fontFamily: "'JetBrains Mono', monospace" }}
                                         >
                                             {hL_disp}
@@ -1140,7 +1164,7 @@ export function WallStructureVisualizer({
                                             x={splitLineX - textPad}
                                             y={(ySplit + Y_BOTTOM) / 2 + 3}
                                             textAnchor="end"
-                                            className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                            className="fill-emerald-400 text-[10px] font-mono font-medium"
                                         >
                                             {Math.round(splitHeight)}
                                         </text>
@@ -1153,7 +1177,7 @@ export function WallStructureVisualizer({
                                             x={splitLineX - textPad}
                                             y={(yLeft + ySplit) / 2 + 3}
                                             textAnchor="end"
-                                            className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                            className="fill-emerald-400 text-[10px] font-mono font-medium"
                                         >
                                             {Math.round(topPartH)}
                                         </text>
@@ -1161,26 +1185,31 @@ export function WallStructureVisualizer({
                                 );
                             }
 
-                            // Standard Full Height Dim
+                            // Standard Full Height Dim - FURTHEST from drawing
+                            const totalHeightX = WALL_X - 80; // Place furthest left
                             return (
                                 <>
-                                    <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 25} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                    {/* Main vertical dimension line */}
+                                    <line x1={totalHeightX} y1={yLeft} x2={totalHeightX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" />
                                     {/* Extensions */}
-                                    <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 2} y2={yLeft} stroke="currentColor" strokeWidth="1" />
-                                    <line x1={WALL_X - 25} y1={Y_BOTTOM} x2={WALL_X - 2} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                    <line x1={totalHeightX} y1={yLeft} x2={WALL_X - 5} y2={yLeft} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                                    <line x1={totalHeightX} y1={Y_BOTTOM} x2={WALL_X - 5} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
                                     {/* Dots */}
-                                    <circle cx={WALL_X - 25} cy={yLeft} r="1.5" fill="currentColor" />
-                                    <circle cx={WALL_X - 25} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
+                                    <circle cx={totalHeightX} cy={yLeft} r="1.5" fill="currentColor" />
+                                    <circle cx={totalHeightX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
 
-                                    <text
-                                        x={WALL_X - 40}
-                                        y={(yLeft + Y_BOTTOM) / 2 + 3}
-                                        textAnchor="end"
-                                        className="fill-emerald-400 text-[8px] font-mono font-medium"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                    >
-                                        {hL_disp}
-                                    </text>
+                                    {/* Rotated text label */}
+                                    <g transform={`translate(${totalHeightX}, ${(yLeft + Y_BOTTOM) / 2}) rotate(-90)`}>
+                                        <rect x="-12" y="-5" width="24" height="10" fill="#09090b" opacity="1" />
+                                        <text
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            className="fill-emerald-400 text-[12px] font-mono font-bold"
+                                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                        >
+                                            {hL_disp}
+                                        </text>
+                                    </g>
                                 </>
                             );
                         })()}
@@ -1243,4 +1272,4 @@ export function WallStructureVisualizer({
     );
 }
 
-export default WallStructureVisualizer;
+export default WallDrawing;

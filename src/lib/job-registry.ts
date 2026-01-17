@@ -94,6 +94,7 @@ export const MATERIAL_CATEGORY_INFO = {
   constructie: { title: 'Constructie', order: 1 },
   beveiliging: { title: 'Beveiliging', order: 1 },
   exterieur_details: { title: 'Exterieur Details', order: 1 },
+  boeiboord: { title: 'Boeiboorden', order: 15 },
 } as const;
 
 
@@ -145,6 +146,7 @@ export interface MeasurementField {
   suffix?: string;
   placeholder?: string;
   defaultValue?: string | number;
+  group?: string; // For grouping fields in the UI (e.g. side-by-side)
 }
 
 export interface MaterialSection {
@@ -191,8 +193,23 @@ const WALL_FIELDS: MeasurementField[] = [
 const CEILLING_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 700 },
-  { key: 'latafstand', label: 'Latafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300 },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 700, group: 'spacing' },
+  { key: 'latafstand', label: 'Latafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
+  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+]
+
+const ROOF_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' }, // Using 'hoogte' key but 'Breedte' label for roof width
+  { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' }, // Primary (horizontal battens)
+  { key: 'latafstand', label: 'Rachelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' }, // Secondary (vertical battens)
+  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+];
+
+// EPDM flat roof fields - same as ROOF_FIELDS but without beam spacing (no tengel/rachel)
+const EPDM_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' }, // Using 'hoogte' key but 'Breedte' label for roof width (matches RoofDrawing)
   { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
 ];
 
@@ -231,7 +248,7 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 4. AFWERKEN (TIMMERWERK)
@@ -256,18 +273,18 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 7. DEUREN & BESLAG
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
-  { label: 'Deurbeslag', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
-  { label: 'Deurroosters', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
+  { label: 'Sloten', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
+  { label: 'Deurbeslag', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
+  { label: 'Deurroosters', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
 ];
 
 const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 1. METAAL & CONSTRUCTIE
-  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud Profielen', category: 'metaal', key: 'ms_liggers', category_ultra_filter: '' },
-  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud Profielen', category: 'metaal', key: 'ms_staanders', category_ultra_filter: '' },
+  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'ms_liggers', category_ultra_filter: '' },
+  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'ms_staanders', category_ultra_filter: '' },
 
-  { label: 'Verstevigingsprofielen (UA)', categoryFilter: 'Metalstud Profielen', category: 'metaal', key: 'ms_ua_profiel', category_ultra_filter: '' },
+  { label: 'Verstevigingsprofielen (UA)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'ms_ua_profiel', category_ultra_filter: '' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folies', categoryFilter: 'Overig', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
@@ -284,8 +301,8 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 4. AFWERKEN (TIMMERWERK)
@@ -307,9 +324,9 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 7. DEUREN & BESLAG
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
-  { label: 'Deurbeslag', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
+  { label: 'Sloten', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
+  { label: 'Deurbeslag', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
   { label: 'Deurroosters', categoryFilter: 'Overig', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
 ];
 
@@ -337,8 +354,8 @@ const HSB_TUSSENWAND_MATS: MaterialSection[] = [
 
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
 
@@ -358,19 +375,19 @@ const HSB_TUSSENWAND_MATS: MaterialSection[] = [
 
   // 7. DEUREN & BESLAG
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
-  { label: 'Deurbeslag', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
-  { label: 'Deurroosters', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
+  { label: 'Sloten', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
+  { label: 'Deurbeslag', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
+  { label: 'Deurroosters', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
 ];
 
 
 
 const METALSTUD_TUSSENWAND_MATS: MaterialSection[] = [
   // 1. METAAL & CONSTRUCTIE
-  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud Profielen & Systeemplafonds ', category: 'metaal', key: 'ms_liggers', category_ultra_filter: '' },
-  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud Profielen & Systeemplafonds ', category: 'metaal', key: 'ms_staanders', category_ultra_filter: '' },
-  { label: 'Verstevigingsprofielen (UA)', categoryFilter: 'Metalstud Profielen & Systeemplafonds ', category: 'metaal', key: 'ms_ua_profiel', category_ultra_filter: '' },
+  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'ms_liggers', category_ultra_filter: '' },
+  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'ms_staanders', category_ultra_filter: '' },
+  { label: 'Verstevigingsprofielen (UA)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'ms_ua_profiel', category_ultra_filter: '' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folies', categoryFilter: 'Overig', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
@@ -411,10 +428,10 @@ const METALSTUD_TUSSENWAND_MATS: MaterialSection[] = [
 
   // 7. DEUREN & BESLAG
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
-  { label: 'Deurbeslag', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
-  { label: 'Deurroosters', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
+  { label: 'Sloten', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
+  { label: 'Deurbeslag', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
+  { label: 'Deurroosters', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
 ];
 
 
@@ -454,15 +471,15 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
 
   // 7. KOZIJNEN
   { label: 'Stelkozijnen', categoryFilter: 'Overig', category: 'Kozijnen', key: 'stelkozijn', category_ultra_filter: '' },
-  { label: 'Raamkozijnen', categoryFilter: 'Binnenkozijnen', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
-  { label: 'Deurkozijnen', categoryFilter: 'Binnenkozijnen', category: 'Kozijnen', key: 'deur_kozijn', category_ultra_filter: '' },
+  { label: 'Raamkozijnen', categoryFilter: 'Kozijnhout, Raamhout & Glaslatten', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
+  { label: 'Deurkozijnen', categoryFilter: 'Kozijnhout, Raamhout & Glaslatten', category: 'Kozijnen', key: 'deur_kozijn', category_ultra_filter: '' },
   { label: 'Glas & Roosters', categoryFilter: 'Overig', category: 'Kozijnen', key: 'glas_roosters', category_ultra_filter: '' },
 
   // 8. DEUREN & BESLAG
   { label: 'Buitendeuren', categoryFilter: 'Buitendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
-  { label: 'Deurbeslag', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
+  { label: 'Sloten', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
+  { label: 'Deurbeslag', categoryFilter: 'Deurtoebehoren', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
 ];
 
 
@@ -531,7 +548,8 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
 
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   { label: 'Elektra Buizen / Flex', categoryFilter: 'Overig', category: 'Installatie', key: 'kabelkanaal', category_ultra_filter: '' },
@@ -545,21 +563,14 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
   { label: 'Finish Pasta', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 6. SCHUIFWANDEN (Replaces Standard Doors)
-  { label: 'Schuifdeurrails', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_rails', category_ultra_filter: '' },
+  { label: 'Schuifdeurrails', categoryFilter: 'Deurtoebehoren', category: 'Schuifdeuren', key: 'schuifdeur_rails', category_ultra_filter: '' },
   { label: 'Schuifdeurpanelen', categoryFilter: 'Constructieplaten', category: 'Schuifdeuren', key: 'schuifdeur_paneel', category_ultra_filter: '' },
-  { label: 'Komgrepen', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_greep', category_ultra_filter: '' },
+  { label: 'Komgrepen', categoryFilter: 'Deurtoebehoren', category: 'Schuifdeuren', key: 'schuifdeur_greep', category_ultra_filter: '' },
 ];
 
 
 
-const OVERIG_WANDEN_MATS: MaterialSection[] = [
-  { label: 'Constructiemateriaal', categoryFilter: 'Constructiehout', key: 'constructie', category_ultra_filter: '' },
-  { label: 'Isolatie', categoryFilter: 'Isolatie', key: 'isolatie', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Constructieplaten', key: 'beplating', category_ultra_filter: '' },
-  { label: 'Beschermlagen', categoryFilter: 'Overig', key: 'beschermlagen', category_ultra_filter: '' },
-  { label: 'Bevestigingsmateriaal', categoryFilter: 'Overig', key: 'bevestiging', category_ultra_filter: '' },
-  { label: 'Afwerkingsmateriaal', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', key: 'afwerking', category_ultra_filter: '' },
-];
+
 
 
 //#region ========================================== MATERIAL SECTIONS - PLAFONDS XXX==========================================
@@ -572,7 +583,8 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
 
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 3. GORDIJNKOF (Specifiek voor gordijnen)
@@ -614,12 +626,13 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
 
 const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   // 1. METAAL & CONSTRUCTIE (FRAMEWERK)
-  { label: 'Randprofielen', categoryFilter: 'Metalstud Profielen', category: 'metaal', key: 'randprofielen', category_ultra_filter: '' },
-  { label: 'Draagprofielen', categoryFilter: 'Metalstud Profielen', category: 'metaal', key: 'draagprofielen', category_ultra_filter: '' },
+  { label: 'Randprofielen', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'randprofielen', category_ultra_filter: '' },
+  { label: 'Draagprofielen', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'draagprofielen', category_ultra_filter: '' },
 
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 3. GORDIJNKOOF (Specifiek voor gordijnen)
@@ -673,9 +686,9 @@ const MASSIEF_HOUTEN_VLOER_FINISH_MATS: MaterialSection[] = [
 
   // 3. AFWERKING & BEHANDELING
   { label: 'Plinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'Vloer_Afwerking', key: 'plinten', category_ultra_filter: '' },
-  { label: 'Deklatten', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'Vloer_Afwerking', key: 'deklatten', category_ultra_filter: '' },
-  { label: 'Overgangsprofielen / Dorpels', categoryFilter: 'Metalstud Profielen', category: 'Vloer_Afwerking', key: 'dorpels', category_ultra_filter: '' },
-  { label: 'Vloerolie', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'vloerolie', category_ultra_filter: '' },
+  { label: 'Deklatten', categoryFilter: 'Aftimmerhout & Plinten', category: 'Vloer_Afwerking', key: 'deklatten', category_ultra_filter: '' },
+  { label: 'Overgangsprofielen / Dorpels', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'Vloer_Afwerking', key: 'dorpels', category_ultra_filter: '' },
+  { label: 'Vloerolie / Lak', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'vloerolie', category_ultra_filter: '' },
 ];
 
 
@@ -683,7 +696,7 @@ const VLOER_AFWERK_MATS: MaterialSection[] = [
   // 1. VOORBEREIDING
   { label: 'Egaline', categoryFilter: 'Egaline & Vloerafwerking', category: 'Vloer_Voorbereiding', key: 'egaliseren', category_ultra_filter: '' },
   { label: 'Reparatiemortel', categoryFilter: 'Egaline & Vloerafwerking', category: 'Vloer_Voorbereiding', key: 'egaliseren', category_ultra_filter: '' },
-  { label: 'Dampremmende Folie', categoryFilter: 'Isolatie', category: 'Vloer_Voorbereiding', key: 'folie', category_ultra_filter: '' },
+  { label: 'Dampremmende Folie', categoryFilter: 'Overig', category: 'Vloer_Voorbereiding', key: 'folie', category_ultra_filter: '' },
   { label: 'Ondervloer', categoryFilter: 'Egaline & Vloerafwerking', category: 'Vloer_Voorbereiding', key: 'ondervloer', category_ultra_filter: '' },
 
   // 2. VLOERDELEN (LAMINAAT / PVC)
@@ -692,9 +705,9 @@ const VLOER_AFWERK_MATS: MaterialSection[] = [
   // 3. AFWERKING & PROFIELEN
   { label: 'Vloerplinten', categoryFilter: 'Aftimmerhout & Plinten', category: 'Vloer_Afwerking', key: 'plinten_muur', category_ultra_filter: '' },
 
-  { label: 'Overgangsprofielen / Drempels', categoryFilter: 'Metalstud Profielen', category: 'Vloer_Afwerking', key: 'profielen_overgang', category_ultra_filter: '' },
-  { label: 'Eindprofielen', categoryFilter: 'Metalstud Profielen', category: 'Vloer_Afwerking', key: 'profielen_eind', category_ultra_filter: '' },
-  { label: 'Kruipluik Profiel / Matomranding', categoryFilter: 'Metalstud Profielen', category: 'Vloer_Afwerking', key: 'kruipluik', category_ultra_filter: '' },
+  { label: 'Overgangsprofielen / Drempels', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'Vloer_Afwerking', key: 'profielen_overgang', category_ultra_filter: '' },
+  { label: 'Eindprofielen', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'Vloer_Afwerking', key: 'profielen_eind', category_ultra_filter: '' },
+  { label: 'Kruipluik Profiel / Matomranding', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'Vloer_Afwerking', key: 'kruipluik', category_ultra_filter: '' },
 ];
 
 
@@ -713,7 +726,7 @@ const VLONDER_MATS: MaterialSection[] = [
   { label: 'Vlonderplanken', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'Vlonder_Dek', key: 'vlonderplanken', category_ultra_filter: '' },
   { label: 'Vlonderschroeven / Clips', categoryFilter: 'Overig', category: 'Vlonder_Dek', key: 'bevestiging', category_ultra_filter: '' },
   { label: 'Kantplanken', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'Vlonder_Dek', key: 'kantplanken', category_ultra_filter: '' },
-  { label: 'Drainagegoot', categoryFilter: 'Overig', category: 'Vlonder_Dek', key: 'afwatering', category_ultra_filter: '' },
+  { label: 'Drainagegoot', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'Vlonder_Dek', key: 'afwatering', category_ultra_filter: '' },
 ];
 
 const BALKLAAG_CONSTRUCTIEVLOER_MATS: MaterialSection[] = [
@@ -748,12 +761,13 @@ const VLIERING_MATS: MaterialSection[] = [
   { label: 'Stelhout', categoryFilter: 'Constructiehout', category: 'hout', key: 'stroken', category_ultra_filter: '' },
   { label: 'Rachelwerk', categoryFilter: 'Constructiehout', category: 'hout', key: 'rachels', category_ultra_filter: '' },
 
-  { label: 'Randprofielen', categoryFilter: 'Metalstud Profielen', category: 'metaal', key: 'randprofielen', category_ultra_filter: '' },
-  { label: 'Draagprofielen', categoryFilter: 'Metalstud Profielen', category: 'metaal', key: 'draagprofielen', category_ultra_filter: '' },
+  { label: 'Randprofielen', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'randprofielen', category_ultra_filter: '' },
+  { label: 'Draagprofielen', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'metaal', key: 'draagprofielen', category_ultra_filter: '' },
 
   // --- B. SPECIALS (Koven) ---
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
+  { label: 'Beplating', categoryFilter: 'Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'Gordijnkoof', key: 'gordijn_regelwerk', category_ultra_filter: '' },
@@ -794,9 +808,9 @@ const KEUKEN_MATS: MaterialSection[] = [
 const INTERIEUR_MATS: MaterialSection[] = [
   { label: 'Basismateriaal / Corpus', categoryFilter: 'Constructieplaten', key: 'constructie', category_ultra_filter: '' },
   { label: 'Fronten & Zichtwerk', categoryFilter: 'Constructieplaten', key: 'fronten', category_ultra_filter: '' },
-  { label: 'Scharnieren & Ladegeleiders', categoryFilter: 'Deurbeslag', key: 'beslag', category_ultra_filter: '' },
+  { label: 'Scharnieren & Ladegeleiders', categoryFilter: 'Deurtoebehoren', key: 'beslag', category_ultra_filter: '' },
   { label: 'Interieurinrichting (roedes/planken)', categoryFilter: 'Overig', key: 'inrichting', category_ultra_filter: '' },
-  { label: 'Afwerking & Lakwerk', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', key: 'afwerking', category_ultra_filter: '' },
+  { label: 'Afwerking & Lakwerk', categoryFilter: 'Overig', key: 'afwerking', category_ultra_filter: '' },
 ];
 
 //#region ========================================== MATERIAL SECTIONS - AFWERKINGEN ==========================================
@@ -805,7 +819,7 @@ const INTERIEUR_MATS: MaterialSection[] = [
 const DAGKANT_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'hout', key: 'frame', category_ultra_filter: '' },
   { label: 'Afwerk Hout', categoryFilter: 'Constructieplaten', category: 'afwerking', key: 'dagkant', category_ultra_filter: '' },
-  { label: 'Hoek- of Stopcontactprofielen', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'afwerking', key: 'hoekprofiel', category_ultra_filter: '' },
+  { label: 'Hoek- of Stopcontactprofielen', categoryFilter: 'Overig', category: 'afwerking', key: 'hoekprofiel', category_ultra_filter: '' },
 ];
 
 const PLINTEN_MATS: MaterialSection[] = [
@@ -821,8 +835,8 @@ const OMKASTING_KOVEN_MATS: MaterialSection[] = [
 
 const VENSTERBANK_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'hout', key: 'frame', category_ultra_filter: '' },
-  { label: 'Vensterbank', categoryFilter: 'Constructiehout', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '' },
-  { label: 'Ventilatieroosters', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'afwerking', key: 'roosters', category_ultra_filter: '' },
+  { label: 'Vensterbank', categoryFilter: 'Vensterbanken', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '' },
+  { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'afwerking', key: 'roosters', category_ultra_filter: '' },
   { label: 'Olie, Lak of Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'behandeling', category_ultra_filter: '' },
 ];
 
@@ -832,17 +846,17 @@ const VENSTERBANK_MATS: MaterialSection[] = [
 const DEUR_BINNEN_MATS: MaterialSection[] = [
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '' },
 
-  { label: 'Scharnieren / Paumelles', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '' },
-  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
-  { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
+  { label: 'Scharnieren / Paumelles', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '' },
+  { label: 'Sloten', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '' },
+  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
+  { label: 'Cilinder', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
 
 
   { label: 'Glas', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glas', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
 
-  { label: 'Tochtvaldorp', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'valdorp', category_ultra_filter: '' },
-  { label: 'Tochtstrips', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'tochtstrips', category_ultra_filter: '' },
+  { label: 'Tochtvaldorp', categoryFilter: 'Deurtoebehoren', category: 'tochtstrips', key: 'valdorp', category_ultra_filter: '' },
+  { label: 'Tochtstrips', categoryFilter: 'Deurtoebehoren', category: 'tochtstrips', key: 'tochtstrips', category_ultra_filter: '' },
 
   { label: 'Deurroosters', categoryFilter: 'Overig', category: 'ventilatie', key: 'ventilatierooster', category_ultra_filter: '' },
 ];
@@ -852,18 +866,18 @@ const DEUR_BINNEN_MATS: MaterialSection[] = [
 const DEUR_BUITEN_MATS: MaterialSection[] = [
   { label: 'Buitendeur', categoryFilter: 'Buitendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '' },
 
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '' },
-  { label: 'Meerpuntsluiting', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
-  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
-  { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '' },
+  { label: 'Sloten', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '' },
+  { label: 'Meerpuntsluiting', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
+  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
+  { label: 'Cilinder', categoryFilter: 'Deurtoebehoren', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
 
 
   { label: 'Glas', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glas', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
 
-  { label: 'Tochtvaldorp', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'valdorp', category_ultra_filter: '' },
-  { label: 'Tochtstrips', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'tochtstrips', category_ultra_filter: '' },
+  { label: 'Tochtvaldorp', categoryFilter: 'Deurtoebehoren', category: 'tochtstrips', key: 'valdorp', category_ultra_filter: '' },
+  { label: 'Tochtstrips', categoryFilter: 'Deurtoebehoren', category: 'tochtstrips', key: 'tochtstrips', category_ultra_filter: '' },
 
   { label: 'Deurroosters', categoryFilter: 'Overig', category: 'ventilatie', key: 'ventilatierooster', category_ultra_filter: '' },
 ];
@@ -875,7 +889,7 @@ const DAK_HELLEND_MATS: MaterialSection[] = [
   // 1. ONDERGROND & ISOLATIE
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
   { label: 'Dakisolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_dak', category_ultra_filter: '' },
-  { label: 'Folie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Folie', categoryFilter: 'Overig', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
 
   // 2. HOUTWERK (Tengels & Panlatten)
   { label: 'Tengels', categoryFilter: 'Constructiehout', category: 'hout', key: 'tengels', category_ultra_filter: '' },
@@ -892,12 +906,15 @@ const DAK_HELLEND_MATS: MaterialSection[] = [
   // 4. AFWERKING (Category: 'afwerking_dak') <--- CHANGED THIS
   { label: 'Lood', categoryFilter: 'Dakwerk & HWA', category: 'afwerking_dak', key: 'lood', category_ultra_filter: '' },
   { label: 'Dakgoot', categoryFilter: 'Dakwerk & HWA', category: 'afwerking_dak', key: 'dakgoot', category_ultra_filter: '' },
+
+  // 5. BOEIBOORDEN (INJECTED)
+  { label: 'Boeiboord (Optie)', categoryFilter: 'Boeidelen & Windveren', category: 'boeiboord', key: 'boeiboord_placeholder', category_ultra_filter: '' },
 ];
 
 const DAK_EPDM_MATS: MaterialSection[] = [
   // 1. ONDERGROND & ISOLATIE (Opbouw Warm Dak)
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
-  { label: 'Dampremmende Folie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'folie_binnen', category_ultra_filter: '' },
+  { label: 'Dampremmende Folie', categoryFilter: 'Overig', category: 'isolatie', key: 'folie_binnen', category_ultra_filter: '' },
   { label: 'Dakisolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_dak', category_ultra_filter: '' },
 
   // 2. DAKBEDEKKING (EPDM)
@@ -908,6 +925,9 @@ const DAK_EPDM_MATS: MaterialSection[] = [
   { label: 'Daktrim Hoeken', categoryFilter: 'Dakwerk & HWA', category: 'afwerking_dak', key: 'daktrim_hoeken', category_ultra_filter: '' },
   { label: 'HWA Stadsuitloop / Onderuitloop', categoryFilter: 'Dakwerk & HWA', category: 'afwerking_dak', key: 'hwa_uitloop', category_ultra_filter: '' },
   { label: 'Lood', categoryFilter: 'Dakwerk & HWA', category: 'afwerking_dak', key: 'lood', category_ultra_filter: '' },
+
+  // 4. BOEIBOORDEN (INJECTED)
+  { label: 'Boeiboord (Optie)', categoryFilter: 'Boeidelen & Windveren', category: 'boeiboord', key: 'boeiboord_placeholder', category_ultra_filter: '' },
 ];
 
 const DAK_GOLFPLAAT_MATS: MaterialSection[] = [
@@ -937,16 +957,16 @@ const BOEIBOORD_MATS: MaterialSection[] = [
 const GEVEL_BEKLEDING_MATS: MaterialSection[] = [
   // 1. BASIS (SKELETON) - The same for everyone
   { label: 'Tengelwerk / Rachels', categoryFilter: 'Constructiehout', category: 'hout', key: 'regelwerk_basis', category_ultra_filter: '' },
-  { label: 'Folie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Folie', categoryFilter: 'Overig', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_gevel', category_ultra_filter: '' },
-  { label: 'Ventilatieprofiel (Ongedierte)', categoryFilter: 'Metalstud Profielen', category: 'hout', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Ventilatieprofiel (Ongedierte)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'hout', key: 'ventilatieprofiel', category_ultra_filter: '' },
 
   // 2. THE CHOICE (AFWERKPLAAT)
   { label: 'Houten Bekleding (Rabat/Zweeds)', categoryFilter: 'Houten Gevelbekleding', category: 'gevel_hout', key: 'gevelbekleding_hout', category_ultra_filter: '' },
   { label: 'Houten Hoeklatten', categoryFilter: 'Houten Gevelbekleding', category: 'gevel_hout', key: 'hoek_hout', category_ultra_filter: '' },
 
   { label: 'Kunststof Panelen (Keralit)', categoryFilter: 'Houten Gevelbekleding', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: '' },
-  { label: 'Keralit Profielen (Start/Eind/Hoek)', categoryFilter: 'Metalstud Profielen', category: 'gevel_kunststof', key: 'profiel_keralit', category_ultra_filter: '' },
+  { label: 'Keralit Profielen (Start/Eind/Hoek)', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'gevel_kunststof', key: 'profiel_keralit', category_ultra_filter: '' },
 
   { label: 'Volkern/HPL Plaat (Trespa)', categoryFilter: 'Gevelplaten & Buitenpanelen', category: 'gevel_plaat', key: 'gevelplaat', category_ultra_filter: '' },
 
@@ -963,8 +983,8 @@ const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
   { label: 'Kozijnhout', categoryFilter: 'Constructiehout', category: 'hout', key: 'kozijnhout', category_ultra_filter: '' },
   { label: 'Binnendorpel', categoryFilter: 'Kozijnhout, Raamhout & Glaslatten', category: 'hout', key: 'binnendorpel', category_ultra_filter: '' },
 
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Sluitplaat', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluitplaat', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
+  { label: 'Sluitplaat', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'sluitplaat', category_ultra_filter: '' },
 
   { label: 'Glas', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
@@ -977,8 +997,8 @@ const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
 const KOZIJN_BINNEN_STAAL_MATS: MaterialSection[] = [
   { label: 'Stalen Kozijn', categoryFilter: 'Binnenkozijnen', category: 'Stalen kozijn', key: 'stalen_kozijn', category_ultra_filter: '' },
 
-  { label: 'Paumelles', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'paumelles_staal', category_ultra_filter: '' },
-  { label: 'Aanslagrubber', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'aanslagrubber', category_ultra_filter: '' },
+  { label: 'Paumelles', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'paumelles_staal', category_ultra_filter: '' },
+  { label: 'Aanslagrubber', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'aanslagrubber', category_ultra_filter: '' },
 
   { label: 'Glas', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glaslatten_klik', category_ultra_filter: '' },
@@ -990,10 +1010,10 @@ const KOZIJN_BUITEN_HOUT_MATS: MaterialSection[] = [
   { label: 'Stelkozijnen', categoryFilter: 'Constructiehout', category: 'element', key: 'stelkozijnen', category_ultra_filter: '' },
 
   { label: 'Raamdorpelstenen', categoryFilter: 'Kozijnhout, Raamhout & Glaslatten', category: 'afwerking_buiten', key: 'raamdorpel_steen', category_ultra_filter: '' },
-  { label: 'Lood / DPC', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'afwerking_buiten', key: 'lood_dpc', category_ultra_filter: '' },
+  { label: 'Lood / DPC', categoryFilter: 'Overig', category: 'afwerking_buiten', key: 'lood_dpc', category_ultra_filter: '' },
 
   { label: 'Dagkantbetimmering', categoryFilter: 'Constructieplaten', category: 'afwerking_binnen', key: 'dagkantafwerking', category_ultra_filter: '' },
-  { label: 'Vensterbank', categoryFilter: 'Kozijnhout, Raamhout & Glaslatten', category: 'afwerking_binnen', key: 'vensterbank', category_ultra_filter: '' },
+  { label: 'Vensterbank', categoryFilter: 'Vensterbanken', category: 'afwerking_binnen', key: 'vensterbank', category_ultra_filter: '' },
   { label: 'Koplatten', categoryFilter: 'Aftimmerhout & Plinten', category: 'afwerking_binnen', key: 'koplatten', category_ultra_filter: '' },
 ];
 
@@ -1004,7 +1024,7 @@ const KOZIJN_BUITEN_KUNSTSTOF_MATS: MaterialSection[] = [
 
   { label: 'Stelkozijn', categoryFilter: 'Constructiehout', category: 'montage', key: 'stelkozijn', category_ultra_filter: '' },
 
-  { label: 'Dagkantafwerking', categoryFilter: 'Metalstud Profielen', category: 'afwerking', key: 'dagkanten', category_ultra_filter: '' },
+  { label: 'Dagkantafwerking', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'afwerking', key: 'dagkanten', category_ultra_filter: '' },
   { label: 'Waterslag', categoryFilter: 'Dakwerk & HWA', category: 'afwerking', key: 'waterslag', category_ultra_filter: '' },
   { label: 'Inzethorren', categoryFilter: 'Overig', category: 'afwerking', key: 'inzethorren', category_ultra_filter: '' },
 ];
@@ -1016,17 +1036,17 @@ const KOZIJN_TIMMERWERK_MATS: MaterialSection[] = [
 
   { label: 'Raamhout', categoryFilter: 'Constructiehout', category: 'raam', key: 'raamhout', category_ultra_filter: '' },
 
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Raamboom', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'raamboom', category_ultra_filter: '' },
-  { label: 'Raamuitzetter', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'raamuitzetter', category_ultra_filter: '' },
-  { label: 'Meerpuntsluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
+  { label: 'Raamboom', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'raamboom', category_ultra_filter: '' },
+  { label: 'Raamuitzetter', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'raamuitzetter', category_ultra_filter: '' },
+  { label: 'Meerpuntsluiting', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
 
   { label: 'Glas', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'glas_buiten', category_ultra_filter: '' },
   { label: 'Neuslatten', categoryFilter: 'Binnenkozijnen', category: 'glas', key: 'neuslatten', category_ultra_filter: '' },
   { label: 'Ventilatierooster', categoryFilter: 'Overig', category: 'glas', key: 'ventilatierooster', category_ultra_filter: '' },
 
-  { label: 'Tochtkader', categoryFilter: 'Deurbeslag', category: 'afwerking', key: 'tochtkader', category_ultra_filter: '' },
-  { label: 'Lood / DPC', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'afwerking', key: 'waterkering', category_ultra_filter: '' },
+  { label: 'Tochtkader', categoryFilter: 'Deurtoebehoren', category: 'afwerking', key: 'tochtkader', category_ultra_filter: '' },
+  { label: 'Lood / DPC', categoryFilter: 'Overig', category: 'afwerking', key: 'waterkering', category_ultra_filter: '' },
 ];
 
 //#endregion
@@ -1037,11 +1057,11 @@ const SCHUTTING_MATS: MaterialSection[] = [
   // 1. FUNDERING & PALEN (GENERAL)
   { label: 'Snelbeton', categoryFilter: 'Fundering & Bekisting', category: 'fundering', key: 'snelbeton', category_ultra_filter: '' },
   { label: 'Opsluitbanden', categoryFilter: 'Fundering & Bekisting', category: 'fundering', key: 'opsluitbanden', category_ultra_filter: '' },
-  { label: 'Paalpunthouder', categoryFilter: 'Deurbeslag', category: 'fundering', key: 'paalpunthouder', category_ultra_filter: '' },
+  { label: 'Paalpunthouder', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'fundering', key: 'paalpunthouder', category_ultra_filter: '' },
 
   // 2. OPTIE: HOUT
   { label: 'Schuttingpalen hout', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_hout', key: 'schuttingpalen_hout', category_ultra_filter: '' },
-  { label: 'Paalkappen', categoryFilter: 'Deurbeslag', category: 'schutting_hout', key: 'paalkap', category_ultra_filter: '' },
+  { label: 'Paalkappen', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_hout', key: 'paalkap', category_ultra_filter: '' },
   { label: 'Tuinscherm hout', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_hout', key: 'tuinscherm_hout', category_ultra_filter: '' },
   { label: 'Afdeklat hout', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_hout', key: 'afdeklat_hout', category_ultra_filter: '' },
   { label: 'Losse tuinplanken', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_hout', key: 'tuinplanken', category_ultra_filter: '' },
@@ -1050,27 +1070,27 @@ const SCHUTTING_MATS: MaterialSection[] = [
   { label: 'Betonpalen', categoryFilter: 'Fundering & Bekisting', category: 'schutting_beton', key: 'betonpalen', category_ultra_filter: '' },
   { label: 'Onderplaten', categoryFilter: 'Fundering & Bekisting', category: 'schutting_beton', key: 'onderplaten', category_ultra_filter: '' },
   { label: 'Afdekkappen beton', categoryFilter: 'Fundering & Bekisting', category: 'schutting_beton', key: 'afdekkap_beton', category_ultra_filter: '' },
-  { label: 'Unibeslag', categoryFilter: 'Deurbeslag', category: 'schutting_beton', key: 'unibeslag', category_ultra_filter: '' },
+  { label: 'Unibeslag', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_beton', key: 'unibeslag', category_ultra_filter: '' },
 
   // 4. OPTIE: COMPOSIET
   { label: 'Aluminium palen', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_composiet', key: 'aluminium_palen', category_ultra_filter: '' },
-  { label: 'Paalvoeten', categoryFilter: 'Deurbeslag', category: 'schutting_composiet', key: 'paalvoet', category_ultra_filter: '' },
+  { label: 'Paalvoeten', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_composiet', key: 'paalvoet', category_ultra_filter: '' },
   { label: 'Tuinscherm composiet', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'schutting_composiet', key: 'tuinscherm_composiet', category_ultra_filter: '' },
-  { label: 'U profielen', categoryFilter: 'Metalstud Profielen', category: 'schutting_composiet', key: 'u_profiel', category_ultra_filter: '' },
+  { label: 'U profielen', categoryFilter: 'Metalstud Profielen & Systeemplafonds', category: 'schutting_composiet', key: 'u_profiel', category_ultra_filter: '' },
 
   // 5. POORT & TOEGANG
   { label: 'Tuinpoort', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'poort', key: 'tuinpoort', category_ultra_filter: '' },
-  { label: 'Stalen frame', categoryFilter: 'Deurbeslag', category: 'poort', key: 'stalen_frame', category_ultra_filter: '' },
+  { label: 'Stalen frame', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'poort', key: 'stalen_frame', category_ultra_filter: '' },
   { label: 'Kozijnbalken', categoryFilter: 'Tuinhout, Schuttingen & Tuinpoorten', category: 'poort', key: 'kozijnbalken', category_ultra_filter: '' },
 
   // 6. TUINDEUR BESLAG
-  { label: 'Hengselset', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'hengselset', category_ultra_filter: '' },
-  { label: 'Hengen', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'hengen', category_ultra_filter: '' },
-  { label: 'Plaatduimen', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'plaatduimen', category_ultra_filter: '' },
-  { label: 'Poortbeslag', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'poortbeslag', category_ultra_filter: '' },
-  { label: 'Cilinderslot', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'cilinderslot', category_ultra_filter: '' },
-  { label: 'Grondgrendel', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'grondgrendel', category_ultra_filter: '' },
-  { label: 'Vloerstop', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'vloerstop', category_ultra_filter: '' },
+  { label: 'Hengselset', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'hengselset', category_ultra_filter: '' },
+  { label: 'Hengen', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'hengen', category_ultra_filter: '' },
+  { label: 'Plaatduimen', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'plaatduimen', category_ultra_filter: '' },
+  { label: 'Poortbeslag', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'poortbeslag', category_ultra_filter: '' },
+  { label: 'Cilinderslot', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'cilinderslot', category_ultra_filter: '' },
+  { label: 'Grondgrendel', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'grondgrendel', category_ultra_filter: '' },
+  { label: 'Vloerstop', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'vloerstop', category_ultra_filter: '' },
 ];
 
 
@@ -1090,8 +1110,8 @@ const HOUTBOUW_MATS: MaterialSection[] = [
 const TRAPRENOVATIE_OVERZETTREDEN_MATS: MaterialSection[] = [
   { label: 'Overzettrede', categoryFilter: 'Constructiehout', category: 'basis', key: 'treden', category_ultra_filter: '' },
   { label: 'Stootbord', categoryFilter: 'Constructiehout', category: 'basis', key: 'stootborden', category_ultra_filter: '' },
-  { label: 'Trapneusprofiel', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'afwerking', key: 'profiel', category_ultra_filter: '' },
-  { label: 'Antislipstrip', categoryFilter: 'Deurbeslag', category: 'afwerking', key: 'antislip', category_ultra_filter: '' },
+  { label: 'Trapneusprofiel', categoryFilter: 'Overig', category: 'afwerking', key: 'profiel', category_ultra_filter: '' },
+  { label: 'Antislipstrip', categoryFilter: 'Deurtoebehoren', category: 'afwerking', key: 'antislip', category_ultra_filter: '' },
 ];
 
 const VLIZOTRAP_MATS: MaterialSection[] = [
@@ -1099,18 +1119,18 @@ const VLIZOTRAP_MATS: MaterialSection[] = [
   { label: 'Vlizotrap (Complete set)', categoryFilter: 'Trappen & Zolderluiken', category: 'basis', key: 'trap', category_ultra_filter: '' },
   { label: 'Zolderluik', categoryFilter: 'Trappen & Zolderluiken', category: 'basis', key: 'luik', category_ultra_filter: '' },
   { label: 'Veiligheidshek', categoryFilter: 'Constructiehout', category: 'veiligheid', key: 'traphek', category_ultra_filter: '' },
-  { label: 'Veiligheidspoortje', categoryFilter: 'Deurbeslag', category: 'veiligheid', key: 'poortje', category_ultra_filter: '' },
-  { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Grendel / Sluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluiting', category_ultra_filter: '' },
-  { label: 'Zelfsluitende veer', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'veer', category_ultra_filter: '' },
-  { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'handgreep', category_ultra_filter: '' },
+  { label: 'Veiligheidspoortje', categoryFilter: 'Deurtoebehoren', category: 'veiligheid', key: 'poortje', category_ultra_filter: '' },
+  { label: 'Scharnier', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
+  { label: 'Grendel / Sluiting', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'sluiting', category_ultra_filter: '' },
+  { label: 'Zelfsluitende veer', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'veer', category_ultra_filter: '' },
+  { label: 'Handgreep', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'handgreep', category_ultra_filter: '' },
   { label: 'Koplatten', categoryFilter: 'Constructiehout', category: 'afwerking', key: 'architraaf', category_ultra_filter: '' },
 ];
 
 const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
   // CONSTRUCTIE & RAVELING
   { label: 'Raveling balkhout', categoryFilter: 'Constructiehout', category: 'hout', key: 'balken', category_ultra_filter: '' },
-  { label: 'Balkdrager', categoryFilter: 'Deurbeslag', category: 'hout', key: 'balkdragers', category_ultra_filter: '' },
+  { label: 'Balkdrager', categoryFilter: 'Deurtoebehoren', category: 'hout', key: 'balkdragers', category_ultra_filter: '' },
 
   { label: 'Bouwpakket trap', categoryFilter: 'Trappen & Zolderluiken', category: 'trap', key: 'trap', category_ultra_filter: '' },
   { label: 'Trapboom', categoryFilter: 'Trappen & Zolderluiken', category: 'trap', key: 'trapboom', category_ultra_filter: '' },
@@ -1119,9 +1139,9 @@ const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
 
   // VEILIGHEID & BESLAG
   { label: 'Trapaal', categoryFilter: 'Trappen & Zolderluiken', category: 'veiligheid', key: 'trapaal', category_ultra_filter: '' },
-  { label: 'Spijl', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'spijlen', category_ultra_filter: '' },
+  { label: 'Spijl', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'spijlen', category_ultra_filter: '' },
   { label: 'Trapleuning', categoryFilter: 'Trappen & Zolderluiken', category: 'veiligheid', key: 'leuning', category_ultra_filter: '' },
-  { label: 'Leuninghouder', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'houders', category_ultra_filter: '' },
+  { label: 'Leuninghouder', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'houders', category_ultra_filter: '' },
   { label: 'Balustrade', categoryFilter: 'Constructiehout', category: 'veiligheid', key: 'balustrade', category_ultra_filter: '' },
 ];
 
@@ -1147,12 +1167,12 @@ const KEUKEN_MONTAGE_MATS: MaterialSection[] = [
   { label: 'Aanrechtblad', categoryFilter: 'Constructieplaten', category: 'werkblad', key: 'werkblad', category_ultra_filter: '' },
 
   // APPARATUUR & SPOELBAK
-  { label: 'Inbouwapparaat', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'werkblad', key: 'apparatuur', category_ultra_filter: '' },
-  { label: 'Spoelbak', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'beslag', key: 'spoelbak', category_ultra_filter: '' },
-  { label: 'Keukenkraan', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'kraan', category_ultra_filter: '' },
+  { label: 'Inbouwapparaat', categoryFilter: 'Overig', category: 'werkblad', key: 'apparatuur', category_ultra_filter: '' },
+  { label: 'Spoelbak', categoryFilter: 'Overig', category: 'beslag', key: 'spoelbak', category_ultra_filter: '' },
+  { label: 'Keukenkraan', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'kraan', category_ultra_filter: '' },
 
   // DETAILS
-  { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
+  { label: 'Handgreep', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
   { label: 'Keukenplint', categoryFilter: 'Plaatmateriaal Interieur', category: 'beslag', key: 'plint', category_ultra_filter: '' },
   { label: 'Keukenverlichting', categoryFilter: 'Overig', category: 'beslag', key: 'verlichting', category_ultra_filter: '' },
 ];
@@ -1162,9 +1182,9 @@ const KEUKEN_RENOVATIE_MATS: MaterialSection[] = [
   { label: 'Keukenfront', categoryFilter: 'Overig', category: 'basis', key: 'fronten', category_ultra_filter: '' },
   { label: 'Aanrechtblad', categoryFilter: 'Overig', category: 'werkblad', key: 'werkblad', category_ultra_filter: '' },
 
-  { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Ladegeleider', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'geleiders', category_ultra_filter: '' },
-  { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
+  { label: 'Scharnier', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
+  { label: 'Ladegeleider', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'geleiders', category_ultra_filter: '' },
+  { label: 'Handgreep', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
 
   // UPGRADES
   { label: 'Inbouwapparaat', categoryFilter: 'Overig', category: 'werkblad', key: 'apparatuur', category_ultra_filter: '' },
@@ -1181,11 +1201,11 @@ const INBOUWKAST_MATS: MaterialSection[] = [
   { label: 'Interieur / Corpus (MDF, Melamine, Multiplex)', categoryFilter: 'Constructieplaten', category: 'basis', key: 'corpus', category_ultra_filter: '' },
   { label: 'Deuren', categoryFilter: 'Constructieplaten', category: 'afwerking', key: 'fronten', category_ultra_filter: '' },
   { label: 'Fronten', categoryFilter: 'Constructieplaten', category: 'afwerking', key: 'fronten', category_ultra_filter: '' },
-  { label: 'Ladesystemen', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'lades', category_ultra_filter: '' },
-  { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Meubelgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
-  { label: 'Push-to-open systeem', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'snappers', category_ultra_filter: '' },
-  { label: 'Kledingroede', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'garderobe', category_ultra_filter: '' },
+  { label: 'Ladesystemen', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'lades', category_ultra_filter: '' },
+  { label: 'Scharnier', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
+  { label: 'Meubelgreep', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
+  { label: 'Push-to-open systeem', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'snappers', category_ultra_filter: '' },
+  { label: 'Kledingroede', categoryFilter: 'Deurtoebehoren', category: 'beslag', key: 'garderobe', category_ultra_filter: '' },
 ];
 
 //#endregion
@@ -1194,7 +1214,7 @@ const INBOUWKAST_MATS: MaterialSection[] = [
 
 const MEUBEL_MATS: MaterialSection[] = [
   { label: 'Hoofdmateriaal', categoryFilter: 'Constructiehout', category: 'basis', key: 'materiaal', category_ultra_filter: '' },
-  { label: 'Meubelbeslag', categoryFilter: 'Deurbeslag', category: 'afwerking', key: 'beslag', category_ultra_filter: '' },
+  { label: 'Meubelbeslag', categoryFilter: 'Deurtoebehoren', category: 'afwerking', key: 'beslag', category_ultra_filter: '' },
   { label: 'Olie, Lak, Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'afwerking', category_ultra_filter: '' },
 ];
 
@@ -1260,7 +1280,7 @@ const CONSTRUCTIEF_MATS: MaterialSection[] = [
 
 //#region ========================================== MATERIAL SECTIONS - BEVEILIGING ==========================================
 const BEVEILIGING_MATS: MaterialSection[] = [
-  { label: 'Hang- en Sluitwerk (PKVW)', categoryFilter: 'Deurbeslag', category: 'beveiliging', key: 'hang_sluitwerk', category_ultra_filter: '' },
+  { label: 'Hang- en Sluitwerk (PKVW)', categoryFilter: 'Deurtoebehoren', category: 'beveiliging', key: 'hang_sluitwerk', category_ultra_filter: '' },
 ];
 //#endregion
 
@@ -1272,7 +1292,7 @@ const ISOLATIE_ZOLDER_MATS: MaterialSection[] = [
 
 const ISOLATIE_VLOER_MATS: MaterialSection[] = [
   { label: 'Vloerisolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
-  { label: 'Bodemfolie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'folie', category_ultra_filter: '' },
+  { label: 'Bodemfolie', categoryFilter: 'Overig', category: 'isolatie', key: 'folie', category_ultra_filter: '' },
 ];
 //#endregion
 
@@ -1286,7 +1306,7 @@ const WINDVEREN_MATS: MaterialSection[] = [
 const WATERSLAGEN_DORPELS_MATS: MaterialSection[] = [
   { label: 'Waterslagen (Aluminium)', categoryFilter: 'Dakwerk & HWA', category: 'exterieur_details', key: 'waterslag', category_ultra_filter: '' },
   { label: 'Raamdorpelstenen', categoryFilter: 'Kozijnhout, Raamhout & Glaslatten', category: 'exterieur_details', key: 'raamdorpel', category_ultra_filter: '' },
-  { label: 'Lood / DPC', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'exterieur_details', key: 'lood', category_ultra_filter: '' },
+  { label: 'Lood / DPC', categoryFilter: 'Overig', category: 'exterieur_details', key: 'lood', category_ultra_filter: '' },
 ];
 //#endregion
 
@@ -1509,14 +1529,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           Cinewall: { title: 'Cinewall Elementen', order: 9 },
         }
       },
-      {
-        title: 'Overig Wanden',
-        description: 'Afwijkende wandopbouw',
-        slug: 'overig-wanden',
-        measurementLabel: 'Wand',
-        measurements: STANDARD_FIELDS,
-        materialSections: OVERIG_WANDEN_MATS
-      },
+
     ],
   },
 
@@ -1917,7 +1930,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Nieuwe pannen/dakopbouw',
         slug: 'hellend-dak',
         measurementLabel: 'Dakvlak',
-        measurements: AREA_FIELDS,
+        measurements: ROOF_FIELDS, // Roof-specific fields with breedte and tengel/rachel spacing
         materialSections: DAK_HELLEND_MATS,
         categoryConfig: {
           beplating: { title: 'Dakbeschot', order: 1 },
@@ -1932,7 +1945,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Platte daken',
         slug: 'epdm-dakbedekking',
         measurementLabel: 'Dakvlak',
-        measurements: AREA_FIELDS,
+        measurements: EPDM_FIELDS,
         materialSections: DAK_EPDM_MATS,
         categoryConfig: {
           beplating: { title: 'Beplating', order: 3 },

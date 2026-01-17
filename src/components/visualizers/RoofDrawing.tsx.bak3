@@ -3,18 +3,19 @@
 import React, { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
-export interface WallOpening {
+export interface RoofOpening {
     id: string;
-    type: 'door' | 'window' | 'opening';
+    type: 'dakraam' | 'schoorsteen' | 'opening'; // Skylight, chimney, or other opening
     width: number;
     height: number;
     fromLeft: number;
     fromBottom: number;
 }
 
-interface WallStructureVisualizerProps {
+export interface RoofDrawingProps {
     lengte: string | number;
-    hoogte?: string | number;
+    breedte?: string | number; // Roof width (preferred over hoogte)
+    hoogte?: string | number; // Kept for compatibility
     // Sloped / Gable props
     shape?: 'rectangle' | 'slope' | 'gable' | 'l-shape' | 'u-shape';
     hoogteLinks?: string | number;
@@ -30,17 +31,23 @@ interface WallStructureVisualizerProps {
     // Variant
     variant?: 'top' | 'bottom';
 
-    balkafstand: string | number;
-    openings?: WallOpening[];
+    // Roof-specific spacing
+    tengelafstand?: string | number; // Primary spacing (horizontal battens)
+    rachelafstand?: string | number; // Secondary spacing (vertical battens)
+    balkafstand?: string | number; // Kept for compatibility
+
+    openings?: RoofOpening[];
     className?: string;
-    onOpeningsChange?: (newOpenings: WallOpening[]) => void;
+    onOpeningsChange?: (newOpenings: RoofOpening[]) => void;
     fitContainer?: boolean;
     isMagnifier?: boolean;
     startFromRight?: boolean;
+    startLattenFromBottom?: boolean; // For rachel orientation
 }
 
-export function WallStructureVisualizer({
+export function RoofDrawing({
     lengte,
+    breedte,
     hoogte,
     shape = 'rectangle',
     hoogteLinks,
@@ -53,19 +60,29 @@ export function WallStructureVisualizer({
     lengte3,
     hoogte3,
     variant = 'top',
+    tengelafstand,
+    rachelafstand,
     balkafstand,
     openings = [],
     className,
     onOpeningsChange,
     fitContainer,
     isMagnifier,
-    startFromRight
-}: WallStructureVisualizerProps) {
+    startFromRight,
+    startLattenFromBottom
+}: RoofDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
-    const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
 
-    // Default standard height
-    const hStd = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
+    // Use tengelafstand if provided, otherwise fall back to balkafstand for compatibility
+    const tengelafstandNum = tengelafstand
+        ? (typeof tengelafstand === 'number' ? tengelafstand : parseFloat(String(tengelafstand)) || 0)
+        : (typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0);
+
+    const rachelafstandNum = typeof rachelafstand === 'number' ? rachelafstand : parseFloat(String(rachelafstand)) || 0;
+
+    // Use breedte if provided, otherwise fall back to hoogte for compatibility
+    const breedteValue = breedte !== undefined ? breedte : hoogte;
+    const hStd = typeof breedteValue === 'number' ? breedteValue : parseFloat(String(breedteValue)) || 0;
 
     // Resolve heights based on shape
     let hLeft = hStd;
@@ -146,8 +163,8 @@ export function WallStructureVisualizer({
     const startY = (SVG_HEIGHT - drawHeight - 60) / 2; // Shift up to leave room at bottom
 
     const Y_BOTTOM = startY + drawHeight;
-    const WALL_X = startX;
-    const WALL_WIDTH = drawWidth;
+    const ROOF_X = startX;
+    const ROOF_WIDTH = drawWidth;
 
     const getY = (mm: number) => Y_BOTTOM - (mm * pxPerMm);
 
@@ -159,15 +176,15 @@ export function WallStructureVisualizer({
     const yH2 = getY(h2);
     const yH3 = getY(h3);
 
-    // Stud width is 50mm, plates are 38mm
-    const STUD_WIDTH_MM = 50;
-    const PLATE_HEIGHT_MM = 38;
-    const studWidthPx = Math.max(1.5, STUD_WIDTH_MM * pxPerMm);
-    const PLATE_HEIGHT = Math.max(1.5, PLATE_HEIGHT_MM * pxPerMm);
+    // Tengel (batten) width is 50mm, ridge beams are 38mm
+    const TENGEL_WIDTH_MM = 50; // Roof batten width
+    const RIDGE_HEIGHT_MM = 38; // Ridge beam height
+    const tengelWidthPx = Math.max(1.5, TENGEL_WIDTH_MM * pxPerMm);
+    const RIDGE_HEIGHT = Math.max(1.5, RIDGE_HEIGHT_MM * pxPerMm);
 
     // Dimension Y Levels
-    const DIM_Y_Gap = Y_BOTTOM + 25; // First row below wall (Stud Centers)
-    const DIM_Y_LENGTH = Y_BOTTOM + 50; // Second row below wall (Total Length)
+    const DIM_Y_Gap = Y_BOTTOM + 25; // First row below roof (Tengel Centers)
+    const DIM_Y_LENGTH = Y_BOTTOM + 50; // Second row below roof (Total Length)
 
     // Drag Logic
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
@@ -182,7 +199,7 @@ export function WallStructureVisualizer({
     // Magnifier Logic
     const [lensPos, setLensPos] = React.useState({ x: 0, y: 0 });
 
-    const handlePointerDown = (e: React.PointerEvent, op: WallOpening) => {
+    const handlePointerDown = (e: React.PointerEvent, op: RoofOpening) => {
         if (isMagnifier) return; // Magnifier tool active - disable drag
         if (!onOpeningsChange) return;
         e.preventDefault();
@@ -225,7 +242,7 @@ export function WallStructureVisualizer({
         const newLeft = Math.round(start.origLeft + dxMm);
         const newBottom = Math.round(start.origBottom + dyMm);
 
-        // Optional: constrain to wall bounds?
+        // Optional: constrain to roof bounds?
         // Let's keep it free for now as per "move it around" flexibility, 
         // but maybe constrain min to 0?
         // const constrainedLeft = Math.max(0, Math.min(lengteNum - 100, newLeft));
@@ -235,8 +252,8 @@ export function WallStructureVisualizer({
             if (o.id === draggingId) {
                 let finalBottom = newBottom;
 
-                // Sticky bottom for doors
-                if (o.type === 'door' || o.type === 'opening') { // 'opening' (loop) usually implies walk-through too? Let's treat door/opening as sticky. 'window' is not.
+                // Sticky bottom for schoorsteenen and some openings
+                if (o.type === 'schoorsteen' || o.type === 'opening') { // Chimneys go to floor/base
                     if (Math.abs(finalBottom) < 100) { // Snap within 100mm
                         finalBottom = 0;
                     }
@@ -258,16 +275,16 @@ export function WallStructureVisualizer({
         }
     };
 
-    const studData = useMemo(() => {
+    const tengelData = useMemo(() => {
         if (lengteNum <= 0 || balkafstandNum <= 0) {
             return { beams: [], gaps: [] };
         }
 
 
-        // Stud dimensions
-        const STUD_W = 50; // Stud width in mm
+        // Tengel dimensions
+        const STUD_W = 50; // Tengel width in mm
         const HALF_STUD = STUD_W / 2; // 25mm
-        const timberW = Math.max(1.5, STUD_W * pxPerMm); // Width of studs/beams
+        const timberW = Math.max(1.5, STUD_W * pxPerMm); // Width of tengels/beams
 
         // 1. Identify Openings in Screen Coordinates for Collision
         const ops = openings.map(o => {
@@ -278,7 +295,7 @@ export function WallStructureVisualizer({
             // Opening Rect (The Empty Space)
             // Left, Right, Bottom (y-up from floor), Top (y-up from floor)
             // Note: Canvas Y is inverted (0 at top).
-            // Logic is easier in "Wall MM" space first.
+            // Logic is easier in "Roof MM" space first.
             return {
                 l: o.fromLeft,
                 r: o.fromLeft + o.width,
@@ -288,20 +305,20 @@ export function WallStructureVisualizer({
             };
         });
 
-        const WALL_HEIGHT_MM = maxH; // Approx simple height or calc per X
+        const ROOF_HEIGHT_MM = maxH; // Approx simple height or calc per X
 
-        // Helper: Get Wall Top Y (mm) at given X
+        // Helper: Get Roof Top Y (mm) at given X
         // Note: X is relative to current length
-        const getWallTopMm = (xMm: number) => {
+        const getRoofTopMm = (xMm: number) => {
             const ratio = xMm / lengteNum;
 
             // BOTTOM VARIANT LOGIC:
             // If variant === 'bottom', the TOP is flat (at maxH), and BOTTOM changes.
-            // But this function `getWallTopMm` returns the PHYSICAL TOP bound of the wall.
+            // But this function `getRoofTopMm` returns the PHYSICAL TOP bound of the roof.
             // If variant is bottom, PHYSICAL TOP is usually flat (maxH).
-            // But we need a separate `getWallBottomMm` function.
-            // However, stud length = Top - Bottom.
-            // If variant = bottom, we treat wallTop as maxH?
+            // But we need a separate `getRoofBottomMm` function.
+            // However, tengel length = Top - Bottom.
+            // If variant = bottom, we treat roofTop as maxH?
 
             if (variant === 'bottom' && (shape === 'slope' || shape === 'l-shape' || shape === 'u-shape')) {
                 // Top is flat at highest point
@@ -326,14 +343,14 @@ export function WallStructureVisualizer({
             return hLeft;
         };
 
-        const getWallBottomMm = (xMm: number) => {
+        const getRoofBottomMm = (xMm: number) => {
             if (variant !== 'bottom') return 0;
             const ratio = xMm / lengteNum;
 
             if (shape === 'slope') {
                 // Slope bottom:
                 // We define slope by hLeft and hRight.
-                // If variant=bottom, does hLeft mean "Wall height at left"? yes.
+                // If variant=bottom, does hLeft mean "Roof height at left"? yes.
                 // So if hLeft=2000, hRight=1000. Top is at max(2000, 2600?)
                 // If top is FLAT, and hLeft=2000, hRight=1000.
                 // It means at Left, floor is at (TotalTop - 2000).
@@ -362,7 +379,7 @@ export function WallStructureVisualizer({
         };
 
         // 2. DEFINE WALL SEGMENTS
-        // Each segment is treated as a separate wall with its own Start/End studs and Grid.
+        // Each segment is treated as a separate roof with its own Start/End tengels and Grid.
         type Segment = { startX: number; length: number; label: string };
         const segments: Segment[] = [];
 
@@ -389,35 +406,35 @@ export function WallStructureVisualizer({
             const segEnd = seg.startX + seg.length;
             const segBeams: number[] = [];
 
-            // A. Start Stud (Flush Left)
-            const startStudX = seg.startX;
-            segBeams.push(startStudX);
+            // A. Start Tengel (Flush Left)
+            const startTengelX = seg.startX;
+            segBeams.push(startTengelX);
 
-            // B. End Stud (Flush Right: end - 50)
-            const endStudX = segEnd - STUD_W;
-            // Only add if distinct from start stud (avoid double-counting)
-            if (endStudX > startStudX + 1) {
-                segBeams.push(endStudX);
+            // B. End Tengel (Flush Right: end - 50)
+            const endTengelX = segEnd - STUD_W;
+            // Only add if distinct from start tengel (avoid double-counting)
+            if (endTengelX > startTengelX + 1) {
+                segBeams.push(endTengelX);
             }
 
-            // C. Grid Studs (H.O.H.)
+            // C. Grid Tengels (H.O.H.)
             const numIntervals = Math.floor(seg.length / balkafstandNum);
             for (let i = 1; i <= numIntervals; i++) {
                 const xRel = i * balkafstandNum;
-                // Center-to-Center logic: Grid line at xRel. Stud Left = xRel - 25.
+                // Center-to-Center logic: Grid line at xRel. Tengel Left = xRel - 25.
                 // Relative to Segment Start.
                 const gridX = seg.startX + xRel - HALF_STUD;
 
-                // Collision with Start/End studs of THIS segment
-                const overlapStart = (gridX < startStudX + STUD_W - 1);
-                const overlapEnd = (gridX + STUD_W > endStudX + 1);
+                // Collision with Start/End tengels of THIS segment
+                const overlapStart = (gridX < startTengelX + STUD_W - 1);
+                const overlapEnd = (gridX + STUD_W > endTengelX + 1);
 
                 if (!overlapStart && !overlapEnd) {
                     segBeams.push(gridX);
                 }
             }
 
-            // D. Process & Add Studs
+            // D. Process & Add Tengels
             const uniqueX = Array.from(new Set(segBeams)).sort((a, b) => a - b);
 
             uniqueX.forEach(xMm => {
@@ -426,15 +443,15 @@ export function WallStructureVisualizer({
                 const sR = xMm + STUD_W;
                 const centerX = xMm + HALF_STUD;
 
-                const wallTop = getWallTopMm(centerX);
-                const wallBottom = getWallBottomMm(centerX);
+                const roofTop = getRoofTopMm(centerX);
+                const roofBottom = getRoofBottomMm(centerX);
 
                 const fullBeam: Beam = {
-                    x: WALL_X + xMm * pxPerMm,
-                    y: getY(wallTop - 38), // Top plate
+                    x: ROOF_X + xMm * pxPerMm,
+                    y: getY(roofTop - 38), // Top plate
                     w: timberW,
-                    h: ((wallTop - 38) - (wallBottom + 38)) * pxPerMm,
-                    type: 'stud',
+                    h: ((roofTop - 38) - (roofBottom + 38)) * pxPerMm,
+                    type: 'tengel',
                     xMm: xMm
                 };
 
@@ -444,18 +461,18 @@ export function WallStructureVisualizer({
                 if (hittingOpening) {
                     // Top Cripple
                     const headerY = hittingOpening.t + STUD_W;
-                    const topCripH = (wallTop - 38) - headerY;
+                    const topCripH = (roofTop - 38) - headerY;
                     if (topCripH > 10) {
                         beams.push({
                             ...fullBeam,
-                            y: getY(wallTop - 38),
+                            y: getY(roofTop - 38),
                             h: topCripH * pxPerMm,
                             type: 'cripple-top'
                         });
                     }
                     // Bottom Cripple
                     const sillY = hittingOpening.b;
-                    const botCripH = sillY - (wallBottom + 38);
+                    const botCripH = sillY - (roofBottom + 38);
                     if (botCripH > 10) {
                         beams.push({
                             ...fullBeam,
@@ -473,17 +490,17 @@ export function WallStructureVisualizer({
             const centers = uniqueX.map(x => x + HALF_STUD);
             for (let i = 0; i < centers.length - 1; i++) {
                 // Determine Start Point of this gap interval
-                // If it's the very first interval (i=0), start from Segment Start (Wall Edge)
+                // If it's the very first interval (i=0), start from Segment Start (Roof Edge)
                 const startMm = (i === 0) ? seg.startX : centers[i];
 
                 // Determine End Point of this gap interval
-                // If it's the very last interval (i = length-2), end at Segment End (Wall Edge)
+                // If it's the very last interval (i = length-2), end at Segment End (Roof Edge)
                 const endMm = (i === centers.length - 2) ? segEnd : centers[i + 1];
 
                 gapsMm.push({
                     val: endMm - startMm,
-                    c1: WALL_X + startMm * pxPerMm,
-                    c2: WALL_X + endMm * pxPerMm
+                    c1: ROOF_X + startMm * pxPerMm,
+                    c2: ROOF_X + endMm * pxPerMm
                 });
             }
         });
@@ -494,10 +511,10 @@ export function WallStructureVisualizer({
             // Kings
             [op.l - STUD_W, op.r].forEach(kx => {
                 const cx = kx + HALF_STUD;
-                const wt = getWallTopMm(cx);
-                const wb = getWallBottomMm(cx);
+                const wt = getRoofTopMm(cx);
+                const wb = getRoofBottomMm(cx);
                 beams.push({
-                    x: WALL_X + kx * pxPerMm,
+                    x: ROOF_X + kx * pxPerMm,
                     y: getY(wt - PLATE_H),
                     w: timberW,
                     h: ((wt - PLATE_H) - (wb + PLATE_H)) * pxPerMm,
@@ -507,17 +524,17 @@ export function WallStructureVisualizer({
 
             // Header
             beams.push({
-                x: WALL_X + op.l * pxPerMm,
+                x: ROOF_X + op.l * pxPerMm,
                 y: getY(op.t + STUD_W),
                 w: (op.r - op.l) * pxPerMm,
                 h: timberW,
                 type: 'header'
             });
 
-            // Sill
-            if (op.type !== 'door' && op.type !== 'opening') {
+            // Sill (only for dakramen - skylights have sills, chimneys/openings go to base)
+            if (op.type === 'dakraam') {
                 beams.push({
-                    x: WALL_X + op.l * pxPerMm,
+                    x: ROOF_X + op.l * pxPerMm,
                     y: getY(op.b),
                     w: (op.r - op.l) * pxPerMm,
                     h: timberW,
@@ -530,7 +547,7 @@ export function WallStructureVisualizer({
 
         return { beams, gaps };
 
-    }, [lengteNum, balkafstandNum, WALL_X, WALL_WIDTH, studWidthPx, yLeft, yRight, yPeak, yH1, yH2, shape, pxPerMm, openings, startFromRight, l1, l2, l3, h1, h2, h3, variant]);
+    }, [lengteNum, balkafstandNum, ROOF_X, ROOF_WIDTH, tengelWidthPx, yLeft, yRight, yPeak, yH1, yH2, shape, pxPerMm, openings, startFromRight, l1, l2, l3, h1, h2, h3, variant]);
 
     const dotGrid = useMemo(() => {
         const dots: { x: number; y: number }[] = [];
@@ -549,95 +566,95 @@ export function WallStructureVisualizer({
     let topPlatePath = '';
     if (shape === 'slope') {
         topPlatePath = `
-            ${WALL_X},${yLeft}
-            ${WALL_X + WALL_WIDTH},${yRight}
-            ${WALL_X + WALL_WIDTH},${yRight + PLATE_HEIGHT}
-            ${WALL_X},${yLeft + PLATE_HEIGHT}
+            ${ROOF_X},${yLeft}
+            ${ROOF_X + ROOF_WIDTH},${yRight}
+            ${ROOF_X + ROOF_WIDTH},${yRight + RIDGE_HEIGHT}
+            ${ROOF_X},${yLeft + RIDGE_HEIGHT}
         `;
     } else if (shape === 'gable') {
-        const midX = WALL_X + WALL_WIDTH / 2;
+        const midX = ROOF_X + ROOF_WIDTH / 2;
         topPlatePath = `
-            ${WALL_X},${yLeft}
+            ${ROOF_X},${yLeft}
             ${midX},${yPeak}
-            ${WALL_X + WALL_WIDTH},${yRight}
-            ${WALL_X + WALL_WIDTH},${yRight + PLATE_HEIGHT}
-            ${midX},${yPeak + PLATE_HEIGHT}
-            ${WALL_X},${yLeft + PLATE_HEIGHT}
+            ${ROOF_X + ROOF_WIDTH},${yRight}
+            ${ROOF_X + ROOF_WIDTH},${yRight + RIDGE_HEIGHT}
+            ${midX},${yPeak + RIDGE_HEIGHT}
+            ${ROOF_X},${yLeft + RIDGE_HEIGHT}
         `;
     } else if (shape === 'l-shape') {
-        const xL1 = WALL_X + (l1 * pxPerMm);
+        const xL1 = ROOF_X + (l1 * pxPerMm);
 
         if (variant === 'bottom') {
             // Top is flat at maxH
             // Bottom varies.
             // We are drawing TOP Plate here.
             // So Top Plate is just a flat rect across?
-            // Yes, if variant is 'bottom', the TOP of the wall is straight. 
-            // Wait, usually "step wall bottom" means the wall hangs? Or sits on a step?
+            // Yes, if variant is 'bottom', the TOP of the roof is straight. 
+            // Wait, usually "step roof bottom" means the roof hangs? Or sits on a step?
             // Usually sits on a step. So the bottom plate steps. The top plate is straight.
             // So Top Plate Path is simple rectangle.
             const yTop = getY(maxH);
             topPlatePath = `
-                ${WALL_X},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop + PLATE_HEIGHT}
-                ${WALL_X},${yTop + PLATE_HEIGHT}
+                ${ROOF_X},${yTop}
+                ${ROOF_X + ROOF_WIDTH},${yTop}
+                ${ROOF_X + ROOF_WIDTH},${yTop + RIDGE_HEIGHT}
+                ${ROOF_X},${yTop + RIDGE_HEIGHT}
              `;
         } else {
             // Standard L-Shape Top
             topPlatePath = `
-                ${WALL_X},${yH1}
+                ${ROOF_X},${yH1}
                 ${xL1},${yH1}
                 ${xL1},${yH2}
-                ${WALL_X + WALL_WIDTH},${yH2}
-                ${WALL_X + WALL_WIDTH},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH1 + PLATE_HEIGHT}
-                ${WALL_X},${yH1 + PLATE_HEIGHT}
+                ${ROOF_X + ROOF_WIDTH},${yH2}
+                ${ROOF_X + ROOF_WIDTH},${yH2 + RIDGE_HEIGHT}
+                ${xL1},${yH2 + RIDGE_HEIGHT}
+                ${xL1},${yH1 + RIDGE_HEIGHT}
+                ${ROOF_X},${yH1 + RIDGE_HEIGHT}
             `;
         }
     } else if (shape === 'u-shape') {
-        const xL1 = WALL_X + (l1 * pxPerMm);
-        const xL2 = WALL_X + ((l1 + l2) * pxPerMm);
+        const xL1 = ROOF_X + (l1 * pxPerMm);
+        const xL2 = ROOF_X + ((l1 + l2) * pxPerMm);
 
         if (variant === 'bottom') {
             // Flat Top
             const yTop = getY(maxH);
             topPlatePath = `
-                ${WALL_X},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop + PLATE_HEIGHT}
-                ${WALL_X},${yTop + PLATE_HEIGHT}
+                ${ROOF_X},${yTop}
+                ${ROOF_X + ROOF_WIDTH},${yTop}
+                ${ROOF_X + ROOF_WIDTH},${yTop + RIDGE_HEIGHT}
+                ${ROOF_X},${yTop + RIDGE_HEIGHT}
              `;
         } else {
             // Stepped Top
             topPlatePath = `
-                ${WALL_X},${yH1}
+                ${ROOF_X},${yH1}
                 ${xL1},${yH1}
                 ${xL1},${yH2}
                 ${xL2},${yH2}
                 ${xL2},${yH3}
-                ${WALL_X + WALL_WIDTH},${yH3}
-                ${WALL_X + WALL_WIDTH},${yH3 + PLATE_HEIGHT}
-                ${xL2},${yH3 + PLATE_HEIGHT}
-                ${xL2},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH1 + PLATE_HEIGHT}
-                ${WALL_X},${yH1 + PLATE_HEIGHT}
+                ${ROOF_X + ROOF_WIDTH},${yH3}
+                ${ROOF_X + ROOF_WIDTH},${yH3 + RIDGE_HEIGHT}
+                ${xL2},${yH3 + RIDGE_HEIGHT}
+                ${xL2},${yH2 + RIDGE_HEIGHT}
+                ${xL1},${yH2 + RIDGE_HEIGHT}
+                ${xL1},${yH1 + RIDGE_HEIGHT}
+                ${ROOF_X},${yH1 + RIDGE_HEIGHT}
              `;
         }
     } else {
         topPlatePath = `
-            ${WALL_X},${yLeft}
-            ${WALL_X + WALL_WIDTH},${yLeft}
-            ${WALL_X + WALL_WIDTH},${yLeft + PLATE_HEIGHT}
-            ${WALL_X},${yLeft + PLATE_HEIGHT}
+            ${ROOF_X},${yLeft}
+            ${ROOF_X + ROOF_WIDTH},${yLeft}
+            ${ROOF_X + ROOF_WIDTH},${yLeft + RIDGE_HEIGHT}
+            ${ROOF_X},${yLeft + RIDGE_HEIGHT}
         `;
     }
 
     // BOTTOM PLATE PATH
     let bottomPlatePath = '';
-    const yBotBase = Y_BOTTOM - PLATE_HEIGHT;
+    const yBotBase = Y_BOTTOM - RIDGE_HEIGHT;
     const yBotLine = Y_BOTTOM;
 
     if (variant === 'bottom') {
@@ -650,26 +667,26 @@ export function WallStructureVisualizer({
             const yB_Right = getY(maxH - hRight);
 
             // Plate is ABOVE this line? Or BELOW?
-            // Usually "Bottom Plate" is at the bottom of the studs.
+            // Usually "Bottom Plate" is at the bottom of the tengels.
             // If floor is sloped, plate follows floor.
-            // We draw plate of thickness PLATE_HEIGHT up from the bottom line?
-            // Or studs sit on plate. 
+            // We draw plate of thickness RIDGE_HEIGHT up from the bottom line?
+            // Or tengels sit on plate. 
             // Let's assume plate is the bottom-most element.
-            // So top of plate is yB_Left?? No, yB_Left is the stud bottom.
+            // So top of plate is yB_Left?? No, yB_Left is the tengel bottom.
             // Plate is below that.
             // Let's draw plate from yB_Left down to yB_Left + PLATE_H?
             // But valid drawing area is UP.
             // Visualizer: Y_BOTTOM is the floor logic for standard.
-            // Let's assume standard: Plate is at Y_BOTTOM - PLATE_HEIGHT (top of plate) to Y_BOTTOM (bot of plate).
+            // Let's assume standard: Plate is at Y_BOTTOM - RIDGE_HEIGHT (top of plate) to Y_BOTTOM (bot of plate).
 
             // Sloped: Top of plate is yB_Left. 
             // Bot of plate is yB_Left + PLATE_H (downwards in canvas).
 
             bottomPlatePath = `
-                ${WALL_X},${yB_Left}
-                ${WALL_X + WALL_WIDTH},${yB_Right}
-                ${WALL_X + WALL_WIDTH},${yB_Right + PLATE_HEIGHT}
-                ${WALL_X},${yB_Left + PLATE_HEIGHT}
+                ${ROOF_X},${yB_Left}
+                ${ROOF_X + ROOF_WIDTH},${yB_Right}
+                ${ROOF_X + ROOF_WIDTH},${yB_Right + RIDGE_HEIGHT}
+                ${ROOF_X},${yB_Left + RIDGE_HEIGHT}
              `;
         } else if (shape === 'l-shape') {
             // Stepped Bottom
@@ -677,55 +694,55 @@ export function WallStructureVisualizer({
             // Bot1 = maxH - h1. Bot2 = maxH - h2.
             const yB1 = getY(maxH - h1);
             const yB2 = getY(maxH - h2);
-            const xL1 = WALL_X + (l1 * pxPerMm);
+            const xL1 = ROOF_X + (l1 * pxPerMm);
 
             bottomPlatePath = `
-                ${WALL_X},${yB1}
+                ${ROOF_X},${yB1}
                 ${xL1},${yB1}
                 ${xL1},${yB2}
-                ${WALL_X + WALL_WIDTH},${yB2}
-                ${WALL_X + WALL_WIDTH},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB1 + PLATE_HEIGHT}
-                ${WALL_X},${yB1 + PLATE_HEIGHT}
+                ${ROOF_X + ROOF_WIDTH},${yB2}
+                ${ROOF_X + ROOF_WIDTH},${yB2 + RIDGE_HEIGHT}
+                ${xL1},${yB2 + RIDGE_HEIGHT}
+                ${xL1},${yB1 + RIDGE_HEIGHT}
+                ${ROOF_X},${yB1 + RIDGE_HEIGHT}
              `;
         } else if (shape === 'u-shape') {
             const yB1 = getY(maxH - h1);
             const yB2 = getY(maxH - h2);
             const yB3 = getY(maxH - h3);
-            const xL1 = WALL_X + (l1 * pxPerMm);
-            const xL2 = WALL_X + ((l1 + l2) * pxPerMm);
+            const xL1 = ROOF_X + (l1 * pxPerMm);
+            const xL2 = ROOF_X + ((l1 + l2) * pxPerMm);
 
             bottomPlatePath = `
-                ${WALL_X},${yB1}
+                ${ROOF_X},${yB1}
                 ${xL1},${yB1}
                 ${xL1},${yB2}
                 ${xL2},${yB2}
                 ${xL2},${yB3}
-                ${WALL_X + WALL_WIDTH},${yB3}
-                ${WALL_X + WALL_WIDTH},${yB3 + PLATE_HEIGHT}
-                ${xL2},${yB3 + PLATE_HEIGHT}
-                ${xL2},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB1 + PLATE_HEIGHT}
-                ${WALL_X},${yB1 + PLATE_HEIGHT}
+                ${ROOF_X + ROOF_WIDTH},${yB3}
+                ${ROOF_X + ROOF_WIDTH},${yB3 + RIDGE_HEIGHT}
+                ${xL2},${yB3 + RIDGE_HEIGHT}
+                ${xL2},${yB2 + RIDGE_HEIGHT}
+                ${xL1},${yB2 + RIDGE_HEIGHT}
+                ${xL1},${yB1 + RIDGE_HEIGHT}
+                ${ROOF_X},${yB1 + RIDGE_HEIGHT}
              `;
         } else {
             // Fallback
             bottomPlatePath = `
-                ${WALL_X},${yBotBase}
-                ${WALL_X + WALL_WIDTH},${yBotBase}
-                ${WALL_X + WALL_WIDTH},${yBotLine}
-                ${WALL_X},${yBotLine}
+                ${ROOF_X},${yBotBase}
+                ${ROOF_X + ROOF_WIDTH},${yBotBase}
+                ${ROOF_X + ROOF_WIDTH},${yBotLine}
+                ${ROOF_X},${yBotLine}
              `;
         }
     } else {
         // Standard Flat Bottom
         bottomPlatePath = `
-            ${WALL_X},${yBotBase}
-            ${WALL_X + WALL_WIDTH},${yBotBase}
-            ${WALL_X + WALL_WIDTH},${yBotLine}
-            ${WALL_X},${yBotLine}
+            ${ROOF_X},${yBotBase}
+            ${ROOF_X + ROOF_WIDTH},${yBotBase}
+            ${ROOF_X + ROOF_WIDTH},${yBotLine}
+            ${ROOF_X},${yBotLine}
          `;
     }
 
@@ -738,7 +755,7 @@ export function WallStructureVisualizer({
             const leftPx = op.fromLeft * pxPerMm;
             const bottomPx = op.fromBottom * pxPerMm;
 
-            const x = WALL_X + leftPx;
+            const x = ROOF_X + leftPx;
             const y = Y_BOTTOM - bottomPx - hPx;
 
             return {
@@ -749,7 +766,7 @@ export function WallStructureVisualizer({
                 drawH: hPx
             };
         });
-    }, [openings, pxPerMm, WALL_X, Y_BOTTOM]);
+    }, [openings, pxPerMm, ROOF_X, Y_BOTTOM]);
 
     return (
         <div
@@ -758,7 +775,7 @@ export function WallStructureVisualizer({
                 className
             )}
             role="img"
-            aria-label={`Wandstructuur: ${lengteDisplay} × ${hoogteDisplay} mm`}
+            aria-label={`Dakstructuur: ${lengteDisplay} × ${hoogteDisplay} mm`}
         >
             <svg
                 viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
@@ -793,8 +810,8 @@ export function WallStructureVisualizer({
                         strokeWidth="0.5"
                     />
 
-                    {/* ALL Beams (Studs, Headers, Sills, Cripples) */}
-                    {studData.beams.map((beam, i) => (
+                    {/* ALL Beams (Tengels, Headers, Sills, Cripples) */}
+                    {tengelData.beams.map((beam, i) => (
                         <rect
                             key={i}
                             x={beam.x}
@@ -843,12 +860,19 @@ export function WallStructureVisualizer({
                         <g className="text-emerald-500 pointer-events-none">
                             {(() => {
                                 const sorted = [...drawOpenings].sort((a, b) => a.fromLeft - b.fromLeft);
-                                const wallTopY = Math.min(yLeft, yRight, shape === 'gable' ? yPeak : yLeft);
-                                const baselineY = wallTopY - 15;
+                                const roofTopY = Math.min(yLeft, yRight, shape === 'gable' ? yPeak : yLeft);
+                                const baselineY = roofTopY - 15;
                                 const levelStep = 10;
 
                                 return sorted.map((op, i) => {
-                                    const levelY = baselineY - (i * levelStep);
+                                    // Horizontal Dimensions (From Left) - CLOSEST to drawing (below)
+                                    const stackStep = 15;
+                                    const bottomBaseY = Y_BOTTOM + 30; // Start 30px below roof
+                                    const dimY = bottomBaseY + (i * stackStep);
+
+                                    // Vertical Dimensions (From Bottom) - CLOSEST to drawing (left)
+                                    const leftBaseX = ROOF_X - 30; // Start 30px left of roof
+                                    const dimX = leftBaseX - (i * stackStep);
 
                                     return (
                                         <g key={`dim-${op.id}`}>
@@ -863,64 +887,71 @@ export function WallStructureVisualizer({
                                                 {op.width} x {op.height}
                                             </text>
 
-                                            {/* 2. From Bottom Dimension (Vertical line) - Only if > 0 */}
+                                            {/* 2. From Bottom Dimension (Vertical) */}
                                             {op.fromBottom > 0 && (
                                                 <>
-                                                    <line x1={op.drawX + op.drawW / 2} y1={Y_BOTTOM} x2={op.drawX + op.drawW / 2} y2={op.drawY + op.drawH} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2,1" opacity="0.7" />
-                                                    <text x={op.drawX + op.drawW / 2 + 3} y={(Y_BOTTOM + (op.drawY + op.drawH)) / 2} textAnchor="start" dominantBaseline="middle" className="fill-emerald-500/80 text-[6px] font-mono select-none font-medium text-xs">{op.fromBottom}</text>
+                                                    {/* Main Vertical Line (Dimension Line) */}
+                                                    <line
+                                                        x1={dimX} y1={Y_BOTTOM}
+                                                        x2={dimX} y2={op.drawY + op.drawH}
+                                                        stroke="#10b981" strokeWidth="0.5"
+                                                    />
+
+                                                    {/* Extension Left/Right at Floor (Baseline) */}
+                                                    <line x1={dimX} y1={Y_BOTTOM} x2={ROOF_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
+
+                                                    {/* Extension Left/Right at Opening Bottom Height - CLIPPED AT WALL EDGE */}
+                                                    <line x1={dimX} y1={op.drawY + op.drawH} x2={ROOF_X} y2={op.drawY + op.drawH} stroke="#10b981" strokeWidth="0.5" />
+
+                                                    {/* Circle Dots at Intersections with Dim Line */}
+                                                    <circle cx={dimX} cy={Y_BOTTOM} r="1.5" fill="#10b981" />
+                                                    <circle cx={dimX} cy={op.drawY + op.drawH} r="1.5" fill="#10b981" />
+
+                                                    {/* Text Label - Vertical, On Line */}
+                                                    <g transform={`translate(${dimX}, ${(Y_BOTTOM + (op.drawY + op.drawH)) / 2}) rotate(-90)`}>
+                                                        <rect x="-8" y="-4" width="16" height="8" fill="#09090b" opacity="1" />
+                                                        <text
+                                                            textAnchor="middle"
+                                                            dominantBaseline="middle"
+                                                            fill="#10b981"
+                                                            className="text-[8px] font-mono select-none font-medium"
+                                                        >
+                                                            {op.fromBottom}
+                                                        </text>
+                                                    </g>
                                                 </>
                                             )}
 
-                                            {/* 3. From Left Dimension (Stacked Above Wall) */}
+                                            {/* 3. From Left Dimension (Horizontal) */}
                                             {/* Main Horizontal Line */}
                                             <line
-                                                x1={WALL_X}
-                                                y1={levelY}
-                                                x2={op.drawX}
-                                                y2={levelY}
-                                                stroke="#10b981"
-                                                strokeWidth="0.5"
-                                                opacity="0.8"
+                                                x1={ROOF_X} y1={dimY}
+                                                x2={op.drawX} y2={dimY}
+                                                stroke="#10b981" strokeWidth="0.5"
                                             />
 
-                                            {/* Extension Line Left (Wall Start) */}
-                                            <line
-                                                x1={WALL_X}
-                                                y1={yLeft}
-                                                x2={WALL_X}
-                                                y2={levelY}
-                                                stroke="#10b981"
-                                                strokeWidth="0.5"
-                                                strokeDasharray="1,2"
-                                                opacity="0.3"
-                                            />
+                                            {/* Extension Up/Down at Start (Roof Left) */}
+                                            <line x1={ROOF_X} y1={dimY} x2={ROOF_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
 
-                                            {/* Extension Line Right (Opening Start) */}
-                                            <line
-                                                x1={op.drawX}
-                                                y1={op.drawY}
-                                                x2={op.drawX}
-                                                y2={levelY}
-                                                stroke="#10b981"
-                                                strokeWidth="0.5"
-                                                strokeDasharray="1,2"
-                                                opacity="0.3"
-                                            />
+                                            {/* Extension Up/Down at End (Opening Left) - CLIPPED AT BOTTOM EDGE */}
+                                            <line x1={op.drawX} y1={dimY} x2={op.drawX} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
 
-                                            {/* Text Label (On the line) */}
-                                            <rect x={(WALL_X + op.drawX) / 2 - 6} y={levelY - 3} width="12" height="6" fill="#09090b" opacity="0.8" />
+                                            {/* Dots */}
+                                            <circle cx={ROOF_X} cy={dimY} r="1.5" fill="#10b981" />
+                                            <circle cx={op.drawX} cy={dimY} r="1.5" fill="#10b981" />
+
+                                            {/* Text Label - Horizontal, On Line */}
+                                            <rect x={(ROOF_X + op.drawX) / 2 - 8} y={dimY - 4} width="16" height="8" fill="#09090b" opacity="1" />
                                             <text
-                                                x={(WALL_X + op.drawX) / 2}
-                                                y={levelY + 2} // centered vertically text
+                                                x={(ROOF_X + op.drawX) / 2}
+                                                y={dimY + 0.5}
                                                 textAnchor="middle"
-                                                className="fill-emerald-500/90 text-[6px] font-mono select-none font-medium"
+                                                dominantBaseline="middle"
+                                                fill="#10b981"
+                                                className="text-[8px] font-mono select-none font-medium"
                                             >
                                                 {op.fromLeft}
                                             </text>
-
-                                            {/* Arrow ticks */}
-                                            <line x1={WALL_X} y1={levelY - 2} x2={WALL_X} y2={levelY + 2} stroke="#10b981" strokeWidth="0.5" />
-                                            <line x1={op.drawX} y1={levelY - 2} x2={op.drawX} y2={levelY + 2} stroke="#10b981" strokeWidth="0.5" />
                                         </g>
                                     );
                                 });
@@ -930,22 +961,22 @@ export function WallStructureVisualizer({
 
 
                     {/* H.O.H Gap Dimensions - Moved to TOP as requested */}
-                    {studData.gaps.map((gap, i) => {
+                    {tengelData.gaps.map((gap, i) => {
                         const isFirst2 = i < 2;
-                        const isLast2 = i >= studData.gaps.length - 2;
+                        const isLast2 = i >= tengelData.gaps.length - 2;
                         if (!isFirst2 && !isLast2) return null;
 
                         const midX = (gap.centerX1 + gap.centerX2) / 2;
                         // Calculate a safe top Y. For complex shapes, get min Y of surrounding area or global min.
                         const globalMinY = Math.min(yLeft, yRight, shape === 'gable' ? yPeak : yLeft, shape === 'u-shape' ? yH3 : yLeft);
-                        const dimYTop = globalMinY - 20; // Above wall
+                        const dimYTop = globalMinY - 20; // Above roof
 
                         return (
                             <g key={`gap-${i}`}>
                                 {/* Vertical Extension Lines (Upwards) */}
                                 <line
                                     x1={gap.centerX1}
-                                    y1={globalMinY} // Approximate wall top start
+                                    y1={globalMinY} // Approximate roof top start
                                     x2={gap.centerX1}
                                     y2={dimYTop - 2}
                                     stroke="#14b8a6"
@@ -1004,11 +1035,11 @@ export function WallStructureVisualizer({
                                     segs.push({ len: l3, label: l3 });
                                 }
 
-                                // Move to Bottom: Y position below wall but above Total Length
+                                // Move to Bottom: Y position below roof but above Total Length
                                 // Total Length is at DIM_Y_LENGTH (approx 60px below).
                                 // Let's put segments at DIM_Y_LENGTH - 15
                                 const dimY = DIM_Y_LENGTH - 15;
-                                let currentX = WALL_X;
+                                let currentX = ROOF_X;
 
                                 return segs.map((seg, i) => {
                                     const wPx = seg.len * pxPerMm;
@@ -1024,8 +1055,8 @@ export function WallStructureVisualizer({
                                             <line x1={startX} y1={dimY} x2={endX} y2={dimY} stroke="currentColor" strokeWidth="1" />
 
                                             {/* Extension Lines (Down to Bottom) */}
-                                            {/* Since dimY is below wall, we extend UP to wall bottom (Y_BOTTOM) */}
-                                            {/* Actually, they should extend UP to the wall bottom to connect visually */}
+                                            {/* Since dimY is below roof, we extend UP to roof bottom (Y_BOTTOM) */}
+                                            {/* Actually, they should extend UP to the roof bottom to connect visually */}
                                             <line x1={startX} y1={dimY} x2={startX} y2={Y_BOTTOM + 2} stroke="currentColor" strokeWidth="1" />
                                             <line x1={endX} y1={dimY} x2={endX} y2={Y_BOTTOM + 2} stroke="currentColor" strokeWidth="1" />
 
@@ -1051,24 +1082,34 @@ export function WallStructureVisualizer({
                         </g>
                     )}
 
-                    {/* Bottom Length Dimension */}
+                    {/* Bottom Length Dimension - FURTHEST from drawing */}
                     <g className="text-emerald-500">
-                        <line x1={WALL_X} y1={DIM_Y_LENGTH} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        {/* Extension Lines */}
-                        <line x1={WALL_X} y1={Y_BOTTOM + 2} x2={WALL_X} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 2} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        {/* Dots */}
-                        <circle cx={WALL_X} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
-                        <circle cx={WALL_X + WALL_WIDTH} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
-                        <text
-                            x={WALL_X + WALL_WIDTH / 2}
-                            y={DIM_Y_LENGTH + 8}
-                            textAnchor="middle"
-                            className="fill-emerald-400 text-[8px] font-mono font-medium"
-                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                        >
-                            {lengteDisplay}
-                        </text>
+                        {(() => {
+                            const totalWidthY = Y_BOTTOM + 80; // Place furthest below
+                            return (
+                                <>
+                                    <line x1={ROOF_X} y1={totalWidthY} x2={ROOF_X + ROOF_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="1" />
+                                    {/* Extension Lines */}
+                                    <line x1={ROOF_X} y1={Y_BOTTOM + 2} x2={ROOF_X} y2={totalWidthY} stroke="currentColor" strokeWidth="1" />
+                                    <line x1={ROOF_X + ROOF_WIDTH} y1={Y_BOTTOM + 2} x2={ROOF_X + ROOF_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="1" />
+                                    {/* Dots */}
+                                    <circle cx={ROOF_X} cy={totalWidthY} r="1.5" fill="currentColor" />
+                                    <circle cx={ROOF_X + ROOF_WIDTH} cy={totalWidthY} r="1.5" fill="currentColor" />
+                                    {/* Text label */}
+                                    <rect x={ROOF_X + ROOF_WIDTH / 2 - 12} y={totalWidthY - 5} width="24" height="10" fill="#09090b" opacity="1" />
+                                    <text
+                                        x={ROOF_X + ROOF_WIDTH / 2}
+                                        y={totalWidthY + 3}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                    >
+                                        {lengteDisplay}
+                                    </text>
+                                </>
+                            );
+                        })()}
                     </g>
 
                     {/* Left Height Dimension */}
@@ -1077,7 +1118,7 @@ export function WallStructureVisualizer({
                             // Logic for Split Dimensions on Left Side
                             // Only if L-shape or U-shape and h1 > h2 (or based on variant?)
                             // Assuming Standard Top Variant for "Step" visualization logic for now, 
-                            // or generic logic: if adjacent wall is shorter, split the dimension.
+                            // or generic logic: if adjacent roof is shorter, split the dimension.
 
                             let showSplit = false;
                             let splitHeight = 0; // Height of the "short" part (from bottom)
@@ -1099,24 +1140,24 @@ export function WallStructureVisualizer({
                                 const topPartH = h1 - splitHeight;
 
                                 // Layout Constants
-                                const wallBuffer = 2; // Space between wall and start of ticks
-                                const splitLineX = WALL_X - 30; // Position of split dimension line
-                                const totalLineX = WALL_X - 80; // Position of total height dimension line (increased spacing)
+                                const roofBuffer = 2; // Space between roof and start of ticks
+                                const splitLineX = ROOF_X - 30; // Position of split dimension line
+                                const totalLineX = ROOF_X - 80; // Position of total height dimension line (increased spacing)
                                 const textPad = 10; // Padding for text
 
                                 return (
                                     <>
-                                        {/* SHARED EXTENSIONS (Connect Dim Lines to Wall) */}
+                                        {/* SHARED EXTENSIONS (Connect Dim Lines to Roof) */}
                                         {/* Top Extension (Total Height) */}
-                                        <line x1={totalLineX} y1={yLeft} x2={WALL_X - wallBuffer} y2={yLeft} stroke="currentColor" strokeWidth="1" />
+                                        <line x1={totalLineX} y1={yLeft} x2={ROOF_X - roofBuffer} y2={yLeft} stroke="currentColor" strokeWidth="1" />
                                         <circle cx={totalLineX} cy={yLeft} r="1.5" fill="currentColor" />
 
                                         {/* Bottom Extension (Total Height) */}
-                                        <line x1={totalLineX} y1={Y_BOTTOM} x2={WALL_X - wallBuffer} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                        <line x1={totalLineX} y1={Y_BOTTOM} x2={ROOF_X - roofBuffer} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
                                         <circle cx={totalLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
 
                                         {/* Middle Extension (Split Point) */}
-                                        <line x1={splitLineX} y1={ySplit} x2={WALL_X - wallBuffer} y2={ySplit} stroke="currentColor" strokeWidth="1" />
+                                        <line x1={splitLineX} y1={ySplit} x2={ROOF_X - roofBuffer} y2={ySplit} stroke="currentColor" strokeWidth="1" />
                                         <circle cx={splitLineX} cy={ySplit} r="1.5" fill="currentColor" />
 
                                         {/* --- TOTAL HEIGHT DIMENSION LINE --- */}
@@ -1161,26 +1202,31 @@ export function WallStructureVisualizer({
                                 );
                             }
 
-                            // Standard Full Height Dim
+                            // Standard Full Height Dim - FURTHEST from drawing
+                            const totalHeightX = ROOF_X - 80; // Place furthest left
                             return (
                                 <>
-                                    <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 25} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                    {/* Main vertical dimension line */}
+                                    <line x1={totalHeightX} y1={yLeft} x2={totalHeightX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
                                     {/* Extensions */}
-                                    <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 2} y2={yLeft} stroke="currentColor" strokeWidth="1" />
-                                    <line x1={WALL_X - 25} y1={Y_BOTTOM} x2={WALL_X - 2} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                    <line x1={totalHeightX} y1={yLeft} x2={ROOF_X - 2} y2={yLeft} stroke="currentColor" strokeWidth="1" />
+                                    <line x1={totalHeightX} y1={Y_BOTTOM} x2={ROOF_X - 2} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
                                     {/* Dots */}
-                                    <circle cx={WALL_X - 25} cy={yLeft} r="1.5" fill="currentColor" />
-                                    <circle cx={WALL_X - 25} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
+                                    <circle cx={totalHeightX} cy={yLeft} r="1.5" fill="currentColor" />
+                                    <circle cx={totalHeightX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
 
-                                    <text
-                                        x={WALL_X - 40}
-                                        y={(yLeft + Y_BOTTOM) / 2 + 3}
-                                        textAnchor="end"
-                                        className="fill-emerald-400 text-[8px] font-mono font-medium"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                    >
-                                        {hL_disp}
-                                    </text>
+                                    {/* Rotated text label */}
+                                    <g transform={`translate(${totalHeightX}, ${(yLeft + Y_BOTTOM) / 2}) rotate(-90)`}>
+                                        <rect x="-12" y="-5" width="24" height="10" fill="#09090b" opacity="1" />
+                                        <text
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                        >
+                                            {hL_disp}
+                                        </text>
+                                    </g>
                                 </>
                             );
                         })()}
@@ -1196,9 +1242,9 @@ export function WallStructureVisualizer({
                     {/* Ridge */}
                     {shape === 'gable' && (
                         <g className="text-emerald-500">
-                            <line x1={WALL_X + WALL_WIDTH / 2} y1={yPeak} x2={WALL_X + WALL_WIDTH / 2 + 40} y2={yPeak} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
+                            <line x1={ROOF_X + ROOF_WIDTH / 2} y1={yPeak} x2={ROOF_X + ROOF_WIDTH / 2 + 40} y2={yPeak} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
                             <text
-                                x={WALL_X + WALL_WIDTH / 2 + 5}
+                                x={ROOF_X + ROOF_WIDTH / 2 + 5}
                                 y={yPeak - 4}
                                 textAnchor="start"
                                 className="fill-emerald-400 text-[8px] font-mono font-medium"
@@ -1243,4 +1289,4 @@ export function WallStructureVisualizer({
     );
 }
 
-export default WallStructureVisualizer;
+export default RoofDrawing;
