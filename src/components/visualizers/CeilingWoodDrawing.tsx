@@ -47,6 +47,7 @@ export interface CeilingDrawingProps {
     startFromRight?: boolean;
     startLattenFromBottom?: boolean;
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
+    gridLabel?: string;
 }
 
 export function CeilingWoodDrawing({
@@ -55,7 +56,8 @@ export function CeilingWoodDrawing({
     startLattenFromBottom,
     fitContainer = false,
     className = "",
-    onOpeningsChange
+    onOpeningsChange,
+    gridLabel
 }: CeilingDrawingProps) {
     // Extract shape
     const shape = item.shape || 'rectangle';
@@ -64,7 +66,7 @@ export function CeilingWoodDrawing({
 
     // Parse dimensions
     const lengte = parseFloat(String(item.lengte || 0));
-    const hoogte = parseFloat(String(item.hoogte || 0));
+    const hoogte = parseFloat(String(item.hoogte || item.breedte || 0));
     const balkafstand = parseFloat(String(item.balkafstand || 0));
     const latafstand = parseFloat(String(item.latafstand || 0));
 
@@ -271,7 +273,7 @@ export function CeilingWoodDrawing({
             widthLabel={lengte > 0 ? `${lengte}` : '---'}
             heightLabel={hLabelLeft}
             rightHeightLabel={hLabelRight}
-            gridLabel={!balkafstand && !latafstand ? 'Plafond Vlak' : undefined}
+            gridLabel={gridLabel || (!balkafstand && !latafstand ? 'Plafond Vlak' : undefined)}
             className={className}
             fitContainer={fitContainer}
             startFromRight={startFromRight}
@@ -872,8 +874,8 @@ export function CeilingWoodDrawing({
                     const DIM_TRACK_STEP = 30;
                     const EXTENSION_GAP = 5;
 
-                    // Helper for standard dots
-                    const drawTick = (tx: number, ty: number, color: string = "#10b981") => {
+                    // Help for standard dots
+                    const drawTick = (tx: number, ty: number, color: string = "#14b8a6") => {
                         return <circle cx={tx} cy={ty} r="1.5" fill={color} />;
                     };
 
@@ -929,15 +931,15 @@ export function CeilingWoodDrawing({
 
                                 elements.push(
                                     <g key={`dim-x-gap-${trackIdx}-${itemIdx}`}>
-                                        <line x1={x1} y1={tierY} x2={x2} y2={tierY} stroke="#10b981" strokeWidth="0.5" />
+                                        <line x1={x1} y1={tierY} x2={x2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" />
                                         {drawTick(x1, tierY)}
                                         {drawTick(x2, tierY)}
                                         <rect x={mid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                        <text x={mid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                        <text x={mid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                             {Math.round(gap)}
                                         </text>
                                         {itemIdx === 0 && (
-                                            <line x1={x1} y1={startY + rectH + EXTENSION_GAP} x2={x1} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                            <line x1={x1} y1={startY + rectH + EXTENSION_GAP} x2={x1} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                         )}
                                     </g>
                                 );
@@ -950,18 +952,18 @@ export function CeilingWoodDrawing({
 
                             elements.push(
                                 <g key={`dim-x-item-${trackIdx}-${itemIdx}`}>
-                                    <line x1={ix1} y1={tierY} x2={ix2} y2={tierY} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={ix1} y1={tierY} x2={ix2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(ix2, tierY)}
                                     {item.showLabel && (
                                         <>
                                             <rect x={imid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                            <text x={imid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                            <text x={imid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                                 {Math.round(item.size)}
                                             </text>
                                         </>
                                     )}
-                                    <line x1={ix1} y1={startY + rectH + EXTENSION_GAP} x2={ix1} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
-                                    <line x1={ix2} y1={startY + rectH + EXTENSION_GAP} x2={ix2} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={ix1} y1={startY + rectH + EXTENSION_GAP} x2={ix1} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
+                                    <line x1={ix2} y1={startY + rectH + EXTENSION_GAP} x2={ix2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                             currentX = item.end;
@@ -976,13 +978,13 @@ export function CeilingWoodDrawing({
 
                             elements.push(
                                 <g key={`dim-x-end-${trackIdx}`}>
-                                    <line x1={rx1} y1={tierY} x2={rx2} y2={tierY} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={rx1} y1={tierY} x2={rx2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(rx2, tierY)}
                                     <rect x={rmid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                    <text x={rmid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                    <text x={rmid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                         {Math.round(rem)}
                                     </text>
-                                    <line x1={rx2} y1={startY + rectH + EXTENSION_GAP} x2={rx2} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={rx2} y1={startY + rectH + EXTENSION_GAP} x2={rx2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                         }
@@ -996,14 +998,14 @@ export function CeilingWoodDrawing({
                     elements.push(
                         <g key="dim-x-total">
                             <line x1={startX} y1={totalX_Y} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" />
-                            {drawTick(startX, totalX_Y)}
-                            {drawTick(txEnd, totalX_Y)}
+                            {drawTick(startX, totalX_Y, "#10b981")}
+                            {drawTick(txEnd, totalX_Y, "#10b981")}
                             <rect x={txMid - 20} y={totalX_Y - 6} width="40" height="12" fill="#09090b" />
                             <text x={txMid} y={totalX_Y + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={12} fontWeight="bold" style={{ fontFamily: 'monospace' }}>
                                 {Math.round(inputW)}
                             </text>
-                            <line x1={startX} y1={startY + rectH + EXTENSION_GAP} x2={startX} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            <line x1={txEnd} y1={startY + rectH + EXTENSION_GAP} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                            <line x1={startX} y1={startY + rectH + EXTENSION_GAP} x2={startX} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                            <line x1={txEnd} y1={startY + rectH + EXTENSION_GAP} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
                         </g>
                     );
 
@@ -1035,17 +1037,17 @@ export function CeilingWoodDrawing({
 
                                 elements.push(
                                     <g key={`dim-y-gap-${trackIdx}-${itemIdx}`}>
-                                        <line x1={tierX} y1={y1} x2={tierX} y2={y2} stroke="#10b981" strokeWidth="0.5" />
+                                        <line x1={tierX} y1={y1} x2={tierX} y2={y2} stroke="#14b8a6" strokeWidth="0.5" />
                                         {drawTick(tierX, y1)}
                                         {drawTick(tierX, y2)}
                                         <g transform={`translate(${tierX}, ${mid}) rotate(-90)`}>
                                             <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                            <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                            <text textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                                 {Math.round(gap)}
                                             </text>
                                         </g>
                                         {itemIdx === 0 && (
-                                            <line x1={startX - EXTENSION_GAP} y1={y1} x2={tierX} y2={y1} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                            <line x1={startX - EXTENSION_GAP} y1={y1} x2={tierX} y2={y1} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                         )}
                                     </g>
                                 );
@@ -1058,18 +1060,18 @@ export function CeilingWoodDrawing({
 
                             elements.push(
                                 <g key={`dim-y-item-${trackIdx}-${itemIdx}`}>
-                                    <line x1={tierX} y1={iy1} x2={tierX} y2={iy2} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={tierX} y1={iy1} x2={tierX} y2={iy2} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(tierX, iy2)}
                                     {item.showLabel && (
                                         <g transform={`translate(${tierX}, ${imid}) rotate(-90)`}>
                                             <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                            <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                            <text textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                                 {Math.round(item.size)}
                                             </text>
                                         </g>
                                     )}
-                                    <line x1={startX - EXTENSION_GAP} y1={iy1} x2={tierX} y2={iy1} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
-                                    <line x1={startX - EXTENSION_GAP} y1={iy2} x2={tierX} y2={iy2} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={startX - EXTENSION_GAP} y1={iy1} x2={tierX} y2={iy1} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
+                                    <line x1={startX - EXTENSION_GAP} y1={iy2} x2={tierX} y2={iy2} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                             currentTop = item.end;
@@ -1084,15 +1086,15 @@ export function CeilingWoodDrawing({
 
                             elements.push(
                                 <g key={`dim-y-end-${trackIdx}`}>
-                                    <line x1={tierX} y1={ry1} x2={tierX} y2={ry2} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={tierX} y1={ry1} x2={tierX} y2={ry2} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(tierX, ry2)}
                                     <g transform={`translate(${tierX}, ${rmid}) rotate(-90)`}>
                                         <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                        <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                        <text textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                             {Math.round(rem)}
                                         </text>
                                     </g>
-                                    <line x1={startX - EXTENSION_GAP} y1={ry2} x2={tierX} y2={ry2} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={startX - EXTENSION_GAP} y1={ry2} x2={tierX} y2={ry2} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                         }
@@ -1107,16 +1109,16 @@ export function CeilingWoodDrawing({
                     elements.push(
                         <g key="dim-y-total">
                             <line x1={totalY_X} y1={tyStart} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" />
-                            {drawTick(totalY_X, tyStart)}
-                            {drawTick(totalY_X, tyEnd)}
+                            {drawTick(totalY_X, tyStart, "#10b981")}
+                            {drawTick(totalY_X, tyEnd, "#10b981")}
                             <g transform={`translate(${totalY_X}, ${tyMid}) rotate(-90)`}>
                                 <rect x="-20" y="-6" width="40" height="12" fill="#09090b" />
                                 <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={12} fontWeight="bold" style={{ fontFamily: 'monospace' }}>
                                     {Math.round(inputH)}
                                 </text>
                             </g>
-                            <line x1={startX - EXTENSION_GAP} y1={tyStart} x2={totalY_X} y2={tyStart} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            <line x1={startX - EXTENSION_GAP} y1={tyEnd} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                            <line x1={startX - EXTENSION_GAP} y1={tyStart} x2={totalY_X} y2={tyStart} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                            <line x1={startX - EXTENSION_GAP} y1={tyEnd} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
                         </g>
                     );
                 }
@@ -1136,8 +1138,7 @@ export function CeilingWoodDrawing({
                         d={outlinePath}
                         stroke={structureColor}
                         strokeWidth="2"
-                        fill="none"
-                        opacity="0.3"
+                        fill="rgba(70, 75, 85, 0.1)"
                     />
                 );
 

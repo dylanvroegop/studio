@@ -42,6 +42,8 @@ export interface DrawingContext {
     drawH: number; // Canvas avail height
     width: number; // Original width mm
     height: number; // Original height mm
+    SVG_WIDTH: number;
+    SVG_HEIGHT: number;
 }
 
 export function calculateDrawingMetrics(width: number, height: number, fitContainer?: boolean) {
@@ -110,7 +112,10 @@ export function BaseDrawingFrame({
     // Style Constants matching WallDrawing exactly
     const strokeColor = "rgb(70, 75, 85)";
     const fillColor = "rgba(70, 75, 85, 0.2)";
-    const dimColor = "#10b981"; // Emerald-500
+
+
+    const dimColor = "#10b981"; // Emerald-500 (Total Dims)
+    const gridDimColor = "#14b8a6"; // Teal-500 (Grid Dims) - Matches WallDrawing
     const dotColor = "rgb(255, 255, 255)";
 
     // Calculate Grid Dots
@@ -155,11 +160,11 @@ export function BaseDrawingFrame({
             <g className="text-emerald-500">
                 {/* Bottom Dim (Length) */}
                 <g>
-                    <line x1={x} y1={dimY} x2={x + w} y2={dimY} stroke={dimColor} strokeWidth="1" />
+                    <line x1={x} y1={dimY} x2={x + w} y2={dimY} stroke={dimColor} strokeWidth="0.5" />
 
                     {/* Extension Lines */}
-                    <line x1={x} y1={dimY_Ext_Top} x2={x} y2={dimY} stroke={dimColor} strokeWidth="1" />
-                    <line x1={x + w} y1={dimY_Ext_Top} x2={x + w} y2={dimY} stroke={dimColor} strokeWidth="1" />
+                    <line x1={x} y1={dimY_Ext_Top} x2={x} y2={dimY} stroke={dimColor} strokeWidth="0.5" />
+                    <line x1={x + w} y1={dimY_Ext_Top} x2={x + w} y2={dimY} stroke={dimColor} strokeWidth="0.5" />
 
                     {/* Dots */}
                     <circle cx={x} cy={dimY} r="1.5" fill={dimColor} />
@@ -179,11 +184,11 @@ export function BaseDrawingFrame({
                 {/* Left Dim (Height) - FURTHEST from drawing */}
                 <g>
                     {/* Main vertical dimension line at x - 80 (furthest left) */}
-                    <line x1={x - 80} y1={y} x2={x - 80} y2={y + h} stroke={dimColor} strokeWidth="1" />
+                    <line x1={x - 80} y1={y} x2={x - 80} y2={y + h} stroke={dimColor} strokeWidth="0.5" />
 
                     {/* Extension lines to wall */}
-                    <line x1={x - 80} y1={y} x2={x - 2} y2={y} stroke={dimColor} strokeWidth="1" />
-                    <line x1={x - 80} y1={y + h} x2={x - 2} y2={y + h} stroke={dimColor} strokeWidth="1" />
+                    <line x1={x - 80} y1={y} x2={x - 2} y2={y} stroke={dimColor} strokeWidth="0.5" />
+                    <line x1={x - 80} y1={y + h} x2={x - 2} y2={y + h} stroke={dimColor} strokeWidth="0.5" />
 
                     {/* Dots */}
                     <circle cx={x - 80} cy={y} r="1.5" fill={dimColor} />
@@ -231,10 +236,10 @@ export function BaseDrawingFrame({
 
                             return (
                                 <>
-                                    <line x1={lineX} y1={y} x2={lineX} y2={y + h} stroke={dimColor} strokeWidth="1" />
+                                    <line x1={lineX} y1={y} x2={lineX} y2={y + h} stroke={dimColor} strokeWidth="0.5" />
 
-                                    <line x1={x + w + 2} y1={y} x2={lineX} y2={y} stroke={dimColor} strokeWidth="1" />
-                                    <line x1={x + w + 2} y1={y + h} x2={lineX} y2={y + h} stroke={dimColor} strokeWidth="1" />
+                                    <line x1={x + w + 2} y1={y} x2={lineX} y2={y} stroke={dimColor} strokeWidth="0.5" />
+                                    <line x1={x + w + 2} y1={y + h} x2={lineX} y2={y + h} stroke={dimColor} strokeWidth="0.5" />
 
                                     <circle cx={lineX} cy={y} r="1.5" fill={dimColor} />
                                     <circle cx={lineX} cy={y + h} r="1.5" fill={dimColor} />
@@ -294,10 +299,10 @@ export function BaseDrawingFrame({
                 <g key={`seg-top-${seg.index}`}>
                     <line
                         x1={prevX} y1={dimY} x2={currentX} y2={dimY}
-                        stroke={dimColor} strokeWidth="0.5" strokeDasharray="2,2"
+                        stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="2,2"
                     />
                     <text
-                        x={midX} y={dimY - 2} textAnchor="middle" fill={dimColor}
+                        x={midX} y={dimY - 2} textAnchor="middle" fill={gridDimColor}
                         className="fill-teal-500 text-[6px] font-mono select-none"
                         style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: fitContainer ? '10px' : '6px' }}
                     >
@@ -322,10 +327,10 @@ export function BaseDrawingFrame({
                 <g key="seg-top-end">
                     <line
                         x1={startXRem} y1={dimY} x2={endXRem} y2={dimY}
-                        stroke={dimColor} strokeWidth="0.5" strokeDasharray="2,2"
+                        stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="2,2"
                     />
                     <text
-                        x={midXRem} y={dimY - 2} textAnchor="middle" fill={dimColor}
+                        x={midXRem} y={dimY - 2} textAnchor="middle" fill={gridDimColor}
                         className="fill-teal-500 text-[6px] font-mono select-none"
                         style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: fitContainer ? '10px' : '6px' }}
                     >
@@ -334,7 +339,7 @@ export function BaseDrawingFrame({
                     {/* End Extension - Manual, as it might not index cleanly */}
                     <line
                         x1={endXRem} y1={startY} x2={endXRem} y2={dimY - 2}
-                        stroke={dimColor} strokeWidth="0.5" strokeDasharray="1,2"
+                        stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="1,2"
                     />
                 </g>
             );
@@ -347,7 +352,7 @@ export function BaseDrawingFrame({
                 <line
                     key={`ext-top-${i}`}
                     x1={x} y1={startY} x2={x} y2={dimY - 2}
-                    stroke={dimColor} strokeWidth="0.5" strokeDasharray="1,2"
+                    stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="1,2"
                 />
             );
         });
@@ -411,7 +416,7 @@ export function BaseDrawingFrame({
                 <g key={`seg-right-${seg.index}`}>
                     <line
                         x1={xDim} y1={prevY} x2={xDim} y2={currentY}
-                        stroke={dimColor} strokeWidth="0.5" strokeDasharray="2,2"
+                        stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="2,2"
                     />
                     <g transform={`translate(${textX}, ${midY}) rotate(-90)`}>
                         <rect
@@ -420,7 +425,7 @@ export function BaseDrawingFrame({
                             fill="#09090b" opacity="0.8" rx="2"
                         />
                         <text
-                            textAnchor="middle" dominantBaseline="middle" fill={dimColor}
+                            textAnchor="middle" dominantBaseline="middle" fill={gridDimColor}
                             className="fill-teal-500 font-mono select-none"
                             style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: `${fontSize}px` }}
                         >
@@ -449,7 +454,7 @@ export function BaseDrawingFrame({
                 <g key="seg-right-end">
                     <line
                         x1={xDim} y1={startYRem} x2={xDim} y2={endYRem}
-                        stroke={dimColor} strokeWidth="0.5" strokeDasharray="2,2"
+                        stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="2,2"
                     />
                     <g transform={`translate(${textX}, ${midYRem}) rotate(-90)`}>
                         <rect
@@ -458,7 +463,7 @@ export function BaseDrawingFrame({
                             fill="#09090b" opacity="0.8" rx="2"
                         />
                         <text
-                            textAnchor="middle" dominantBaseline="middle" fill={dimColor}
+                            textAnchor="middle" dominantBaseline="middle" fill={gridDimColor}
                             className="fill-teal-500 font-mono select-none"
                             style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: `${fontSize}px` }}
                         >
@@ -467,7 +472,7 @@ export function BaseDrawingFrame({
                     </g>
                     <line
                         x1={startX + rectW} y1={endYRem} x2={xDim - 2} y2={endYRem}
-                        stroke={dimColor} strokeWidth="0.5" strokeDasharray="1,2"
+                        stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="1,2"
                     />
                 </g>
             );
@@ -479,7 +484,7 @@ export function BaseDrawingFrame({
                 <line
                     key={`ext-right-${i}`}
                     x1={startX + rectW} y1={y} x2={xDim - 2} y2={y}
-                    stroke={dimColor} strokeWidth="0.5" strokeDasharray="1,2"
+                    stroke={gridDimColor} strokeWidth="0.5" strokeDasharray="1,2"
                 />
             );
         });
@@ -542,7 +547,9 @@ export function BaseDrawingFrame({
                         drawW,
                         drawH,
                         width,
-                        height
+                        height,
+                        SVG_WIDTH,
+                        SVG_HEIGHT
                     })}
 
                     {/* Dimensions */}

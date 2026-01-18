@@ -305,24 +305,7 @@ export function JobComponentsManager({
                         {/* MEASUREMENTS (Step 2 or Default) */}
                         {selectedType && COMPONENT_REGISTRY[selectedType] && ((limitToType !== 'kozijn' && limitToType !== 'deur') || editingId || tempMeasurements._variantMode) && (
                             <div className="space-y-4 mt-2 border-t pt-4">
-                                {(selectedType === 'kozijn' || selectedType === 'deur') && (
-                                    <div className="space-y-1.5 mb-4">
-                                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                            Werkwijze
-                                        </Label>
-                                        <Select defaultValue="default">
-                                            <SelectTrigger className="w-full bg-muted/20 border-emerald-500/20 focus:ring-emerald-500/20">
-                                                <div className="flex items-center gap-2">
-                                                    <Box className="w-4 h-4 text-emerald-500" />
-                                                    <SelectValue placeholder="Kies werkwijze" />
-                                                </div>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="default">Nieuw</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
+                                {/* Werkwijze selector removed - now shown inline on the materials page */}
 
                                 <div className="text-sm font-medium">Specificaties</div>
                                 {(() => {

@@ -36,6 +36,7 @@ export interface RoofDrawingProps {
     fitContainer?: boolean;
     isMagnifier?: boolean;
     startFromRight?: boolean;
+    title?: string;
 }
 
 export function RoofDrawing({
@@ -59,7 +60,8 @@ export function RoofDrawing({
     onOpeningsChange,
     fitContainer,
     isMagnifier,
-    startFromRight
+    startFromRight,
+    title = 'Dak Vlak'
 }: RoofDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
@@ -194,7 +196,7 @@ export function RoofDrawing({
             widthLabel={lengteNum > 0 ? `${lengteNum}` : '---'}
             heightLabel={hLabelLeft}
             rightHeightLabel={hLabelRight}
-            gridLabel={!balkafstandNum && !latafstandNum ? 'Dak Vlak' : undefined}
+            gridLabel={!balkafstandNum && !latafstandNum ? title : undefined}
             className={className}
             fitContainer={fitContainer}
             startFromRight={startFromRight}
@@ -664,7 +666,7 @@ export function RoofDrawing({
                     const EXTENSION_GAP = 5;    // "Air gap" from roof edge
 
                     // Helper for standard dots
-                    const drawTick = (tx: number, ty: number, color: string = "#10b981", isVertical: boolean = false) => {
+                    const drawTick = (tx: number, ty: number, color: string = "#14b8a6", isVertical: boolean = false) => {
                         return <circle cx={tx} cy={ty} r="1.5" fill={color} />;
                     };
 
@@ -724,16 +726,16 @@ export function RoofDrawing({
 
                                 elements.push(
                                     <g key={`dim-x-gap-${trackIdx}-${itemIdx}`}>
-                                        <line x1={x1} y1={tierY} x2={x2} y2={tierY} stroke="#10b981" strokeWidth="0.5" />
+                                        <line x1={x1} y1={tierY} x2={x2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" />
                                         {drawTick(x1, tierY)}
                                         {drawTick(x2, tierY)}
                                         <rect x={mid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                        <text x={mid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                        <text x={mid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                             {Math.round(gap)}
                                         </text>
                                         {/* Extension Lines with Air Gap */}
                                         {itemIdx === 0 && (
-                                            <line x1={x1} y1={startY + rectH + EXTENSION_GAP} x2={x1} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                            <line x1={x1} y1={startY + rectH + EXTENSION_GAP} x2={x1} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                         )}
                                     </g>
                                 );
@@ -746,18 +748,18 @@ export function RoofDrawing({
 
                             elements.push(
                                 <g key={`dim-x-item-${trackIdx}-${itemIdx}`}>
-                                    <line x1={ix1} y1={tierY} x2={ix2} y2={tierY} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={ix1} y1={tierY} x2={ix2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(ix2, tierY)}
                                     {item.showLabel && (
                                         <>
                                             <rect x={imid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                            <text x={imid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                            <text x={imid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                                 {Math.round(item.size)}
                                             </text>
                                         </>
                                     )}
-                                    <line x1={ix1} y1={startY + rectH + EXTENSION_GAP} x2={ix1} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
-                                    <line x1={ix2} y1={startY + rectH + EXTENSION_GAP} x2={ix2} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={ix1} y1={startY + rectH + EXTENSION_GAP} x2={ix1} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
+                                    <line x1={ix2} y1={startY + rectH + EXTENSION_GAP} x2={ix2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                             currentX = item.end;
@@ -772,13 +774,13 @@ export function RoofDrawing({
 
                             elements.push(
                                 <g key={`dim-x-end-${trackIdx}`}>
-                                    <line x1={rx1} y1={tierY} x2={rx2} y2={tierY} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={rx1} y1={tierY} x2={rx2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(rx2, tierY)}
                                     <rect x={rmid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                    <text x={rmid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                    <text x={rmid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                         {Math.round(rem)}
                                     </text>
-                                    <line x1={rx2} y1={startY + rectH + EXTENSION_GAP} x2={rx2} y2={tierY} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={rx2} y1={startY + rectH + EXTENSION_GAP} x2={rx2} y2={tierY} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                         }
@@ -792,15 +794,15 @@ export function RoofDrawing({
                     elements.push(
                         <g key="dim-x-total">
                             <line x1={startX} y1={totalX_Y} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" />
-                            {drawTick(startX, totalX_Y)}
-                            {drawTick(txEnd, totalX_Y)}
+                            {drawTick(startX, totalX_Y, "#10b981")}
+                            {drawTick(txEnd, totalX_Y, "#10b981")}
                             <rect x={txMid - 20} y={totalX_Y - 6} width="40" height="12" fill="#09090b" />
                             <text x={txMid} y={totalX_Y + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={12} fontWeight="bold" style={{ fontFamily: 'monospace' }}>
                                 {Math.round(inputW)}
                             </text>
                             {/* Extensions for Total */}
-                            <line x1={startX} y1={startY + rectH + EXTENSION_GAP} x2={startX} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            <line x1={txEnd} y1={startY + rectH + EXTENSION_GAP} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                            <line x1={startX} y1={startY + rectH + EXTENSION_GAP} x2={startX} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                            <line x1={txEnd} y1={startY + rectH + EXTENSION_GAP} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
                         </g>
                     );
 
@@ -834,17 +836,17 @@ export function RoofDrawing({
 
                                 elements.push(
                                     <g key={`dim-y-gap-${trackIdx}-${itemIdx}`}>
-                                        <line x1={tierX} y1={y1} x2={tierX} y2={y2} stroke="#10b981" strokeWidth="0.5" />
+                                        <line x1={tierX} y1={y1} x2={tierX} y2={y2} stroke="#14b8a6" strokeWidth="0.5" />
                                         {drawTick(tierX, y1)}
                                         {drawTick(tierX, y2)}
                                         <g transform={`translate(${tierX}, ${mid}) rotate(-90)`}>
                                             <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                            <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                            <text textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                                 {Math.round(gap)}
                                             </text>
                                         </g>
                                         {itemIdx === 0 && (
-                                            <line x1={startX - EXTENSION_GAP} y1={y1} x2={tierX} y2={y1} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                            <line x1={startX - EXTENSION_GAP} y1={y1} x2={tierX} y2={y1} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                         )}
                                     </g>
                                 );
@@ -857,18 +859,18 @@ export function RoofDrawing({
 
                             elements.push(
                                 <g key={`dim-y-item-${trackIdx}-${itemIdx}`}>
-                                    <line x1={tierX} y1={iy1} x2={tierX} y2={iy2} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={tierX} y1={iy1} x2={tierX} y2={iy2} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(tierX, iy2)}
                                     {item.showLabel && (
                                         <g transform={`translate(${tierX}, ${imid}) rotate(-90)`}>
                                             <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                            <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                            <text textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                                 {Math.round(item.size)}
                                             </text>
                                         </g>
                                     )}
-                                    <line x1={startX - EXTENSION_GAP} y1={iy1} x2={tierX} y2={iy1} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
-                                    <line x1={startX - EXTENSION_GAP} y1={iy2} x2={tierX} y2={iy2} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={startX - EXTENSION_GAP} y1={iy1} x2={tierX} y2={iy1} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
+                                    <line x1={startX - EXTENSION_GAP} y1={iy2} x2={tierX} y2={iy2} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                             currentBottom = item.end;
@@ -883,15 +885,15 @@ export function RoofDrawing({
 
                             elements.push(
                                 <g key={`dim-y-end-${trackIdx}`}>
-                                    <line x1={tierX} y1={ry1} x2={tierX} y2={ry2} stroke="#10b981" strokeWidth="0.5" />
+                                    <line x1={tierX} y1={ry1} x2={tierX} y2={ry2} stroke="#14b8a6" strokeWidth="0.5" />
                                     {drawTick(tierX, ry2)}
                                     <g transform={`translate(${tierX}, ${rmid}) rotate(-90)`}>
                                         <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                        <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={10} style={{ fontFamily: 'monospace' }}>
+                                        <text textAnchor="middle" dominantBaseline="middle" fill="#14b8a6" fontSize={10} style={{ fontFamily: 'monospace' }}>
                                             {Math.round(rem)}
                                         </text>
                                     </g>
-                                    <line x1={startX - EXTENSION_GAP} y1={ry2} x2={tierX} y2={ry2} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+                                    <line x1={startX - EXTENSION_GAP} y1={ry2} x2={tierX} y2={ry2} stroke="#14b8a6" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.5" />
                                 </g>
                             );
                         }
@@ -906,6 +908,56 @@ export function RoofDrawing({
                     elements.push(
                         <g key="dim-y-total">
                             <line x1={totalY_X} y1={tyStart} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" />
+                            {drawTick(totalY_X, tyStart, "#10b981")}
+                            {drawTick(totalY_X, tyEnd, "#10b981")}
+                            <g transform={`translate(${totalY_X}, ${tyMid}) rotate(-90)`}>
+                                <rect x="-20" y="-6" width="40" height="12" fill="#09090b" />
+                                <text textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={12} fontWeight="bold" style={{ fontFamily: 'monospace' }}>
+                                    {Math.round(inputH)}
+                                </text>
+                            </g>
+                            {/* Extensions */}
+                            <line x1={startX - EXTENSION_GAP} y1={tyStart} x2={totalY_X} y2={tyStart} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                            <line x1={startX - EXTENSION_GAP} y1={tyEnd} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                        </g>
+                    );
+                } else {
+                    // No openings - still render TOTAL dimensions
+                    const DIM_BASE_OFFSET = 20;
+                    const EXTENSION_GAP = 5;
+
+                    const drawTick = (tx: number, ty: number, color: string = "#10b981") => {
+                        return <circle cx={tx} cy={ty} r="1.5" fill={color} />;
+                    };
+
+                    // Total X Dimension (Bottom)
+                    const totalX_Y = startY + rectH + DIM_BASE_OFFSET;
+                    const txEnd = startX + (inputW * pxPerMmW);
+                    const txMid = (startX + txEnd) / 2;
+
+                    elements.push(
+                        <g key="dim-x-total">
+                            <line x1={startX} y1={totalX_Y} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" />
+                            {drawTick(startX, totalX_Y)}
+                            {drawTick(txEnd, totalX_Y)}
+                            <rect x={txMid - 20} y={totalX_Y - 6} width="40" height="12" fill="#09090b" />
+                            <text x={txMid} y={totalX_Y + 0.5} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize={12} fontWeight="bold" style={{ fontFamily: 'monospace' }}>
+                                {Math.round(inputW)}
+                            </text>
+                            <line x1={startX} y1={startY + rectH + EXTENSION_GAP} x2={startX} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                            <line x1={txEnd} y1={startY + rectH + EXTENSION_GAP} x2={txEnd} y2={totalX_Y} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                        </g>
+                    );
+
+                    // Total Y Dimension (Left)
+                    const totalY_X = startX - DIM_BASE_OFFSET;
+                    const tyStart = startY + rectH;
+                    const tyEnd = startY;
+                    const tyMid = (tyStart + tyEnd) / 2;
+
+                    elements.push(
+                        <g key="dim-y-total">
+                            <line x1={totalY_X} y1={tyStart} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" />
                             {drawTick(totalY_X, tyStart)}
                             {drawTick(totalY_X, tyEnd)}
                             <g transform={`translate(${totalY_X}, ${tyMid}) rotate(-90)`}>
@@ -914,9 +966,8 @@ export function RoofDrawing({
                                     {Math.round(inputH)}
                                 </text>
                             </g>
-                            {/* Extensions */}
-                            <line x1={startX - EXTENSION_GAP} y1={tyStart} x2={totalY_X} y2={tyStart} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            <line x1={startX - EXTENSION_GAP} y1={tyEnd} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                            <line x1={startX - EXTENSION_GAP} y1={tyStart} x2={totalY_X} y2={tyStart} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
+                            <line x1={startX - EXTENSION_GAP} y1={tyEnd} x2={totalY_X} y2={tyEnd} stroke="#10b981" strokeWidth="0.5" strokeDasharray="1,2" opacity="0.3" />
                         </g>
                     );
                 }
@@ -936,8 +987,7 @@ export function RoofDrawing({
                         d={outlinePath}
                         stroke={structureColor}
                         strokeWidth="2"
-                        fill="none"
-                        opacity="0.3"
+                        fill="rgba(70, 75, 85, 0.1)"
                     />
                 );
 

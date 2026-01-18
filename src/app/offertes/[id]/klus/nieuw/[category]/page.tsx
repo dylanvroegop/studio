@@ -137,9 +137,16 @@ export default function GenericSubCategoryPage() {
             },
           });
 
-          // ✅ Dynamic Route: /klus/{id}/{category}/{sub-slug}
-          // Note: Next step is the Measurement Page
-          router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}`);
+          // ✅ Check if job has measurements - if not, skip to materials page
+          const hasMeasurements = item.measurements && item.measurements.length > 0;
+
+          if (hasMeasurements) {
+            // Route to measurement page
+            router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}`);
+          } else {
+            // Skip measurement page - go directly to materials
+            router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}/materialen`);
+          }
         } catch (err) {
           console.error('Fout bij opslaan klussen.*.klusomschrijving:', err);
           klusAanmakenRef.current = false;

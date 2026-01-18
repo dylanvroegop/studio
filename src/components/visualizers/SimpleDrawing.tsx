@@ -42,7 +42,7 @@ export function SimpleDrawing({ item, type = 'box', mode, className, fitContaine
     // Style Constants matching WallDrawing
     const strokeColor = "rgb(70, 75, 85)";
     const fillColor = "rgba(70, 75, 85, 0.2)";
-    const dimColor = "#10b981";
+
 
     // Determine grid label
     let gridLabel = 'Dimensies';

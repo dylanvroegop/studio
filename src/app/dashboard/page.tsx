@@ -51,6 +51,12 @@ import {
   FilePlus,
   LayoutDashboard,
   Loader2,
+  Circle,
+  Clock,
+  Send,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
 } from 'lucide-react';
 
 import { createEmptyQuote } from '@/lib/firestore-actions';
@@ -107,32 +113,133 @@ function getOfferteNummerLabel(q: any): string | null {
   return null;
 }
 
-// ✅ Altijd naar overzicht
+// ✅ Altijd naar overzicht (Financiële details / Edit flow)
 function getOverzichtHref(quoteId: string) {
   return `/offertes/${quoteId}/overzicht`;
 }
 
-function StatusBadge({ status }: { status: Status }) {
-  const statusMap: Record<Status, { text: string; className: string }> = {
-    concept: { text: 'Concept', className: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
-    in_behandeling: { text: 'Bezig', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-    verzonden: { text: 'Verzonden', className: 'bg-sky-500/10 text-sky-400 border-sky-500/20' },
-    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
-    verlopen: { text: 'Verlopen', className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
+// ✅ Naar Project Details (Tekeningen / Technische info)
+function getDetailHref(quoteId: string) {
+  return `/offertes/${quoteId}`;
+}
+
+// Helper to check if a single job (klus) is complete
+function jobIsComplete(job: any): boolean {
+  const selections = job?.materialen?.selections;
+  const hasSelections =
+    selections &&
+    typeof selections === 'object' &&
+    Object.keys(selections).length > 0;
+
+  const presetLabel = job?.werkwijze?.presetLabel;
+  const hasWerkwijzePreset =
+    !!presetLabel && presetLabel.trim().toLowerCase() !== 'nieuw';
+
+  return hasSelections || hasWerkwijzePreset;
+}
+
+// Calculate work completion status for a quote
+type WorkStatus =
+  | { type: 'no_jobs' }
+  | { type: 'in_progress'; complete: number; total: number }
+  | { type: 'ready'; total: number }
+  | { type: 'sent'; status: Status };
+
+function getQuoteWorkStatus(quote: any): WorkStatus {
+  const status = quote.status as Status;
+
+  // If already sent/accepted/rejected, show that status
+  if (status === 'verzonden' || status === 'geaccepteerd' || status === 'afgewezen' || status === 'verlopen') {
+    return { type: 'sent', status };
+  }
+
+  // Extract jobs from the quote
+  const klussen = quote.klussen;
+  if (!klussen || typeof klussen !== 'object') {
+    return { type: 'no_jobs' };
+  }
+
+  const jobIds = Object.keys(klussen);
+  if (jobIds.length === 0) {
+    return { type: 'no_jobs' };
+  }
+
+  const total = jobIds.length;
+  const complete = jobIds.filter(id => jobIsComplete(klussen[id])).length;
+
+  if (complete === total) {
+    return { type: 'ready', total };
+  }
+
+  return { type: 'in_progress', complete, total };
+}
+
+function WorkStatusBadge({ quote }: { quote: any }) {
+  const workStatus = getQuoteWorkStatus(quote);
+
+  if (workStatus.type === 'no_jobs') {
+    return (
+      <Badge
+        variant="outline"
+        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-zinc-800/50 text-zinc-400 border-zinc-700/50"
+      >
+        <Circle className="h-3 w-3" />
+        Geen klussen
+      </Badge>
+    );
+  }
+
+  if (workStatus.type === 'in_progress') {
+    return (
+      <Badge
+        variant="outline"
+        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border-amber-500/20"
+      >
+        <Clock className="h-3 w-3" />
+        {workStatus.complete}/{workStatus.total} klaar
+      </Badge>
+    );
+  }
+
+  if (workStatus.type === 'ready') {
+    return (
+      <Badge
+        variant="outline"
+        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+      >
+        <CheckCircle2 className="h-3 w-3" />
+        Klaar voor offerte
+      </Badge>
+    );
+  }
+
+  // workStatus.type === 'sent'
+  const sentStatusMap: Record<Status, { text: string; className: string; icon: React.ReactNode }> = {
+    concept: { text: 'Concept', className: 'bg-zinc-700/50 text-zinc-300 border-zinc-600/30', icon: <Circle className="h-3 w-3" /> },
+    in_behandeling: { text: 'In bewerking', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: <Clock className="h-3 w-3" /> },
+    verzonden: { text: 'Verzonden', className: 'bg-sky-500/10 text-sky-400 border-sky-500/20', icon: <Send className="h-3 w-3" /> },
+    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: <CheckCircle2 className="h-3 w-3" /> },
+    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: <XCircle className="h-3 w-3" /> },
+    verlopen: { text: 'Verlopen', className: 'bg-zinc-800 text-zinc-500 border-zinc-700', icon: <AlertCircle className="h-3 w-3" /> },
   };
 
-  const safeStatus: Status = statusMap[status] ? status : 'concept';
-  const { text, className } = statusMap[safeStatus];
+  const { text, className, icon } = sentStatusMap[workStatus.status] || sentStatusMap.concept;
 
   return (
     <Badge
       variant="outline"
-      className={`font-semibold px-2.5 py-0.5 text-[10px] uppercase tracking-wider shadow-sm ${className}`}
+      className={`font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 ${className}`}
     >
+      {icon}
       {text}
     </Badge>
   );
+}
+
+// Helper to check if a quote is still being worked on (not sent/completed)
+function isLopendeKlus(quote: any): boolean {
+  const workStatus = getQuoteWorkStatus(quote);
+  return workStatus.type === 'no_jobs' || workStatus.type === 'in_progress' || workStatus.type === 'ready';
 }
 
 function DashboardSkeleton() {
@@ -243,10 +350,7 @@ export default function Dashboard() {
     return arr;
   }, [offertes]);
 
-  const lopendeKlus = useMemo(() => {
-    const drafts = sortedByRecent.filter((o) => o.status === 'concept' || o.status === 'in_behandeling');
-    return drafts[0] ?? null;
-  }, [sortedByRecent]);
+
 
   const recenteKlussen = useMemo(() => {
     const s = zoek.trim().toLowerCase();
@@ -292,11 +396,11 @@ export default function Dashboard() {
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-screen flex-col">
+      <div className="min-h-screen">
         <DashboardHeader user={user} title="Dashboard" />
 
-        <main className="flex flex-1 flex-col items-center p-4 md:p-6 pb-24">
-          <div className="w-full max-w-3xl space-y-10">
+        <main className="flex flex-col items-center p-4 md:px-6 md:pt-6 pb-32">
+          <div className="w-full max-w-3xl space-y-14">
             <div className="px-1">
               <div className="text-3xl font-light tracking-tight">{begroeting}</div>
             </div>
@@ -334,30 +438,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {lopendeKlus && (
-              <Card className="border-zinc-800/60 bg-zinc-900/20 backdrop-blur-xl">
-                <CardContent className="p-4 md:p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-emerald-400 mb-1">Lopende klus</div>
-                      <div className="text-base font-medium text-zinc-200 truncate">
-                        {getKlantNaam(lopendeKlus)} — {getTitel(lopendeKlus)}
-                      </div>
-                      {getOfferteNummerLabel(lopendeKlus) && (
-                        <div className="mt-1 font-mono text-xs text-zinc-500">{getOfferteNummerLabel(lopendeKlus)}</div>
-                      )}
-                    </div>
 
-                    <Button asChild variant="secondary" className="shrink-0 gap-2 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50">
-                      <Link href={getOverzichtHref(lopendeKlus.id)}>
-                        <Pencil className="h-4 w-4" />
-                        Bewerken
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             <Card className="border-none bg-transparent shadow-none">
               <CardContent className="p-0">
@@ -395,15 +476,20 @@ export default function Dashboard() {
                         const datum = o.updatedAtDate ?? o.createdAtDate;
                         const nrLabel = getOfferteNummerLabel(o);
                         const totaal = (o as any).totaalbedrag || (o as any).amount || 0;
-
+                        const lopend = isLopendeKlus(o);
 
                         return (
                           <div
                             key={o.id}
-                            className="group relative flex items-center justify-between gap-4 rounded-xl border border-zinc-800/40 bg-zinc-900/40 px-4 py-3.5 hover:bg-zinc-800/60 hover:border-zinc-700/50 hover:shadow-md transition-all duration-200 backdrop-blur-sm"
+                            className={cn(
+                              "group relative flex items-center justify-between gap-4 rounded-xl border bg-zinc-900/40 px-4 py-3.5 hover:bg-zinc-800/60 hover:border-zinc-700/50 hover:shadow-md transition-all duration-200 backdrop-blur-sm",
+                              lopend
+                                ? "border-l-2 border-l-emerald-500 border-t-zinc-800/40 border-r-zinc-800/40 border-b-zinc-800/40"
+                                : "border-zinc-800/40"
+                            )}
                           >
                             {/* Full row click target */}
-                            <Link href={getOverzichtHref(o.id)} className="absolute inset-0 z-0" />
+                            <Link href={getDetailHref(o.id)} className="absolute inset-0 z-0" />
 
                             <div className="flex-1 min-w-0 z-10 pointer-events-none">
                               <div className="flex items-center gap-3 mb-1 min-w-0">
@@ -415,7 +501,7 @@ export default function Dashboard() {
                                   </span>
                                 )}
 
-                                <StatusBadge status={o.status as Status} />
+                                <WorkStatusBadge quote={o} />
                               </div>
 
                               <div className="flex items-center gap-3 text-xs text-zinc-500">

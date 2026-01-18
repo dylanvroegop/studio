@@ -514,8 +514,8 @@ export function WallDrawing({
                 type: 'header'
             });
 
-            // Sill
-            if (op.type !== 'door' && op.type !== 'opening') {
+            // Sill - Only doors don't have a sill
+            if (op.type !== 'door') {
                 beams.push({
                     x: WALL_X + op.l * pxPerMm,
                     y: getY(op.b),
@@ -859,10 +859,22 @@ export function WallDrawing({
 
                                     return (
                                         <g key={`dim-${op.id}`}>
-                                            {/* 1. Internal Dimensions (Width x Height) - Centered inside */}
+                                            {/* 1. Opening Type Label - Above dimensions */}
                                             <text
                                                 x={op.drawX + op.drawW / 2}
-                                                y={op.drawY + op.drawH / 2}
+                                                y={op.drawY + op.drawH / 2 - 10}
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                className="fill-emerald-400 text-[9px] font-medium select-none pointer-events-none"
+                                                style={{ fontFamily: "'Inter', sans-serif" }}
+                                            >
+                                                {op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing'}
+                                            </text>
+
+                                            {/* 2. Internal Dimensions (Width x Height) - Centered inside */}
+                                            <text
+                                                x={op.drawX + op.drawW / 2}
+                                                y={op.drawY + op.drawH / 2 + 6}
                                                 textAnchor="middle"
                                                 dominantBaseline="middle"
                                                 className="fill-emerald-500/90 text-[8px] font-mono select-none font-bold pointer-events-none"
@@ -870,71 +882,175 @@ export function WallDrawing({
                                                 {op.width} x {op.height}
                                             </text>
 
-                                            {/* 2. From Bottom Dimension (Vertical) */}
-                                            {op.fromBottom > 0 && (
-                                                <>
-                                                    {/* Main Vertical Line (Dimension Line) */}
-                                                    <line
-                                                        x1={dimX} y1={Y_BOTTOM}
-                                                        x2={dimX} y2={op.drawY + op.drawH}
-                                                        stroke="#10b981" strokeWidth="0.5"
-                                                    />
+                                            {/* 2. Opening Vertical Dimensions - 3 segments */}
+                                            {(() => {
+                                                // Calculate wall top at opening position
+                                                const openingCenterX = op.fromLeft + op.width / 2;
+                                                const wallTopMmAtOpening = (() => {
+                                                    const ratio = openingCenterX / lengteNum;
+                                                    if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
+                                                    if (shape === 'gable') {
+                                                        return ratio <= 0.5
+                                                            ? hLeft + (hPeak - hLeft) * (ratio / 0.5)
+                                                            : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
+                                                    }
+                                                    return hLeft || maxH;
+                                                })();
+                                                const wallTopY = getY(wallTopMmAtOpening);
+                                                const openingTopY = op.drawY;
+                                                const openingBottomY = op.drawY + op.drawH;
+                                                const topSegmentHeight = Math.round(wallTopMmAtOpening - op.fromBottom - op.height);
 
-                                                    {/* Extension Left/Right at Floor (Baseline) */}
-                                                    <line x1={dimX} y1={Y_BOTTOM} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
+                                                return (
+                                                    <>
+                                                        {/* Segment 1: Floor to Opening Bottom */}
+                                                        {op.fromBottom > 0 && (
+                                                            <>
+                                                                <line
+                                                                    x1={dimX} y1={Y_BOTTOM}
+                                                                    x2={dimX} y2={openingBottomY}
+                                                                    stroke="#10b981" strokeWidth="0.5"
+                                                                />
+                                                                <circle cx={dimX} cy={Y_BOTTOM} r="1.5" fill="#10b981" />
+                                                                <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />
+                                                                <g transform={`translate(${dimX}, ${(Y_BOTTOM + openingBottomY) / 2}) rotate(-90)`}>
+                                                                    <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
+                                                                    <text
+                                                                        textAnchor="middle"
+                                                                        dominantBaseline="middle"
+                                                                        fill="#10b981"
+                                                                        className="text-[7px] font-mono select-none font-medium"
+                                                                    >
+                                                                        {op.fromBottom}
+                                                                    </text>
+                                                                </g>
+                                                            </>
+                                                        )}
 
-                                                    {/* Extension Left/Right at Opening Bottom Height - CLIPPED AT WALL EDGE */}
-                                                    <line x1={dimX} y1={op.drawY + op.drawH} x2={WALL_X} y2={op.drawY + op.drawH} stroke="#10b981" strokeWidth="0.5" />
+                                                        {/* Segment 2: Opening Height */}
+                                                        <line
+                                                            x1={dimX} y1={openingBottomY}
+                                                            x2={dimX} y2={openingTopY}
+                                                            stroke="#10b981" strokeWidth="0.5"
+                                                        />
+                                                        <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
+                                                        {op.fromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
+                                                        <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
+                                                            <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
+                                                            <text
+                                                                textAnchor="middle"
+                                                                dominantBaseline="middle"
+                                                                fill="#10b981"
+                                                                className="text-[7px] font-mono select-none font-medium"
+                                                            >
+                                                                {op.height}
+                                                            </text>
+                                                        </g>
 
-                                                    {/* Circle Dots at Intersections with Dim Line */}
-                                                    <circle cx={dimX} cy={Y_BOTTOM} r="1.5" fill="#10b981" />
-                                                    <circle cx={dimX} cy={op.drawY + op.drawH} r="1.5" fill="#10b981" />
+                                                        {/* Segment 3: Opening Top to Wall Top */}
+                                                        {topSegmentHeight > 0 && (
+                                                            <>
+                                                                <line
+                                                                    x1={dimX} y1={openingTopY}
+                                                                    x2={dimX} y2={wallTopY}
+                                                                    stroke="#10b981" strokeWidth="0.5"
+                                                                />
+                                                                <circle cx={dimX} cy={wallTopY} r="1.5" fill="#10b981" />
+                                                                <g transform={`translate(${dimX}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
+                                                                    <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
+                                                                    <text
+                                                                        textAnchor="middle"
+                                                                        dominantBaseline="middle"
+                                                                        fill="#10b981"
+                                                                        className="text-[7px] font-mono select-none font-medium"
+                                                                    >
+                                                                        {topSegmentHeight}
+                                                                    </text>
+                                                                </g>
+                                                            </>
+                                                        )}
 
-                                                    {/* Text Label - Vertical, On Line */}
-                                                    <g transform={`translate(${dimX}, ${(Y_BOTTOM + (op.drawY + op.drawH)) / 2}) rotate(-90)`}>
-                                                        <rect x="-8" y="-4" width="16" height="8" fill="#09090b" opacity="1" />
-                                                        <text
-                                                            textAnchor="middle"
-                                                            dominantBaseline="middle"
-                                                            fill="#10b981"
-                                                            className="text-[8px] font-mono select-none font-medium"
-                                                        >
-                                                            {op.fromBottom}
-                                                        </text>
-                                                    </g>
-                                                </>
-                                            )}
+                                                        {/* Extension lines to wall */}
+                                                        <line x1={dimX} y1={Y_BOTTOM} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
+                                                        <line x1={dimX} y1={openingBottomY} x2={WALL_X} y2={openingBottomY} stroke="#10b981" strokeWidth="0.5" />
+                                                        <line x1={dimX} y1={openingTopY} x2={WALL_X} y2={openingTopY} stroke="#10b981" strokeWidth="0.5" />
+                                                        {topSegmentHeight > 0 && <line x1={dimX} y1={wallTopY} x2={WALL_X} y2={wallTopY} stroke="#10b981" strokeWidth="0.5" />}
+                                                    </>
+                                                );
+                                            })()}
 
-                                            {/* 3. From Left Dimension (Horizontal) */}
-                                            {/* Main Horizontal Line */}
+                                            {/* 3. Opening Horizontal Dimensions - 3 segments */}
+                                            {/* Segment 1: Wall Left to Opening Left */}
                                             <line
                                                 x1={WALL_X} y1={dimY}
                                                 x2={op.drawX} y2={dimY}
                                                 stroke="#10b981" strokeWidth="0.5"
                                             />
-
-                                            {/* Extension Up/Down at Start (Wall Left) */}
-                                            <line x1={WALL_X} y1={dimY} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
-
-                                            {/* Extension Up/Down at End (Opening Left) - CLIPPED AT BOTTOM EDGE */}
-                                            <line x1={op.drawX} y1={dimY} x2={op.drawX} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
-
-                                            {/* Dots */}
                                             <circle cx={WALL_X} cy={dimY} r="1.5" fill="#10b981" />
                                             <circle cx={op.drawX} cy={dimY} r="1.5" fill="#10b981" />
-
-                                            {/* Text Label - Horizontal, On Line */}
-                                            <rect x={(WALL_X + op.drawX) / 2 - 8} y={dimY - 4} width="16" height="8" fill="#09090b" opacity="1" />
+                                            <rect x={(WALL_X + op.drawX) / 2 - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
                                             <text
                                                 x={(WALL_X + op.drawX) / 2}
                                                 y={dimY + 0.5}
                                                 textAnchor="middle"
                                                 dominantBaseline="middle"
                                                 fill="#10b981"
-                                                className="text-[8px] font-mono select-none font-medium"
+                                                className="text-[7px] font-mono select-none font-medium"
                                             >
                                                 {op.fromLeft}
                                             </text>
+
+                                            {/* Segment 2: Opening Width */}
+                                            <line
+                                                x1={op.drawX} y1={dimY}
+                                                x2={op.drawX + op.drawW} y2={dimY}
+                                                stroke="#10b981" strokeWidth="0.5"
+                                            />
+                                            <circle cx={op.drawX + op.drawW} cy={dimY} r="1.5" fill="#10b981" />
+                                            <rect x={(op.drawX + op.drawX + op.drawW) / 2 - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
+                                            <text
+                                                x={(op.drawX + op.drawX + op.drawW) / 2}
+                                                y={dimY + 0.5}
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                fill="#10b981"
+                                                className="text-[7px] font-mono select-none font-medium"
+                                            >
+                                                {op.width}
+                                            </text>
+
+                                            {/* Segment 3: Opening Right to Wall Right */}
+                                            <line
+                                                x1={op.drawX + op.drawW} y1={dimY}
+                                                x2={WALL_X + WALL_WIDTH} y2={dimY}
+                                                stroke="#10b981" strokeWidth="0.5"
+                                            />
+                                            <circle cx={WALL_X + WALL_WIDTH} cy={dimY} r="1.5" fill="#10b981" />
+                                            {(() => {
+                                                const rightSegmentWidth = lengteNum - op.fromLeft - op.width;
+                                                const midX = (op.drawX + op.drawW + WALL_X + WALL_WIDTH) / 2;
+                                                return (
+                                                    <>
+                                                        <rect x={midX - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
+                                                        <text
+                                                            x={midX}
+                                                            y={dimY + 0.5}
+                                                            textAnchor="middle"
+                                                            dominantBaseline="middle"
+                                                            fill="#10b981"
+                                                            className="text-[7px] font-mono select-none font-medium"
+                                                        >
+                                                            {Math.round(rightSegmentWidth)}
+                                                        </text>
+                                                    </>
+                                                );
+                                            })()}
+
+                                            {/* Extension lines down to wall */}
+                                            <line x1={WALL_X} y1={dimY} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
+                                            <line x1={op.drawX} y1={dimY} x2={op.drawX} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
+                                            <line x1={op.drawX + op.drawW} y1={dimY} x2={op.drawX + op.drawW} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
+                                            <line x1={WALL_X + WALL_WIDTH} y1={dimY} x2={WALL_X + WALL_WIDTH} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
                                         </g>
                                     );
                                 });
@@ -1072,9 +1188,9 @@ export function WallDrawing({
                             return (
                                 <>
                                     <line x1={WALL_X} y1={totalWidthY} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" />
-                                    {/* Extension Lines */}
-                                    <line x1={WALL_X} y1={Y_BOTTOM + 5} x2={WALL_X} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                                    <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 5} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                                    {/* Extension Lines - SOLID */}
+                                    <line x1={WALL_X} y1={Y_BOTTOM + 5} x2={WALL_X} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
+                                    <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 5} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
                                     {/* Dots */}
                                     <circle cx={WALL_X} cy={totalWidthY} r="1.5" fill="currentColor" />
                                     <circle cx={WALL_X + WALL_WIDTH} cy={totalWidthY} r="1.5" fill="currentColor" />
@@ -1191,9 +1307,9 @@ export function WallDrawing({
                                 <>
                                     {/* Main vertical dimension line */}
                                     <line x1={totalHeightX} y1={yLeft} x2={totalHeightX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" />
-                                    {/* Extensions */}
-                                    <line x1={totalHeightX} y1={yLeft} x2={WALL_X - 5} y2={yLeft} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                                    <line x1={totalHeightX} y1={Y_BOTTOM} x2={WALL_X - 5} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                                    {/* Extensions - SOLID */}
+                                    <line x1={totalHeightX} y1={yLeft} x2={WALL_X - 5} y2={yLeft} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
+                                    <line x1={totalHeightX} y1={Y_BOTTOM} x2={WALL_X - 5} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
                                     {/* Dots */}
                                     <circle cx={totalHeightX} cy={yLeft} r="1.5" fill="currentColor" />
                                     <circle cx={totalHeightX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
@@ -1237,6 +1353,74 @@ export function WallDrawing({
                             </text>
                         </g>
                     )}
+
+                    {/* Balk Callout - OUTSIDE wall frame, at 30 degree angle */}
+                    {studData.beams.length > 0 && (() => {
+                        // Find a stud near the middle of the wall
+                        const studsOnly = studData.beams.filter(b => b.type === 'stud');
+                        const middleIndex = Math.floor(studsOnly.length / 2);
+                        const middleStud = studsOnly[middleIndex] || studsOnly[0] || studData.beams[0];
+                        if (!middleStud) return null;
+
+                        // Position: X at middle stud, dot just below top plate
+                        const studCenterX = middleStud.x + middleStud.w / 2;
+                        const dotY = middleStud.y + 25;
+
+                        // Calculate position at ~30 degree angle, further out
+                        const distance = 120;
+                        const angleRad = (30 * Math.PI) / 180;
+                        const offsetX = distance * Math.sin(angleRad);
+                        const offsetY = distance * Math.cos(angleRad);
+
+                        const labelX = studCenterX - offsetX;
+                        const labelY = dotY - offsetY;
+
+                        return (
+                            <g className="pointer-events-none">
+                                {/* Small dot on the stud */}
+                                <circle
+                                    cx={studCenterX}
+                                    cy={dotY}
+                                    r={1.5}
+                                    fill="#10b981"
+                                />
+
+                                {/* Dashed leader line - at 30 degree angle */}
+                                <line
+                                    x1={studCenterX}
+                                    y1={dotY}
+                                    x2={labelX}
+                                    y2={labelY}
+                                    stroke="#10b981"
+                                    strokeWidth="0.5"
+                                    strokeDasharray="3,2"
+                                />
+
+                                {/* Circle around the label */}
+                                <circle
+                                    cx={labelX}
+                                    cy={labelY}
+                                    r={16}
+                                    fill="#09090b"
+                                    stroke="#10b981"
+                                    strokeWidth="0.5"
+                                />
+
+                                {/* Label text inside circle */}
+                                <text
+                                    x={labelX}
+                                    y={labelY + 1}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    fill="#10b981"
+                                    className="text-[10px] font-medium"
+                                    style={{ fontFamily: "'Inter', sans-serif" }}
+                                >
+                                    Balk
+                                </text>
+                            </g>
+                        );
+                    })()}
                 </g>
 
                 {/* MAGNIFIER LENS */}

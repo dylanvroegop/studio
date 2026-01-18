@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search } from 'lucide-react';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import html2canvas from 'html2canvas';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +30,13 @@ import {
   DialogTrigger,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { cn } from '@/lib/utils';
@@ -54,6 +63,9 @@ export default function GenericMeasurementPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Refs for capturing visualizations
+  const visualizerRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // ✅ 1. Add the Mounted State (The Fix)
   const [isMounted, setIsMounted] = useState(false);
@@ -238,9 +250,62 @@ export default function GenericMeasurementPage() {
 
     startTransition(async () => {
       try {
+        // Capture and upload visualization image
+        let visualisatieUrl: string | null = null;
+
+        // Get the first visualizer ref (primary visualization)
+        const visualizerElement = visualizerRefs.current[0];
+
+        if (visualizerElement) {
+          try {
+            // Capture the visualization container as a canvas
+            const canvas = await html2canvas(visualizerElement, {
+              backgroundColor: '#18181b', // Match the dark background
+              scale: 2, // Higher resolution
+              logging: false,
+              useCORS: true,
+              allowTaint: true,
+            });
+
+            // Convert canvas to blob
+            const blob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob((b) => {
+                if (b) resolve(b);
+                else reject(new Error('Failed to create blob from canvas'));
+              }, 'image/png', 0.95);
+            });
+
+            // Get the Firebase app from auth and initialize storage
+            const auth = getAuth();
+            const storage = getStorage(auth.app);
+
+            // Create storage reference with path: visualisaties/${quoteId}/${klusId}.png
+            const storageRef = ref(storage, `visualisaties/${quoteId}/${klusId}.png`);
+
+            // Upload the blob
+            await uploadBytes(storageRef, blob, {
+              contentType: 'image/png',
+            });
+
+            // Get the download URL
+            visualisatieUrl = await getDownloadURL(storageRef);
+
+            console.log('Visualization uploaded successfully:', visualisatieUrl);
+          } catch (uploadError) {
+            console.error('Error capturing/uploading visualization:', uploadError);
+            // Continue saving even if image upload fails
+            toast({
+              variant: "destructive",
+              title: "Visualisatie upload mislukt",
+              description: "De tekening kon niet worden opgeslagen, maar de gegevens worden wel bewaard."
+            });
+          }
+        }
+
         const quoteRef = doc(firestore, 'quotes', quoteId);
 
-        await updateDoc(quoteRef, {
+        // Prepare update data
+        const updateData: Record<string, any> = {
           [`klussen.${klusId}.maatwerk`]: items,
           [`klussen.${klusId}.components`]: components,
           [`klussen.${klusId}.meta`]: {
@@ -250,7 +315,14 @@ export default function GenericMeasurementPage() {
             description: jobConfig.description
           },
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
-        });
+        };
+
+        // Add visualisatieUrl if upload was successful
+        if (visualisatieUrl) {
+          updateData[`klussen.${klusId}.visualisatieUrl`] = visualisatieUrl;
+        }
+
+        await updateDoc(quoteRef, updateData);
 
         router.push(`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`);
 
@@ -568,12 +640,13 @@ export default function GenericMeasurementPage() {
                         );
                       })()}
 
-                      {/* Dynamic Height Inputs (if not L-shape which is handled above) */}
+                      {/* Dynamic Height/Breedte Inputs (if not L-shape which is handled above) */}
                       {(() => {
                         const shape = item.shape || 'rectangle';
                         if (shape === 'l-shape' || shape === 'u-shape') return null; // Already rendered inputs above
 
-                        const hoogteField = fields.find(f => f.key === 'hoogte');
+                        // Look for 'hoogte' OR 'breedte' field (some job types use breedte instead)
+                        const hoogteField = fields.find(f => f.key === 'hoogte') || fields.find(f => f.key === 'breedte');
 
                         if (!hoogteField) return null;
 
@@ -647,7 +720,7 @@ export default function GenericMeasurementPage() {
                           );
                         }
 
-                        // Default Rectangle
+                        // Default Rectangle - render the field (whether it's 'hoogte' or 'breedte')
                         return (
                           <DynamicInput
                             key={hoogteField.key}
@@ -664,7 +737,7 @@ export default function GenericMeasurementPage() {
                     {/* Middle fields (balkafstand, etc.) - excluding textarea */}
                     <div className="space-y-4">
                       {(() => {
-                        const fieldsToRender = fields.slice(2).filter(f => f.type !== 'textarea' && f.key !== 'balkafstand' && f.key !== 'latafstand');
+                        const fieldsToRender = fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key));
 
                         // Group adjacent fields with the same group property
                         const groupedFields = fieldsToRender.reduce((acc, field) => {
@@ -699,16 +772,22 @@ export default function GenericMeasurementPage() {
 
 
                     {/* Visualizer Controller with Overlay Controls */}
-                    <div className="relative group border rounded-lg overflow-hidden border-border/30 bg-secondary/5">
+                    <div
+                      ref={(el) => { visualizerRefs.current[index] = el; }}
+                      className="relative group border rounded-lg overflow-hidden border-border/30 bg-secondary/5"
+                    >
                       <VisualizerController
                         category={categorySlug}
                         slug={jobSlug}
                         item={item}
                         fields={fields}
+                        title={`${itemLabel} ${index + 1}`}
                         isMagnifier={isMagnifier}
                         fitContainer={true}
+                        gridLabel={(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) ? ' ' : undefined}
                         className="min-h-[400px]" // Ensure minimum height
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                        onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                       />
 
                       {/* Floating Controls - Bottom Left */}
@@ -737,47 +816,58 @@ export default function GenericMeasurementPage() {
                                   slug={jobSlug}
                                   item={item}
                                   fields={fields}
+                                  title={`${itemLabel} ${index + 1}`}
                                   isMagnifier={isMagnifier}
                                   fitContainer={true}
+                                  gridLabel={(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) ? ' ' : undefined}
                                   className="w-full h-full"
                                   onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                                  onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                                 />
-                                <div className="absolute bottom-4 right-4 text-[10px] sm:text-xs text-zinc-500 font-medium pointer-events-none select-none font-mono">
-                                  {(() => {
-                                    const shape = item.shape || 'rectangle';
-                                    const L = parseFloat(String(item.lengte || 0));
-                                    const H = parseFloat(String(item.hoogte || 0));
+                                <div className="absolute bottom-4 right-4 flex flex-col items-end pointer-events-none select-none">
+                                  {(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) && (
+                                    <div className="text-[10px] sm:text-xs text-zinc-500/80 font-bold uppercase tracking-wider mb-0.5">
+                                      Vloer vlak {index + 1}
+                                    </div>
+                                  )}
+                                  <div className="text-[10px] sm:text-xs text-zinc-500 font-medium font-mono">
+                                    {(() => {
+                                      const shape = item.shape || 'rectangle';
+                                      const L = parseFloat(String(item.lengte || 0));
+                                      const H = parseFloat(String(item.hoogte || 0));
 
-                                    let areaMm2 = 0;
+                                      let areaMm2 = 0;
 
-                                    if (shape === 'rectangle') {
-                                      areaMm2 = L * H;
-                                    } else if (shape === 'slope') {
-                                      const hL = parseFloat(String(item.hoogteLinks || 0));
-                                      const hR = parseFloat(String(item.hoogteRechts || 0));
-                                      const avgH = (hL + hR) / 2;
-                                      areaMm2 = L * avgH;
-                                    } else if (shape === 'gable') {
-                                      const hNok = parseFloat(String(item.hoogteNok || 0));
-                                      areaMm2 = L * ((H + hNok) / 2);
-                                    } else if (shape === 'l-shape') {
-                                      const l1 = parseFloat(String(item.lengte1 || 0));
-                                      const h1 = parseFloat(String(item.hoogte1 || 0));
-                                      const h2 = parseFloat(String(item.hoogte2 || 0));
-                                      areaMm2 = (l1 * h1) + ((L - l1) * h2);
-                                    } else if (shape === 'u-shape') {
-                                      const l1 = parseFloat(String(item.lengte1 || 0));
-                                      const l2 = parseFloat(String(item.lengte2 || 0));
-                                      const h1 = parseFloat(String(item.hoogte1 || 0));
-                                      const h2 = parseFloat(String(item.hoogte2 || 0));
-                                      const h3 = parseFloat(String(item.hoogte3 || 0));
-                                      areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
-                                    } else {
-                                      areaMm2 = L * H;
-                                    }
+                                      if (shape === 'rectangle') {
+                                        areaMm2 = L * H;
+                                      } else if (shape === 'slope') {
+                                        const hL = parseFloat(String(item.hoogteLinks || 0));
+                                        const hR = parseFloat(String(item.hoogteRechts || 0));
+                                        const avgH = (hL + hR) / 2;
+                                        areaMm2 = L * avgH;
+                                      } else if (shape === 'gable') {
+                                        const hNok = parseFloat(String(item.hoogteNok || 0));
+                                        areaMm2 = L * ((H + hNok) / 2);
+                                      } else if (shape === 'l-shape') {
+                                        // Use stored values for L-Shape if available, or calc
+                                        const l1 = parseFloat(String(item.lengte1 || 0));
+                                        const h1 = parseFloat(String(item.hoogte1 || 0));
+                                        const h2 = parseFloat(String(item.hoogte2 || 0));
+                                        areaMm2 = (l1 * h1) + ((L - l1) * h2);
+                                      } else if (shape === 'u-shape') {
+                                        const l1 = parseFloat(String(item.lengte1 || 0));
+                                        const l2 = parseFloat(String(item.lengte2 || 0));
+                                        const h1 = parseFloat(String(item.hoogte1 || 0));
+                                        const h2 = parseFloat(String(item.hoogte2 || 0));
+                                        const h3 = parseFloat(String(item.hoogte3 || 0));
+                                        areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
+                                      } else {
+                                        areaMm2 = L * H;
+                                      }
 
-                                    return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                                  })()} m²
+                                      return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    })()} m²
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -787,43 +877,86 @@ export default function GenericMeasurementPage() {
 
                       {/* Floating Controls - Bottom Right (Area Helper) */}
                       {/* Floating Controls - Bottom Right (Area Helper) */}
-                      <div className="absolute bottom-2 right-3 text-[10px] sm:text-xs text-muted-foreground/50 font-medium pointer-events-none select-none font-mono">
-                        {(() => {
-                          const shape = item.shape || 'rectangle';
-                          const L = parseFloat(String(item.lengte || 0));
-                          const H = parseFloat(String(item.hoogte || 0));
+                      <div className="absolute bottom-2 right-3 flex flex-col items-end pointer-events-none select-none">
+                        {(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) && (
+                          <div className="text-[10px] sm:text-xs text-muted-foreground/60 font-bold uppercase tracking-wider mb-0.5">
+                            Vloer vlak {index + 1}
+                          </div>
+                        )}
+                        <div className="text-[10px] sm:text-xs text-muted-foreground/50 font-medium font-mono">
+                          {(() => {
+                            const shape = item.shape || 'rectangle';
+                            const L = parseFloat(String(item.lengte || 0));
+                            const H = parseFloat(String(item.hoogte || 0));
 
-                          let areaMm2 = 0;
+                            let areaMm2 = 0;
 
-                          if (shape === 'rectangle') {
-                            areaMm2 = L * H;
-                          } else if (shape === 'slope') {
-                            const hL = parseFloat(String(item.hoogteLinks || 0));
-                            const hR = parseFloat(String(item.hoogteRechts || 0));
-                            const avgH = (hL + hR) / 2;
-                            areaMm2 = L * avgH;
-                          } else if (shape === 'gable') {
-                            const hNok = parseFloat(String(item.hoogteNok || 0));
-                            areaMm2 = L * ((H + hNok) / 2);
-                          } else if (shape === 'l-shape') {
-                            const l1 = parseFloat(String(item.lengte1 || 0));
-                            const h1 = parseFloat(String(item.hoogte1 || 0));
-                            const h2 = parseFloat(String(item.hoogte2 || 0));
-                            areaMm2 = (l1 * h1) + ((L - l1) * h2);
-                          } else if (shape === 'u-shape') {
-                            const l1 = parseFloat(String(item.lengte1 || 0));
-                            const l2 = parseFloat(String(item.lengte2 || 0));
-                            const h1 = parseFloat(String(item.hoogte1 || 0));
-                            const h2 = parseFloat(String(item.hoogte2 || 0));
-                            const h3 = parseFloat(String(item.hoogte3 || 0));
-                            areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
-                          } else {
-                            areaMm2 = L * H;
-                          }
+                            if (shape === 'rectangle') {
+                              areaMm2 = L * H;
+                            } else if (shape === 'slope') {
+                              const hL = parseFloat(String(item.hoogteLinks || 0));
+                              const hR = parseFloat(String(item.hoogteRechts || 0));
+                              const avgH = (hL + hR) / 2;
+                              areaMm2 = L * avgH;
+                            } else if (shape === 'gable') {
+                              const hNok = parseFloat(String(item.hoogteNok || 0));
+                              areaMm2 = L * ((H + hNok) / 2);
+                            } else if (shape === 'l-shape') {
+                              const l1 = parseFloat(String(item.lengte1 || 0));
+                              const h1 = parseFloat(String(item.hoogte1 || 0));
+                              const h2 = parseFloat(String(item.hoogte2 || 0));
+                              areaMm2 = (l1 * h1) + ((L - l1) * h2);
+                            } else if (shape === 'u-shape') {
+                              const l1 = parseFloat(String(item.lengte1 || 0));
+                              const l2 = parseFloat(String(item.lengte2 || 0));
+                              const h1 = parseFloat(String(item.hoogte1 || 0));
+                              const h2 = parseFloat(String(item.hoogte2 || 0));
+                              const h3 = parseFloat(String(item.hoogte3 || 0));
+                              areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
+                            } else {
+                              areaMm2 = L * H;
+                            }
 
-                          return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        })()} m²
+                            return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          })()} m²
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="space-y-4 mt-6">
+                      {(() => {
+                        const epdmFields = fields.filter(f => ['dakrand_breedte'].includes(f.key));
+
+                        if (epdmFields.length === 0) return null;
+
+                        // Reuse grouping logic
+                        const groupedEpdm = epdmFields.reduce((acc, field) => {
+                          const lastGroup = acc[acc.length - 1];
+                          if (field.group && lastGroup && lastGroup[0].group === field.group) {
+                            lastGroup.push(field);
+                          } else {
+                            acc.push([field]);
+                          }
+                          return acc;
+                        }, [] as typeof fields[]);
+
+                        return groupedEpdm.map((group, groupIndex) => (
+                          <div key={`epdm-g-${groupIndex}`} className={cn(group.length > 1 && "grid grid-cols-1 sm:grid-cols-2 gap-4")}>
+                            {group.map(field => (
+                              <div key={field.key} className="space-y-1">
+                                <DynamicInput
+                                  field={field}
+                                  value={item[field.key]}
+                                  onChange={(val) => updateItem(index, field.key, val)}
+                                  onKeyDown={handleKeyDown}
+                                  disabled={disabledAll}
+                                  className="w-full"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ));
+                      })()}
                     </div>
 
                     {/* Controls Moved Here */}
@@ -1060,6 +1193,14 @@ export default function GenericMeasurementPage() {
                                       <option value="window">Kozijn</option>
                                       <option value="door">Deur</option>
                                       <option value="opening">Sparing</option>
+                                      <option value="other">Overig</option>
+                                    </>
+                                  ) : (categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) ? (
+                                    <>
+                                      <option value="opening">Sparing</option>
+                                      <option value="pillar">Pilaar / Kolom</option>
+                                      <option value="tree">Boom</option>
+                                      <option value="hatch">Luik</option>
                                       <option value="other">Overig</option>
                                     </>
                                   ) : categorySlug === 'dakrenovatie' ? (
@@ -1301,6 +1442,19 @@ function DynamicInput({
             rows={3}
           />
         </div>
+      ) : field.type === 'select' ? (
+        <Select value={value} onValueChange={onChange} disabled={disabled}>
+          <SelectTrigger id={field.key}>
+            <SelectValue placeholder={field.placeholder || "Selecteer..."} />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options?.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       ) : (
         <div className="relative">
           <Input

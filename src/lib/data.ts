@@ -152,7 +152,27 @@ export const getFullQuoteDetails = async (quoteId: string) => {
       : new Date().toISOString(),
   };
 
-  const quoteJobs = await getJobsForQuote(quoteId);
+  // ✅ Prioritize 'klussen' map from Quote document (Active Wizard Logic)
+  let quoteJobs: Job[] = [];
+  const klussenMap = (quote as any).klussen;
+
+  if (klussenMap && typeof klussenMap === 'object' && Object.keys(klussenMap).length > 0) {
+    quoteJobs = Object.keys(klussenMap).map((key) => {
+      const data = klussenMap[key];
+      // Ensure date fields are Dates/Strings as expected
+      return {
+        id: key,
+        quoteId: quote.id,
+        ...data,
+        // Ensure meta is preserved for visualizer
+        meta: data.meta || {},
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+      } as Job;
+    });
+  } else {
+    // Fallback: Legacy subcollection
+    quoteJobs = await getJobsForQuote(quoteId);
+  }
 
   const jobsWithMaterials = await Promise.all(
     quoteJobs.map(async (job) => {

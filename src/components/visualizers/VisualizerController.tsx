@@ -4,6 +4,8 @@ import { SimpleDrawing } from './SimpleDrawing';
 import { CeilingWoodDrawing } from './CeilingWoodDrawing';
 import { MetalStudCeilingDrawing } from './MetalStudCeilingDrawing';
 import { RoofDrawing } from './RoofDrawing';
+import { EPDMDrawing } from './EPDMDrawing';
+import { GolfplaatDrawing } from './GolfplaatDrawing';
 
 interface VisualizerControllerProps {
     category: string;
@@ -15,6 +17,7 @@ interface VisualizerControllerProps {
     className?: string;
     // Pass-through handlers
     onOpeningsChange?: (newOpenings: any[]) => void;
+    onEdgeChange?: (side: string, value: string) => void;
     // ... allow other props
     [key: string]: any;
 }
@@ -28,6 +31,7 @@ export function VisualizerController({
     fitContainer,
     className,
     onOpeningsChange,
+    onEdgeChange,
     ...props
 }: VisualizerControllerProps) {
 
@@ -61,6 +65,7 @@ export function VisualizerController({
                 startFromRight={item.startFromRight}
                 startLattenFromBottom={item.startLattenFromBottom}
                 onOpeningsChange={onOpeningsChange}
+                gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag') || slug.includes('vliering')) ? 'Vloer Vlak' : undefined)}
             />
         );
     }
@@ -74,6 +79,40 @@ export function VisualizerController({
     const isRoof = roofSlugs.some(s => slug.includes(s)) || category === 'dakwerken' || category === 'dakrenovatie';
 
     if (isRoof) {
+        if (slug.includes('epdm-dakbedekking')) {
+            return (
+                <EPDMDrawing
+                    {...item}
+                    openings={item.openings}
+                    dakrandWidth={item.dakrand_breedte}
+                    edgeTop={item.edge_top}
+                    edgeBottom={item.edge_bottom}
+                    edgeLeft={item.edge_left}
+                    edgeRight={item.edge_right}
+                    isMagnifier={isMagnifier}
+                    fitContainer={fitContainer}
+                    className={className}
+                    onOpeningsChange={onOpeningsChange}
+                    onEdgeChange={onEdgeChange}
+                    {...props}
+                />
+            );
+        }
+
+        if (slug.includes('golfplaat-dak')) {
+            return (
+                <GolfplaatDrawing
+                    lengte={item.lengte}
+                    hoogte={item.breedte}
+                    openings={item.openings}
+                    fitContainer={fitContainer}
+                    className={className}
+                    onOpeningsChange={onOpeningsChange}
+                    {...props}
+                />
+            );
+        }
+
         return (
             <RoofDrawing
                 {...item}

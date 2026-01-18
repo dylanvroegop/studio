@@ -10,7 +10,7 @@ import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { WizardHeader } from '@/components/WizardHeader';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
-import { JobComponent, Job } from '@/lib/types';
+import { JobComponent, JobComponentType, Job } from '@/lib/types';
 
 import {
   ArrowLeft,
@@ -198,9 +198,17 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
   customGroups.forEach((group, index) => {
     const groupId = group?.id;
     const title = (group?.title || '').trim();
-    const rowId = (group?.materials?.[0] as any)?.id || (group?.materials?.[0] as any)?.row_id || null;
+    const material = (group?.materials?.[0] as any);
+    const rowId = material?.id || material?.row_id || null;
     if (!groupId || !title || !rowId) return;
-    out[groupId] = { id: String(rowId), title, order: index };
+    out[groupId] = {
+      id: String(rowId),
+      materiaalnaam: material?.materiaalnaam || '',
+      prijs: typeof material?.prijs === 'number' ? material.prijs : 0,
+      eenheid: material?.eenheid || '',
+      title,
+      order: index
+    };
   });
   return out;
 }
@@ -569,6 +577,9 @@ export default function GenericMaterialsPageRedesigned() {
       return { ...comp, materials: current.filter((m: any) => m.sectionKey !== sectionKey) };
     }));
   };
+
+  // Component Deletion Confirmation
+  const [componentDeleteId, setComponentDeleteId] = useState<string | null>(null);
 
   const handleComponentDelete = (compId: string) => {
     setComponents(prev => prev.filter(c => c.id !== compId));
@@ -1044,9 +1055,17 @@ export default function GenericMaterialsPageRedesigned() {
     else setIsAutosaving(true);
 
     try {
-      const cleanSelections: Record<string, { id: string }> = {};
+      // Save full material objects with id, materiaalnaam, prijs, and eenheid
+      const cleanSelections: Record<string, { id: string; materiaalnaam: string; prijs: number; eenheid: string }> = {};
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
-        if (v?.id) cleanSelections[k] = { id: v.id };
+        if (v?.id) {
+          cleanSelections[k] = {
+            id: v.id,
+            materiaalnaam: v.materiaalnaam || '',
+            prijs: typeof v.prijs === 'number' ? v.prijs : 0,
+            eenheid: v.eenheid || ''
+          };
+        }
       });
 
       const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
@@ -1118,7 +1137,12 @@ export default function GenericMaterialsPageRedesigned() {
 
   const handleBack = (e: React.MouseEvent) => {
     e.preventDefault();
-    saveToFirestore({ navigateTo: `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}` });
+    // If job has no measurements, skip measurement page and go to category selection
+    const hasMeasurements = jobConfig?.measurements && jobConfig.measurements.length > 0;
+    const backUrl = hasMeasurements
+      ? `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`
+      : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`;
+    saveToFirestore({ navigateTo: backUrl });
   };
 
 
@@ -1138,7 +1162,11 @@ export default function GenericMaterialsPageRedesigned() {
         {/* HEADER - Consistent with other pages */}
         <WizardHeader
           title={JOB_TITEL}
-          backLink={`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`}
+          backLink={
+            (jobConfig?.measurements && jobConfig.measurements.length > 0)
+              ? `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`
+              : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`
+          }
           progress={pageProgress}
           quoteId={quoteId}
           rightContent={
@@ -1295,14 +1323,20 @@ export default function GenericMaterialsPageRedesigned() {
                 const isAComponentSection = (isComplexJob && (
                   keyA === 'Kozijnen' || (keyA as string).toLowerCase() === 'kozijnen' ||
                   keyA === 'Deuren' || (keyA as string).toLowerCase() === 'deuren' ||
-                  isBoeiboordSection
-                )) || (isCeilingJob && isVlizotrapSectionA);
+                  keyA === 'Koof' ||
+                  (keyA === 'boeiboord' || (keyA as string).toLowerCase() === 'boeiboorden') ||
+                  keyA === 'Installatie' || keyA === 'Schakelmateriaal' ||
+                  keyA === 'Dagkant' || keyA === 'Vensterbank'
+                )) || (isCeilingJob && (isVlizotrapSectionA || keyA === 'Koof' || keyA === 'Installatie' || keyA === 'Schakelmateriaal'));
 
                 const isBComponentSection = (isComplexJob && (
                   keyB === 'Kozijnen' || (keyB as string).toLowerCase() === 'kozijnen' ||
                   keyB === 'Deuren' || (keyB as string).toLowerCase() === 'deuren' ||
-                  (keyB === 'boeiboord' || (keyB as string).toLowerCase() === 'boeiboorden')
-                )) || (isCeilingJob && isVlizotrapSectionB);
+                  keyB === 'Koof' ||
+                  (keyB === 'boeiboord' || (keyB as string).toLowerCase() === 'boeiboorden') ||
+                  keyB === 'Installatie' || keyB === 'Schakelmateriaal' ||
+                  keyB === 'Dagkant' || keyB === 'Vensterbank'
+                )) || (isCeilingJob && (isVlizotrapSectionB || keyB === 'Koof' || keyB === 'Installatie' || keyB === 'Schakelmateriaal'));
 
                 // Push component sections to the end
                 if (isAComponentSection && !isBComponentSection) return 1;
@@ -1322,11 +1356,26 @@ export default function GenericMaterialsPageRedesigned() {
                 const isDeurenSection = (categoryKey === 'Deuren' || (categoryKey as string).toLowerCase() === 'deuren');
                 const isBoeiboordSection = (categoryKey === 'boeiboord' || (categoryKey as string).toLowerCase() === 'boeiboorden');
                 const isVlizotrapSection = (categoryKey === 'Toegang' || categoryKey === 'Vliering_Toegang' || (categoryKey as string).toLowerCase().includes('vlizotrap') || (categoryKey as string).toLowerCase().includes('toegang'));
+                const isLeidingkoofSection = categoryKey === 'Koof';
+                const isInstallatieSection = categoryKey === 'Installatie' || categoryKey === 'Schakelmateriaal';
+                const isDagkantSection = categoryKey === 'Dagkant';
+                const isVensterbankSection = categoryKey === 'Vensterbank';
 
-                const targetComponentType = (isComplexJob && isKozijnenSection) ? 'kozijn' :
-                  ((isComplexJob && isDeurenSection) ? 'deur' :
-                    ((isComplexJob && isBoeiboordSection) ? 'boeiboord' :
-                      ((isCeilingJob && isVlizotrapSection) ? 'vlizotrap' : null)));
+                let targetComponentType: JobComponentType | null = null;
+                if (isComplexJob) {
+                  if (isKozijnenSection) targetComponentType = 'kozijn';
+                  else if (isDeurenSection) targetComponentType = 'deur';
+                  else if (isBoeiboordSection) targetComponentType = 'boeiboord';
+                  else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
+                  else if (isInstallatieSection) targetComponentType = 'installatie';
+                  else if (isDagkantSection) targetComponentType = 'dagkant';
+                  else if (isVensterbankSection) targetComponentType = 'vensterbank';
+                }
+
+                if (isCeilingJob) {
+                  if (isVlizotrapSection) targetComponentType = 'vlizotrap';
+                  else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
+                }
 
                 return (
                   <div key={categoryKey} className="space-y-2">
@@ -1345,6 +1394,15 @@ export default function GenericMaterialsPageRedesigned() {
                               materiaalKeuzes: {}
                             };
                             setComponents(prev => [...prev, newVlizotrap]);
+                          } else if (targetComponentType === 'installatie') {
+                            const newInstallatie = {
+                              id: `installatie-${Date.now()}`,
+                              type: 'installatie' as const,
+                              label: 'Installatie & Elektra',
+                              measurements: {},
+                              materiaalKeuzes: {}
+                            };
+                            setComponents(prev => [...prev, newInstallatie]);
                           } else {
                             setActiveComponentType(targetComponentType);
                             setKozijnenModalOpen(true);
@@ -1358,7 +1416,16 @@ export default function GenericMaterialsPageRedesigned() {
                       {targetComponentType ? (
                         <div className="flex items-center gap-2 text-emerald-500 hover:text-emerald-400 font-medium w-full">
                           <Plus className="h-4 w-4" />
-                          <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>{targetComponentType === 'kozijn' ? 'Kozijn' : (targetComponentType === 'deur' ? 'Deur' : (targetComponentType === 'vlizotrap' ? 'Vlizotrap' : 'Boeiboord'))} toevoegen</span>
+                          <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>{
+                            targetComponentType === 'kozijn' ? 'Kozijn' :
+                              (targetComponentType === 'deur' ? 'Deur' :
+                                (targetComponentType === 'vlizotrap' ? 'Vlizotrap' :
+                                  (targetComponentType === 'leidingkoof' ? 'Leidingkoof' :
+                                    (targetComponentType === 'installatie' ? 'Installatie' :
+                                      (targetComponentType === 'dagkant' ? 'Dagkant' :
+                                        (targetComponentType === 'vensterbank' ? 'Vensterbank' :
+                                          'Boeiboord'))))))
+                          } toevoegen</span>
                         </div>
                       ) : (
                         <h2 className={cn(
@@ -1418,125 +1485,90 @@ export default function GenericMaterialsPageRedesigned() {
 
                               const compSections = variantItem?.materialSections || COMPONENT_REGISTRY[comp.type]?.defaultMaterials || [];
 
-                              let sectionMap: { key: string; label: string }[] = [];
+                              // ALL COMPONENTS: Simplified rendering (Vlizotrap Style)
+                              // User requested uniform "clean list" style for everything, including Kozijnen/Deuren.
+                              if (targetComponentType) {
+                                const hasMeasurements = comp.measurements && Object.keys(comp.measurements).length > 0;
 
-                              if (variantItem?.categoryConfig) {
-                                // Dynamic loading from job-registry
-                                sectionMap = Object.entries(variantItem.categoryConfig)
-                                  .sort(([, a]: any, [, b]: any) => a.order - b.order)
-                                  .map(([key, config]: any) => ({
-                                    key: key,
-                                    label: config.title
-                                  }));
-                              } else {
-                                // Fallback defaults
-                                sectionMap = targetComponentType === 'kozijn' ? [
-                                  { key: 'hout', label: 'Kozijnhout' },
-                                  { key: 'beslag', label: 'Hang- & Sluitwerk' },
-                                  { key: 'glas', label: 'Glas & Beglazing' },
-                                  { key: 'afwerking', label: 'Afwerking' },
-                                  { key: 'Stalen kozijn', label: 'Stalen Kozijn' }
-                                ] : (targetComponentType === 'deur' ? [
-                                  { key: 'Deuren', label: 'Deur' },
-                                  { key: 'deurbeslag', label: 'Beslag' },
-                                  { key: 'glas', label: 'Glas' },
-                                  { key: 'tochtstrips', label: 'Tochtwering' },
-                                  { key: 'ventilatie', label: 'Ventilatie' }
-                                ] : (targetComponentType === 'vlizotrap' ? [
-                                  { key: 'hout', label: 'Raveling & Hout' },
-                                  { key: 'basis', label: 'Vlizotrap & Luik' },
-                                  { key: 'afwerking', label: 'Afwerking' }
-                                ] : [
-                                  // Fallback for Boeiboorden or others
-                                  { key: 'beplating', label: 'Beplating' },
-                                  { key: 'afwerking', label: 'Afwerking' }
-                                ]));
-                              }
-
-                              return (
-                                <div key={comp.id} className="mt-6 mb-4 group pl-4 rounded-lg" style={{ backgroundColor: 'rgba(0,0,0,0.15)', borderLeft: '2px solid rgb(16, 185, 129)' }}>
-                                  {/* Component Header - Anchor Style */}
-                                  <div className="flex items-center justify-between py-3 px-4 -ml-4 mb-3 border-b border-b-border/20" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
-                                    <div className="flex items-center gap-4">
-                                      <h3 className="text-sm font-semibold uppercase flex items-center gap-2 text-foreground" style={{ letterSpacing: '0.05em' }}>
-                                        <Box className="h-4 w-4 text-emerald-500" />
-                                        <span>{comp.label}</span>
-                                      </h3>
-
-                                      <div className="hidden sm:flex items-center gap-2">
-                                        {Object.entries(comp.measurements || {}).filter(([k]) => k !== 'subtitle' && k !== '_variantMode').map(([k, v]) => (
-                                          <span key={k} className="text-[10px] bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded text-muted-foreground">
-                                            {k}: <span className="text-foreground">{v as any}</span>
-                                          </span>
-                                        ))}
+                                return (
+                                  <div key={comp.id} className="mt-2 space-y-1.5">
+                                    {/* Werkwijze Selector - Inline (moved from popup) */}
+                                    {(targetComponentType === 'kozijn' || targetComponentType === 'deur') && (
+                                      <div className="space-y-1.5 mb-3 p-2 rounded-lg bg-muted/20 border border-border/30">
+                                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                          Werkwijze
+                                        </Label>
+                                        <Select defaultValue="default">
+                                          <SelectTrigger className="w-full bg-background/60 border-emerald-500/20 focus:ring-emerald-500/20 h-9">
+                                            <div className="flex items-center gap-2">
+                                              <Box className="w-4 h-4 text-emerald-500" />
+                                              <SelectValue placeholder="Kies werkwijze" />
+                                            </div>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="default">Nieuw</SelectItem>
+                                            {/* TODO: Load saved presets for this component type */}
+                                          </SelectContent>
+                                        </Select>
                                       </div>
-                                    </div>
+                                    )}
 
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 hover:bg-background/80"
-                                        onClick={() => {
-                                          setActiveComponentType(targetComponentType);
-                                          setEditingComponentId(comp.id);
-                                          setKozijnenModalOpen(true);
-                                        }}
-                                        title="Afmetingen wijzigen"
-                                      >
-                                        <Edit2 className="h-4 w-4 text-muted-foreground" />
-                                      </Button>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleComponentDelete(comp.id)} title="Onderdeel verwijderen">
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  {/* Material Sections for this Component */}
-                                  <div className="space-y-6">
-                                    {/* Group by Category Mapping */}
-                                    {sectionMap.map(catConfig => {
-                                      const sectionsForCat = compSections.filter((s: any) =>
-                                        (s.category || 'hout').toLowerCase() === catConfig.key.toLowerCase()
-                                      );
-
-                                      if (sectionsForCat.length === 0) return null;
+                                    {/* Clean material list without sub-categories */}
+                                    {compSections.map((section: any) => {
+                                      const selectedForThis = (comp.materials || []).find((m: any) => m.sectionKey === section.key)?.material;
 
                                       return (
-                                        <div key={catConfig.key}>
-                                          <div className="flex items-center justify-between py-2 select-none mb-2 mt-4">
-                                            <h4 className="text-xs font-medium tracking-wide text-foreground/70">
-                                              {catConfig.label}
-                                            </h4>
-                                          </div>
-                                          <div className="space-y-1.5">
-                                            {sectionsForCat.map((section: any) => {
-                                              const selectedForThis = (comp.materials || []).find((m: any) => m.sectionKey === section.key)?.material;
-
-                                              return (
-                                                <MaterialRow
-                                                  key={section.key}
-                                                  label={section.label}
-                                                  selected={selectedForThis}
-                                                  isSubSection={true}
-                                                  onClick={() => {
-                                                    // Open modal in context of this component
-                                                    setActiveComponentId(comp.id);
-                                                    setActieveSectie(section.key);
-                                                    setIsExtraModalOpen(true);
-                                                  }}
-                                                  onRemove={() => handleComponentMaterialRemove(comp.id, section.key)}
-                                                />
-                                              );
-                                            })}
-                                          </div>
+                                        <div key={section.key} className="relative group">
+                                          <MaterialRow
+                                            label={section.label}
+                                            selected={selectedForThis}
+                                            onClick={() => {
+                                              setActiveComponentId(comp.id);
+                                              setActieveSectie(section.key);
+                                              setIsExtraModalOpen(true);
+                                            }}
+                                            onRemove={() => handleComponentMaterialRemove(comp.id, section.key)}
+                                          />
                                         </div>
                                       );
                                     })}
+                                    {/* Footer Actions: Edit (if applicable) & Delete */}
+                                    <div className="flex justify-end pt-2 pb-1 gap-1">
+                                      {hasMeasurements && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 text-xs text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 transition-opacity"
+                                          onClick={() => {
+                                            setActiveComponentType(targetComponentType);
+                                            setEditingComponentId(comp.id);
+                                            setKozijnenModalOpen(true);
+                                          }}
+                                        >
+                                          <Edit2 className="h-3 w-3 mr-1" />
+                                          Wijzigen
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-60 hover:opacity-100 transition-opacity"
+                                        onClick={() => setComponentDeleteId(comp.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3 mr-1" />
+
+                                        {comp.label || 'Onderdeel'} verwijderen
+                                      </Button>
+                                    </div>
                                   </div>
-                                </div>
-                              );
+                                );
+                              }
+
+
+                              return null;
                             })}
+
+
                           </div>
                         ) : (
                           sections.map(section => (
@@ -1645,6 +1677,33 @@ export default function GenericMaterialsPageRedesigned() {
         onDelete={handlePresetDeleteWrapper}
         onSetDefault={handlePresetSetDefaultWrapper}
       />
+
+      {/* Component Deletion Confirmation Dialog */}
+      <AlertDialog open={!!componentDeleteId} onOpenChange={(open) => !open && setComponentDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Onderdeel verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{components.find(c => c.id === componentDeleteId)?.label}</strong> wilt verwijderen? Alle materialen in dit onderdeel gaan verloren.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (componentDeleteId) {
+                  handleComponentDelete(componentDeleteId);
+                  setComponentDeleteId(null);
+                }
+              }}
+              className={buttonVariants({ variant: "destructiveSoft" })}
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <SavePresetDialog
         open={savePresetModalOpen}
         onOpenChange={setSavePresetModalOpen}

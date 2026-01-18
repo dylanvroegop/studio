@@ -1795,8 +1795,8 @@ export default function OverzichtPage() {
         }
       />
 
-      <div className="flex-1 px-4 py-6 md:py-10">
-        <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex-1 px-4 py-6 md:py-10 pb-32">
+        <div className="mx-auto max-w-5xl space-y-6">
           {statusVariant !== 'success' && (
             <div
               className={cn(
@@ -1853,6 +1853,29 @@ export default function OverzichtPage() {
 
                 const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
 
+                // Extract dimensions summary from maatwerk for differentiation
+                const maatwerk = job?.maatwerk;
+                let dimensionsSummary = '';
+                let areaSummary = '';
+                let itemCount = 0;
+
+                if (Array.isArray(maatwerk) && maatwerk.length > 0) {
+                  itemCount = maatwerk.length;
+
+                  // Get first item's dimensions
+                  const firstItem = maatwerk[0];
+                  const lengte = parseFloat(firstItem?.lengte) || 0;
+                  const hoogte = parseFloat(firstItem?.hoogte) || parseFloat(firstItem?.breedte) || 0;
+
+                  if (lengte > 0 && hoogte > 0) {
+                    dimensionsSummary = `${lengte} × ${hoogte} mm`;
+                    const areaM2 = (lengte * hoogte) / 1_000_000;
+                    areaSummary = `${areaM2.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`;
+                  } else if (lengte > 0) {
+                    dimensionsSummary = `${lengte} mm`;
+                  }
+                }
+
                 return (
                   <div
                     key={job.id}
@@ -1860,12 +1883,32 @@ export default function OverzichtPage() {
                   >
                     <div className="min-w-0 space-y-1">
                       <p className="font-medium truncate">{title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Werkwijze:{' '}
-                        <span className={cn(!preset && 'opacity-60')}>
-                          {preset ?? '—'}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <span>
+                          Werkwijze:{' '}
+                          <span className={cn(!preset && 'opacity-60')}>
+                            {preset ?? '—'}
+                          </span>
                         </span>
-                      </p>
+                        {dimensionsSummary && (
+                          <>
+                            <span className="text-muted-foreground/40">•</span>
+                            <span className="font-mono text-xs">{dimensionsSummary}</span>
+                          </>
+                        )}
+                        {areaSummary && (
+                          <>
+                            <span className="text-muted-foreground/40">•</span>
+                            <span className="font-mono text-xs">{areaSummary}</span>
+                          </>
+                        )}
+                        {itemCount > 1 && (
+                          <>
+                            <span className="text-muted-foreground/40">•</span>
+                            <span className="text-xs">{itemCount} {itemCount === 1 ? 'vlak' : 'vlakken'}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -2223,18 +2266,19 @@ export default function OverzichtPage() {
           </Card>
 
           {/* Sticky bottom bar (geen globale settings knop meer) */}
-          <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 backdrop-blur-sm">
-            <div className="mx-auto max-w-3xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <Button
-                  variant="outline"
-                  asChild
-                  className="shrink-0"
-                >
-                  <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
-                </Button>
+          {/* Sticky bottom bar (geen globale settings knop meer) */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-sm">
+            <div className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                variant="outline"
+                asChild
+                className="shrink-0 w-full sm:w-auto"
+              >
+                <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
+              </Button>
 
-                <div className="text-sm">
+              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                <div className="text-sm text-left sm:text-right hidden sm:block">
                   <div className="font-medium">
                     Na indienen wordt de offerte berekend
                   </div>
@@ -2242,32 +2286,31 @@ export default function OverzichtPage() {
                     Verwachte tijd: 30–60 min • Verstuurd via e-mail of WhatsApp
                   </div>
                 </div>
+
+                <Button
+                  onClick={handleFinishQuote}
+                  disabled={isSubmitting || !stats.isReady}
+                  className={cn(
+                    'w-full sm:w-auto',
+                    'bg-emerald-600 text-white hover:bg-emerald-700',
+                    (!stats.isReady || isSubmitting) && 'opacity-60'
+                  )}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 h-4 w-4" />
+                  )}
+                  {isSubmitting ? 'Indienen…' : 'Offerte indienen'}
+                </Button>
               </div>
-
-              <Button
-                onClick={handleFinishQuote}
-                disabled={isSubmitting || !stats.isReady}
-                className={cn(
-                  'w-full sm:w-auto',
-                  'bg-emerald-600 text-white hover:bg-emerald-700',
-                  (!stats.isReady || isSubmitting) && 'opacity-60'
-                )}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 h-4 w-4" />
-                )}
-                {isSubmitting ? 'Indienen…' : 'Offerte indienen'}
-
-
-              </Button>
             </div>
+
           </div>
 
           <div className="h-6" />
         </div>
       </div>
-    </main>
+    </main >
   );
 }
