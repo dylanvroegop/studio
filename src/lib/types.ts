@@ -67,15 +67,26 @@ export type Quote = {
 
   // ✅ Financial Armor (Settings per quote)
   instellingen: QuoteSettings;
+
+  // ✅ Extras (Mutable overrides for Transport, Winst, Bouwplaats)
+  extras?: {
+    transport?: {
+      mode: 'perKm' | 'fixed' | 'none';
+      prijsPerKm?: number;
+      vasteTransportkosten?: number;
+    };
+    winstMarge?: {
+      mode: 'percentage' | 'fixed' | 'none';
+      percentage?: number;
+      fixedAmount?: number;
+    };
+    materieel?: any[]; // Bouwplaatskosten
+  };
 };
 
 export type QuoteSettings = {
   btwTarief: number;          // e.g. 21
-  winstmargeMaterialen: number; // e.g. 15
-  winstmargeArbeid: number;     // e.g. 0
-  uurTarief: number;            // e.g. 55.00
-  voorrijkosten: number;        // e.g. 45.00
-  afvalPercentage: number;      // e.g. 10
+  uurTariefExclBtw: number;   // e.g. 45.00
 };
 
 

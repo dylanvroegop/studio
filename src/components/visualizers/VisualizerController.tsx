@@ -18,6 +18,7 @@ interface VisualizerControllerProps {
     // Pass-through handlers
     onOpeningsChange?: (newOpenings: any[]) => void;
     onEdgeChange?: (side: string, value: string) => void;
+    onDataGenerated?: (data: any) => void;
     // ... allow other props
     [key: string]: any;
 }
@@ -151,6 +152,7 @@ export function VisualizerController({
                 fitContainer={fitContainer}
                 className={className}
                 onOpeningsChange={onOpeningsChange}
+                onDataGenerated={props.onDataGenerated}
                 {...props}
             />
         );

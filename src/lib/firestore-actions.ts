@@ -5,7 +5,8 @@ import {
     serverTimestamp,
     addDoc,
     collection,
-    Firestore
+    Firestore,
+    getDoc
 } from 'firebase/firestore';
 
 /**
@@ -47,6 +48,23 @@ export async function reserveQuoteNumber(firestore: Firestore, userId: string, s
 export async function createEmptyQuote(firestore: Firestore, userId: string): Promise<string> {
     const number = await reserveQuoteNumber(firestore, userId);
 
+    // Fetch user settings to use as defaults
+    let settings = {
+        standaardUurtarief: 45.00,
+        standaardWinstMarge: { percentage: 10 },
+        standaardTransport: { vasteTransportkosten: 45.00 }
+    };
+
+    try {
+        const userDocRef = doc(firestore, 'users', userId);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists() && userSnap.data().settings) {
+            settings = { ...settings, ...userSnap.data().settings };
+        }
+    } catch (e) {
+        console.error("Error fetching user settings for new quote defaults:", e);
+    }
+
     const docRef = await addDoc(collection(firestore, 'quotes'), {
         userId,
         status: 'concept',
@@ -60,11 +78,17 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
         },
         instellingen: {
             btwTarief: 21,
-            winstmargeMaterialen: 15,
-            winstmargeArbeid: 0,
-            uurTarief: 55.00,
-            voorrijkosten: 45.00,
-            afvalPercentage: 10,
+            uurTariefExclBtw: settings.standaardUurtarief ?? 45.00,
+        },
+        extras: {
+            transport: settings.standaardTransport ?? {
+                mode: 'fixed',
+                vasteTransportkosten: 45.00
+            },
+            winstMarge: settings.standaardWinstMarge ?? {
+                mode: 'percentage',
+                percentage: 10
+            },
         }
     });
 

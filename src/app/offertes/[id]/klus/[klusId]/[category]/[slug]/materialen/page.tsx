@@ -368,7 +368,7 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel, presets, defau
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn('max-w-lg w-full', DIALOG_CLOSE_TAP)}>
         <DialogHeader>
-          <DialogTitle>{existingPreset ? 'Werkwijze bijwerken' : 'Werkwijze opslaan'}</DialogTitle>
+          <DialogTitle>{existingPreset ? 'Werkpakket bijwerken' : 'Werkpakket opslaan'}</DialogTitle>
           <DialogDescription>{existingPreset ? `Overschrijven: "${existingPreset.name}"` : `Opslaan voor ${jobTitel}`}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -398,8 +398,8 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className={cn('max-w-lg w-full', DIALOG_CLOSE_TAP)}>
-          <DialogHeader><DialogTitle>Werkwijzen beheren</DialogTitle></DialogHeader>
-          <p className="text-muted-foreground text-sm py-8 text-center">Geen werkwijzen gevonden.</p>
+          <DialogHeader><DialogTitle>Werkpakketten beheren</DialogTitle></DialogHeader>
+          <p className="text-muted-foreground text-sm py-8 text-center">Geen werkpakketten gevonden.</p>
           <DialogFooter><Button variant="secondary" onClick={() => onOpenChange(false)}>Sluiten</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -408,7 +408,7 @@ function ManagePresetsDialog({ open, onOpenChange, presets, onDelete, onSetDefau
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn('max-w-lg w-full max-h-[80vh] overflow-y-auto', DIALOG_CLOSE_TAP)}>
-        <DialogHeader><DialogTitle>Werkwijzen beheren</DialogTitle><DialogDescription>Beheer uw opgeslagen presets.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Werkpakketten beheren</DialogTitle><DialogDescription>Beheer uw opgeslagen presets.</DialogDescription></DialogHeader>
         <div className="py-4 space-y-2">
           {presets.map((preset: any) => (
             <div key={preset.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
@@ -522,6 +522,7 @@ export default function GenericMaterialsPageRedesigned() {
   const [isMounted, setIsMounted] = useState(false);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
   const [isOpslaan, setIsOpslaan] = useState(false);
+  const [isApplyingPreset, setIsApplyingPreset] = useState(false); // ✅ Fix for race condition
 
   const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
   const [isMaterialenLaden, setMaterialenLaden] = useState(true);
@@ -769,28 +770,48 @@ export default function GenericMaterialsPageRedesigned() {
         setCustomGroups([]);
         setFirestoreCustommateriaal(null);
         setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
+        setComponents([]);
       }
       return;
     }
     if (!alleMaterialen.length) return;
     const preset = presets.find(p => p.id === gekozenPresetId);
     if (!preset) return;
+    // Only apply if: user explicitly changed it OR hydrating is done + auto-apply triggers
     if (!userHeeftPresetGewijzigdRef.current && isHydratingRef.current === false && !autoApplyDefaultPresetRef.current) return;
 
-    const newSels: any = {};
-    if (preset.slots) {
-      Object.keys(preset.slots).forEach(key => {
-        const matId = preset.slots[key];
-        const found = alleMaterialen.find(m => m.id === matId);
-        if (found) newSels[key] = found;
-      });
-    }
-    setGekozenMaterialen(newSels);
-    if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
-    if (preset.hiddenCategories) setHiddenCategories(preset.hiddenCategories); else setHiddenCategories({});
-    if (preset.custommateriaal) setCustomGroups(bouwCustomGroupsUitFirestore(preset.custommateriaal, alleMaterialen));
-    else setCustomGroups([]);
-    if (preset.kleinMateriaalConfig) setKleinMateriaalConfig(preset.kleinMateriaalConfig);
+    // ✅ Lock UI while applying
+    setIsApplyingPreset(true);
+
+    // Small timeout to allow UI to show loading state if needed, and ensure processing happens
+    setTimeout(() => {
+      const newSels: any = {};
+      if (preset.slots) {
+        Object.keys(preset.slots).forEach(key => {
+          const matId = preset.slots[key];
+          const found = alleMaterialen.find(m => m.id === matId);
+          if (found) newSels[key] = found;
+        });
+      }
+      setGekozenMaterialen(newSels);
+      if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
+      if (preset.hiddenCategories) setHiddenCategories(preset.hiddenCategories); else setHiddenCategories({});
+      if (preset.custommateriaal) setCustomGroups(bouwCustomGroupsUitFirestore(preset.custommateriaal, alleMaterialen));
+      else setCustomGroups([]);
+      if (preset.kleinMateriaalConfig) setKleinMateriaalConfig(preset.kleinMateriaalConfig);
+
+      // FIX: Restore components (Kozijnen, Deuren, etc.) if present in preset
+      if (preset.components && Array.isArray(preset.components)) {
+        setComponents(preset.components);
+      } else {
+        setComponents([]);
+      }
+
+      // Unlock
+      setIsApplyingPreset(false);
+      autoApplyDefaultPresetRef.current = false; // Reset trigger
+    }, 100);
+
 
     if (autoApplyDefaultPresetRef.current) autoApplyDefaultPresetRef.current = false;
   }, [gekozenPresetId, presets, alleMaterialen]);
@@ -999,6 +1020,7 @@ export default function GenericMaterialsPageRedesigned() {
       hiddenCategories,
       kleinMateriaalConfig,
       custommateriaal: customMap,
+      components: JSON.parse(JSON.stringify(components)), // FIX: Save components (kozijnen, deuren, etc.)
       updatedAt: serverTimestamp(),
     };
     if (!existingId) newPresetData.createdAt = serverTimestamp();
@@ -1012,7 +1034,7 @@ export default function GenericMaterialsPageRedesigned() {
     try {
       await batch.commit();
       const action = existingId ? 'bijgewerkt' : 'opgeslagen';
-      toast({ title: `Werkwijze ${action}`, description: `Werkwijze "${presetName}" is succesvol ${action}.` });
+      toast({ title: `Werkpakket ${action}`, description: `Werkpakket "${presetName}" is succesvol ${action}.` });
       const newPreset = { id: docRef.id, ...newPresetData };
       setPresets((prev) => {
         const filtered = prev.filter((p) => p.id !== docRef.id);
@@ -1020,7 +1042,7 @@ export default function GenericMaterialsPageRedesigned() {
         return [...updatedList, newPreset];
       });
       setGekozenPresetId(docRef.id);
-    } catch (error: any) { console.error("Preset save error", error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon werkwijze niet opslaan.' }); }
+    } catch (error: any) { console.error("Preset save error", error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon werkpakket niet opslaan.' }); }
   };
 
   const handleSetDefaultPreset = async (presetToSet: any) => {
@@ -1031,9 +1053,9 @@ export default function GenericMaterialsPageRedesigned() {
     batch.update(doc(firestore, 'presets', presetToSet.id), { isDefault: true });
     try {
       await batch.commit();
-      toast({ title: 'Standaard ingesteld', description: `"${presetToSet.name}" is nu de standaard werkwijze.` });
+      toast({ title: 'Standaard ingesteld', description: `"${presetToSet.name}" is nu het standaard werkpakket.` });
       setPresets((prev) => prev.map((p) => ({ ...p, isDefault: p.id === presetToSet.id })));
-    } catch (error) { console.error('Fout bij instellen standaard werkwijze:', error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon de standaard werkwijze niet instellen.' }); }
+    } catch (error) { console.error('Fout bij instellen standaard werkwijze:', error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon het standaard werkpakket niet instellen.' }); }
   };
 
   const handleDeletePreset = async () => {
@@ -1041,10 +1063,10 @@ export default function GenericMaterialsPageRedesigned() {
     const docRef = doc(firestore, 'presets', presetToDelete.id);
     try {
       await deleteDoc(docRef);
-      toast({ title: 'Werkwijze verwijderd', description: `De werkwijze "${presetToDelete.name}" is verwijderd.` });
+      toast({ title: 'Werkpakket verwijderd', description: `Het werkpakket "${presetToDelete.name}" is verwijderd.` });
       setPresets((prev) => prev.filter((p) => p.id !== presetToDelete.id));
       if (gekozenPresetId === presetToDelete.id) setGekozenPresetId('default');
-    } catch (error) { console.error('Fout bij verwijderen werkwijze:', error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon werkwijze niet verwijderen.' }); }
+    } catch (error) { console.error('Fout bij verwijderen werkwijze:', error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon werkpakket niet verwijderen.' }); }
     finally { setDeleteConfirmationOpen(false); setPresetToDelete(null); setManagePresetsModalOpen(false); }
   };
 
@@ -1056,8 +1078,12 @@ export default function GenericMaterialsPageRedesigned() {
 
     try {
       // Save full material objects with id, materiaalnaam, prijs, and eenheid
+      // Save full material objects with id, materiaalnaam, prijs, and eenheid
       const cleanSelections: Record<string, { id: string; materiaalnaam: string; prijs: number; eenheid: string }> = {};
+
+      // 1. Add Main Selections (Filter out old component_ keys to avoid staleness)
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
+        if (k.startsWith('component_')) return; // Skip old component keys
         if (v?.id) {
           cleanSelections[k] = {
             id: v.id,
@@ -1068,22 +1094,42 @@ export default function GenericMaterialsPageRedesigned() {
         }
       });
 
+      // 2. Add Component Materials (Flattened into selections for N8N)
+      // This ensures that "Extra Components" (Kozijnen, Vensterbanken) are included in the main material list
+      // which N8N uses for calculations.
+      components.forEach((comp) => {
+        if (comp.materials && Array.isArray(comp.materials)) {
+          comp.materials.forEach((mItem: any) => {
+            if (mItem.material && mItem.material.id) {
+              // Create a unique key for this component's material
+              const compKey = `component_${comp.id}_${mItem.sectionKey}`;
+              cleanSelections[compKey] = {
+                id: mItem.material.id,
+                materiaalnaam: mItem.material.materiaalnaam || '',
+                prijs: typeof mItem.material.prijs === 'number' ? mItem.material.prijs : 0,
+                eenheid: mItem.material.eenheid || ''
+              };
+            }
+          });
+        }
+      });
+
       const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
 
       const updatePayload: any = {
         // Use dot notation for materialen subfields to allow deleteField() to work
-        [`klussen.${klusId}.components`]: components,
+        [`klussen.${klusId}.components`]: JSON.parse(JSON.stringify(components)),
         [`klussen.${klusId}.materialen.jobKey`]: JOB_KEY,
-        [`klussen.${klusId}.materialen.selections`]: cleanSelections,
-        [`klussen.${klusId}.materialen.custommateriaal`]: customMap,
+        [`klussen.${klusId}.materialen.selections`]: JSON.parse(JSON.stringify(cleanSelections)),
+        [`klussen.${klusId}.materialen.custommateriaal`]: JSON.parse(JSON.stringify(customMap)),
         [`klussen.${klusId}.materialen.savedByUid`]: user.uid,
         // Delete legacy field at top level (required by Firestore)
         [`klussen.${klusId}.materialen.extraMaterials`]: deleteField(),
-        [`klussen.${klusId}.werkwijze`]: {
+        [`klussen.${klusId}.werkwijze`]: JSON.parse(JSON.stringify({
           workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
           presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
           savedByUid: user.uid
-        },
+        })),
         [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
         [`klussen.${klusId}.uiState.hiddenCategories`]: hiddenCategories,
         [`klussen.${klusId}.updatedAt`]: serverTimestamp()
@@ -1295,7 +1341,7 @@ export default function GenericMaterialsPageRedesigned() {
 
           {/* Preset Selector - Compact */}
           <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
-            <Label className="text-base font-semibold text-foreground/90">Kies Een Werkwijze</Label>
+            <Label className="text-base font-semibold text-foreground/90">Kies Een Werkpakket</Label>
             <div className="flex items-center gap-2">
               <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
                 <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
@@ -1496,13 +1542,13 @@ export default function GenericMaterialsPageRedesigned() {
                                     {(targetComponentType === 'kozijn' || targetComponentType === 'deur') && (
                                       <div className="space-y-1.5 mb-3 p-2 rounded-lg bg-muted/20 border border-border/30">
                                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                          Werkwijze
+                                          Werkpakket
                                         </Label>
                                         <Select defaultValue="default">
                                           <SelectTrigger className="w-full bg-background/60 border-emerald-500/20 focus:ring-emerald-500/20 h-9">
                                             <div className="flex items-center gap-2">
                                               <Box className="w-4 h-4 text-emerald-500" />
-                                              <SelectValue placeholder="Kies werkwijze" />
+                                              <SelectValue placeholder="Kies werkpakket" />
                                             </div>
                                           </SelectTrigger>
                                           <SelectContent>
@@ -1654,17 +1700,17 @@ export default function GenericMaterialsPageRedesigned() {
             onClick={() => setSavePresetModalOpen(true)}
             className="gap-2"
           >
-            Opslaan als werkwijze
+            Opslaan als werkpakket
             <Save className="h-4 w-4" />
           </Button>
 
           <Button
             type="submit"
             variant="success"
-            disabled={isOpslaan}
+            disabled={isOpslaan || isApplyingPreset || isPaginaLaden}
             onClick={handleNext}
           >
-            {isOpslaan ? 'Opslaan...' : 'Volgende'}
+            {isOpslaan ? 'Opslaan...' : isApplyingPreset ? 'Configuratie toepassen...' : 'Volgende'}
           </Button>
         </div>
       </div >
@@ -1723,9 +1769,9 @@ export default function GenericMaterialsPageRedesigned() {
       <AlertDialog open={presetConfirmOpen} onOpenChange={setPresetConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Werkwijze wisselen?</AlertDialogTitle>
+            <AlertDialogTitle>Werkpakket wisselen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Je hebt zelf materialen geselecteerd. Als je nu van werkwijze wisselt, worden deze <strong>overschreven</strong> en gaan je selecties verloren.
+              Je hebt zelf materialen geselecteerd. Als je nu van werkpakket wisselt, worden deze <strong>overschreven</strong> en gaan je selecties verloren.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

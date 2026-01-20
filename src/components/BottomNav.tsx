@@ -69,7 +69,7 @@ export function BottomNav() {
                     )}
                 >
                     <Settings className="h-6 w-6" strokeWidth={isActive('/instellingen') ? 2.5 : 2} />
-                    <span className="text-[10px] font-medium tracking-wide">Settings</span>
+                    <span className="text-[10px] font-medium tracking-wide">Instellingen</span>
                 </Link>
             </div>
         </div>

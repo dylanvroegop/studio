@@ -304,16 +304,35 @@ export default function GenericMeasurementPage() {
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
 
+        // Sanitize data using JSON serialization to guarantee no undefined values remain
+        // This removes keys with undefined values in objects, and turns undefined in arrays to null
+        const cleanData = (data: any) => {
+          if (data === undefined) return null;
+          try {
+            return JSON.parse(JSON.stringify(data));
+          } catch (e) {
+            console.error('Data sanitization failed', e);
+            return null;
+          }
+        };
+
+        const cleanedItems = cleanData(items) || [];
+        const cleanedComponents = cleanData(components) || [];
+
+        // Ensure meta is also clean
+        const rawMeta = {
+          title: jobConfig.title,
+          type: categorySlug,
+          slug: jobSlug,
+          description: jobConfig.description || '' // fallback to string
+        };
+        const cleanedMeta = cleanData(rawMeta);
+
         // Prepare update data
         const updateData: Record<string, any> = {
-          [`klussen.${klusId}.maatwerk`]: items,
-          [`klussen.${klusId}.components`]: components,
-          [`klussen.${klusId}.meta`]: {
-            title: jobConfig.title,
-            type: categorySlug,
-            slug: jobSlug,
-            description: jobConfig.description
-          },
+          [`klussen.${klusId}.maatwerk`]: cleanedItems,
+          [`klussen.${klusId}.components`]: cleanedComponents,
+          [`klussen.${klusId}.meta`]: cleanedMeta,
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
         };
 
@@ -322,7 +341,11 @@ export default function GenericMeasurementPage() {
           updateData[`klussen.${klusId}.visualisatieUrl`] = visualisatieUrl;
         }
 
+        console.log('Validating updateData:', updateData); // Debug log (keep for a moment)
+
         await updateDoc(quoteRef, updateData);
+
+
 
         router.push(`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`);
 
@@ -787,7 +810,9 @@ export default function GenericMeasurementPage() {
                         gridLabel={(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) ? ' ' : undefined}
                         className="min-h-[400px]" // Ensure minimum height
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                        onDataGenerated={(data: any) => updateItem(index, 'drawingData', data)}
                       />
 
                       {/* Floating Controls - Bottom Left */}
@@ -865,8 +890,27 @@ export default function GenericMeasurementPage() {
                                         areaMm2 = L * H;
                                       }
 
-                                      return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                                    })()} m²
+                                      // Calculate openings area
+                                      const openings = item.openings || [];
+                                      const openingsAreaMm2 = openings.reduce((acc: number, op: any) => {
+                                        return acc + (parseFloat(op.width || 0) * parseFloat(op.height || 0));
+                                      }, 0);
+
+                                      const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
+                                      const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                      const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                                      if (openingsAreaMm2 > 0) {
+                                        return (
+                                          <div className="flex flex-col items-end leading-tight">
+                                            <span>{grossStr} m²</span>
+                                            <span className="text-emerald-500 font-bold">Netto: {netStr} m²</span>
+                                          </div>
+                                        );
+                                      }
+
+                                      return `${grossStr} m²`;
+                                    })()}
                                   </div>
                                 </div>
                               </div>
@@ -917,8 +961,27 @@ export default function GenericMeasurementPage() {
                               areaMm2 = L * H;
                             }
 
-                            return (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                          })()} m²
+                            // Calculate openings area
+                            const openings = item.openings || [];
+                            const openingsAreaMm2 = openings.reduce((acc: number, op: any) => {
+                              return acc + (parseFloat(op.width || 0) * parseFloat(op.height || 0));
+                            }, 0);
+
+                            const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
+                            const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                            if (openingsAreaMm2 > 0) {
+                              return (
+                                <div className="flex flex-col items-end leading-tight">
+                                  <span>{grossStr} m²</span>
+                                  <span className="text-emerald-500 font-bold">Netto: {netStr} m²</span>
+                                </div>
+                              );
+                            }
+
+                            return `${grossStr} m²`;
+                          })()}
                         </div>
                       </div>
                     </div>

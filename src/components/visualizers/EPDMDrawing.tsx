@@ -1,6 +1,7 @@
 import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { RoofDrawingProps } from './RoofDrawing';
+import { OverallDimensions, OpeningMeasurements } from './shared/measurements';
 
 interface EPDMDrawingProps extends RoofDrawingProps {
     dakrandWidth?: number;
@@ -11,11 +12,6 @@ interface EPDMDrawingProps extends RoofDrawingProps {
     onEdgeChange?: (side: string, value: string) => void;
 }
 
-const dakColor = "#f59e0b"; // Amber-500
-const wallColor = "#ef4444"; // Red-500
-const dimColor = "#10b981"; // Emerald-500
-const structureColor = "rgb(70, 75, 85)";
-const lattenColor = structureColor;
 const labelColor = "rgb(100, 116, 139)"; // Slate-500
 
 const labelMap: Record<string, string> = {
@@ -89,8 +85,6 @@ export function EPDMDrawing({
         const opW = draggedOp.width || 0;
         const opH = draggedOp.height || 0;
 
-        // Use lengteNum/heightNum from scope closure or parse again? 
-        // Better to use props passed in component closure.
         const L = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
         const H = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
 
@@ -148,7 +142,7 @@ export function EPDMDrawing({
             height={heightNum}
             widthLabel={`${lengteNum}`}
             heightLabel={`${heightNum}`}
-            // gridLabel is removed to custom place it
+            suppressTotalDimensions={true} // Use universal OverallDimensions
             className={className}
             fitContainer={fitContainer}
             onPointerMove={handlePointerMove}
@@ -198,15 +192,6 @@ export function EPDMDrawing({
                 const hasLeft = !leftIsWall && dakrandNum > 0;
                 const hasRight = !rightIsWall && dakrandNum > 0;
 
-                // Visual Segments
-
-                // --- WALL VISUALS (Thick Line) ---
-                // Removed per request: Gevel should be thin (default canvas stroke)
-                // const wallColor = "rgb(70, 75, 85)";
-                // const wallStroke = 3; 
-
-                // if (topIsWall) { ... } logic removed to keep default thin line
-
                 // Top (Full Width)
                 if (hasTop) {
                     segments.push(
@@ -238,7 +223,6 @@ export function EPDMDrawing({
                 }
 
                 // Interaction Zones (Click to toggle)
-                // Use slightly larger hit area for better UX (add 20px internal padding)
                 const hitPad = 20;
                 const toggleEdge = (side: 'top' | 'bottom' | 'left' | 'right', isWall: boolean) => {
                     if (onEdgeChange) onEdgeChange(side, isWall ? 'free' : 'wall');
@@ -305,199 +289,21 @@ export function EPDMDrawing({
                 );
 
                 const inset = 15;
-                // Always render labels as per user request
                 labelElements.push(renderLabel(topIsWall ? "GEVEL" : "VRIJSTAAND", startX + rectW / 2, startY + inset, 0));
                 labelElements.push(renderLabel(bottomIsWall ? "GEVEL" : "VRIJSTAAND", startX + rectW / 2, startY + rectH - inset, 0));
                 labelElements.push(renderLabel(leftIsWall ? "GEVEL" : "VRIJSTAAND", startX + inset, startY + rectH / 2, -90));
                 labelElements.push(renderLabel(rightIsWall ? "GEVEL" : "VRIJSTAAND", startX + rectW - inset, startY + rectH / 2, -90));
 
-                // --- 4. Openings & Dimensions ---
-                const openingElements: React.ReactNode[] = [];
-                const dimElements: React.ReactNode[] = [];
+                // --- 4. Openings & Dimensions (Universal) ---
 
-                // Helper for standard dots
-                const drawTick = (tx: number, ty: number, color: string = "#10b981") => {
-                    return <circle cx={tx} cy={ty} r="1.5" fill={color} />;
-                };
-
-                // Helper to pack intervals
-                const packTracks = (items: { start: number; end: number; size: number; id: string; showLabel: boolean }[]) => {
-                    const sorted = [...items].sort((a, b) => a.start - b.start);
-                    const tracks: typeof items[] = [];
-                    sorted.forEach(item => {
-                        let placed = false;
-                        for (const track of tracks) {
-                            if (item.start >= track[track.length - 1].end) {
-                                track.push(item);
-                                placed = true;
-                                break;
-                            }
-                        }
-                        if (!placed) tracks.push([item]);
-                    });
-                    return tracks;
-                };
-
-                // Dimensions Config
-                const DIM_BASE_OFFSET = 20;
-                const DIM_TRACK_STEP = 30;
-                const EXTENSION_GAP = 5;
-
-                // X-AXIS: Left to Right
-                // Identical to CeilingWoodDrawing
-                const xItems: any[] = [];
-                openings.forEach(op => {
-                    const x = op.fromLeft || 0;
-                    const w = op.width || 0;
-                    xItems.push({ start: x, end: x + w, size: w, id: op.id, showLabel: true });
-                });
-                const xTracks = packTracks(xItems);
-
-                xTracks.forEach((track, trackIdx) => {
-                    const tierY = startY + rectH + DIM_BASE_OFFSET + (trackIdx * DIM_TRACK_STEP);
-                    let currentX = 0;
-
-                    track.forEach((item, itemIdx) => {
-                        // Gap
-                        if (item.start > currentX) {
-                            const gap = item.start - currentX;
-                            const x1 = startX + (currentX * pxPerMm);
-                            const x2 = startX + (item.start * pxPerMm);
-                            const mid = (x1 + x2) / 2;
-                            dimElements.push(
-                                <g key={`dxg-${trackIdx}-${itemIdx}`}>
-                                    <line x1={x1} y1={tierY} x2={x2} y2={tierY} stroke={dimColor} strokeWidth="0.5" />
-                                    {drawTick(x1, tierY)}
-                                    {drawTick(x2, tierY)}
-                                    <rect x={mid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                    <text x={mid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill={dimColor} fontSize={10} style={{ fontFamily: 'monospace' }}>{Math.round(gap)}</text>
-                                    <line x1={x2} y1={startY + rectH + EXTENSION_GAP} x2={x2} y2={tierY} stroke={dimColor} strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                                </g>
-                            );
-                        }
-                        // Item
-                        const ix1 = startX + (item.start * pxPerMm);
-                        const ix2 = startX + (item.end * pxPerMm);
-                        const mid = (ix1 + ix2) / 2;
-                        dimElements.push(
-                            <g key={`dxi-${trackIdx}-${itemIdx}`}>
-                                <line x1={ix1} y1={tierY} x2={ix2} y2={tierY} stroke={dimColor} strokeWidth="0.5" />
-                                {drawTick(ix2, tierY)}
-                                <rect x={mid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                <text x={mid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill={dimColor} fontSize={10} style={{ fontFamily: 'monospace' }}>{Math.round(item.size)}</text>
-                                <line x1={ix2} y1={startY + rectH + EXTENSION_GAP} x2={ix2} y2={tierY} stroke={dimColor} strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            </g>
-                        );
-                        currentX = item.end;
-                    });
-
-                    // Final Gap
-                    if (currentX < lengteNum) {
-                        const gap = lengteNum - currentX;
-                        const x1 = startX + (currentX * pxPerMm);
-                        const x2 = startX + (lengteNum * pxPerMm);
-                        const mid = (x1 + x2) / 2;
-                        dimElements.push(
-                            <g key={`dxe-${trackIdx}`}>
-                                <line x1={x1} y1={tierY} x2={x2} y2={tierY} stroke={dimColor} strokeWidth="0.5" />
-                                {drawTick(x2, tierY)}
-                                <rect x={mid - 12} y={tierY - 5} width="24" height="10" fill="#09090b" />
-                                <text x={mid} y={tierY + 0.5} textAnchor="middle" dominantBaseline="middle" fill={dimColor} fontSize={10} style={{ fontFamily: 'monospace' }}>{Math.round(gap)}</text>
-                                <line x1={x2} y1={startY + rectH + EXTENSION_GAP} x2={x2} y2={tierY} stroke={dimColor} strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            </g>
-                        );
-                    }
-                });
-
-                // Y-AXIS: Bottom to Top (since op.fromBottom)
-                // We render dimension lines at Left of drawing.
-                // We process "tracks" based on fromBottom.
-                const yItems: any[] = [];
-                openings.forEach(op => {
-                    const b = op.fromBottom || 0;
-                    const h = op.height || 0;
-                    yItems.push({ start: b, end: b + h, size: h, id: op.id, showLabel: true });
-                });
-                const yTracks = packTracks(yItems);
-
-                yTracks.forEach((track, trackIdx) => {
-                    const tierX = startX - DIM_BASE_OFFSET - (trackIdx * DIM_TRACK_STEP);
-                    let currentBottom = 0; // Starts from bottom edge
-
-                    track.forEach((item, itemIdx) => {
-                        // Gap from Bottom
-                        if (item.start > currentBottom) {
-                            const gap = item.start - currentBottom;
-                            // SVG Coordinates: Y decreases as we go up.
-                            // Bottom Edge Y = startY + rectH
-                            const y1 = (startY + rectH) - (currentBottom * pxPerMm);
-                            const y2 = (startY + rectH) - (item.start * pxPerMm);
-                            const mid = (y1 + y2) / 2;
-
-                            dimElements.push(
-                                <g key={`dyg-${trackIdx}-${itemIdx}`}>
-                                    <line x1={tierX} y1={y1} x2={tierX} y2={y2} stroke={dimColor} strokeWidth="0.5" />
-                                    {drawTick(tierX, y2)}
-                                    {drawTick(tierX, y1)}
-                                    <g transform={`translate(${tierX}, ${mid}) rotate(-90)`}>
-                                        <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                        <text textAnchor="middle" dominantBaseline="middle" fill={dimColor} fontSize={10} style={{ fontFamily: 'monospace' }}>{Math.round(gap)}</text>
-                                    </g>
-                                    <line x1={startX - EXTENSION_GAP} y1={y2} x2={tierX} y2={y2} stroke={dimColor} strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                                </g>
-                            );
-                        }
-
-                        // Item
-                        const iy1 = (startY + rectH) - (item.start * pxPerMm);
-                        const iy2 = (startY + rectH) - (item.end * pxPerMm);
-                        const mid = (iy1 + iy2) / 2;
-                        dimElements.push(
-                            <g key={`dyi-${trackIdx}-${itemIdx}`}>
-                                <line x1={tierX} y1={iy1} x2={tierX} y2={iy2} stroke={dimColor} strokeWidth="0.5" />
-                                {drawTick(tierX, iy2)}
-                                <g transform={`translate(${tierX}, ${mid}) rotate(-90)`}>
-                                    <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                    <text textAnchor="middle" dominantBaseline="middle" fill={dimColor} fontSize={10} style={{ fontFamily: 'monospace' }}>{Math.round(item.size)}</text>
-                                </g>
-                                <line x1={startX - EXTENSION_GAP} y1={iy2} x2={tierX} y2={iy2} stroke={dimColor} strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            </g>
-                        );
-                        currentBottom = item.end;
-                    });
-
-                    // Final Gap to Top
-                    if (currentBottom < heightNum) {
-                        const gap = heightNum - currentBottom;
-                        const ry1 = (startY + rectH) - (currentBottom * pxPerMm);
-                        const ry2 = (startY + rectH) - (heightNum * pxPerMm); // Should be startY
-                        const mid = (ry1 + ry2) / 2;
-                        dimElements.push(
-                            <g key={`dye-${trackIdx}`}>
-                                <line x1={tierX} y1={ry1} x2={tierX} y2={ry2} stroke={dimColor} strokeWidth="0.5" />
-                                {drawTick(tierX, ry2)}
-                                <g transform={`translate(${tierX}, ${mid}) rotate(-90)`}>
-                                    <rect x="-12" y="-5" width="24" height="10" fill="#09090b" />
-                                    <text textAnchor="middle" dominantBaseline="middle" fill={dimColor} fontSize={10} style={{ fontFamily: 'monospace' }}>{Math.round(gap)}</text>
-                                </g>
-                                <line x1={startX - EXTENSION_GAP} y1={ry2} x2={tierX} y2={ry2} stroke={dimColor} strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                            </g>
-                        );
-                    }
-
-                });
-
-
-
-                openings.forEach(op => {
+                // Opening Rects (Visuals & Interaction Only)
+                const openingElements = openings.map(op => {
                     const wPx = op.width * pxPerMm;
                     const hPx = op.height * pxPerMm;
                     const xPx = startX + (op.fromLeft * pxPerMm);
                     const yPx = (startY + rectH) - (op.fromBottom * pxPerMm) - hPx;
 
-                    const label = labelMap[op.type] || 'Sparing';
-
-                    openingElements.push(
+                    return (
                         <g
                             key={op.id}
                             onPointerDown={(e) => handlePointerDown(e, op)}
@@ -512,24 +318,6 @@ export function EPDMDrawing({
                                 d={`M ${xPx} ${yPx} L ${xPx + wPx} ${yPx + hPx} M ${xPx + wPx} ${yPx} L ${xPx} ${yPx + hPx}`}
                                 stroke="rgb(70, 75, 85)" strokeWidth="1" opacity="0.3"
                             />
-                            {wPx > 40 && hPx > 20 && (
-                                <>
-                                    <text
-                                        x={xPx + wPx / 2} y={yPx + hPx / 2 - 6}
-                                        textAnchor="middle" fill="white" fontSize="10" fontWeight="bold"
-                                        style={{ fontFamily: 'monospace' }}
-                                    >
-                                        {label}
-                                    </text>
-                                    <text
-                                        x={xPx + wPx / 2} y={yPx + hPx / 2 + 6}
-                                        textAnchor="middle" fill="white" fontSize="9"
-                                        style={{ fontFamily: 'monospace' }}
-                                    >
-                                        {op.width} x {op.height}
-                                    </text>
-                                </>
-                            )}
                         </g>
                     );
                 });
@@ -540,15 +328,41 @@ export function EPDMDrawing({
                         {surfaceElement}
                         {segments}
                         {labelElements}
-                        {dimElements}
                         {openingElements}
 
-                        {/* Interaction Helper Text (Top-Left) */}
+                        {/* UNIVERSAL MEASUREMENTS */}
+                        <OverallDimensions
+                            wallLength={lengteNum}
+                            wallHeight={heightNum}
+                            svgBaseX={startX}
+                            svgBaseY={startY + rectH}
+                            pxPerMm={pxPerMm}
+                        />
+
+                        {/* No GridMeasurements for EPDM */}
+
+                        <OpeningMeasurements
+                            openings={openings.map(op => ({
+                                id: op.id,
+                                width: op.width,
+                                height: op.height,
+                                fromLeft: op.fromLeft,
+                                fromBottom: op.fromBottom,
+                                type: op.type
+                            }))}
+                            wallLength={lengteNum}
+                            wallHeight={heightNum}
+                            svgBaseX={startX}
+                            svgBaseY={startY + rectH}
+                            pxPerMm={pxPerMm}
+                        />
+
+                        {/* Interaction Helper Text */}
                         <text
                             x={10}
                             y={15}
                             textAnchor="start"
-                            fill="rgb(148, 163, 184)" // Slate-400
+                            fill="rgb(148, 163, 184)"
                             fontSize="10"
                             fontStyle="italic"
                             pointerEvents="none"
@@ -557,7 +371,7 @@ export function EPDMDrawing({
                             Tip: Klik op de randen in de tekening om te wijzigen
                         </text>
 
-                        {/* Custom Title Placement (Bottom Right, above Area) */}
+                        {/* Custom Title Placement */}
                         <text
                             x={SVG_WIDTH - 20}
                             y={SVG_HEIGHT - 35}

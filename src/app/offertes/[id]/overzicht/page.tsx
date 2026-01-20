@@ -1836,6 +1836,14 @@ export default function OverzichtPage() {
                   job?.jobKey ||
                   '';
 
+                // DEBUG: Log key fields to see what's available
+                console.log('JOB DEBUG:', {
+                  id: job.id,
+                  maatwerk: job.maatwerk,
+                  klusinfo: job.klusinformatie,
+                  hasMaatwerk: Array.isArray(job.maatwerk) && job.maatwerk.length > 0
+                });
+
                 const title = humanizeJobKey(rawKey);
                 const preset = resolvePresetLabelForUI(job?.werkwijze?.presetLabel ?? null);
                 const isComplete = jobIsComplete(job);
@@ -1855,25 +1863,74 @@ export default function OverzichtPage() {
 
                 // Extract dimensions summary from maatwerk for differentiation
                 const maatwerk = job?.maatwerk;
+                const klusinformatie = job?.klusinformatie;
                 let dimensionsSummary = '';
                 let areaSummary = '';
                 let itemCount = 0;
+                let extraInfo: string[] = [];
 
                 if (Array.isArray(maatwerk) && maatwerk.length > 0) {
                   itemCount = maatwerk.length;
 
                   // Get first item's dimensions
                   const firstItem = maatwerk[0];
-                  const lengte = parseFloat(firstItem?.lengte) || 0;
-                  const hoogte = parseFloat(firstItem?.hoogte) || parseFloat(firstItem?.breedte) || 0;
+                  // Try various keys for length and height
+                  const l = parseFloat(firstItem?.lengte) || parseFloat(firstItem?.width) || parseFloat(firstItem?.lengte1) || 0;
+                  const h = parseFloat(firstItem?.hoogte) || parseFloat(firstItem?.breedte) || parseFloat(firstItem?.height) || parseFloat(firstItem?.hoogte1) || 0;
 
-                  if (lengte > 0 && hoogte > 0) {
-                    dimensionsSummary = `${lengte} × ${hoogte} mm`;
-                    const areaM2 = (lengte * hoogte) / 1_000_000;
-                    areaSummary = `${areaM2.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`;
-                  } else if (lengte > 0) {
-                    dimensionsSummary = `${lengte} mm`;
+                  if (l > 0 && h > 0) {
+                    dimensionsSummary = `${l} × ${h} mm`;
+                    // Calculate total area across ALL items
+                    let totalAreaM2 = 0;
+                    maatwerk.forEach((item: any) => {
+                      const itemL = parseFloat(item?.lengte) || parseFloat(item?.width) || parseFloat(item?.lengte1) || 0;
+                      const itemH = parseFloat(item?.hoogte) || parseFloat(item?.breedte) || parseFloat(item?.height) || parseFloat(item?.hoogte1) || 0;
+                      if (itemL > 0 && itemH > 0) {
+                        totalAreaM2 += (itemL * itemH) / 1_000_000;
+                      }
+                    });
+                    if (totalAreaM2 > 0) {
+                      areaSummary = `${totalAreaM2.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`;
+                    }
+                  } else if (l > 0) {
+                    dimensionsSummary = `${l} mm`;
                   }
+
+                  // Count openings across all items
+                  let totalOpenings = 0;
+                  maatwerk.forEach((item: any) => {
+                    if (Array.isArray(item?.openings)) {
+                      totalOpenings += item.openings.length;
+                    }
+                  });
+                  if (totalOpenings > 0) {
+                    extraInfo.push(`${totalOpenings} ${totalOpenings === 1 ? 'opening' : 'openingen'}`);
+                  }
+                } else if (klusinformatie) {
+                  // Fallback: try to get dimensions from klusinformatie
+                  const l = parseFloat(klusinformatie?.lengte) || parseFloat(klusinformatie?.width) || 0;
+                  const h = parseFloat(klusinformatie?.hoogte) || parseFloat(klusinformatie?.breedte) || parseFloat(klusinformatie?.height) || 0;
+
+                  if (l > 0 && h > 0) {
+                    dimensionsSummary = `${l} × ${h} mm`;
+                    const areaM2 = (l * h) / 1_000_000;
+                    areaSummary = `${areaM2.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`;
+                  } else if (l > 0) {
+                    dimensionsSummary = `${l} mm`;
+                  }
+                }
+
+                // Add balkafstand if present
+                const balkafstand = maatwerk?.[0]?.balkafstand || klusinformatie?.balkafstand;
+                if (balkafstand && parseFloat(balkafstand) > 0) {
+                  extraInfo.push(`H.O.H. ${balkafstand}`);
+                }
+
+                // Add shape if non-standard
+                const shape = maatwerk?.[0]?.shape || klusinformatie?.shape;
+                if (shape && shape !== 'rectangle') {
+                  const shapeLabel = shape === 'slope' ? 'schuin' : shape === 'gable' ? 'nok' : shape === 'l-shape' ? 'L-vorm' : shape === 'u-shape' ? 'U-vorm' : shape;
+                  extraInfo.push(shapeLabel);
                 }
 
                 return (
@@ -1908,6 +1965,12 @@ export default function OverzichtPage() {
                             <span className="text-xs">{itemCount} {itemCount === 1 ? 'vlak' : 'vlakken'}</span>
                           </>
                         )}
+                        {extraInfo.map((info, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-muted-foreground/40">•</span>
+                            <span className="text-xs font-medium">{info}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 

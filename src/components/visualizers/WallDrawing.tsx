@@ -1,16 +1,31 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
-export interface WallOpening {
-    id: string;
-    type: 'door' | 'window' | 'opening';
-    width: number;
-    height: number;
-    fromLeft: number;
-    fromBottom: number;
-}
+import { WallOpening, DrawingData, Beam as BeamData, DimensionLine } from '@/lib/drawing-types';
+
+// Helper to remove undefined values for Firestore
+const removeUndefined = (obj: any): any => {
+    if (Array.isArray(obj)) {
+        return obj.map(removeUndefined);
+    }
+    if (obj !== null && typeof obj === 'object') {
+        const newObj: any = {};
+        Object.keys(obj).forEach(key => {
+            if (obj[key] !== undefined) {
+                newObj[key] = removeUndefined(obj[key]);
+            }
+        });
+        return newObj;
+    }
+    return obj;
+};
+
+export { type WallOpening }; // Re-export for compatibility if needed, or remove local interface
+
+// Remove local WallOpening interface if it conflicts, checking line 6-13
+
 
 export interface WallDrawingProps {
     lengte: string | number;
@@ -37,6 +52,7 @@ export interface WallDrawingProps {
     fitContainer?: boolean;
     isMagnifier?: boolean;
     startFromRight?: boolean;
+    onDataGenerated?: (data: DrawingData) => void;
 }
 
 export function WallDrawing({
@@ -59,7 +75,8 @@ export function WallDrawing({
     onOpeningsChange,
     fitContainer,
     isMagnifier,
-    startFromRight
+    startFromRight,
+    onDataGenerated
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
@@ -161,7 +178,7 @@ export function WallDrawing({
 
     // Stud width is 50mm, plates are 38mm
     const STUD_WIDTH_MM = 50;
-    const PLATE_HEIGHT_MM = 38;
+    const PLATE_HEIGHT_MM = 50;
     const studWidthPx = Math.max(1.5, STUD_WIDTH_MM * pxPerMm);
     const PLATE_HEIGHT = Math.max(1.5, PLATE_HEIGHT_MM * pxPerMm);
 
@@ -379,7 +396,8 @@ export function WallDrawing({
         }
 
         // 3. GENERATE BEAMS PER SEGMENT
-        type Beam = { x: number; y: number; w: number; h: number; type?: string; xMm?: number };
+        // 3. GENERATE BEAMS PER SEGMENT
+        type Beam = BeamData & { x: number; y: number; w: number; h: number; };
         const beams: Beam[] = [];
         const gapsMm: { val: number, c1: number, c2: number }[] = [];
 
@@ -429,13 +447,17 @@ export function WallDrawing({
                 const wallTop = getWallTopMm(centerX);
                 const wallBottom = getWallBottomMm(centerX);
 
+                const hMm = (wallTop - PLATE_HEIGHT_MM) - (wallBottom + PLATE_HEIGHT_MM);
                 const fullBeam: Beam = {
                     x: WALL_X + xMm * pxPerMm,
-                    y: getY(wallTop - 38), // Top plate
+                    y: getY(wallTop - PLATE_HEIGHT_MM), // Top plate
                     w: timberW,
-                    h: ((wallTop - 38) - (wallBottom + 38)) * pxPerMm,
+                    h: hMm * pxPerMm,
                     type: 'stud',
-                    xMm: xMm
+                    xMm: xMm,
+                    yMm: wallBottom + PLATE_HEIGHT_MM,
+                    wMm: STUD_WIDTH_MM,
+                    hMm: hMm
                 };
 
                 // Check Openings Collision (Cripples)
@@ -444,24 +466,28 @@ export function WallDrawing({
                 if (hittingOpening) {
                     // Top Cripple
                     const headerY = hittingOpening.t + STUD_W;
-                    const topCripH = (wallTop - 38) - headerY;
+                    const topCripH = (wallTop - PLATE_HEIGHT_MM) - headerY;
                     if (topCripH > 10) {
                         beams.push({
                             ...fullBeam,
-                            y: getY(wallTop - 38),
+                            y: getY(wallTop - PLATE_HEIGHT_MM),
                             h: topCripH * pxPerMm,
-                            type: 'cripple-top'
+                            type: 'cripple-top',
+                            hMm: topCripH,
+                            yMm: (wallTop - PLATE_HEIGHT_MM) - topCripH
                         });
                     }
                     // Bottom Cripple
                     const sillY = hittingOpening.b;
-                    const botCripH = sillY - (wallBottom + 38);
+                    const botCripH = sillY - (wallBottom + PLATE_HEIGHT_MM);
                     if (botCripH > 10) {
                         beams.push({
                             ...fullBeam,
                             y: getY(sillY),
                             h: botCripH * pxPerMm,
-                            type: 'cripple-bottom'
+                            type: 'cripple-bottom',
+                            hMm: botCripH,
+                            yMm: wallBottom + PLATE_HEIGHT_MM
                         });
                     }
                 } else {
@@ -489,19 +515,24 @@ export function WallDrawing({
         });
 
         // 4. Add FIXED Opening Frames (Kings, Headers, Sills)
-        const PLATE_H = 38;
+        const PLATE_H = PLATE_HEIGHT_MM;
         ops.forEach(op => {
             // Kings
             [op.l - STUD_W, op.r].forEach(kx => {
                 const cx = kx + HALF_STUD;
                 const wt = getWallTopMm(cx);
                 const wb = getWallBottomMm(cx);
+                const kHeight = (wt - PLATE_H) - (wb + PLATE_H);
                 beams.push({
                     x: WALL_X + kx * pxPerMm,
                     y: getY(wt - PLATE_H),
                     w: timberW,
-                    h: ((wt - PLATE_H) - (wb + PLATE_H)) * pxPerMm,
-                    type: 'king'
+                    h: kHeight * pxPerMm,
+                    type: 'king',
+                    xMm: kx,
+                    yMm: wb + PLATE_H,
+                    wMm: STUD_WIDTH_MM,
+                    hMm: kHeight
                 });
             });
 
@@ -511,7 +542,11 @@ export function WallDrawing({
                 y: getY(op.t + STUD_W),
                 w: (op.r - op.l) * pxPerMm,
                 h: timberW,
-                type: 'header'
+                type: 'header',
+                xMm: op.l,
+                yMm: op.t,
+                wMm: op.r - op.l,
+                hMm: STUD_WIDTH_MM
             });
 
             // Sill - Only doors don't have a sill
@@ -521,7 +556,11 @@ export function WallDrawing({
                     y: getY(op.b),
                     w: (op.r - op.l) * pxPerMm,
                     h: timberW,
-                    type: 'sill'
+                    type: 'sill',
+                    xMm: op.l,
+                    yMm: op.b - STUD_WIDTH_MM,
+                    wMm: op.r - op.l,
+                    hMm: STUD_WIDTH_MM
                 });
             }
         });
@@ -751,20 +790,130 @@ export function WallDrawing({
         });
     }, [openings, pxPerMm, WALL_X, Y_BOTTOM]);
 
+    // Data Extraction Effect
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return (
-        <div
-            className={cn(
-                "w-full rounded-lg overflow-hidden border border-border/30 bg-[#09090b]",
-                className
-            )}
-            role="img"
-            aria-label={`Wandstructuur: ${lengteDisplay} × ${hoogteDisplay} mm`}
-        >
+        <div className={cn("relative select-none", className)}>
             <svg
+                width="100%"
+                height="100%"
                 viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-                className={cn("w-full touch-none", fitContainer ? "h-full" : "h-auto")} // touch-none for dragging
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ display: 'block' }}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
             >
@@ -1424,34 +1573,36 @@ export function WallDrawing({
                 </g>
 
                 {/* MAGNIFIER LENS */}
-                {isMagnifier && lensPos.x !== 0 && (
-                    <g pointerEvents="none">
-                        <defs>
-                            <clipPath id={clipId}>
-                                <circle cx={lensPos.x} cy={lensPos.y} r={60} />
-                            </clipPath>
-                        </defs>
+                {
+                    isMagnifier && lensPos.x !== 0 && (
+                        <g pointerEvents="none">
+                            <defs>
+                                <clipPath id={clipId}>
+                                    <circle cx={lensPos.x} cy={lensPos.y} r={60} />
+                                </clipPath>
+                            </defs>
 
-                        {/* Shadow/Border Ring behind */}
-                        <circle cx={lensPos.x} cy={lensPos.y} r={62} fill="black" opacity="0.5" />
+                            {/* Shadow/Border Ring behind */}
+                            <circle cx={lensPos.x} cy={lensPos.y} r={62} fill="black" opacity="0.5" />
 
-                        {/* The Magnified Content */}
-                        <g clipPath={`url(#${clipId})`}>
-                            {/* Opaque background inside lens to hide non-magnified stuff behind it */}
-                            <rect x={lensPos.x - 60} y={lensPos.y - 60} width={120} height={120} fill="#09090b" />
-                            <use
-                                href={`#${drawingId}`}
-                                transform={`translate(${-lensPos.x}, ${-lensPos.y}) scale(2)`}
-                            />
+                            {/* The Magnified Content */}
+                            <g clipPath={`url(#${clipId})`}>
+                                {/* Opaque background inside lens to hide non-magnified stuff behind it */}
+                                <rect x={lensPos.x - 60} y={lensPos.y - 60} width={120} height={120} fill="#09090b" />
+                                <use
+                                    href={`#${drawingId}`}
+                                    transform={`translate(${-lensPos.x}, ${-lensPos.y}) scale(2)`}
+                                />
+                            </g>
+
+                            {/* Lens Border / Crosshair */}
+                            <circle cx={lensPos.x} cy={lensPos.y} r={60} stroke="#10b981" strokeWidth="2" fill="none" />
+                            <line x1={lensPos.x - 5} y1={lensPos.y} x2={lensPos.x + 5} y2={lensPos.y} stroke="#10b981" strokeWidth="1" opacity="0.5" />
+                            <line x1={lensPos.x} y1={lensPos.y - 5} x2={lensPos.x} y2={lensPos.y + 5} stroke="#10b981" strokeWidth="1" opacity="0.5" />
                         </g>
-
-                        {/* Lens Border / Crosshair */}
-                        <circle cx={lensPos.x} cy={lensPos.y} r={60} stroke="#10b981" strokeWidth="2" fill="none" />
-                        <line x1={lensPos.x - 5} y1={lensPos.y} x2={lensPos.x + 5} y2={lensPos.y} stroke="#10b981" strokeWidth="1" opacity="0.5" />
-                        <line x1={lensPos.x} y1={lensPos.y - 5} x2={lensPos.x} y2={lensPos.y + 5} stroke="#10b981" strokeWidth="1" opacity="0.5" />
-                    </g>
-                )}
-            </svg>
+                    )
+                }
+            </svg >
         </div >
     );
 }
