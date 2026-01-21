@@ -4,6 +4,7 @@ import { DimensionLine, DrawingData, WallOpening } from '@/lib/drawing-types';
 import { OverallDimensions, OpeningMeasurements, GridMeasurements } from './shared/measurements';
 import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
+import { calculateRaveelwerk, raveelwerkToSVG } from './shared/raveelwerk-utils';
 
 export interface CeilingOpening {
     id: string;
@@ -292,6 +293,9 @@ export function CeilingWoodDrawing({
                     c2: startY + g.c2 * pxPerMmH
                 }));
 
+                // Openings for Overlay (moved here so beams can check intersections)
+                const opsForOverlay = mappingOpeningsForOverlay(rawOpenings, effectiveHeight);
+
                 // Render Beams from framing.beamCenters
                 if (balkafstand > 0) {
                     const BEAM_STROKE = Math.max(1, 75 * pxPerMmW);
@@ -305,11 +309,11 @@ export function CeilingWoodDrawing({
                     if (isFrame) {
                         // Top Beam
                         elements.push(
-                            <line key="beam-frame-top" x1={startX} y1={startY + frameThicknessPx / 2} x2={startX + rectW} y2={startY + frameThicknessPx / 2} stroke={structureColor} strokeWidth={frameThicknessPx} opacity="0.2" />
+                            <line key="beam-frame-top" x1={startX} y1={startY + frameThicknessPx / 2} x2={startX + rectW} y2={startY + frameThicknessPx / 2} stroke={structureColor} strokeWidth={frameThicknessPx} opacity="0.4" />
                         );
                         // Bottom Beam
                         elements.push(
-                            <line key="beam-frame-bottom" x1={startX} y1={startY + rectH - frameThicknessPx / 2} x2={startX + rectW} y2={startY + rectH - frameThicknessPx / 2} stroke={structureColor} strokeWidth={frameThicknessPx} opacity="0.2" />
+                            <line key="beam-frame-bottom" x1={startX} y1={startY + rectH - frameThicknessPx / 2} x2={startX + rectW} y2={startY + rectH - frameThicknessPx / 2} stroke={structureColor} strokeWidth={frameThicknessPx} opacity="0.4" />
                         );
                     }
 
@@ -317,15 +321,57 @@ export function CeilingWoodDrawing({
                     const vStartY = startY + frameThicknessPx;
                     const vEndY = startY + rectH - frameThicknessPx;
 
-                    // Render Standard Beams
+                    // Render Standard Beams (with interruption for openings)
+                    const STUD_WIDTH_MM = 70;
+                    const HEADER_THICKNESS = 70; // Same as beam width for headers
+
                     framing.beamCenters.forEach(cx => {
                         const drawX = startX + (cx * pxPerMmW);
                         // Don't draw if outside
                         if (drawX < startX - 2 || drawX > startX + rectW + 2) return;
 
-                        elements.push(
-                            <line key={`beam-${cx}`} x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
-                        );
+                        // Check if this beam intersects any opening
+                        const intersectingOpening = opsForOverlay.find(op => {
+                            const opLeft = op.fromLeft;
+                            const opRight = op.fromLeft + op.width;
+                            // Beam center is in mm, check if it falls within opening's horizontal range
+                            // Add some tolerance for beam width
+                            const beamLeft = cx - STUD_WIDTH_MM / 2;
+                            const beamRight = cx + STUD_WIDTH_MM / 2;
+                            return beamRight > opLeft && beamLeft < opRight;
+                        });
+
+                        if (intersectingOpening && intersectingOpening.requires_raveelwerk) {
+                            // Beam intersects an opening with raveelwerk - split it!
+                            // Calculate opening Y positions in screen coordinates
+                            const opTopMm = intersectingOpening.fromBottom + intersectingOpening.height;
+                            const opBottomMm = intersectingOpening.fromBottom;
+
+                            // Convert to SVG Y (remember SVG Y is inverted)
+                            // vStartY is at top of beam area, vEndY is at bottom
+                            // Opening fromBottom is from the floor (bottom of rect)
+                            const svgOpTop = (startY + rectH) - opTopMm * pxPerMm - HEADER_THICKNESS * pxPerMm;
+                            const svgOpBottom = (startY + rectH) - opBottomMm * pxPerMm + HEADER_THICKNESS * pxPerMm;
+
+                            // Draw top segment (from vStartY to top of opening header)
+                            if (svgOpTop > vStartY) {
+                                elements.push(
+                                    <line key={`beam-${cx}-top`} x1={drawX} y1={vStartY} x2={drawX} y2={svgOpTop} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.4" />
+                                );
+                            }
+
+                            // Draw bottom segment (from bottom of opening header to vEndY)
+                            if (svgOpBottom < vEndY) {
+                                elements.push(
+                                    <line key={`beam-${cx}-bottom`} x1={drawX} y1={svgOpBottom} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.4" />
+                                );
+                            }
+                        } else {
+                            // No intersection or no raveelwerk - draw full beam
+                            elements.push(
+                                <line key={`beam-${cx}`} x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.4" />
+                            );
+                        }
                     });
 
                     // Render Double End Beams if enabled
@@ -337,7 +383,7 @@ export function CeilingWoodDrawing({
                         if (extraStart < lengte) {
                             const drawX = startX + (extraStart * pxPerMmW);
                             elements.push(
-                                <line key="beam-double-start" x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
+                                <line key="beam-double-start" x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.4" />
                             );
                         }
 
@@ -345,7 +391,7 @@ export function CeilingWoodDrawing({
                         if (extraEnd > 0) {
                             const drawX = startX + (extraEnd * pxPerMmW);
                             elements.push(
-                                <line key="beam-double-end" x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
+                                <line key="beam-double-end" x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.4" />
                             );
                         }
                     }
@@ -405,8 +451,7 @@ export function CeilingWoodDrawing({
                     }
                 }
 
-                // 2. Openings for Overlay
-                const opsForOverlay = mappingOpeningsForOverlay(rawOpenings, effectiveHeight);
+                // Openings already calculated above (opsForOverlay)
 
                 const clipId = `ceiling-clip-${item.shape}`;
 
@@ -445,9 +490,30 @@ export function CeilingWoodDrawing({
                             const w = op.width * pxPerMm;
                             const h = op.height * pxPerMm;
 
-                            // Raveelwerk Geometry (Headers)
-                            const isRaveel = (op as any).requires_raveelwerk; // Cast as any if interface not updated yet, or handled below
-                            const headerThick = 70 * pxPerMm; // Standard beam width
+                            // Smart Raveelwerk Geometry
+                            const isRaveel = (op as any).requires_raveelwerk;
+
+                            // Calculate smart raveelwerk beams if enabled
+                            let raveelSVGBeams: any[] = [];
+                            if (isRaveel && framing.beamCenters.length > 0) {
+                                const raveelGeometry = calculateRaveelwerk({
+                                    openingFromLeft: op.fromLeft,
+                                    openingWidth: op.width,
+                                    openingHeight: op.height,
+                                    openingFromBottom: op.fromBottom,
+                                    existingBeamCenters: framing.beamCenters,
+                                    beamWidth: 70, // Same as STUD_WIDTH used for beams
+                                    totalHeight: effectiveHeight
+                                });
+
+                                raveelSVGBeams = raveelwerkToSVG(
+                                    raveelGeometry,
+                                    startX,
+                                    startY,
+                                    rectH,
+                                    pxPerMm
+                                );
+                            }
 
                             return (
                                 <g
@@ -458,17 +524,40 @@ export function CeilingWoodDrawing({
                                     className={onOpeningsChange ? "cursor-move" : ""}
                                     style={{ cursor: onOpeningsChange ? 'move' : 'default' }}
                                 >
-                                    {/* Raveelwerk Headers (Underlay) */}
-                                    {isRaveel && (
-                                        <>
-                                            {/* Top Header */}
-                                            <rect x={x} y={y - headerThick} width={w} height={headerThick} fill={structureColor} opacity="0.4" />
-                                            {/* Bottom Header */}
-                                            <rect x={x} y={y + h} width={w} height={headerThick} fill={structureColor} opacity="0.4" />
-
-                                            {/* Optional: Side trimmers if needed? Requirement said "top and bottom" headers mainly */}
-                                        </>
-                                    )}
+                                    {/* Smart Raveelwerk Beams (rendered like existing beams) */}
+                                    {isRaveel && raveelSVGBeams.map((beam, idx) => {
+                                        if (beam.type === 'header') {
+                                            // Horizontal headers - rendered as lines like existing beams
+                                            const centerY = beam.svgY + beam.svgHeight / 2;
+                                            return (
+                                                <line
+                                                    key={`raveel-${beam.position}-${idx}`}
+                                                    x1={beam.svgX}
+                                                    y1={centerY}
+                                                    x2={beam.svgX + beam.svgWidth}
+                                                    y2={centerY}
+                                                    stroke={structureColor}
+                                                    strokeWidth={beam.svgHeight}
+                                                    opacity="0.4"
+                                                />
+                                            );
+                                        } else {
+                                            // Vertical trimmers - rendered as lines like existing beams
+                                            const centerX = beam.svgX + beam.svgWidth / 2;
+                                            return (
+                                                <line
+                                                    key={`raveel-${beam.position}-${idx}`}
+                                                    x1={centerX}
+                                                    y1={beam.svgY}
+                                                    x2={centerX}
+                                                    y2={beam.svgY + beam.svgHeight}
+                                                    stroke={structureColor}
+                                                    strokeWidth={beam.svgWidth}
+                                                    opacity="0.4"
+                                                />
+                                            );
+                                        }
+                                    })}
 
                                     <rect
                                         x={x} y={y} width={w} height={h}
