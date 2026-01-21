@@ -95,7 +95,34 @@ export function calculateGridGaps({
     }
 
     // Sort unique
-    const uniqueCenters = Array.from(new Set(rawCenters)).sort((a, b) => a - b);
+    let uniqueCenters = Array.from(new Set(rawCenters)).sort((a, b) => a - b);
+
+    // 1.5. GAP CORRECTION (Post-Processing)
+    // Check if any gap exceeds the max spacing. If so, insert a beam in the middle.
+    // This happens if a beam was dropped due to collision, but the gap became too large.
+    const correctedCenters: number[] = [];
+    if (uniqueCenters.length > 0) {
+        correctedCenters.push(uniqueCenters[0]);
+
+        for (let i = 0; i < uniqueCenters.length - 1; i++) {
+            const current = uniqueCenters[i];
+            const next = uniqueCenters[i + 1];
+            const gap = next - current;
+
+            // Tolerance of 1mm for floating point issues
+            if (gap > spacing + 1) {
+                // Gap is too big! Insert a beam in the middle.
+                const midPoint = current + (gap / 2);
+                correctedCenters.push(midPoint);
+            }
+            correctedCenters.push(next);
+        }
+    } else {
+        // Fallback (shouldn't happen if length > 0)
+        correctedCenters.push(...uniqueCenters);
+    }
+
+    uniqueCenters = correctedCenters;
 
     // 2. Calculate Gaps
     // WallDrawing Logic:

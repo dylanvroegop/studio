@@ -20,6 +20,7 @@ export interface CeilingOpening {
     lengte?: number; // length of opening?
     vanafLinks?: number;
     vanafBoven?: number;
+    requires_raveelwerk?: boolean;
 }
 
 // Helper to standardise opening data for measurements
@@ -48,7 +49,8 @@ const mappingOpeningsForOverlay = (raw: CeilingOpening[], effectiveHeight: numbe
             height: h,
             fromLeft: l,
             fromBottom: fromBottom,
-            type: op.type
+            type: op.type,
+            requires_raveelwerk: op.requires_raveelwerk
         };
     });
 };
@@ -443,6 +445,10 @@ export function CeilingWoodDrawing({
                             const w = op.width * pxPerMm;
                             const h = op.height * pxPerMm;
 
+                            // Raveelwerk Geometry (Headers)
+                            const isRaveel = (op as any).requires_raveelwerk; // Cast as any if interface not updated yet, or handled below
+                            const headerThick = 70 * pxPerMm; // Standard beam width
+
                             return (
                                 <g
                                     key={op.id}
@@ -452,6 +458,18 @@ export function CeilingWoodDrawing({
                                     className={onOpeningsChange ? "cursor-move" : ""}
                                     style={{ cursor: onOpeningsChange ? 'move' : 'default' }}
                                 >
+                                    {/* Raveelwerk Headers (Underlay) */}
+                                    {isRaveel && (
+                                        <>
+                                            {/* Top Header */}
+                                            <rect x={x} y={y - headerThick} width={w} height={headerThick} fill={structureColor} opacity="0.4" />
+                                            {/* Bottom Header */}
+                                            <rect x={x} y={y + h} width={w} height={headerThick} fill={structureColor} opacity="0.4" />
+
+                                            {/* Optional: Side trimmers if needed? Requirement said "top and bottom" headers mainly */}
+                                        </>
+                                    )}
+
                                     <rect
                                         x={x} y={y} width={w} height={h}
                                         fill="#09090b"
