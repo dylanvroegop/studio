@@ -7,7 +7,7 @@ import { useDraggableOpenings } from './shared/useDraggableOpenings';
 
 export interface CeilingOpening {
     id: string;
-    type: string;
+    type: 'door' | 'window' | 'opening';
     width: number;
     length: number; // usually 'height' in logic
     fromLeft: number;
@@ -28,16 +28,18 @@ const mappingOpeningsForOverlay = (raw: CeilingOpening[], effectiveHeight: numbe
         const w = op.width ?? (op as any).breedte ?? 0;
         const h = op.length ?? (op as any).lengte ?? op.height ?? 0;
         const l = op.fromLeft ?? (op as any).vanafLinks ?? 0;
-        const t = op.fromTop ?? (op as any).vanafBoven ?? op.fromBottom ?? 0;
 
-        // Calculate fromBottom. 
-        // Logic: if fromTop is provided, fromBottom = H - fromTop - h.
-        // If fromBottom provided? 
-        let fromBottom = (effectiveHeight - t - h);
+        // CRITICAL: Calculate fromBottom from fromTop
+        // Don't fallback to fromBottom in the fromTop calculation - that's circular!
+        let fromBottom: number;
+
         if (op.fromBottom !== undefined) {
-            // Trust fromBottom if it seems like that's the primary
-            // But UI often updates fromTop for ceiling...
-            // Let's stick to Cartesian separation: fromTop is UI default for ceiling.
+            // If fromBottom is explicitly set, use it directly
+            fromBottom = op.fromBottom;
+        } else {
+            // Otherwise calculate from fromTop (default for ceiling)
+            const t = op.fromTop ?? (op as any).vanafBoven ?? 0;
+            fromBottom = effectiveHeight - t - h;
         }
 
         return {
@@ -130,34 +132,58 @@ export function CeilingWoodDrawing({
 
     // 2. STATE & INTERACTION (Shared Hook)
     const metricsRef = React.useRef<any>(null);
+    const [pxPerMmState, setPxPerMmState] = React.useState(1);
+
+    // Update pxPerMm state when metrics change
+    React.useLayoutEffect(() => {
+        if (metricsRef.current?.pxPerMm && metricsRef.current.pxPerMm !== pxPerMmState) {
+            setPxPerMmState(metricsRef.current.pxPerMm);
+        }
+    });
 
     // Adapt openings for hook - Convert fromTop to fromBottom for dragging
     const draggableOpenings = React.useMemo(() => {
-        return rawOpenings.map(o => {
+        const result = rawOpenings.map(o => {
             const h = o.length ?? (o as any).lengte ?? o.height ?? 0;
-            const t = o.fromTop ?? (o as any).vanafBoven ?? 0;
+            const w = o.width ?? (o as any).breedte ?? 0;
+            const l = o.fromLeft ?? (o as any).vanafLinks ?? 0;
 
-            // Convert fromTop to fromBottom: bottom = totalHeight - top - height
-            const fromBottom = effectiveHeight - t - h;
+            // CRITICAL: Use same logic as mappingOpeningsForOverlay
+            let fromBottom: number;
+
+            if (o.fromBottom !== undefined) {
+                // If fromBottom is explicitly set, use it directly
+                fromBottom = o.fromBottom;
+                console.log(`[Draggable ${o.id}] Using explicit fromBottom:`, fromBottom);
+            } else {
+                // Otherwise calculate from fromTop (default for ceiling)
+                const t = o.fromTop ?? (o as any).vanafBoven ?? 0;
+                fromBottom = effectiveHeight - t - h;
+                console.log(`[Draggable ${o.id}] Calculated fromBottom from fromTop=${t}, h=${h}, effectiveHeight=${effectiveHeight}:`, fromBottom);
+            }
 
             return {
                 ...o,
                 fromBottom,
                 height: h,  // Normalize height field
-                width: o.width ?? (o as any).breedte ?? 0,
-                fromLeft: o.fromLeft ?? (o as any).vanafLinks ?? 0
+                width: w,
+                fromLeft: l
             };
         });
+        console.log('[Draggable] All draggable openings:', result);
+        return result;
     }, [rawOpenings, effectiveHeight]);
 
     const { draggingId, handlePointerDown, handlePointerMove, handlePointerUp } = useDraggableOpenings({
         openings: draggableOpenings,
         onOpeningsChange: (updated) => {
+            console.log('[onOpeningsChange] Received updated openings with fromBottom:', updated);
             if (onOpeningsChange) {
                 // CRITICAL: Convert fromBottom BACK to fromTop for ceiling drawings
                 const convertedBack = updated.map(o => {
                     // fromTop = totalHeight - fromBottom - height
                     const fromTop = effectiveHeight - o.fromBottom - o.height;
+                    console.log(`[onOpeningsChange ${o.id}] Converting back: fromBottom=${o.fromBottom}, height=${o.height}, effectiveHeight=${effectiveHeight} => fromTop=${fromTop}`);
 
                     return {
                         ...o,
@@ -167,10 +193,11 @@ export function CeilingWoodDrawing({
                     } as unknown as CeilingOpening;
                 });
 
+                console.log('[onOpeningsChange] Sending converted back openings:', convertedBack);
                 onOpeningsChange(convertedBack);
             }
         },
-        pxPerMm: metricsRef.current?.pxPerMm || 1,
+        pxPerMm: pxPerMmState,
         isMagnifier: false
     });
 
@@ -310,7 +337,7 @@ export function CeilingWoodDrawing({
                             return (
                                 <g
                                     key={op.id}
-                                    onPointerDown={(e) => handlePointerDown(e, rawOpenings.find(o => o.id === op.id) as any)}
+                                    onPointerDown={(e) => handlePointerDown(e, draggableOpenings.find(o => o.id === op.id) as any)}
                                     onPointerMove={handlePointerMove}
                                     onPointerUp={handlePointerUp}
                                     className={onOpeningsChange ? "cursor-move" : ""}
