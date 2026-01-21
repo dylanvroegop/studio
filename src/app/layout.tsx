@@ -4,6 +4,7 @@ import './globals.css';
 import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
+import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -21,8 +22,10 @@ export default function RootLayout({
     <html lang="nl" className="dark">
       <body className={`${inter.variable} font-body antialiased`}>
         <FirebaseClientProvider>
-          {children}
-          <Toaster />
+          <MeasurementUnitProvider>
+            {children}
+            <Toaster />
+          </MeasurementUnitProvider>
         </FirebaseClientProvider>
       </body>
     </html>

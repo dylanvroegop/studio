@@ -45,6 +45,7 @@ export interface CeilingDrawingProps {
         lengte3?: string | number;
         hoogte3?: string | number;
 
+        doubleEndBattens?: boolean;
         openings?: CeilingOpening[];
     };
     className?: string;

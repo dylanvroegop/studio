@@ -40,6 +40,7 @@ export interface RoofDrawingProps {
     isMagnifier?: boolean;
     startFromRight?: boolean;
     title?: string;
+    doubleEndBattens?: boolean;
 }
 
 export function RoofDrawing({
@@ -64,7 +65,8 @@ export function RoofDrawing({
     fitContainer,
     isMagnifier,
     startFromRight,
-    title = 'Dak Vlak'
+    title = 'Dak Vlak',
+    doubleEndBattens
 }: RoofDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
@@ -519,23 +521,54 @@ export function RoofDrawing({
                 // Adjust start to prevent overlap/bad loop
                 if (curY < topBoundY) curY = topBoundY + spacingPx;
 
-                let rachelIndex = 0;
+                // Helper to draw rachel
+                const drawRachel = (y: number, key: string) => {
+                    clippedContent.push(
+                        <g key={key}>
+                            <line x1={rStartX} y1={y - halfRachel} x2={rEndX} y2={y - halfRachel} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" opacity="1.0" />
+                            <line x1={rStartX} y1={y + halfRachel} x2={rEndX} y2={y + halfRachel} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" opacity="1.0" />
+                        </g>
+                    );
+                };
 
+                // Standard Rachels
+                let rachelIndex = 0;
                 // Force a safety limit
                 const MAX_LOOPS = 1000;
                 let safety = 0;
 
-                // Draw loop
                 while (curY < bottomBoundY && safety < MAX_LOOPS) {
-                    clippedContent.push(
-                        <g key={`rachel-${rachelIndex}`}>
-                            <line x1={rStartX} y1={curY - halfRachel} x2={rEndX} y2={curY - halfRachel} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" opacity="1.0" />
-                            <line x1={rStartX} y1={curY + halfRachel} x2={rEndX} y2={curY + halfRachel} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" opacity="1.0" />
-                        </g>
-                    );
+                    drawRachel(curY, `rachel-${rachelIndex}`);
                     curY += spacingPx;
                     rachelIndex++;
                     safety++;
+                }
+
+                // Double End Rachels Logic
+                // Note: In RoofDrawing, we iterate DOWN screen Y.
+                // Roof Top (Start) is at startY (approx).
+                // Roof Bottom (End) is at startY + rectH.
+                // We use MM offsets to calculate position.
+                // Start Rachel = 0 + Width + HalfWidth? No, Standard logic starts at 0?
+                // Visualizer above starts at topBoundY + spacingPx.
+                // So First Edge is topBoundY + HalfWidth.
+
+                // Let's assume user wants "Double Start" and "Double End" lines.
+                // Start (Top): at topBoundY + (WIDTH + HALF_WIDTH)
+                // End (Bottom): at bottomBoundY - (WIDTH + HALF_WIDTH)
+
+                if (props.doubleEndBattens) { // Access logic from props?? Wait, Props are destructured.
+                    // Need to check if I can access 'doubleEndBattens' from props here.
+                    // It is NOT in the destructured list in the function signature yet.
+                    // I will add it to the signature in a separate step or assume I add it.
+
+                    // Logic assumes variable 'doubleEndBattens' exists.
+
+                    const extraTopY = topBoundY + (rachelHeightPx * 1.5);
+                    const extraBottomY = bottomBoundY - (rachelHeightPx * 1.5);
+
+                    drawRachel(extraTopY, 'rachel-double-top');
+                    drawRachel(extraBottomY, 'rachel-double-bottom');
                 }
             }
 

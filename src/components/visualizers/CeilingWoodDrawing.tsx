@@ -78,6 +78,9 @@ export interface CeilingDrawingProps {
         lengte3?: string | number;
         hoogte3?: string | number;
 
+        doubleEndBeams?: boolean;
+        doubleEndBattens?: boolean;
+        surroundingBeams?: boolean;
         openings?: CeilingOpening[];
     };
     className?: string;
@@ -290,15 +293,60 @@ export function CeilingWoodDrawing({
                 // Render Beams from framing.beamCenters
                 if (balkafstand > 0) {
                     const BEAM_STROKE = Math.max(1, 75 * pxPerMmW);
+                    const STUD_WIDTH = 70; // used in framing calc
+
+                    // Frame Beams Logic (Surrounding)
+                    const isFrame = item.surroundingBeams;
+                    const frameThicknessPx = isFrame ? (STUD_WIDTH * pxPerMmH) : 0;
+
+                    // If Frame, draw Top and Bottom Beams
+                    if (isFrame) {
+                        // Top Beam
+                        elements.push(
+                            <line key="beam-frame-top" x1={startX} y1={startY + frameThicknessPx / 2} x2={startX + rectW} y2={startY + frameThicknessPx / 2} stroke={structureColor} strokeWidth={frameThicknessPx} opacity="0.2" />
+                        );
+                        // Bottom Beam
+                        elements.push(
+                            <line key="beam-frame-bottom" x1={startX} y1={startY + rectH - frameThicknessPx / 2} x2={startX + rectW} y2={startY + rectH - frameThicknessPx / 2} stroke={structureColor} strokeWidth={frameThicknessPx} opacity="0.2" />
+                        );
+                    }
+
+                    // Adjust Vertical Beam Start/End
+                    const vStartY = startY + frameThicknessPx;
+                    const vEndY = startY + rectH - frameThicknessPx;
+
+                    // Render Standard Beams
                     framing.beamCenters.forEach(cx => {
                         const drawX = startX + (cx * pxPerMmW);
                         // Don't draw if outside
                         if (drawX < startX - 2 || drawX > startX + rectW + 2) return;
 
                         elements.push(
-                            <line key={`beam-${cx}`} x1={drawX} y1={startY} x2={drawX} y2={startY + rectH} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
+                            <line key={`beam-${cx}`} x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
                         );
                     });
+
+                    // Render Double End Beams if enabled
+                    if (item.doubleEndBeams) {
+                        const extraStart = (STUD_WIDTH / 2) + STUD_WIDTH; // 35 + 70 = 105
+                        const extraEnd = lengte - ((STUD_WIDTH / 2) + STUD_WIDTH);
+
+                        // Start
+                        if (extraStart < lengte) {
+                            const drawX = startX + (extraStart * pxPerMmW);
+                            elements.push(
+                                <line key="beam-double-start" x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
+                            );
+                        }
+
+                        // End
+                        if (extraEnd > 0) {
+                            const drawX = startX + (extraEnd * pxPerMmW);
+                            elements.push(
+                                <line key="beam-double-end" x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
+                            );
+                        }
+                    }
                 }
 
                 // ===========================================
@@ -306,6 +354,7 @@ export function CeilingWoodDrawing({
                 // ===========================================
                 if (latafstand > 0) {
 
+                    // Standard Latten
                     // Calculate latten positions (horizontal lines)
                     const lattenFraming = calculateGridGaps({
                         wallLength: effectiveHeight, // Use height as the "length" for horizontal lines
@@ -314,7 +363,8 @@ export function CeilingWoodDrawing({
                         startFromRight: startLattenFromBottom
                     });
 
-                    lattenFraming.beamCenters.forEach(cy => {
+                    // Helper to draw a single lat (batten)
+                    const drawLat = (cy: number, key: string) => {
                         const centerY = startY + (cy * pxPerMmH);
                         const halfWidth = (50 * pxPerMmH) / 2; // Half of 50mm
 
@@ -326,31 +376,31 @@ export function CeilingWoodDrawing({
 
                         // Draw two parallel thin lines for the top and bottom edges
                         elements.push(
-                            <line
-                                key={`latten-top-${cy}`}
-                                x1={startX}
-                                y1={topY}
-                                x2={startX + rectW}
-                                y2={topY}
-                                stroke={lattenColor}
-                                strokeWidth={1}
-                                strokeDasharray="4,4"
-                            />
+                            <line key={`${key}-top`} x1={startX} y1={topY} x2={startX + rectW} y2={topY} stroke={lattenColor} strokeWidth={1} strokeDasharray="4,4" />
                         );
-
                         elements.push(
-                            <line
-                                key={`latten-bottom-${cy}`}
-                                x1={startX}
-                                y1={bottomY}
-                                x2={startX + rectW}
-                                y2={bottomY}
-                                stroke={lattenColor}
-                                strokeWidth={1}
-                                strokeDasharray="4,4"
-                            />
+                            <line key={`${key}-bottom`} x1={startX} y1={bottomY} x2={startX + rectW} y2={bottomY} stroke={lattenColor} strokeWidth={1} strokeDasharray="4,4" />
                         );
-                    });
+                    };
+
+                    lattenFraming.beamCenters.forEach(cy => drawLat(cy, `latten-${cy}`));
+
+                    // Double End Battens Logic
+                    if (item.doubleEndBattens) {
+                        const LAT_WIDTH = 50;
+                        const extraTop = (LAT_WIDTH / 2) + LAT_WIDTH;
+                        const extraBottom = effectiveHeight - ((LAT_WIDTH / 2) + LAT_WIDTH);
+
+                        // Top Extra
+                        if (extraTop < effectiveHeight) {
+                            drawLat(extraTop, 'latten-double-top');
+                        }
+
+                        // Bottom Extra
+                        if (extraBottom > 0) {
+                            drawLat(extraBottom, 'latten-double-bottom');
+                        }
+                    }
                 }
 
                 // 2. Openings for Overlay

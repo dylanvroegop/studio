@@ -40,6 +40,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { cn } from '@/lib/utils';
+import { MeasurementInput } from '@/components/MeasurementInput';
+import { UnitToggle } from '@/context/MeasurementUnitContext';
+import { Switch } from '@/components/ui/switch';
 
 import { useFirestore } from '@/firebase';
 import { JOB_REGISTRY, MeasurementField } from '@/lib/job-registry';
@@ -363,7 +366,9 @@ export default function GenericMeasurementPage() {
         backLink={backUrl}
         progress={progressValue}
         quoteId={quoteId}
-        rightContent={<PersonalNotes quoteId={quoteId} context={`Metingen: ${jobConfig.title}`} />}
+        rightContent={
+          <PersonalNotes quoteId={quoteId} context={`Metingen: ${jobConfig.title}`} />
+        }
       />
 
       <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
@@ -379,57 +384,60 @@ export default function GenericMeasurementPage() {
                         <CardDescription>Specificeer de details.</CardDescription>
                       </div>
 
-                      {/* Shape Selector - Moved here */}
-                      <div className="inline-flex bg-muted/30 p-1 rounded-lg border border-border/50 self-start sm:self-center sm:ml-auto">
-                        {[
-                          { id: 'rectangle', icon: Square, label: 'Recht' },
-                          { id: 'slope', icon: Slash, label: 'Schuin' },
-                          { id: 'gable', icon: Triangle, label: 'Punt' },
-                          { id: 'l-shape', icon: null, label: 'L-Vorm', customIcon: 'L' },
-                          { id: 'u-shape', icon: null, label: 'U-Vorm', customIcon: 'U' }
-                        ].map((shapeOption) => {
-                          const currentShape = item.shape || 'rectangle';
-                          const isActive = currentShape === shapeOption.id;
-                          const Icon = shapeOption.icon;
+                      {/* Shape Selector & Unit Toggle - Moved here */}
+                      <div className="flex flex-col items-end gap-2 self-start sm:self-center sm:ml-auto">
+                        <div className="inline-flex bg-muted/30 p-1 rounded-lg border border-border/50">
+                          {[
+                            { id: 'rectangle', icon: Square, label: 'Recht' },
+                            { id: 'slope', icon: Slash, label: 'Schuin' },
+                            { id: 'gable', icon: Triangle, label: 'Punt' },
+                            { id: 'l-shape', icon: null, label: 'L-Vorm', customIcon: 'L' },
+                            { id: 'u-shape', icon: null, label: 'U-Vorm', customIcon: 'U' }
+                          ].map((shapeOption) => {
+                            const currentShape = item.shape || 'rectangle';
+                            const isActive = currentShape === shapeOption.id;
+                            const Icon = shapeOption.icon;
 
-                          // Custom L-shape icon (simple L)
-                          const LShapeIcon = () => (
-                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M6 4 L6 18 L20 18" />
-                            </svg>
-                          );
+                            // Custom L-shape icon (simple L)
+                            const LShapeIcon = () => (
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M6 4 L6 18 L20 18" />
+                              </svg>
+                            );
 
-                          // Custom U-shape icon (straight U)
-                          const UShapeIcon = () => (
-                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M4 4 L4 18 L20 18 L20 4" />
-                            </svg>
-                          );
+                            // Custom U-shape icon (straight U)
+                            const UShapeIcon = () => (
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 4 L4 18 L20 18 L20 4" />
+                              </svg>
+                            );
 
-                          return (
-                            <button
-                              key={shapeOption.id}
-                              type="button"
-                              onClick={() => handleShapeChange(index, shapeOption.id)}
-                              className={cn(
-                                "flex items-center gap-2 px-3 py-1 text-xs font-medium transition-all rounded-md",
-                                isActive
-                                  ? "bg-background text-emerald-500 shadow-sm ring-1 ring-emerald-500/50"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                              )}
-                              title={shapeOption.label}
-                            >
-                              {shapeOption.customIcon === 'L' ? (
-                                <LShapeIcon />
-                              ) : shapeOption.customIcon === 'U' ? (
-                                <UShapeIcon />
-                              ) : Icon ? (
-                                <Icon className={cn("h-3.5 w-3.5", shapeOption.id === 'slope' && "-rotate-12")} />
-                              ) : null}
-                              <span className="hidden sm:inline">{shapeOption.label}</span>
-                            </button>
-                          );
-                        })}
+                            return (
+                              <button
+                                key={shapeOption.id}
+                                type="button"
+                                onClick={() => handleShapeChange(index, shapeOption.id)}
+                                className={cn(
+                                  "flex items-center gap-2 px-3 py-1 text-xs font-medium transition-all rounded-md",
+                                  isActive
+                                    ? "bg-background text-emerald-500 shadow-sm ring-1 ring-emerald-500/50"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                )}
+                                title={shapeOption.label}
+                              >
+                                {shapeOption.customIcon === 'L' ? (
+                                  <LShapeIcon />
+                                ) : shapeOption.customIcon === 'U' ? (
+                                  <UShapeIcon />
+                                ) : Icon ? (
+                                  <Icon className={cn("h-3.5 w-3.5", shapeOption.id === 'slope' && "-rotate-12")} />
+                                ) : null}
+                                <span className="hidden sm:inline">{shapeOption.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <UnitToggle />
                       </div>
                     </div>
 
@@ -496,29 +504,23 @@ export default function GenericMeasurementPage() {
                                 <div className="space-y-2">
                                   <Label htmlFor={`l1-${index}`}>Lengte 1 *</Label>
                                   <div className="relative">
-                                    <Input
+                                    <MeasurementInput
                                       id={`l1-${index}`}
-                                      type="number"
                                       placeholder="3000"
                                       value={item.lengte1 || ''}
-                                      onChange={(e) => updateL('lengte1', e.target.value)}
-                                      className="pr-8"
+                                      onChange={(val) => updateL('lengte1', String(val))}
                                     />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
                                   </div>
                                 </div>
                                 <div className="space-y-2">
                                   <Label htmlFor={`h1-${index}`}>Hoogte 1 *</Label>
                                   <div className="relative">
-                                    <Input
+                                    <MeasurementInput
                                       id={`h1-${index}`}
-                                      type="number"
                                       placeholder="2600"
                                       value={item.hoogte1 || ''}
-                                      onChange={(e) => updateItem(index, 'hoogte1', e.target.value)}
-                                      className="pr-8"
+                                      onChange={(val) => updateItem(index, 'hoogte1', val)}
                                     />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
                                   </div>
                                 </div>
                               </div>
@@ -528,29 +530,23 @@ export default function GenericMeasurementPage() {
                                 <div className="space-y-2">
                                   <Label htmlFor={`l2-${index}`}>Lengte 2 *</Label>
                                   <div className="relative">
-                                    <Input
+                                    <MeasurementInput
                                       id={`l2-${index}`}
-                                      type="number"
                                       placeholder="2000"
                                       value={item.lengte2 || ''}
-                                      onChange={(e) => updateL('lengte2', e.target.value)}
-                                      className="pr-8"
+                                      onChange={(val) => updateL('lengte2', String(val))}
                                     />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
                                   </div>
                                 </div>
                                 <div className="space-y-2">
                                   <Label htmlFor={`h2-${index}`}>Hoogte 2 *</Label>
                                   <div className="relative">
-                                    <Input
+                                    <MeasurementInput
                                       id={`h2-${index}`}
-                                      type="number"
                                       placeholder="1500"
                                       value={item.hoogte2 || ''}
-                                      onChange={(e) => updateItem(index, 'hoogte2', e.target.value)}
-                                      className="pr-8"
+                                      onChange={(val) => updateItem(index, 'hoogte2', val)}
                                     />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
                                   </div>
                                 </div>
                               </div>
@@ -583,15 +579,13 @@ export default function GenericMeasurementPage() {
                               <div className="space-y-2">
                                 <Label htmlFor={`ul1-${index}`}>Lengte 1 *</Label>
                                 <div className="relative">
-                                  <Input id={`ul1-${index}`} type="number" placeholder="1000" value={item.lengte1 || ''} onChange={(e) => updateU('lengte1', e.target.value)} className="pr-8" />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
+                                  <MeasurementInput id={`ul1-${index}`} placeholder="1000" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
                                 </div>
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor={`uh1-${index}`}>Hoogte 1 *</Label>
                                 <div className="relative">
-                                  <Input id={`uh1-${index}`} type="number" placeholder="2600" value={item.hoogte1 || ''} onChange={(e) => updateItem(index, 'hoogte1', e.target.value)} className="pr-8" />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
+                                  <MeasurementInput id={`uh1-${index}`} placeholder="2600" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
                                 </div>
                               </div>
                             </div>
@@ -600,15 +594,13 @@ export default function GenericMeasurementPage() {
                               <div className="space-y-2">
                                 <Label htmlFor={`ul2-${index}`}>Lengte 2 *</Label>
                                 <div className="relative">
-                                  <Input id={`ul2-${index}`} type="number" placeholder="1000" value={item.lengte2 || ''} onChange={(e) => updateU('lengte2', e.target.value)} className="pr-8" />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
+                                  <MeasurementInput id={`ul2-${index}`} placeholder="1000" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
                                 </div>
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor={`uh2-${index}`}>Hoogte 2 *</Label>
                                 <div className="relative">
-                                  <Input id={`uh2-${index}`} type="number" placeholder="1500" value={item.hoogte2 || ''} onChange={(e) => updateItem(index, 'hoogte2', e.target.value)} className="pr-8" />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
+                                  <MeasurementInput id={`uh2-${index}`} placeholder="1500" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
                                 </div>
                               </div>
                             </div>
@@ -617,15 +609,13 @@ export default function GenericMeasurementPage() {
                               <div className="space-y-2">
                                 <Label htmlFor={`ul3-${index}`}>Lengte 3 *</Label>
                                 <div className="relative">
-                                  <Input id={`ul3-${index}`} type="number" placeholder="1000" value={item.lengte3 || ''} onChange={(e) => updateU('lengte3', e.target.value)} className="pr-8" />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
+                                  <MeasurementInput id={`ul3-${index}`} placeholder="1000" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
                                 </div>
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor={`uh3-${index}`}>Hoogte 3 *</Label>
                                 <div className="relative">
-                                  <Input id={`uh3-${index}`} type="number" placeholder="2600" value={item.hoogte3 || ''} onChange={(e) => updateItem(index, 'hoogte3', e.target.value)} className="pr-8" />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
+                                  <MeasurementInput id={`uh3-${index}`} placeholder="2600" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
                                 </div>
                               </div>
                             </div>
@@ -648,31 +638,21 @@ export default function GenericMeasurementPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor={`hLeft-${index}`}>H. Links *</Label>
-                                <div className="relative">
-                                  <Input
-                                    id={`hLeft-${index}`}
-                                    type="number"
-                                    placeholder="2600"
-                                    value={item.hoogteLinks || ''}
-                                    onChange={(e) => updateItem(index, 'hoogteLinks', e.target.value)}
-                                    className="pr-8"
-                                  />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
-                                </div>
+                                <MeasurementInput
+                                  id={`hLeft-${index}`}
+                                  placeholder="2600"
+                                  value={item.hoogteLinks || ''}
+                                  onChange={(val) => updateItem(index, 'hoogteLinks', val)}
+                                />
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor={`hRight-${index}`}>H. Rechts *</Label>
-                                <div className="relative">
-                                  <Input
-                                    id={`hRight-${index}`}
-                                    type="number"
-                                    placeholder="1500"
-                                    value={item.hoogteRechts || ''}
-                                    onChange={(e) => updateItem(index, 'hoogteRechts', e.target.value)}
-                                    className="pr-8"
-                                  />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
-                                </div>
+                                <MeasurementInput
+                                  id={`hRight-${index}`}
+                                  placeholder="1500"
+                                  value={item.hoogteRechts || ''}
+                                  onChange={(val) => updateItem(index, 'hoogteRechts', val)}
+                                />
                               </div>
                             </div>
                           );
@@ -683,31 +663,21 @@ export default function GenericMeasurementPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor={`hSide-${index}`}>H. Zijkant *</Label>
-                                <div className="relative">
-                                  <Input
-                                    id={`hSide-${index}`}
-                                    type="number"
-                                    placeholder="2600" // Reuse standard 'hoogte' as side height often
-                                    value={item.hoogte || ''}
-                                    onChange={(e) => updateItem(index, 'hoogte', e.target.value)}
-                                    className="pr-8"
-                                  />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
-                                </div>
+                                <MeasurementInput
+                                  id={`hSide-${index}`}
+                                  placeholder="2600"
+                                  value={item.hoogte || ''}
+                                  onChange={(val) => updateItem(index, 'hoogte', val)}
+                                />
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor={`hRidge-${index}`}>H. Nok *</Label>
-                                <div className="relative">
-                                  <Input
-                                    id={`hRidge-${index}`}
-                                    type="number"
-                                    placeholder="4000"
-                                    value={item.hoogteNok || ''}
-                                    onChange={(e) => updateItem(index, 'hoogteNok', e.target.value)}
-                                    className="pr-8"
-                                  />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">mm</span>
-                                </div>
+                                <MeasurementInput
+                                  id={`hRidge-${index}`}
+                                  placeholder="4000"
+                                  value={item.hoogteNok || ''}
+                                  onChange={(val) => updateItem(index, 'hoogteNok', val)}
+                                />
                               </div>
                             </div>
                           );
@@ -1012,18 +982,13 @@ export default function GenericMeasurementPage() {
                                   <div className="flex items-center justify-between">
                                     <Label htmlFor={`balk-${index}`} className="text-sm font-medium text-foreground">{field.label}</Label>
                                   </div>
-                                  <div className="relative">
-                                    <Input
-                                      id={`balk-${index}`}
-                                      type="number"
-                                      placeholder={field.placeholder}
-                                      value={item[field.key]}
-                                      onChange={(e) => updateItem(index, field.key, e.target.value)}
-                                      disabled={disabledAll}
-                                      className="pr-8"
-                                    />
-                                    <span className="absolute right-3 top-2 text-sm text-muted-foreground">mm</span>
-                                  </div>
+                                  <MeasurementInput
+                                    id={`balk-${index}`}
+                                    placeholder={field.placeholder}
+                                    value={item[field.key]}
+                                    onChange={(val) => updateItem(index, field.key, val)}
+                                    disabled={disabledAll}
+                                  />
                                 </div>
                               );
                             })()}
@@ -1056,6 +1021,30 @@ export default function GenericMeasurementPage() {
                                 >
                                   Rechts
                                 </button>
+                              </div>
+                            </div>
+
+                            {/* Dubbele Eindbalk Toggle */}
+                            <div className="space-y-1.5 pt-2">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor={`double-beam-${index}`} className="text-xs font-medium text-muted-foreground">Dubbele Eindbalk</Label>
+                                <Switch
+                                  id={`double-beam-${index}`}
+                                  checked={item.doubleEndBeams || false}
+                                  onCheckedChange={(checked) => updateItem(index, 'doubleEndBeams', checked)}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Kader Balken Toggle (Surrounding Beams) */}
+                            <div className="space-y-1.5 pt-1">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor={`surrounding-beams-${index}`} className="text-xs font-medium text-muted-foreground">Kader Balken (Rondom)</Label>
+                                <Switch
+                                  id={`surrounding-beams-${index}`}
+                                  checked={item.surroundingBeams || false}
+                                  onCheckedChange={(checked) => updateItem(index, 'surroundingBeams', checked)}
+                                />
                               </div>
                             </div>
 
@@ -1107,18 +1096,13 @@ export default function GenericMeasurementPage() {
                                   <div className="flex items-center justify-between">
                                     <Label htmlFor={`lat-${index}`} className="text-sm font-medium text-foreground">{field.label}</Label>
                                   </div>
-                                  <div className="relative">
-                                    <Input
-                                      id={`lat-${index}`}
-                                      type="number"
-                                      placeholder={field.placeholder}
-                                      value={item[field.key]}
-                                      onChange={(e) => updateItem(index, field.key, e.target.value)}
-                                      disabled={disabledAll}
-                                      className="pr-8"
-                                    />
-                                    <span className="absolute right-3 top-2 text-sm text-muted-foreground">mm</span>
-                                  </div>
+                                  <MeasurementInput
+                                    id={`lat-${index}`}
+                                    placeholder={field.placeholder}
+                                    value={item[field.key]}
+                                    onChange={(val) => updateItem(index, field.key, val)}
+                                    disabled={disabledAll}
+                                  />
                                 </div>
                               );
                             })()}
@@ -1151,6 +1135,18 @@ export default function GenericMeasurementPage() {
                                 >
                                   Onder
                                 </button>
+                              </div>
+                            </div>
+
+                            {/* Dubbele Eindlat Toggle */}
+                            <div className="space-y-1.5 pt-2">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor={`double-lat-${index}`} className="text-xs font-medium text-muted-foreground">Dubbele Eindlat</Label>
+                                <Switch
+                                  id={`double-lat-${index}`}
+                                  checked={item.doubleEndBattens || false}
+                                  onCheckedChange={(checked) => updateItem(index, 'doubleEndBattens', checked)}
+                                />
                               </div>
                             </div>
                           </div>
@@ -1230,72 +1226,52 @@ export default function GenericMeasurementPage() {
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-2">
                                   <label className="text-xs font-medium text-muted-foreground">Breedte</label>
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                      value={op.width}
-                                      onChange={(e) => {
-                                        const newOpenings = [...(item.openings || [])];
-                                        newOpenings[opIdx] = { ...op, width: parseFloat(e.target.value) || 0 };
-                                        updateItem(index, 'openings', newOpenings);
-                                      }}
-                                    />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                  </div>
+                                  <MeasurementInput
+                                    value={op.width}
+                                    onChange={(val) => {
+                                      const newOpenings = [...(item.openings || [])];
+                                      newOpenings[opIdx] = { ...op, width: val || 0 };
+                                      updateItem(index, 'openings', newOpenings);
+                                    }}
+                                  />
                                 </div>
                                 <div className="space-y-2">
                                   <label className="text-xs font-medium text-muted-foreground">Lengte</label>
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                      value={op.height}
-                                      onChange={(e) => {
-                                        const newOpenings = [...(item.openings || [])];
-                                        newOpenings[opIdx] = { ...op, height: parseFloat(e.target.value) || 0 };
-                                        updateItem(index, 'openings', newOpenings);
-                                      }}
-                                    />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                  </div>
+                                  <MeasurementInput
+                                    value={op.height}
+                                    onChange={(val) => {
+                                      const newOpenings = [...(item.openings || [])];
+                                      newOpenings[opIdx] = { ...op, height: val || 0 };
+                                      updateItem(index, 'openings', newOpenings);
+                                    }}
+                                  />
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-2">
                                   <label className="text-xs font-medium text-muted-foreground">Vanaf Links</label>
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                      value={op.fromLeft}
-                                      onChange={(e) => {
-                                        const newOpenings = [...(item.openings || [])];
-                                        newOpenings[opIdx] = { ...op, fromLeft: parseFloat(e.target.value) || 0 };
-                                        updateItem(index, 'openings', newOpenings);
-                                      }}
-                                    />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                  </div>
+                                  <MeasurementInput
+                                    value={op.fromLeft}
+                                    onChange={(val) => {
+                                      const newOpenings = [...(item.openings || [])];
+                                      newOpenings[opIdx] = { ...op, fromLeft: val || 0 };
+                                      updateItem(index, 'openings', newOpenings);
+                                    }}
+                                  />
                                 </div>
                                 <div className="space-y-2">
                                   <label className="text-xs font-medium text-muted-foreground">
                                     {isWallCategory ? 'Vanaf Vloer' : 'Vanaf Boven'}
                                   </label>
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                      value={op.fromBottom}
-                                      onChange={(e) => {
-                                        const newOpenings = [...(item.openings || [])];
-                                        newOpenings[opIdx] = { ...op, fromBottom: parseFloat(e.target.value) || 0 };
-                                        updateItem(index, 'openings', newOpenings);
-                                      }}
-                                    />
-                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground leading-none">mm</span>
-                                  </div>
+                                  <MeasurementInput
+                                    value={op.fromBottom}
+                                    onChange={(val) => {
+                                      const newOpenings = [...(item.openings || [])];
+                                      newOpenings[opIdx] = { ...op, fromBottom: val || 0 };
+                                      updateItem(index, 'openings', newOpenings);
+                                    }}
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -1463,23 +1439,15 @@ function DynamicInput({
           </SelectContent>
         </Select>
       ) : (
-        <div className="relative">
-          <Input
-            id={field.key}
-            type={field.type === 'number' ? 'number' : 'text'}
-            placeholder={field.placeholder}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            disabled={disabled}
-            className={field.suffix ? 'pr-10' : ''}
-          />
-          {field.suffix && (
-            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground text-sm">
-              {field.suffix}
-            </div>
-          )}
-        </div>
+        <MeasurementInput
+          id={field.key}
+          placeholder={field.placeholder}
+          value={value}
+          onChange={(val: string | number) => onChange(val)}
+          onKeyDown={onKeyDown}
+          disabled={disabled}
+          className={field.suffix ? 'pr-10' : ''}
+        />
       )}
 
 
