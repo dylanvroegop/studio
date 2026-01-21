@@ -69,7 +69,7 @@ export function MetalStudCeilingDrawing({
 
     const lengte = parseFloat(String(item.lengte || 0)); // X-axis
     const width = parseFloat(String((item as any).width || 0)); // Fallback
-    const hoogte = parseFloat(String(item.hoogte || 0)); // Y-axis (inputH)
+    const hoogte = parseFloat(String(item.hoogte || item.breedte || 0)); // Y-axis (inputH)
     const balkafstand = parseFloat(String(item.balkafstand || 0));
     const latafstand = parseFloat(String(item.latafstand || 0));
 
@@ -231,7 +231,7 @@ export function MetalStudCeilingDrawing({
                 return (
                     <>
                         <defs><clipPath id={clipId}><path d={outlinePath} /></clipPath></defs>
-                        <path d={outlinePath} stroke={structureColor} strokeWidth="2" fill="rgba(70,75,85, 0.1)" />
+                        <path d={outlinePath} stroke={structureColor} strokeWidth="0.5" fill="none" />
                         <g clipPath={`url(#${clipId})`}>
                             {elements}
                         </g>

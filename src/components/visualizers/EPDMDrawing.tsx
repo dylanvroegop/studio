@@ -178,7 +178,7 @@ export function EPDMDrawing({
                         y={yT}
                         width={innerW}
                         height={innerH}
-                        fill="rgba(70, 75, 85, 0.05)"
+                        fill="none"
                     />
                 );
 
@@ -324,7 +324,7 @@ export function EPDMDrawing({
 
                 return (
                     <>
-                        <rect x={startX} y={startY} width={rectW} height={rectH} fill="none" stroke="rgb(70, 75, 85)" strokeWidth="2" />
+                        <rect x={startX} y={startY} width={rectW} height={rectH} fill="none" stroke="rgb(70, 75, 85)" strokeWidth="0.5" />
                         {surfaceElement}
                         {segments}
                         {labelElements}

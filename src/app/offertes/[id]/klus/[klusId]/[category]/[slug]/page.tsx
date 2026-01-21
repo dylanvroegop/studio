@@ -69,41 +69,11 @@ export default function GenericMeasurementPage() {
 
   // ✅ 1. Add the Mounted State (The Fix)
   const [isMounted, setIsMounted] = useState(false);
-  const [showOpeningsTip, setShowOpeningsTip] = useState(true);
   const [isMagnifier, setIsMagnifier] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    const checkTip = async () => {
-      try {
-        const auth = getAuth();
-        const user = auth.currentUser;
-        if (user && firestore) {
-          const prefRef = doc(firestore, 'user_preferences', user.uid);
-          const snap = await getDoc(prefRef);
-          if (snap.exists() && snap.data().hideOpeningsTip) {
-            setShowOpeningsTip(false);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    checkTip();
-  }, [firestore]);
-
-  const dismissTip = async () => {
-    setShowOpeningsTip(false);
-    try {
-      const auth = getAuth();
-      if (auth.currentUser && firestore) {
-        await setDoc(doc(firestore, 'user_preferences', auth.currentUser.uid), { hideOpeningsTip: true }, { merge: true });
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
+  }, []);
 
   // 2. Get Config
   const categoryConfig = JOB_REGISTRY[categorySlug];
@@ -212,7 +182,7 @@ export default function GenericMeasurementPage() {
       // We explicitly clear these to prevent confusion
       // NOTE: h.o.h. fields (balkafstand, latafstand) are NOT reset - they keep their values
       const dimensionsToReset = [
-        'lengte', 'hoogte',
+        'lengte', 'hoogte', 'breedte',
         'lengte1', 'lengte2', 'lengte3',
         'hoogte1', 'hoogte2', 'hoogte3',
         'hoogteLinks', 'hoogteRechts',
@@ -1193,33 +1163,7 @@ export default function GenericMeasurementPage() {
                     {/* OPENINGS SECTION - Moved Here */}
                     {showOpeningsSection && (
                       <div className="mt-6 pt-6 border-t border-border/50 space-y-4">
-                        {showOpeningsTip && (
-                          <div className="flex items-start gap-3 bg-sky-500/10 border border-sky-500/20 text-sky-400 p-4 rounded-lg text-sm relative animate-in fade-in slide-in-from-top-2">
-                            <Info className="h-5 w-5 flex-shrink-0 mt-0.5 text-sky-400" />
-                            <div className="flex-1 pr-6">
-                              <p className="font-medium text-sky-300 mb-1">Tip</p>
-                              <p className="text-sky-200/90 leading-relaxed">
-                                Voor een basis materiaalberekening (platen/balken) is het detailleren van openingen vaak niet nodig.
-                                Het systeem rekent standaard met een dichte wand tenzij u hieronder details toevoegt.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={dismissTip}
-                                className="text-xs font-medium text-sky-400 hover:text-sky-300 underline mt-2 transition-colors"
-                              >
-                                Niet meer tonen
-                              </button>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setShowOpeningsTip(false)}
-                              className="absolute top-2 right-2 text-sky-500/50 hover:text-sky-400 transition-colors"
-                            >
-                              <X className="h-4 w-4" />
-                              <span className="sr-only">Sluiten</span>
-                            </button>
-                          </div>
-                        )}
+
 
                         {(item.openings || []).map((op: any, opIdx: number) => (
                           <div key={op.id} className="p-4 rounded-lg bg-muted/20 border border-border/50 space-y-4 animate-in fade-in slide-in-from-top-2">

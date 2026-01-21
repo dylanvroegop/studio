@@ -165,11 +165,11 @@ export function BaseDrawingFrame({
                     <circle cx={x + w} cy={dimY} r={sizes.ANCHOR_RADIUS} fill={colors.DIM_TOTAL} />
 
                     {/* Text with black background */}
-                    <rect x={x + w / 2 - 20} y={dimY - 6} width="40" height="12" fill={colors.BG_LABEL} opacity="1" />
+                    <rect x={x + w / 2 - 30} y={dimY - 10} width="60" height="20" fill={colors.BG_LABEL} opacity="1" />
                     <text
                         x={x + w / 2} y={dimY + 3} textAnchor="middle" dominantBaseline="middle" fill={colors.TEXT_WHITE}
                         className="font-mono font-bold"
-                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
+                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px' }}
                     >
                         {labelW}
                     </text>
@@ -196,11 +196,11 @@ export function BaseDrawingFrame({
 
                                 {/* Rotated text with black background */}
                                 <g transform={`translate(${leftLineX}, ${y + h / 2}) rotate(-90)`}>
-                                    <rect x="-20" y="-6" width="40" height="12" fill={colors.BG_LABEL} opacity="1" />
+                                    <rect x="-30" y="-10" width="60" height="20" fill={colors.BG_LABEL} opacity="1" />
                                     <text
                                         textAnchor="middle" dominantBaseline="middle" fill={colors.TEXT_WHITE}
                                         className="font-mono font-bold"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
+                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px' }}
                                     >
                                         {labelH}
                                     </text>
@@ -225,7 +225,7 @@ export function BaseDrawingFrame({
                                     <text
                                         x={rightLineX + 6} y={y + h / 2 + 3} textAnchor="start" fill={colors.DIM_TOTAL}
                                         className="font-mono font-bold"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
+                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px' }}
                                     >
                                         {rightHeightLabel}
                                     </text>
@@ -288,7 +288,7 @@ export function BaseDrawingFrame({
                             <text
                                 x={midX} y={dimY - 2} textAnchor="middle" fill={colors.DIM_GRID}
                                 className="font-mono select-none"
-                                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: fitContainer ? '10px' : '6px' }}
+                                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: fitContainer ? '14px' : '10px' }}
                             >
                                 {seg.val}
                             </text>

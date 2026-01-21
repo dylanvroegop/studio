@@ -84,11 +84,11 @@ export const DimensionLine: React.FC<DimensionLineProps> = ({
 
             {/* Label */}
             {label !== undefined && (
-                <g transform={`translate(${cx}, ${cy})`}>
+                <g transform={`translate(${cx}, ${cy}) ${orientation === 'vertical' ? 'rotate(-90)' : ''}`}>
                     {/* Background rect for readability */}
                     <rect
-                        x="-10" y="-4"
-                        width="20" height="8"
+                        x="-30" y="-10"
+                        width="60" height="20"
                         fill="#09090b"
                         opacity="1"
                     />
@@ -97,9 +97,8 @@ export const DimensionLine: React.FC<DimensionLineProps> = ({
                         textAnchor="middle"
                         dominantBaseline="middle"
                         fill={color}
-                        className="text-[7px] font-mono select-none font-medium"
+                        className="text-[16px] font-mono select-none font-medium"
                         style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                        transform={orientation === 'vertical' ? 'rotate(-90)' : ''}
                     >
                         {label}
                     </text>

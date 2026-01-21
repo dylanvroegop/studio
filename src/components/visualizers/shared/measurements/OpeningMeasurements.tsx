@@ -83,7 +83,7 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                             y={drawY + hPx / 2 - 10}
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            className="fill-emerald-400 text-[9px] font-medium select-none pointer-events-none"
+                            className="fill-emerald-400 text-[12px] font-medium select-none pointer-events-none"
                             style={{ fontFamily: "'Inter', sans-serif" }}
                         >
                             {op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing'}
@@ -95,7 +95,7 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                             y={drawY + hPx / 2 + 6}
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            className="fill-emerald-500/90 text-[8px] font-mono select-none font-bold pointer-events-none"
+                            className="fill-emerald-500/90 text-[12px] font-mono select-none font-bold pointer-events-none"
                         >
                             {op.width} x {op.height}
                         </text>
@@ -112,12 +112,12 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                 <circle cx={dimX} cy={svgBaseY} r="1.5" fill="#10b981" />
                                 <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />
                                 <g transform={`translate(${dimX}, ${(svgBaseY + openingBottomY) / 2}) rotate(-90)`}>
-                                    <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
+                                    <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
                                     <text
                                         textAnchor="middle"
                                         dominantBaseline="middle"
                                         fill="#10b981"
-                                        className="text-[7px] font-mono select-none font-medium"
+                                        className="text-[12px] font-mono select-none font-medium"
                                     >
                                         {op.fromBottom}
                                     </text>
@@ -134,12 +134,12 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                         <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
                         {op.fromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
                         <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
-                            <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
+                            <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
                             <text
                                 textAnchor="middle"
                                 dominantBaseline="middle"
                                 fill="#10b981"
-                                className="text-[7px] font-mono select-none font-medium"
+                                className="text-[12px] font-mono select-none font-medium"
                             >
                                 {op.height}
                             </text>
@@ -155,12 +155,12 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                 />
                                 <circle cx={dimX} cy={wallTopY} r="1.5" fill="#10b981" />
                                 <g transform={`translate(${dimX}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
-                                    <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
+                                    <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
                                     <text
                                         textAnchor="middle"
                                         dominantBaseline="middle"
                                         fill="#10b981"
-                                        className="text-[7px] font-mono select-none font-medium"
+                                        className="text-[12px] font-mono select-none font-medium"
                                     >
                                         {topSegmentHeight}
                                     </text>
@@ -183,14 +183,14 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                         />
                         <circle cx={svgBaseX} cy={dimY} r="1.5" fill="#10b981" />
                         <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
-                        <rect x={(svgBaseX + drawX) / 2 - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
+                        <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
                         <text
                             x={(svgBaseX + drawX) / 2}
                             y={dimY + 0.5}
                             textAnchor="middle"
                             dominantBaseline="middle"
                             fill="#10b981"
-                            className="text-[7px] font-mono select-none font-medium"
+                            className="text-[12px] font-mono select-none font-medium"
                         >
                             {op.fromLeft}
                         </text>
@@ -202,14 +202,14 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                             stroke="#10b981" strokeWidth="0.5"
                         />
                         <circle cx={drawX + wPx} cy={dimY} r="1.5" fill="#10b981" />
-                        <rect x={(drawX + drawX + wPx) / 2 - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
+                        <rect x={(drawX + drawX + wPx) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
                         <text
                             x={(drawX + drawX + wPx) / 2}
                             y={dimY + 0.5}
                             textAnchor="middle"
                             dominantBaseline="middle"
                             fill="#10b981"
-                            className="text-[7px] font-mono select-none font-medium"
+                            className="text-[12px] font-mono select-none font-medium"
                         >
                             {op.width}
                         </text>
@@ -226,14 +226,14 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                             const midX = (drawX + wPx + svgBaseX + wallLength * pxPerMm) / 2;
                             return (
                                 <>
-                                    <rect x={midX - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
+                                    <rect x={midX - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
                                     <text
                                         x={midX}
                                         y={dimY + 0.5}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
                                         fill="#10b981"
-                                        className="text-[7px] font-mono select-none font-medium"
+                                        className="text-[12px] font-mono select-none font-medium"
                                     >
                                         {Math.round(rightSegmentWidth)}
                                     </text>

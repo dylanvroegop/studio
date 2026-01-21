@@ -725,8 +725,8 @@ export function RoofDrawing({
                     key="shape-outline"
                     d={outlinePath}
                     stroke={structureColor}
-                    strokeWidth="2"
-                    fill="rgba(70, 75, 85, 0.1)"
+                    strokeWidth="0.5"
+                    fill="none"
                 />
             );
 

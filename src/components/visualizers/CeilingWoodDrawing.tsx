@@ -143,7 +143,7 @@ export function CeilingWoodDrawing({
 
     // Adapt openings for hook - Convert fromTop to fromBottom for dragging
     const draggableOpenings = React.useMemo(() => {
-        const result = rawOpenings.map(o => {
+        return rawOpenings.map(o => {
             const h = o.length ?? (o as any).lengte ?? o.height ?? 0;
             const w = o.width ?? (o as any).breedte ?? 0;
             const l = o.fromLeft ?? (o as any).vanafLinks ?? 0;
@@ -154,12 +154,10 @@ export function CeilingWoodDrawing({
             if (o.fromBottom !== undefined) {
                 // If fromBottom is explicitly set, use it directly
                 fromBottom = o.fromBottom;
-                console.log(`[Draggable ${o.id}] Using explicit fromBottom:`, fromBottom);
             } else {
                 // Otherwise calculate from fromTop (default for ceiling)
                 const t = o.fromTop ?? (o as any).vanafBoven ?? 0;
                 fromBottom = effectiveHeight - t - h;
-                console.log(`[Draggable ${o.id}] Calculated fromBottom from fromTop=${t}, h=${h}, effectiveHeight=${effectiveHeight}:`, fromBottom);
             }
 
             return {
@@ -170,20 +168,16 @@ export function CeilingWoodDrawing({
                 fromLeft: l
             };
         });
-        console.log('[Draggable] All draggable openings:', result);
-        return result;
     }, [rawOpenings, effectiveHeight]);
 
     const { draggingId, handlePointerDown, handlePointerMove, handlePointerUp } = useDraggableOpenings({
         openings: draggableOpenings,
         onOpeningsChange: (updated) => {
-            console.log('[onOpeningsChange] Received updated openings with fromBottom:', updated);
             if (onOpeningsChange) {
                 // CRITICAL: Convert fromBottom BACK to fromTop for ceiling drawings
                 const convertedBack = updated.map(o => {
                     // fromTop = totalHeight - fromBottom - height
                     const fromTop = effectiveHeight - o.fromBottom - o.height;
-                    console.log(`[onOpeningsChange ${o.id}] Converting back: fromBottom=${o.fromBottom}, height=${o.height}, effectiveHeight=${effectiveHeight} => fromTop=${fromTop}`);
 
                     return {
                         ...o,
@@ -193,7 +187,6 @@ export function CeilingWoodDrawing({
                     } as unknown as CeilingOpening;
                 });
 
-                console.log('[onOpeningsChange] Sending converted back openings:', convertedBack);
                 onOpeningsChange(convertedBack);
             }
         },
@@ -280,6 +273,20 @@ export function CeilingWoodDrawing({
                     c2: startX + g.c2 * pxPerMmW
                 }));
 
+                // LATTEN (Horizontal) Measure
+                const lattenFramingForDims = calculateGridGaps({
+                    wallLength: effectiveHeight,
+                    spacing: latafstand,
+                    studWidth: 46, // Latten width (approx)
+                    startFromRight: startLattenFromBottom // If start from bottom, it's like "startFromRight" in 1D space
+                });
+
+                const latGaps = lattenFramingForDims.gaps.map(g => ({
+                    value: g.value,
+                    c1: startY + g.c1 * pxPerMmH,
+                    c2: startY + g.c2 * pxPerMmH
+                }));
+
                 // Render Beams from framing.beamCenters
                 if (balkafstand > 0) {
                     const BEAM_STROKE = Math.max(1, 75 * pxPerMmW);
@@ -289,7 +296,59 @@ export function CeilingWoodDrawing({
                         if (drawX < startX - 2 || drawX > startX + rectW + 2) return;
 
                         elements.push(
-                            <line key={`beam-${cx}`} x1={drawX} y1={startY} x2={drawX} y2={startY + rectH} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.5" />
+                            <line key={`beam-${cx}`} x1={drawX} y1={startY} x2={drawX} y2={startY + rectH} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.2" />
+                        );
+                    });
+                }
+
+                // ===========================================
+                // LATTEN (Horizontal Battens)
+                // ===========================================
+                if (latafstand > 0) {
+
+                    // Calculate latten positions (horizontal lines)
+                    const lattenFraming = calculateGridGaps({
+                        wallLength: effectiveHeight, // Use height as the "length" for horizontal lines
+                        spacing: latafstand,
+                        studWidth: 50,
+                        startFromRight: startLattenFromBottom
+                    });
+
+                    lattenFraming.beamCenters.forEach(cy => {
+                        const centerY = startY + (cy * pxPerMmH);
+                        const halfWidth = (50 * pxPerMmH) / 2; // Half of 50mm
+
+                        const topY = centerY - halfWidth;
+                        const bottomY = centerY + halfWidth;
+
+                        // Don't draw if outside
+                        if (bottomY < startY - 2 || topY > startY + rectH + 2) return;
+
+                        // Draw two parallel thin lines for the top and bottom edges
+                        elements.push(
+                            <line
+                                key={`latten-top-${cy}`}
+                                x1={startX}
+                                y1={topY}
+                                x2={startX + rectW}
+                                y2={topY}
+                                stroke={lattenColor}
+                                strokeWidth={1}
+                                strokeDasharray="4,4"
+                            />
+                        );
+
+                        elements.push(
+                            <line
+                                key={`latten-bottom-${cy}`}
+                                x1={startX}
+                                y1={bottomY}
+                                x2={startX + rectW}
+                                y2={bottomY}
+                                stroke={lattenColor}
+                                strokeWidth={1}
+                                strokeDasharray="4,4"
+                            />
                         );
                     });
                 }
@@ -303,7 +362,7 @@ export function CeilingWoodDrawing({
                 return (
                     <>
                         <defs><clipPath id={clipId}><path d={outlinePath} /></clipPath></defs>
-                        <path d={outlinePath} stroke={structureColor} strokeWidth="2" fill="rgba(70,75,85, 0.1)" />
+                        <path d={outlinePath} stroke={structureColor} strokeWidth="0.5" fill="none" />
                         <g clipPath={`url(#${clipId})`}>
                             {elements}
                         </g>
@@ -370,6 +429,15 @@ export function CeilingWoodDrawing({
                             gaps={gridGaps}
                             svgBaseYTop={startY} // Top of wall
                         />
+
+                        {/* Latwerk Vertical Gaps */}
+                        {latGaps.length > 0 && (
+                            <GridMeasurements
+                                gaps={latGaps}
+                                svgBaseX={startX + rectW}
+                                orientation="vertical"
+                            />
+                        )}
 
                         <OpeningMeasurements
                             openings={opsForOverlay}
