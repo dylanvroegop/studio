@@ -125,6 +125,7 @@ export function VisualizerController({
                 fitContainer={fitContainer}
                 className={className}
                 onOpeningsChange={onOpeningsChange}
+                includeOuterBattens={slug.includes('hellend-dak')}
                 {...props}
             />
         );

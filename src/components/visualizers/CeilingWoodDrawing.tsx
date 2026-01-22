@@ -5,6 +5,7 @@ import { OverallDimensions, OpeningMeasurements, GridMeasurements } from './shar
 import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
 import { calculateRaveelwerk, raveelwerkToSVG } from './shared/raveelwerk-utils';
+import { OpeningLabels } from './shared/OpeningLabels';
 
 export interface CeilingOpening {
     id: string;
@@ -568,6 +569,15 @@ export function CeilingWoodDrawing({
                                     {/* Cross */}
                                     <line x1={x} y1={y} x2={x + w} y2={y + h} stroke="rgb(55,60,70)" strokeWidth="0.5" strokeDasharray="2,2" />
                                     <line x1={x} y1={y + h} x2={x + w} y2={y} stroke="rgb(55,60,70)" strokeWidth="0.5" strokeDasharray="2,2" />
+
+                                    {/* Opening Labels (using universal component) */}
+                                    <OpeningLabels
+                                        centerX={x + w / 2}
+                                        centerY={y + h / 2}
+                                        typeName={op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Lichtkoepel' : 'Sparing'}
+                                        width={op.width}
+                                        height={op.height}
+                                    />
                                 </g>
                             );
                         })}

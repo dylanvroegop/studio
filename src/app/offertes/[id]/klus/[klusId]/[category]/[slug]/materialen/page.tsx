@@ -188,7 +188,7 @@ function bouwCustomGroupsUitFirestore(custommateriaal: any, alleMaterialen: any[
       return {
         id: groupId,
         title: item?.title || '',
-        materials: [gevonden ?? { id: rowId, materiaalnaam: '(onbekend)', eenheid: 'stuk', prijs: 0, quantity: 1 }].filter(Boolean),
+        materials: [gevonden ?? { id: rowId, materiaalnaam: '(onbekend)', eenheid: 'stuk', prijs: 0, prijs_per_stuk: 0, quantity: 1 }].filter(Boolean),
       };
     });
 }
@@ -205,6 +205,7 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
       id: String(rowId),
       materiaalnaam: material?.materiaalnaam || '',
       prijs: typeof material?.prijs === 'number' ? material.prijs : 0,
+      prijs_per_stuk: typeof material?.prijs_per_stuk === 'number' ? material.prijs_per_stuk : 0,
       eenheid: material?.eenheid || '',
       title,
       order: index
@@ -518,6 +519,9 @@ export default function GenericMaterialsPageRedesigned() {
   const JOB_KEY = jobSlug;
   const JOB_TITEL = jobConfig?.title || 'Klus';
 
+  // Calculate which component types are active for this job configuration
+
+
   // State
   const [isMounted, setIsMounted] = useState(false);
   const [isPaginaLaden, setPaginaLaden] = useState(true);
@@ -554,6 +558,43 @@ export default function GenericMaterialsPageRedesigned() {
   const [addExtraMaterialOpen, setAddExtraMaterialOpen] = useState(false);
   const [newExtraMaterialTitle, setNewExtraMaterialTitle] = useState('');
   const [components, setComponents] = useState<JobComponent[]>([]);
+
+  // Calculate which component types are active for this job configuration
+  const activeComponentTypes = useMemo(() => {
+    const types = new Set<string>();
+    const categories = Object.keys(jobConfig?.categoryConfig || MATERIAL_CATEGORY_INFO);
+    const isComplex = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat'));
+    const isCeiling = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
+
+    categories.forEach(key => {
+      const k = key.toString();
+      const lower = k.toLowerCase();
+
+      let type: string | null = null;
+
+      if (isComplex) {
+        if (k === 'Kozijnen' || lower === 'kozijnen') type = 'kozijn';
+        else if (k === 'Deuren' || lower === 'deuren') type = 'deur';
+        else if (k === 'boeiboord' || lower === 'boeiboorden') type = 'boeiboord';
+        else if (k === 'Koof') type = 'leidingkoof';
+        else if (k === 'Installatie' || k === 'Schakelmateriaal') type = 'installatie';
+        else if (k === 'Dagkant') type = 'dagkant';
+        else if (k === 'Vensterbank') type = 'vensterbank';
+      }
+
+      if (isCeiling) {
+        if (k === 'Toegang' || k === 'Vliering_Toegang' || lower.includes('vlizotrap') || lower.includes('toegang')) type = 'vlizotrap';
+        else if (k === 'Koof') type = 'leidingkoof';
+      }
+
+      if (type) types.add(type);
+    });
+
+    return types;
+  }, [jobConfig, categorySlug, jobSlug]);
+
+  const orphanedComponents = components.filter(c => !c.type || !activeComponentTypes.has(c.type));
+
   const [kozijnenModalOpen, setKozijnenModalOpen] = useState(false);
   const [activeComponentType, setActiveComponentType] = useState<string | null>(null);
   const [activeComponentId, setActiveComponentId] = useState<string | null>(null);
@@ -608,6 +649,7 @@ export default function GenericMaterialsPageRedesigned() {
       ...m,
       id: m.row_id ?? m.id,
       prijs: typeof m.prijs === 'number' ? m.prijs : (parseNLMoneyToNumber(m.prijs) || 0),
+      prijs_per_stuk: typeof m.prijs_per_stuk === 'number' ? m.prijs_per_stuk : (parseNLMoneyToNumber(m.prijs_per_stuk) || 0),
       categorie: m.subsectie ?? m.categorie ?? null,
     }));
     setAlleMaterialen(materialenData);
@@ -1079,7 +1121,7 @@ export default function GenericMaterialsPageRedesigned() {
     try {
       // Save full material objects with id, materiaalnaam, prijs, and eenheid
       // Save full material objects with id, materiaalnaam, prijs, and eenheid
-      const cleanSelections: Record<string, { id: string; materiaalnaam: string; prijs: number; eenheid: string }> = {};
+      const cleanSelections: Record<string, { id: string; materiaalnaam: string; prijs: number; prijs_per_stuk?: number; eenheid: string }> = {};
 
       // 1. Add Main Selections (Filter out old component_ keys to avoid staleness)
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
@@ -1089,6 +1131,7 @@ export default function GenericMaterialsPageRedesigned() {
             id: v.id,
             materiaalnaam: v.materiaalnaam || '',
             prijs: typeof v.prijs === 'number' ? v.prijs : 0,
+            prijs_per_stuk: typeof v.prijs_per_stuk === 'number' ? v.prijs_per_stuk : 0,
             eenheid: v.eenheid || ''
           };
         }
@@ -1107,6 +1150,7 @@ export default function GenericMaterialsPageRedesigned() {
                 id: mItem.material.id,
                 materiaalnaam: mItem.material.materiaalnaam || '',
                 prijs: typeof mItem.material.prijs === 'number' ? mItem.material.prijs : 0,
+                prijs_per_stuk: typeof mItem.material.prijs_per_stuk === 'number' ? mItem.material.prijs_per_stuk : 0,
                 eenheid: mItem.material.eenheid || ''
               };
             }
@@ -1231,113 +1275,7 @@ export default function GenericMaterialsPageRedesigned() {
         <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
-          {/* Helper: Main Job Measurements */}
-          {(() => {
-            if (!klus) return null;
-
-            const knownKeys: Record<string, string> = {
-              'lengte': 'Lengte', 'lengteMm': 'Lengte',
-              'breedte': 'Breedte', 'breedteMm': 'Breedte',
-              'hoogte': 'Hoogte', 'hoogteMm': 'Hoogte',
-              'diepte': 'Diepte', 'diepteMm': 'Diepte',
-              'aantal': 'Aantal',
-              'balkafstand': 'Balkafstand',
-              'latafstand': 'Latafstand'
-            };
-
-            // Logic to group measurements
-            const groups: { title?: string, items: { key: string, label: string, value: any }[] }[] = [];
-
-            // 1. Top Level & Measurements Object (Generic)
-            const genericItems: { key: string, label: string, value: any }[] = [];
-
-            // Top level
-            for (const [key, label] of Object.entries(knownKeys)) {
-              if ((klus as any)[key] && (klus as any)[key] !== 0) {
-                genericItems.push({ key, label, value: (klus as any)[key] });
-              }
-            }
-            // Measurements object
-            if ((klus as any).measurements) {
-              Object.entries((klus as any).measurements).forEach(([k, v]) => {
-                if (k === 'notities' || !v) return;
-                if (typeof v === 'object') return; // Skip complex objects
-                const label = knownKeys[k] || k;
-                if (!genericItems.find(e => e.label === label)) {
-                  genericItems.push({ key: k, label, value: v });
-                }
-              });
-            }
-            if (genericItems.length > 0) groups.push({ items: genericItems });
-
-            // 2. Maatwerk (Grouped)
-            if ((klus as any).maatwerk) {
-              Object.entries((klus as any).maatwerk).forEach(([k, v]) => {
-                if (k === 'notities' || !v) return;
-
-                if (typeof v === 'object' && v !== null) {
-                  // Nested group (e.g. Wand 1)
-                  const groupItems: any[] = [];
-                  Object.entries(v).forEach(([subK, subV]) => {
-                    if (subK === 'notities' || !subV) return;
-                    if (typeof subV === 'object') return; // Skip complex objects (openings array, etc.)
-                    const subLabel = knownKeys[subK] || (subK.charAt(0).toUpperCase() + subK.slice(1));
-                    groupItems.push({ key: subK, label: subLabel, value: subV });
-                  });
-
-                  if (groupItems.length > 0) {
-                    // Format title: "wand_1" -> "Wand 1"
-                    let title = k.replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    groups.push({ title, items: groupItems });
-                  }
-                } else {
-                  // Direct value case -> Add to generic items if exists, or create new group
-                  const label = knownKeys[k] || (k.charAt(0).toUpperCase() + k.slice(1));
-                  if (groups.length === 0) groups.push({ items: [] });
-                  // Add to first group (typically generic)
-                  // Check for duplicates
-                  if (!groups[0].items.find(e => e.key === k)) {
-                    groups[0].items.push({ key: k, label, value: v });
-                  }
-                }
-              });
-            }
-
-            if (groups.length === 0) return null;
-
-            return (
-              <div className="flex flex-col gap-2 px-1 -mb-2">
-                {groups.map((group, idx) => {
-                  let displayTitle = group.title;
-                  // If title is just a number (like "0"), format it as "Wand 1"
-                  if (displayTitle && /^\d+$/.test(displayTitle)) {
-                    const catItem = JOB_REGISTRY[params.category as any]?.items.find((i: any) => i.slug === params.slug);
-                    const label = catItem?.measurementLabel || 'Onderdeel';
-                    displayTitle = `${label} ${parseInt(displayTitle) + 1}`;
-                  }
-
-                  return (
-                    <div key={idx} className="flex flex-wrap gap-2 items-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1 flex items-center gap-1">
-                        {idx === 0 && <Box className="w-3 h-3" />}
-                        {displayTitle || 'Metingen'}:
-                      </span>
-                      {group.items.map((e) => {
-                        const isMm = ['Lengte', 'Breedte', 'Hoogte', 'Diepte', 'Balkafstand', 'Latafstand'].includes(e.label);
-                        const valStr = String(e.value);
-                        const showSuffix = isMm && /^\d+(\.\d+)?$/.test(valStr);
-                        return (
-                          <span key={e.key} className="text-[10px] font-medium bg-muted/50 border px-1.5 py-0.5 rounded text-foreground/70">
-                            {e.label}: <span className="text-foreground">{e.value}</span>{showSuffix ? 'mm' : ''}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )
-                })}
-              </div>
-            );
-          })()}
+          {/* Helper: Main Job Measurements - REMOVED per user request */}
 
           {/* Preset Selector - Compact */}
           <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
@@ -1632,6 +1570,51 @@ export default function GenericMaterialsPageRedesigned() {
                   </div>
                 );
               })}
+
+            {/* Orphaned Components (Debug/Cleanup) */}
+            {orphanedComponents.length > 0 && (
+              <div className="space-y-3 mt-4 animate-in fade-in slide-in-from-top-2">
+                <div className="px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Trash2 className="h-4 w-4 text-amber-600" />
+                    <h3 className="text-sm font-semibold text-amber-700">
+                      Niet-toegewezen Onderdelen ({orphanedComponents.length})
+                    </h3>
+                  </div>
+                  <p className="text-xs text-amber-600/80 leading-relaxed">
+                    Deze onderdelen zijn opgeslagen maar horen niet bij de huidige klus-configuratie.
+                    Verwijder ze om uw offerte schoon te houden.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {orphanedComponents.map((comp) => (
+                    <div key={comp.id} className="flex items-center justify-between p-3 rounded-lg border border-amber-200/50 bg-amber-50/50 hover:bg-amber-100/50 transition-colors group">
+                      <div className="flex flex-col min-w-0 pr-4">
+                        <span className="text-sm font-medium text-amber-900 truncate">{comp.label}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-amber-700/60 bg-amber-200/30 px-1.5 py-0.5 rounded">
+                            {comp.type || 'ONBEKEND'}
+                          </span>
+                          <span className="text-[10px] text-amber-700/40 font-mono truncate max-w-[120px]">
+                            ID: {comp.id}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setComponentDeleteId(comp.id)}
+                        className="text-amber-600 hover:text-red-600 hover:bg-red-100/50 shrink-0 h-8"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Verwijderen
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Extra Materials Category */}
             <div className="space-y-2">

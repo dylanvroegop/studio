@@ -7,6 +7,7 @@ export const DrawingStyles = {
         BG_LABEL: '#09090b',
         TEXT_WHITE: '#FFFFFF',
         TIMBER_STROKE: 'rgb(55, 60, 70)',
+        OPENING_LABEL: '#10b981', // Emerald-500 - for opening type and dimension labels
     },
     // Metrics
     metrics: {

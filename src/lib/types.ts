@@ -180,6 +180,7 @@ export type Material = {
   categorie: string;
   materiaalnaam: string;
   prijs: number;
+  prijs_per_stuk?: number;
   eenheid: string;
   leverancier: string;
   updatedAt: Timestamp;

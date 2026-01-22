@@ -110,7 +110,8 @@ export async function POST(req: Request) {
             materials.forEach((m: any) => {
               // Ensure numeric price
               const pr = typeof m.prijs === 'number' ? m.prijs : Number(m.prijs);
-              materialMap.set(m.id, { ...m, prijs: isNaN(pr) ? 0 : pr });
+              const prStuk = typeof m.prijs_per_stuk === 'number' ? m.prijs_per_stuk : Number(m.prijs_per_stuk);
+              materialMap.set(m.id, { ...m, prijs: isNaN(pr) ? 0 : pr, prijs_per_stuk: isNaN(prStuk) ? 0 : prStuk });
             });
           }
         } catch (err) {

@@ -1882,7 +1882,13 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Nieuwe pannen/dakopbouw',
         slug: 'hellend-dak',
         measurementLabel: 'Dakvlak',
-        measurements: ROOF_FIELDS, // Roof-specific fields with breedte and tengel/rachel spacing
+        measurements: [
+          { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
+          { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' }, // Using 'hoogte' key but 'Breedte' label
+          { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
+          { key: 'latafstand', label: 'Rachelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
+          { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+        ],
         materialSections: DAK_HELLEND_MATS,
         categoryConfig: {
           beplating: { title: 'Dakbeschot', order: 1 },

@@ -157,9 +157,14 @@ export default function GenericMeasurementPage() {
   };
 
   const updateItem = (index: number, key: string, value: any) => {
-    setItems(prev => prev.map((item, i) =>
-      i === index ? { ...item, [key]: value } : item
-    ));
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const newItem = { ...item, [key]: value };
+
+
+
+      return newItem;
+    }));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -459,6 +464,56 @@ export default function GenericMeasurementPage() {
                   <CardContent className="space-y-6">
 
 
+
+                    {/* Hellend Dak: Smart Tile Calculator Inputs - Simplified */}
+                    {jobSlug.includes('hellend-dak') && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        {/* Hoogte (Aantal pannen) */}
+                        <div className="space-y-2">
+                          <Label htmlFor={`pannen-hoogte-${index}`}>Aantal pannen (hoogte)</Label>
+                          <div className="relative">
+                            <Input
+                              id={`pannen-hoogte-${index}`}
+                              type="number"
+                              placeholder="Bijv. 24"
+                              value={item.aantal_pannen_hoogte || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const count = parseInt(val) || 0;
+                                updateItem(index, 'aantal_pannen_hoogte', count);
+                              }}
+                              className="pr-12"
+                            />
+                            <div className="absolute right-3 top-2.5 text-xs text-muted-foreground pointer-events-none">
+                              pannen
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Breedte (Aantal pannen) */}
+                        <div className="space-y-2">
+                          <Label htmlFor={`pannen-breedte-${index}`}>Aantal pannen (breedte)</Label>
+                          <div className="relative">
+                            <Input
+                              id={`pannen-breedte-${index}`}
+                              type="number"
+                              placeholder="Bijv. 18"
+                              value={item.aantal_pannen_breedte || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const count = parseInt(val) || 0;
+                                // Simplified: No calculation for width yet
+                                updateItem(index, 'aantal_pannen_breedte', count);
+                              }}
+                              className="pr-12"
+                            />
+                            <div className="absolute right-3 top-2.5 text-xs text-muted-foreground pointer-events-none">
+                              pannen
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* First row: Lengte & Hoogte(s) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

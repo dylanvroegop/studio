@@ -153,6 +153,7 @@ export type ExistingMaterial = {
   id: string;
   materiaalnaam: string | null;
   prijs: number | string | null;
+  prijs_per_stuk?: number | string | null;
   eenheid: string | null;
   subsectie?: string | null;
   leverancier?: string | null;
@@ -348,7 +349,6 @@ export function MaterialSelectionModal({
       setSavingCustom(true);
 
       // 2. Generate the FINAL string using the shared helper
-      // This ensures database = preview exactly.
       const finalNameToSend = constructFinalName(baseName, isCalculatie, {
         lengte: maatLengte,
         breedte: maatBreedte,
@@ -358,11 +358,19 @@ export function MaterialSelectionModal({
         eenheid: eenheid
       });
 
+      // Calculate price per piece if possible
+      let calculatedPiecePrice = prijsNumLocal;
+      if (isCalculatie) {
+        const piece = calculatePiecePrice(prijsNumLocal, customEenheid, maatLengte, maatBreedte, maatUnit);
+        if (piece !== null) calculatedPiecePrice = piece;
+      }
+
       // 3. Prepare Payload
       const payload: any = {
         materiaalnaam: finalNameToSend,
         eenheid,
-        prijs: prijsNumLocal,
+        prijs: prijsNumLocal, // Unit price
+        prijs_per_stuk: calculatedPiecePrice, // Calculated piece price
         categorie: customSubsectie.trim() || 'Overig',
         leverancier: customLeverancier.trim() || null,
       };
@@ -394,6 +402,7 @@ export function MaterialSelectionModal({
           id: realId,
           row_id: realId,
           prijs: prijsNumLocal,
+          prijs_per_stuk: calculatedPiecePrice,
         });
       }
       onOpenChange(false);
@@ -532,12 +541,21 @@ export function MaterialSelectionModal({
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div className="text-sm font-medium">
-                            {formatEuro(parsePriceToNumber(mat.prijs))}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            per {mat.eenheid}
-                          </div>
+                          {(() => {
+                            const prijsPerStuk = parsePriceToNumber(mat.prijs_per_stuk);
+                            const hasPrijsPerStuk = prijsPerStuk !== null && prijsPerStuk > 0;
+
+                            return (
+                              <>
+                                <div className="text-sm font-medium">
+                                  {formatEuro(hasPrijsPerStuk ? prijsPerStuk : parsePriceToNumber(mat.prijs))}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {hasPrijsPerStuk ? 'per stuk' : `per ${mat.eenheid}`}
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

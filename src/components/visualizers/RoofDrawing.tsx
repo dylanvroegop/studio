@@ -1,8 +1,10 @@
 import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
-import { OverallDimensions, OpeningMeasurements, GridMeasurements } from './shared/measurements';
+import { OverallDimensions, GridMeasurements } from './shared/measurements';
+import { OpeningMeasurements } from './shared/measurements/OpeningMeasurements';
 import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
+import { OpeningLabels } from './shared/OpeningLabels';
 
 export interface RoofOpening {
     id: string;
@@ -41,6 +43,7 @@ export interface RoofDrawingProps {
     startFromRight?: boolean;
     title?: string;
     doubleEndBattens?: boolean;
+    includeOuterBattens?: boolean;
 }
 
 export function RoofDrawing({
@@ -66,7 +69,8 @@ export function RoofDrawing({
     isMagnifier,
     startFromRight,
     title = 'Dak Vlak',
-    doubleEndBattens
+    doubleEndBattens,
+    includeOuterBattens
 }: RoofDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
@@ -155,6 +159,11 @@ export function RoofDrawing({
         suppressTotalDimensions={true}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        // Fix: Pass simple drawingData to disable BaseDrawingFrame's legacy automatic dimensions
+        // This prevents the "double numbers" effect, as we render our own specific dimensions below.
+        drawingData={{
+            walls: [], beams: [], openings: [], dimensions: [], params: {}
+        }}
     >
         {(metrics) => {
             metricsRef.current = metrics;
@@ -517,9 +526,16 @@ export function RoofDrawing({
                 const topBoundY = startY;
                 const bottomBoundY = startY + rectH;
 
+                // Default: Start one spacing down (inner)
                 let curY = topBoundY + spacingPx;
+
+                // If includeOuterBattens, start at Top (Ridge)
+                if (includeOuterBattens) {
+                    curY = topBoundY;
+                }
+
                 // Adjust start to prevent overlap/bad loop
-                if (curY < topBoundY) curY = topBoundY + spacingPx;
+                if (curY < topBoundY) curY = topBoundY;
 
                 // Helper to draw rachel
                 const drawRachel = (y: number, key: string) => {
@@ -537,7 +553,10 @@ export function RoofDrawing({
                 const MAX_LOOPS = 1000;
                 let safety = 0;
 
-                while (curY < bottomBoundY && safety < MAX_LOOPS) {
+                // For outer battens, we want to include the bottom edge (approx)
+                const limitY = includeOuterBattens ? bottomBoundY + 1 : bottomBoundY;
+
+                while (curY < limitY && safety < MAX_LOOPS) {
                     drawRachel(curY, `rachel-${rachelIndex}`);
                     curY += spacingPx;
                     rachelIndex++;
@@ -557,19 +576,28 @@ export function RoofDrawing({
                 // Start (Top): at topBoundY + (WIDTH + HALF_WIDTH)
                 // End (Bottom): at bottomBoundY - (WIDTH + HALF_WIDTH)
 
-                if (props.doubleEndBattens) { // Access logic from props?? Wait, Props are destructured.
-                    // Need to check if I can access 'doubleEndBattens' from props here.
-                    // It is NOT in the destructured list in the function signature yet.
-                    // I will add it to the signature in a separate step or assume I add it.
-
-                    // Logic assumes variable 'doubleEndBattens' exists.
-
+                if (doubleEndBattens) {
                     const extraTopY = topBoundY + (rachelHeightPx * 1.5);
                     const extraBottomY = bottomBoundY - (rachelHeightPx * 1.5);
 
                     drawRachel(extraTopY, 'rachel-double-top');
                     drawRachel(extraBottomY, 'rachel-double-bottom');
                 }
+
+                // Special 22mm Bottom Rachel (Roof Specific)
+                // This represents a "flipped" batten at the very bottom edge.
+                const BOTTOM_RACHEL_MM = 22;
+                const bRachelPx = BOTTOM_RACHEL_MM * pxPerMmH;
+                const bRachelHalf = bRachelPx / 2;
+                // Position centered so its bottom touches the floor (bottomBoundY)
+                const bRachelY = bottomBoundY - bRachelHalf;
+
+                clippedContent.push(
+                    <g key="rachel-special-bottom">
+                        <line x1={rStartX} y1={bRachelY - bRachelHalf} x2={rEndX} y2={bRachelY - bRachelHalf} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" />
+                        <line x1={rStartX} y1={bRachelY + bRachelHalf} x2={rEndX} y2={bRachelY + bRachelHalf} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" />
+                    </g>
+                );
             }
 
             // 3. OPENINGS
@@ -604,54 +632,19 @@ export function RoofDrawing({
                     const displayW = wRaw * pxPerMmW;
                     const displayH = hRaw * pxPerMmH;
 
-                    const framingWidth = Math.max(1.5, 50 * pxPerMmW); // 50mm framing
-                    const halfFrame = framingWidth / 2;
-
                     // Add to clipped content (Visuals only, no interaction here)
                     clippedContent.push(
                         <g key={`op-${op.id}`}>
                             {/* Mask covers the opening area to hide beams behind it */}
                             <rect
-                                x={displayX - framingWidth} y={displayY - framingWidth}
-                                width={displayW + (framingWidth * 2)} height={displayH + (framingWidth * 2)}
+                                x={displayX} y={displayY}
+                                width={displayW} height={displayH}
                                 fill="#09090b" opacity={draggingId === op.id ? 0.7 : 1}
                             />
-
-                            {/* 4-Part Framing (Headers & Trimmers) */}
-                            {/* Top Header */}
-                            <line x1={displayX - framingWidth} y1={displayY - halfFrame} x2={displayX + displayW + framingWidth} y2={displayY - halfFrame} stroke={structureColor} strokeWidth={framingWidth} opacity="0.5" />
-                            {/* Bottom Header */}
-                            <line x1={displayX - framingWidth} y1={displayY + displayH + halfFrame} x2={displayX + displayW + framingWidth} y2={displayY + displayH + halfFrame} stroke={structureColor} strokeWidth={framingWidth} opacity="0.5" />
-                            {/* Left Trimmer */}
-                            <line x1={displayX - halfFrame} y1={displayY} x2={displayX - halfFrame} y2={displayY + displayH} stroke={structureColor} strokeWidth={framingWidth} opacity="0.5" />
-                            {/* Right Trimmer */}
-                            <line x1={displayX + displayW + halfFrame} y1={displayY} x2={displayX + displayW + halfFrame} y2={displayY + displayH} stroke={structureColor} strokeWidth={framingWidth} opacity="0.5" />
 
                             {/* Cross */}
                             <line x1={displayX} y1={displayY} x2={displayX + displayW} y2={displayY + displayH} stroke={structureColor} strokeWidth="1" />
                             <line x1={displayX + displayW} y1={displayY} x2={displayX} y2={displayY + displayH} stroke={structureColor} strokeWidth="1" />
-
-                            {/* Corner Dots (Inside - Anchors for measurements) */}
-                            <circle cx={displayX + 1} cy={displayY + 1} r="1" fill={structureColor} />
-                            <circle cx={displayX + displayW - 1} cy={displayY + 1} r="1" fill={structureColor} />
-                            <circle cx={displayX + 1} cy={displayY + displayH - 1} r="1" fill={structureColor} />
-                            <circle cx={displayX + displayW - 1} cy={displayY + displayH - 1} r="1" fill={structureColor} />
-
-                            {/* Labels (Center) */}
-                            <text
-                                x={displayX + displayW / 2} y={displayY + displayH / 2 - 5}
-                                textAnchor="middle" fill="white" fontSize={10} opacity={0.9}
-                                style={{ fontFamily: 'monospace', fontWeight: 'bold', pointerEvents: 'none' }}
-                            >
-                                {{ 'opening': 'Sparing', 'dakraam': 'Dakraam', 'schoorsteen': 'Schoorsteen' }[op.type] || op.type}
-                            </text>
-                            <text
-                                x={displayX + displayW / 2} y={displayY + displayH / 2 + 10}
-                                textAnchor="middle" fill="white" fontSize={9} opacity={0.7}
-                                style={{ fontFamily: 'monospace', pointerEvents: 'none' }}
-                            >
-                                {Math.round(wRaw)} x {Math.round(hRaw)}
-                            </text>
                         </g>
                     );
                 });
@@ -704,6 +697,15 @@ export function RoofDrawing({
                         {/* Cross */}
                         <line x1={displayX} y1={displayY} x2={displayX + displayW} y2={displayY + displayH} stroke="rgb(55,60,70)" strokeWidth="0.5" strokeDasharray="2,2" />
                         <line x1={displayX} y1={displayY + displayH} x2={displayX + displayW} y2={displayY} stroke="rgb(55,60,70)" strokeWidth="0.5" strokeDasharray="2,2" />
+
+                        {/* Opening Labels (using universal component) */}
+                        <OpeningLabels
+                            centerX={displayX + displayW / 2}
+                            centerY={displayY + displayH / 2}
+                            typeName={{ 'opening': 'Sparing', 'dakraam': 'Dakraam', 'schoorsteen': 'Schoorsteen' }[op.type] || op.type}
+                            width={wRaw}
+                            height={hRaw}
+                        />
                     </g>
                 );
             });
@@ -782,7 +784,7 @@ export function RoofDrawing({
             return <>{elements}</>;
         }
         }
-    </BaseDrawingFrame>
+    </BaseDrawingFrame >
     );
 }
 
