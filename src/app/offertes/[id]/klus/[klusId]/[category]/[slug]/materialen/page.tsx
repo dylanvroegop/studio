@@ -183,12 +183,34 @@ function bouwCustomGroupsUitFirestore(custommateriaal: any, alleMaterialen: any[
   return Object.entries(custommateriaal)
     .sort(([, itemA]: any, [, itemB]: any) => (itemA.order ?? 9999) - (itemB.order ?? 9999))
     .map(([groupId, item]: any) => {
-      const rowId = String(item?.id || '');
-      const gevonden = index.get(rowId);
+      const rowId = item?.id ? String(item.id) : null;
+      let matchedMaterial = null;
+
+      if (rowId) {
+        // If we have an ID, try to find it in default materials
+        const found = index.get(rowId);
+        if (found) {
+          matchedMaterial = found;
+        } else {
+          // Fallback: use the data saved in the custom object itself if available
+          // ensuring we don't show "onbekend" unless we really have to
+          matchedMaterial = {
+            id: rowId,
+            materiaalnaam: item.materiaalnaam || '(onbekend)',
+            eenheid: item.eenheid || 'stuk',
+            prijs: typeof item.prijs === 'number' ? item.prijs : 0,
+            prijs_per_stuk: typeof item.prijs_per_stuk === 'number' ? item.prijs_per_stuk : 0,
+            quantity: 1
+          };
+        }
+      }
+
       return {
         id: groupId,
         title: item?.title || '',
-        materials: [gevonden ?? { id: rowId, materiaalnaam: '(onbekend)', eenheid: 'stuk', prijs: 0, prijs_per_stuk: 0, quantity: 1 }].filter(Boolean),
+        // Only include a material if we actually resolved one.
+        // If rowId was null/empty, materials will be [], causing state to be "unselected"
+        materials: matchedMaterial ? [matchedMaterial] : [],
       };
     });
 }
@@ -198,11 +220,15 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
   customGroups.forEach((group, index) => {
     const groupId = group?.id;
     const title = (group?.title || '').trim();
+    // Allow saving if we have at least a groupId and title, even if no material is selected yet
+    if (!groupId || !title) return;
+
     const material = (group?.materials?.[0] as any);
     const rowId = material?.id || material?.row_id || null;
-    if (!groupId || !title || !rowId) return;
+
     out[groupId] = {
-      id: String(rowId),
+      // If we have a material, save its details. If not, save null/empty
+      id: rowId ? String(rowId) : null,
       materiaalnaam: material?.materiaalnaam || '',
       prijs: typeof material?.prijs === 'number' ? material.prijs : 0,
       prijs_per_stuk: typeof material?.prijs_per_stuk === 'number' ? material.prijs_per_stuk : 0,
@@ -282,7 +308,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
             )}
           </div>
 
-          {selected && onRemove && (
+          {(selected || isCustom) && onRemove && (
             <Button
               variant="ghost"
               size="sm"
