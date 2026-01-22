@@ -9,34 +9,35 @@ const buttonVariants = cva(
     // Basis: premium / rustig / consistent
     "inline-flex items-center justify-center gap-2 whitespace-nowrap",
     "rounded-lg text-sm font-medium",
-    "transition-colors",
+    "transition-all duration-200", // Smoother transition
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+    "active:scale-[0.98]", // Tactile click feedback
   ].join(" "),
   {
     variants: {
       variant: {
         // Hoofdactie (premium, niet schreeuwerig)
         default:
-          "bg-primary text-primary-foreground hover:bg-primary/90",
+          "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20",
 
         // volgende / opslaan
         success:
-          "border border-emerald-500/50 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 hover:border-emerald-500/65 focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
+          "border border-success/50 bg-success/15 text-success-foreground hover:bg-success/25 hover:border-success/65 focus-visible:ring-success focus-visible:ring-offset-0",
 
         successGhost:
           "border border-input bg-transparent text-foreground " +
-          "hover:bg-emerald-500/14 hover:border-emerald-500/55 hover:text-emerald-100 " +
-          "focus-visible:ring-emerald-500 focus-visible:ring-offset-0",
+          "hover:bg-success/14 hover:border-success/55 hover:text-success " +
+          "focus-visible:ring-success focus-visible:ring-offset-0",
 
 
         // “Sluiten / Annuleren / Verwijderen”
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/20",
 
         destructiveSoft:
-          "rounded-xl border border-red-500/50 bg-red-500/15 text-red-100 hover:bg-red-500/25 hover:border-red-500/65 focus-visible:ring-red-500 focus-visible:ring-offset-0",
+          "rounded-xl border border-destructive/50 bg-destructive/15 text-destructive-foreground hover:bg-destructive/25 hover:border-destructive/65 focus-visible:ring-destructive focus-visible:ring-offset-0",
 
         // Neutraal secundair
         secondary:

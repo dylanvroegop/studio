@@ -24,10 +24,14 @@ export interface BaseDrawingFrameProps {
     gridLabel?: string;   // Watermark label
     rightHeightLabel?: string; // Optional label for Right Dimension
 
-    // NEW: Structured Data Prop (The future standard)
-    drawingData?: DrawingData;
-
+    // NEW: Area Stats Prop
+    areaStats?: {
+        gross: number;
+        net: number;
+        hasOpenings?: boolean;
+    };
     children: (ctx: DrawingContext) => React.ReactNode;
+
 
     // Advanced Props
     onPointerMove?: (e: React.PointerEvent) => void;
@@ -57,9 +61,9 @@ export function calculateDrawingMetrics(width: number, height: number, fitContai
     const SVG_WIDTH = fitContainer ? 1200 : 700;
     const SVG_HEIGHT = fitContainer ? 800 : 450;
 
-    // Margins - Validated for new tighter dimension offsets (20px base, 30px step)
-    const marginX = fitContainer ? 130 : 80;
-    const marginY = fitContainer ? 100 : 70;
+    // Margins - Validated for new tighter dimension offsets (Maximized View)
+    const marginX = fitContainer ? 40 : 40;
+    const marginY = fitContainer ? 40 : 40;
 
     // Available drawing area
     const drawW = SVG_WIDTH - (marginX * 2);
@@ -109,7 +113,8 @@ export function BaseDrawingFrame({
     onPointerDown,
     svgDefs,
     svgOverlay,
-    contentId
+    contentId,
+    areaStats
 }: BaseDrawingFrameProps) {
     const patternId = useId().replace(/:/g, '');
 
@@ -118,15 +123,6 @@ export function BaseDrawingFrame({
 
     // Style Constants from Shared Source
     const { colors, metrics: sizes, strokes } = DrawingStyles;
-
-    // Calculate Grid Dots
-    const dots: { x: number; y: number }[] = [];
-    const spacing = 12;
-    for (let x = spacing / 2; x < SVG_WIDTH; x += spacing) {
-        for (let y = spacing / 2; y < SVG_HEIGHT; y += spacing) {
-            dots.push({ x, y });
-        }
-    }
 
     // --- Render Helpers (LEGACY SUPPORT - converted to conform to new look) ---
     // If 'drawingData' is NOT provided, we fall back to these renders, BUT 
@@ -320,7 +316,7 @@ export function BaseDrawingFrame({
     );
 
     return (
-        <div className={cn("w-full rounded-lg overflow-hidden border border-border/30 bg-[#09090b]", className)}>
+        <div className={cn("relative w-full rounded-lg overflow-hidden", className)}>
             <svg
                 viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
                 className={cn("w-full select-none", fitContainer ? "h-full" : "h-auto")}
@@ -329,10 +325,6 @@ export function BaseDrawingFrame({
                 onPointerDown={onPointerDown}
                 style={{ touchAction: 'none' }}
             >
-                {dots.map((dot, i) => (
-                    <circle key={i} cx={dot.x} cy={dot.y} r={sizes.DOT_RADIUS} fill={colors.DOT} opacity="0.15" />
-                ))}
-
                 <defs>
                     {/* Shared defs if any */}
                     <pattern id={`grid-${patternId}`} width="40" height="40" patternUnits="userSpaceOnUse">
@@ -408,6 +400,28 @@ export function BaseDrawingFrame({
 
                 {svgOverlay}
             </svg>
+
+            {/* Area Stats Overlay */}
+            {areaStats && (
+                <div className="absolute bottom-4 right-4 z-20 pointer-events-none select-none">
+                    <div className="text-[10px] sm:text-xs font-mono bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-right">
+                        {(() => {
+                            const grossStr = (areaStats.gross / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const netStr = (areaStats.net / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                            if (areaStats.hasOpenings) {
+                                return (
+                                    <div className="flex flex-col items-end leading-tight">
+                                        <span className="text-zinc-500">Bruto: {grossStr} m²</span>
+                                        <span className="text-emerald-400 font-bold">Netto: {netStr} m²</span>
+                                    </div>
+                                );
+                            }
+                            return <span className="text-zinc-300">{grossStr} m²</span>;
+                        })()}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

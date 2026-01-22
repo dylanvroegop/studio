@@ -214,8 +214,42 @@ export function CeilingWoodDrawing({
 
     const drawingData = generateDrawingData();
 
+    // 5. CALCULATE AREA (M2)
+    const areaStats = React.useMemo(() => {
+        let areaMm2 = 0;
+        const L = lengte;
+        const H = effectiveHeight;
+
+        if (shape === 'rectangle') areaMm2 = L * H;
+        else if (shape === 'slope') {
+            areaMm2 = L * ((hLeft + hRight) / 2);
+        } else if (shape === 'gable') {
+            areaMm2 = L * ((effectiveHeight + hPeak) / 2); // Approximate standard
+        } else if (shape === 'l-shape') {
+            areaMm2 = (lengte1 * hoogte1) + ((L - lengte1) * hoogte2);
+        } else if (shape === 'u-shape') {
+            areaMm2 = (lengte1 * hoogte1) + (lengte2 * hoogte2) + ((L - lengte1 - lengte2) * hoogte3);
+        } else {
+            areaMm2 = L * H;
+        }
+
+        // Openings
+        const opArea = rawOpenings.reduce((acc, op) => {
+            const w = op.width ?? (op as any).breedte ?? 0;
+            const h = op.length ?? (op as any).lengte ?? op.height ?? 0;
+            return acc + (w * h);
+        }, 0);
+
+        return {
+            gross: areaMm2,
+            net: Math.max(0, areaMm2 - opArea),
+            hasOpenings: opArea > 0
+        };
+    }, [shape, lengte, effectiveHeight, hLeft, hRight, hPeak, lengte1, hoogte1, hoogte2, lengte2, hoogte3, rawOpenings, lengte3]);
+
     return (
         <BaseDrawingFrame
+            areaStats={areaStats}
             width={lengte}
             height={effectiveHeight}
             primarySpacing={balkafstand}

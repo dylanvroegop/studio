@@ -405,24 +405,27 @@ export default function Dashboard() {
               <div className="text-3xl font-light tracking-tight">{begroeting}</div>
             </div>
 
-            <Card className="relative overflow-hidden border-zinc-800/50 bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/30">
-              <div className="absolute -right-6 -top-6 text-zinc-800/20 rotate-12">
-                <FilePlus className="h-48 w-48" />
+            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-zinc-900/90 via-zinc-900/80 to-emerald-900/20 shadow-2xl shadow-black/50 ring-1 ring-white/10 group">
+              <div className="absolute -right-6 -top-6 text-emerald-500/5 rotate-12 transition-transform duration-700 group-hover:rotate-6 group-hover:scale-110">
+                <FilePlus className="h-64 w-64" />
               </div>
 
-              <CardContent className="relative p-6 md:p-8">
-                <div className="flex items-start justify-between gap-6">
-                  <div className="min-w-0 max-w-lg relative z-10">
-                    <h1 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight text-white">Nieuwe klus</h1>
-                    <p className="mt-2 text-base text-zinc-400">
-                      Start met het uitwerken van een nieuwe klus. <br />
-                      <span className="text-sm opacity-70">Kies een werkwijze en voeg direct materialen toe.</span>
+              <CardContent className="relative p-8 md:p-10">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+                  <div className="min-w-0 max-w-lg relative z-10 space-y-2">
+                    <Badge variant="outline" className="text-emerald-400 border-emerald-500/20 bg-emerald-500/10 mb-2">
+                      Aanbevolen
+                    </Badge>
+                    <h1 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight text-white drop-shadow-sm">Nieuwe klus starten</h1>
+                    <p className="text-lg text-zinc-400 max-w-md">
+                      Maak direct een nieuwe calculatie. Kies een werkwijze en voeg materialen toe in enkele seconden.
                     </p>
                   </div>
-                  <div className="shrink-0 relative z-10 pt-1">
+                  <div className="shrink-0 relative z-10">
                     <Button
                       variant="success"
-                      className="gap-2 h-12 px-6 shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 hover:shadow-emerald-500/30"
+                      size="lg"
+                      className="gap-3 h-14 px-8 text-base shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 hover:shadow-emerald-500/40 font-semibold"
                       onClick={handleNewQuote}
                       disabled={isCreating}
                     >
@@ -431,7 +434,7 @@ export default function Dashboard() {
                       ) : (
                         <Plus className="h-5 w-5" />
                       )}
-                      {isCreating ? 'Bezig...' : 'Nieuwe klus starten'}
+                      {isCreating ? 'Mee bezig...' : 'Nieuwe offerte'}
                     </Button>
                   </div>
                 </div>
@@ -472,7 +475,7 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {recenteKlussen.map((o) => {
+                      {recenteKlussen.map((o, index) => {
                         const datum = o.updatedAtDate ?? o.createdAtDate;
                         const nrLabel = getOfferteNummerLabel(o);
                         const totaal = (o as any).totaalbedrag || (o as any).amount || 0;
@@ -481,22 +484,25 @@ export default function Dashboard() {
                         return (
                           <div
                             key={o.id}
+                            style={{ animationDelay: `${index * 50}ms` }}
                             className={cn(
-                              "group relative flex items-center justify-between gap-4 rounded-xl border bg-zinc-900/40 px-4 py-3.5 hover:bg-zinc-800/60 hover:border-zinc-700/50 hover:shadow-md transition-all duration-200 backdrop-blur-sm",
+                              "group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
                               lopend
-                                ? "border-l-2 border-l-emerald-500 border-t-zinc-800/40 border-r-zinc-800/40 border-b-zinc-800/40"
-                                : "border-zinc-800/40"
+                                ? "border-l-4 border-l-emerald-500" // Accent for active jobs
+                                : ""
                             )}
                           >
                             {/* Full row click target */}
                             <Link href={getDetailHref(o.id)} className="absolute inset-0 z-0" />
 
-                            <div className="flex-1 min-w-0 z-10 pointer-events-none">
-                              <div className="flex items-center gap-3 mb-1 min-w-0">
-                                <span className="font-bold text-zinc-100 truncate text-base">{getKlantNaam(o)}</span>
+                            <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                                  {getKlantNaam(o)}
+                                </span>
 
                                 {nrLabel && (
-                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900/50 text-zinc-500 shrink-0">
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
                                     {nrLabel}
                                   </span>
                                 )}
@@ -504,18 +510,18 @@ export default function Dashboard() {
                                 <WorkStatusBadge quote={o} />
                               </div>
 
-                              <div className="flex items-center gap-3 text-xs text-zinc-500">
-                                <span className="truncate max-w-[200px] font-medium text-zinc-400">
+                              <div className="flex items-center gap-3 text-sm text-zinc-500">
+                                <span className="truncate max-w-[200px] text-zinc-400 font-medium">
                                   {getTitel(o)}
                                 </span>
                                 <span className="opacity-20">•</span>
-                                <span className="flex items-center gap-1.5">
-                                  <Calendar className="h-3 w-3 opacity-70" />
+                                <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
+                                  <Calendar className="h-3.5 w-3.5 opacity-70" />
                                   {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
                                 </span>
                                 <span className="opacity-20">•</span>
                                 <span className={cn(
-                                  "font-semibold",
+                                  "font-semibold tracking-wide",
                                   totaal > 0 ? "text-emerald-400" : "text-zinc-600"
                                 )}>
                                   {formatCurrency(totaal)}
@@ -523,11 +529,11 @@ export default function Dashboard() {
                               </div>
                             </div>
 
-                            {/* Actions - visible always */}
-                            <div className="flex items-center gap-2 z-20">
+                            {/* Actions - visible always but subtler */}
+                            <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button asChild variant="secondary" size="sm" className="gap-2 h-8 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50">
+                                  <Button asChild variant="secondary" size="sm" className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm">
                                     <Link href={getOverzichtHref(o.id)}>
                                       <Pencil className="h-3.5 w-3.5" />
                                       <span className="hidden sm:inline">Bewerken</span>
@@ -540,7 +546,7 @@ export default function Dashboard() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                                className="h-9 w-9 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   e.preventDefault();

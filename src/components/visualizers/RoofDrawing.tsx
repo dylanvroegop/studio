@@ -144,7 +144,54 @@ export function RoofDrawing({
         isMagnifier
     });
 
+    // Calculate M2
+    const areaStats = React.useMemo(() => {
+        let areaMm2 = 0;
+        const L = lengteNum;
+        const H = effectiveHeight;
+
+        if (shape === 'rectangle') areaMm2 = L * H;
+        else if (shape === 'slope') {
+            // Slope: L * avg(hL, hR)
+            areaMm2 = L * ((hLeft + hRight) / 2);
+        } else if (shape === 'gable') {
+            // Gable: L * avg(hL, hRight) ? No, Gable has peak.
+            // Usually symmetric: L * (hSide + hPeak)/2 is correct for symmetric.
+            // If asymmetric, it's (L * hLeft + L * hRight)/2 + Triangles?
+            // Actually, for prism volume: Base Area * Length? No this is Surface Area.
+            // Surface Area of Gable Roof Face: 
+            // Wait, "RoofDrawing" is visualizing the *Top Down* or *Face* view?
+            // It visualizes a "Vlak" (Face).
+            // So if it's a Gable roof FACE, it's usually a rectangle (Length x SlopedLength).
+            // BUT our input fields are usually projected measurements?
+            // "Hoogte Nok" and "Hoogte Goots".
+            // If we are drawing the *projected* view (from top), area is Projected Area / cos(pitch).
+            // BUT: Users typically input the *actual* dimensions of the flat plane for the drawing?
+            // "Lengte" and "Hoogte".
+            // If "Hoogte" is the sloped height, then Area = L * H.
+            // IF however the shape implies variable height (like a wall), then we use the wall logic.
+            // The "RoofDrawing" seems to treat it as a Wall-like projection (beams vertical).
+            // So we stick to the Wall logic for area calculation consistency.
+            areaMm2 = L * ((hLeft + hPeak) / 2);
+        } else if (shape === 'l-shape') {
+            areaMm2 = (l1 * h1) + ((L - l1) * h2);
+        } else if (shape === 'u-shape') {
+            areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
+        } else {
+            areaMm2 = L * H;
+        }
+
+        const opArea = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
+
+        return {
+            gross: areaMm2,
+            net: Math.max(0, areaMm2 - opArea),
+            hasOpenings: opArea > 0
+        };
+    }, [shape, lengteNum, effectiveHeight, hLeft, hRight, hPeak, l1, h1, h2, h3, l2, openings]);
+
     return (<BaseDrawingFrame
+        areaStats={areaStats}
         width={lengteNum}
         height={effectiveHeight}
         primarySpacing={balkafstandNum}

@@ -918,13 +918,7 @@ export function WallDrawing({
                 onPointerUp={handlePointerUp}
             >
                 <g id={drawingId}>
-                    {/* Background */}
-                    <rect x="0" y="0" width={SVG_WIDTH} height={SVG_HEIGHT} fill="#09090b" />
-
-                    {/* Dot grid */}
-                    {dotGrid.map((dot, i) => (
-                        <circle key={i} cx={dot.x} cy={dot.y} r="0.7" fill="rgb(255, 255, 255)" opacity="0.15" />
-                    ))}
+                    {/* Background and Dots removed to use container background */}
 
                     {/* Top Plate */}
                     <polygon
@@ -1602,8 +1596,45 @@ export function WallDrawing({
                         </g>
                     )
                 }
-            </svg >
-        </div >
+            </svg>
+
+            {/* Internal Area Calculation Overlay (Netto/Bruto) */}
+            {(() => {
+                const areaMm2 = (() => {
+                    const L = lengteNum;
+                    const H = maxH; // Approx base height logic
+
+                    if (shape === 'rectangle') return L * H;
+                    if (shape === 'slope') return L * ((hLeft + hRight) / 2);
+                    if (shape === 'gable') return L * ((hLeft + hPeak) / 2);
+                    if (shape === 'l-shape') return (l1 * h1) + ((L - l1) * h2);
+                    if (shape === 'u-shape') return (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
+                    return L * H;
+                })();
+
+                // Openings
+                const openingsAreaMm2 = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
+                const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
+
+                const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                return (
+                    <div className="absolute bottom-4 right-4 z-20 pointer-events-none select-none">
+                        <div className="text-[10px] sm:text-xs font-mono bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-right">
+                            {openingsAreaMm2 > 0 ? (
+                                <div className="flex flex-col items-end leading-tight">
+                                    <span className="text-zinc-500">Bruto: {grossStr} m²</span>
+                                    <span className="text-emerald-400 font-bold">Netto: {netStr} m²</span>
+                                </div>
+                            ) : (
+                                <span className="text-zinc-300">{grossStr} m²</span>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
+        </div>
     );
 }
 

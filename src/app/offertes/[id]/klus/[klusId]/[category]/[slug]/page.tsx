@@ -49,7 +49,6 @@ import { JOB_REGISTRY, MeasurementField } from '@/lib/job-registry';
 import { WizardHeader } from '@/components/WizardHeader';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
 import { JobComponent } from '@/lib/types';
-// import { WallStructureVisualizer } from '@/components/WallStructureVisualizer'; // Replaced by Controller
 import { VisualizerController } from '@/components/visualizers/VisualizerController';
 
 export default function GenericMeasurementPage() {
@@ -70,7 +69,7 @@ export default function GenericMeasurementPage() {
   // Refs for capturing visualizations
   const visualizerRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // ✅ 1. Add the Mounted State (The Fix)
+  // ✅ 1. Add the Mounted State
   const [isMounted, setIsMounted] = useState(false);
   const [isMagnifier, setIsMagnifier] = useState(false);
 
@@ -83,7 +82,7 @@ export default function GenericMeasurementPage() {
   const jobConfig = categoryConfig?.items.find((item) => item.slug === jobSlug);
   const fields = jobConfig?.measurements || [];
 
-  // Logic to determine if "Openings" (Windows/Doors/Sparingen) section is relevant
+  // Logic to determine if "Openings" section is relevant
   const isWallCategory = categorySlug === 'wanden' || (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand')));
   const isCeilingCategory = categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond'));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
@@ -95,7 +94,6 @@ export default function GenericMeasurementPage() {
   const [components, setComponents] = useState<JobComponent[]>([]);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
 
-  // 4. Load Data
   // 4. Load Data
   useEffect(() => {
     async function loadData() {
@@ -112,9 +110,6 @@ export default function GenericMeasurementPage() {
           if (Array.isArray(savedItems) && savedItems.length > 0) {
             setItems(savedItems);
           } else {
-            // ✅ FIX: Use setItems directly instead of addItem()
-            // addItem() appends (0 + 1 + 1 = 2). 
-            // This forces it to be exactly 1 item.
             setItems([createEmptyItem()]);
           }
 
@@ -160,9 +155,6 @@ export default function GenericMeasurementPage() {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
       const newItem = { ...item, [key]: value };
-
-
-
       return newItem;
     }));
   };
@@ -174,21 +166,10 @@ export default function GenericMeasurementPage() {
   const handleShapeChange = (index: number, newShape: string) => {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
-
-      // Create a new object to ensure React detects the change
       const newItem: Record<string, any> = {};
-
-      // Copy all properties first
-      Object.keys(item).forEach(key => {
-        newItem[key] = item[key];
-      });
-
-      // Update shape
+      Object.keys(item).forEach(key => newItem[key] = item[key]);
       newItem.shape = newShape;
 
-      // Reset dimensions that don't make sense across shapes
-      // We explicitly clear these to prevent confusion
-      // NOTE: h.o.h. fields (balkafstand, latafstand) are NOT reset - they keep their values
       const dimensionsToReset = [
         'lengte', 'hoogte', 'breedte',
         'lengte1', 'lengte2', 'lengte3',
@@ -197,11 +178,7 @@ export default function GenericMeasurementPage() {
         'hoogteNok',
         'variant'
       ];
-
-      dimensionsToReset.forEach(key => {
-        newItem[key] = '';
-      });
-
+      dimensionsToReset.forEach(key => newItem[key] = '');
       return newItem;
     }));
   };
@@ -210,103 +187,51 @@ export default function GenericMeasurementPage() {
     e.preventDefault();
     if (!firestore || !jobConfig) return;
 
-    // Validation
     const hasEmptyFields = items.some(item =>
       fields.some(f => f.type === 'number' && !item[f.key])
     );
 
     if (hasEmptyFields) {
-      toast({
-        variant: "destructive",
-        title: "Ontbrekende gegevens",
-        description: "Vul a.u.b. alle verplichte velden in."
-      });
+      toast({ variant: "destructive", title: "Ontbrekende gegevens", description: "Vul a.u.b. alle verplichte velden in." });
       return;
     }
 
     setSaving(true);
-
     startTransition(async () => {
       try {
-        // Capture and upload visualization image
         let visualisatieUrl: string | null = null;
-
-        // Get the first visualizer ref (primary visualization)
         const visualizerElement = visualizerRefs.current[0];
 
         if (visualizerElement) {
           try {
-            // Capture the visualization container as a canvas
             const canvas = await html2canvas(visualizerElement, {
-              backgroundColor: '#18181b', // Match the dark background
-              scale: 2, // Higher resolution
+              backgroundColor: '#18181b',
+              scale: 2,
               logging: false,
               useCORS: true,
               allowTaint: true,
             });
-
-            // Convert canvas to blob
             const blob = await new Promise<Blob>((resolve, reject) => {
-              canvas.toBlob((b) => {
-                if (b) resolve(b);
-                else reject(new Error('Failed to create blob from canvas'));
-              }, 'image/png', 0.95);
+              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png', 0.95);
             });
-
-            // Get the Firebase app from auth and initialize storage
             const auth = getAuth();
             const storage = getStorage(auth.app);
-
-            // Create storage reference with path: visualisaties/${quoteId}/${klusId}.png
             const storageRef = ref(storage, `visualisaties/${quoteId}/${klusId}.png`);
-
-            // Upload the blob
-            await uploadBytes(storageRef, blob, {
-              contentType: 'image/png',
-            });
-
-            // Get the download URL
+            await uploadBytes(storageRef, blob, { contentType: 'image/png' });
             visualisatieUrl = await getDownloadURL(storageRef);
-
-            console.log('Visualization uploaded successfully:', visualisatieUrl);
           } catch (uploadError) {
-            console.error('Error capturing/uploading visualization:', uploadError);
-            // Continue saving even if image upload fails
-            toast({
-              variant: "destructive",
-              title: "Visualisatie upload mislukt",
-              description: "De tekening kon niet worden opgeslagen, maar de gegevens worden wel bewaard."
-            });
+            console.error('Error capturing visualization:', uploadError);
           }
         }
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
-
-        // Sanitize data using JSON serialization to guarantee no undefined values remain
-        // This removes keys with undefined values in objects, and turns undefined in arrays to null
-        const cleanData = (data: any) => {
-          if (data === undefined) return null;
-          try {
-            return JSON.parse(JSON.stringify(data));
-          } catch (e) {
-            console.error('Data sanitization failed', e);
-            return null;
-          }
-        };
+        const cleanData = (data: any) => data === undefined ? null : JSON.parse(JSON.stringify(data));
 
         const cleanedItems = cleanData(items) || [];
         const cleanedComponents = cleanData(components) || [];
-
-        // Ensure meta is also clean
-        const rawMeta = {
-          title: jobConfig.title,
-          type: categorySlug,
-          slug: jobSlug,
-          description: jobConfig.description || '' // fallback to string
-        };
+        const rawMeta = { title: jobConfig.title, type: categorySlug, slug: jobSlug, description: jobConfig.description || '' };
         const cleanedMeta = cleanData(rawMeta);
 
-        // Prepare update data
         const updateData: Record<string, any> = {
           [`klussen.${klusId}.maatwerk`]: cleanedItems,
           [`klussen.${klusId}.components`]: cleanedComponents,
@@ -314,32 +239,21 @@ export default function GenericMeasurementPage() {
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
         };
 
-        // Add visualisatieUrl if upload was successful
         if (visualisatieUrl) {
           updateData[`klussen.${klusId}.visualisatieUrl`] = visualisatieUrl;
         }
 
-        console.log('Validating updateData:', updateData); // Debug log (keep for a moment)
-
         await updateDoc(quoteRef, updateData);
-
-
-
         router.push(`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`);
 
       } catch (error: any) {
         console.error(error);
-        toast({
-          variant: 'destructive',
-          title: 'Opslaan mislukt',
-          description: error.message,
-        });
+        toast({ variant: 'destructive', title: 'Opslaan mislukt', description: error.message });
         setSaving(false);
       }
     });
   };
 
-  // ✅ 5. Safety Check: If not mounted, render nothing (prevents crash)
   if (!isMounted) return null;
 
   if (!categoryConfig || !jobConfig) {
@@ -354,1106 +268,427 @@ export default function GenericMeasurementPage() {
 
   const disabledAll = saving || isPending || loading;
   const progressValue = 60;
-
-  // Use custom label OR fallback to first word
   const itemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
-
-  // ✅ Smart back button: skip category selection for single-item categories
   const hasOnlyOneItem = categoryConfig?.items?.length === 1;
   const backUrl = hasOnlyOneItem
-    ? `/offertes/${quoteId}/klus/nieuw`  // Go to main category page
-    : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`; // Go to category selection
+    ? `/offertes/${quoteId}/klus/nieuw`
+    : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`;
 
   return (
-    <main className="relative min-h-screen bg-background">
+    <main className="relative min-h-screen bg-background text-foreground">
       <WizardHeader
         title={jobConfig.title}
         backLink={backUrl}
         progress={progressValue}
         quoteId={quoteId}
-        rightContent={
-          <PersonalNotes quoteId={quoteId} context={`Metingen: ${jobConfig.title}`} />
-        }
+        rightContent={<PersonalNotes quoteId={quoteId} context={`Metingen: ${jobConfig.title}`} />}
       />
 
-      <div className="px-4 py-6 max-w-5xl mx-auto pb-24">
-        <div className="max-w-full mx-auto w-full">
-          <form>
-            <div className="space-y-6">
-              {items.map((item, index) => (
-                <Card key={index}>
-                  <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1">
-                      <div>
-                        <CardTitle className="text-xl">{itemLabel} {index + 1}</CardTitle>
-                        <CardDescription>Specificeer de details.</CardDescription>
+      <div className="px-4 py-8 max-w-[1400px] mx-auto pb-32">
+        <form>
+          <div className="space-y-8">
+            {items.map((item, index) => (
+              <div key={index} className="group relative rounded-3xl border border-white/5 bg-card/40 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 overflow-hidden hover:shadow-emerald-900/10 transition-all duration-300">
+
+                {/* Premium Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 border-b border-white/5 bg-white/[0.02]">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 font-bold text-sm ring-1 ring-emerald-500/20">
+                        {index + 1}
                       </div>
-
-                      {/* Shape Selector & Unit Toggle - Moved here */}
-                      <div className="flex flex-col items-end gap-2 self-start sm:self-center sm:ml-auto">
-                        <div className="inline-flex bg-muted/30 p-1 rounded-lg border border-border/50">
-                          {[
-                            { id: 'rectangle', icon: Square, label: 'Recht' },
-                            { id: 'slope', icon: Slash, label: 'Schuin' },
-                            { id: 'gable', icon: Triangle, label: 'Punt' },
-                            { id: 'l-shape', icon: null, label: 'L-Vorm', customIcon: 'L' },
-                            { id: 'u-shape', icon: null, label: 'U-Vorm', customIcon: 'U' }
-                          ].map((shapeOption) => {
-                            const currentShape = item.shape || 'rectangle';
-                            const isActive = currentShape === shapeOption.id;
-                            const Icon = shapeOption.icon;
-
-                            // Custom L-shape icon (simple L)
-                            const LShapeIcon = () => (
-                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M6 4 L6 18 L20 18" />
-                              </svg>
-                            );
-
-                            // Custom U-shape icon (straight U)
-                            const UShapeIcon = () => (
-                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M4 4 L4 18 L20 18 L20 4" />
-                              </svg>
-                            );
-
-                            return (
-                              <button
-                                key={shapeOption.id}
-                                type="button"
-                                onClick={() => handleShapeChange(index, shapeOption.id)}
-                                className={cn(
-                                  "flex items-center gap-2 px-3 py-1 text-xs font-medium transition-all rounded-md",
-                                  isActive
-                                    ? "bg-background text-emerald-500 shadow-sm ring-1 ring-emerald-500/50"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                )}
-                                title={shapeOption.label}
-                              >
-                                {shapeOption.customIcon === 'L' ? (
-                                  <LShapeIcon />
-                                ) : shapeOption.customIcon === 'U' ? (
-                                  <UShapeIcon />
-                                ) : Icon ? (
-                                  <Icon className={cn("h-3.5 w-3.5", shapeOption.id === 'slope' && "-rotate-12")} />
-                                ) : null}
-                                <span className="hidden sm:inline">{shapeOption.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <UnitToggle />
-                      </div>
+                      <h3 className="text-xl font-semibold text-zinc-100 tracking-tight">{itemLabel}</h3>
                     </div>
+                    <p className="text-sm text-zinc-400 pl-11">Configureer de afmetingen.</p>
+                  </div>
 
+                  <div className="flex items-center gap-3 pl-11 sm:pl-0">
+                    <div className="inline-flex bg-black/20 p-1 rounded-xl border border-white/5 backdrop-blur-md">
+                      {[
+                        { id: 'rectangle', icon: Square, label: 'Recht' },
+                        { id: 'slope', icon: Slash, label: 'Schuin' },
+                        { id: 'gable', icon: Triangle, label: 'Punt' },
+                        { id: 'l-shape', icon: null, label: 'L', customIcon: 'L' },
+                        { id: 'u-shape', icon: null, label: 'U', customIcon: 'U' }
+                      ].map((shapeOption) => {
+                        const currentShape = item.shape || 'rectangle';
+                        const isActive = currentShape === shapeOption.id;
+                        const Icon = shapeOption.icon;
+                        const LIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4 L6 18 L20 18" /></svg>;
+                        const UIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4 L4 18 L20 18 L20 4" /></svg>;
+
+                        return (
+                          <button
+                            key={shapeOption.id}
+                            type="button"
+                            onClick={() => handleShapeChange(index, shapeOption.id)}
+                            className={cn(
+                              "flex items-center justify-center h-8 w-8 sm:w-auto sm:px-3 text-xs font-medium transition-all rounded-lg",
+                              isActive ? "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                            )}
+                            title={shapeOption.label}
+                          >
+                            {shapeOption.customIcon === 'L' ? <LIcon /> : shapeOption.customIcon === 'U' ? <UIcon /> : Icon ? <Icon className={cn("h-4 w-4", shapeOption.id === 'slope' && "-rotate-12")} /> : null}
+                            <span className="hidden sm:inline sm:ml-2">{shapeOption.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <UnitToggle />
                     {index > 0 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPendingDeleteIndex(index)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 -mr-2"
-                        disabled={disabledAll}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Verwijder</span>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setPendingDeleteIndex(index)} className="h-10 w-10 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10" disabled={disabledAll}>
+                        <Trash2 className="h-5 w-5" />
                       </Button>
                     )}
-                  </CardHeader>
+                  </div>
+                </div>
 
-                  <CardContent className="space-y-6">
+                <div className="p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
 
+                  {/* LEFT COLUMN: Inputs & Configuration (5 Cols) */}
+                  <div className="lg:col-span-12 xl:col-span-5 space-y-8">
 
-
-                    {/* Hellend Dak: Smart Tile Calculator Inputs - Simplified */}
-                    {jobSlug.includes('hellend-dak') && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                        {/* Hoogte (Aantal pannen) */}
-                        <div className="space-y-2">
-                          <Label htmlFor={`pannen-hoogte-${index}`}>Aantal pannen (hoogte)</Label>
-                          <div className="relative">
-                            <Input
-                              id={`pannen-hoogte-${index}`}
-                              type="number"
-                              placeholder="Bijv. 24"
-                              value={item.aantal_pannen_hoogte || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const count = parseInt(val) || 0;
-                                updateItem(index, 'aantal_pannen_hoogte', count);
-                              }}
-                              className="pr-12"
-                            />
-                            <div className="absolute right-3 top-2.5 text-xs text-muted-foreground pointer-events-none">
-                              pannen
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Breedte (Aantal pannen) */}
-                        <div className="space-y-2">
-                          <Label htmlFor={`pannen-breedte-${index}`}>Aantal pannen (breedte)</Label>
-                          <div className="relative">
-                            <Input
-                              id={`pannen-breedte-${index}`}
-                              type="number"
-                              placeholder="Bijv. 18"
-                              value={item.aantal_pannen_breedte || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const count = parseInt(val) || 0;
-                                // Simplified: No calculation for width yet
-                                updateItem(index, 'aantal_pannen_breedte', count);
-                              }}
-                              className="pr-12"
-                            />
-                            <div className="absolute right-3 top-2.5 text-xs text-muted-foreground pointer-events-none">
-                              pannen
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* First row: Lengte & Hoogte(s) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Standard Lengte - Hidden for L-Shape */}
+                    {/* 1. Main Dimensions */}
+                    <div className="space-y-4">
                       {(() => {
                         const shape = item.shape || 'rectangle';
-                        if (shape === 'l-shape') return null;
 
-                        return fields.filter(f => f.key === 'lengte').map(f => (
-                          <DynamicInput
-                            key={f.key}
-                            field={f}
-                            value={item[f.key]}
-                            onChange={(val) => updateItem(index, f.key, val)}
-                            onKeyDown={handleKeyDown}
-                            disabled={disabledAll}
-                          />
-                        ));
-                      })()}
-
-                      {/* L-Shape Specific Inputs */
-                        (() => {
-                          const shape = item.shape || 'rectangle';
-                          if (shape !== 'l-shape') return null;
-
-                          // Helper to update L1 or L2 and recalc total length
+                        if (shape === 'l-shape') {
                           const updateL = (key: 'lengte1' | 'lengte2', val: string) => {
                             const numVal = parseFloat(val) || 0;
                             const otherKey = key === 'lengte1' ? 'lengte2' : 'lengte1';
                             const otherVal = parseFloat(item[otherKey]) || 0;
-                            const total = numVal + otherVal;
-
-                            // Update both the specific field and the total length
-                            setItems(prev => prev.map((it, i) =>
-                              i === index ? { ...it, [key]: val, lengte: total } : it
-                            ));
+                            setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: numVal + otherVal } : it));
                           };
-
                           return (
-                            <div className="contents">
-                              {/* L1 & H1 */}
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor={`l1-${index}`}>Lengte 1 *</Label>
-                                  <div className="relative">
-                                    <MeasurementInput
-                                      id={`l1-${index}`}
-                                      placeholder="3000"
-                                      value={item.lengte1 || ''}
-                                      onChange={(val) => updateL('lengte1', String(val))}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor={`h1-${index}`}>Hoogte 1 *</Label>
-                                  <div className="relative">
-                                    <MeasurementInput
-                                      id={`h1-${index}`}
-                                      placeholder="2600"
-                                      value={item.hoogte1 || ''}
-                                      onChange={(val) => updateItem(index, 'hoogte1', val)}
-                                    />
-                                  </div>
-                                </div>
+                            <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                              <div className="space-y-4">
+                                <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
                               </div>
-
-                              {/* L2 & H2 */}
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor={`l2-${index}`}>Lengte 2 *</Label>
-                                  <div className="relative">
-                                    <MeasurementInput
-                                      id={`l2-${index}`}
-                                      placeholder="2000"
-                                      value={item.lengte2 || ''}
-                                      onChange={(val) => updateL('lengte2', String(val))}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor={`h2-${index}`}>Hoogte 2 *</Label>
-                                  <div className="relative">
-                                    <MeasurementInput
-                                      id={`h2-${index}`}
-                                      placeholder="1500"
-                                      value={item.hoogte2 || ''}
-                                      onChange={(val) => updateItem(index, 'hoogte2', val)}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                      {/* U-Shape Inputs */}
-                      {(() => {
-                        const shape = item.shape || 'rectangle';
-                        if (shape !== 'u-shape') return null;
-
-                        // Helper for U-Shape total length
-                        const updateU = (key: 'lengte1' | 'lengte2' | 'lengte3', val: string) => {
-                          const numVal = parseFloat(val) || 0;
-                          // Get others
-                          const l1 = key === 'lengte1' ? numVal : (parseFloat(item.lengte1) || 0);
-                          const l2 = key === 'lengte2' ? numVal : (parseFloat(item.lengte2) || 0);
-                          const l3 = key === 'lengte3' ? numVal : (parseFloat(item.lengte3) || 0);
-
-                          setItems(prev => prev.map((it, i) =>
-                            i === index ? { ...it, [key]: val, lengte: l1 + l2 + l3 } : it
-                          ));
-                        };
-
-                        return (
-                          <div className="contents">
-                            {/* L1 & H1 */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`ul1-${index}`}>Lengte 1 *</Label>
-                                <div className="relative">
-                                  <MeasurementInput id={`ul1-${index}`} placeholder="1000" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`uh1-${index}`}>Hoogte 1 *</Label>
-                                <div className="relative">
-                                  <MeasurementInput id={`uh1-${index}`} placeholder="2600" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
-                                </div>
-                              </div>
-                            </div>
-                            {/* L2 & H2 */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`ul2-${index}`}>Lengte 2 *</Label>
-                                <div className="relative">
-                                  <MeasurementInput id={`ul2-${index}`} placeholder="1000" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`uh2-${index}`}>Hoogte 2 *</Label>
-                                <div className="relative">
-                                  <MeasurementInput id={`uh2-${index}`} placeholder="1500" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
-                                </div>
-                              </div>
-                            </div>
-                            {/* L3 & H3 */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`ul3-${index}`}>Lengte 3 *</Label>
-                                <div className="relative">
-                                  <MeasurementInput id={`ul3-${index}`} placeholder="1000" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`uh3-${index}`}>Hoogte 3 *</Label>
-                                <div className="relative">
-                                  <MeasurementInput id={`uh3-${index}`} placeholder="2600" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Dynamic Height/Breedte Inputs (if not L-shape which is handled above) */}
-                      {(() => {
-                        const shape = item.shape || 'rectangle';
-                        if (shape === 'l-shape' || shape === 'u-shape') return null; // Already rendered inputs above
-
-                        // Look for 'hoogte' OR 'breedte' field (some job types use breedte instead)
-                        const hoogteField = fields.find(f => f.key === 'hoogte') || fields.find(f => f.key === 'breedte');
-
-                        if (!hoogteField) return null;
-
-                        if (shape === 'slope') {
-                          return (
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`hLeft-${index}`}>H. Links *</Label>
-                                <MeasurementInput
-                                  id={`hLeft-${index}`}
-                                  placeholder="2600"
-                                  value={item.hoogteLinks || ''}
-                                  onChange={(val) => updateItem(index, 'hoogteLinks', val)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`hRight-${index}`}>H. Rechts *</Label>
-                                <MeasurementInput
-                                  id={`hRight-${index}`}
-                                  placeholder="1500"
-                                  value={item.hoogteRechts || ''}
-                                  onChange={(val) => updateItem(index, 'hoogteRechts', val)}
-                                />
+                              <div className="space-y-4">
+                                <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
                               </div>
                             </div>
                           );
                         }
 
-                        if (shape === 'gable') {
+                        if (shape === 'u-shape') {
+                          const updateU = (key: 'lengte1' | 'lengte2' | 'lengte3', val: string) => {
+                            const numVal = parseFloat(val) || 0;
+                            const l1 = key === 'lengte1' ? numVal : (parseFloat(item.lengte1) || 0);
+                            const l2 = key === 'lengte2' ? numVal : (parseFloat(item.lengte2) || 0);
+                            const l3 = key === 'lengte3' ? numVal : (parseFloat(item.lengte3) || 0);
+                            setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: l1 + l2 + l3 } : it));
+                          };
                           return (
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`hSide-${index}`}>H. Zijkant *</Label>
-                                <MeasurementInput
-                                  id={`hSide-${index}`}
-                                  placeholder="2600"
-                                  value={item.hoogte || ''}
-                                  onChange={(val) => updateItem(index, 'hoogte', val)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`hRidge-${index}`}>H. Nok *</Label>
-                                <MeasurementInput
-                                  id={`hRidge-${index}`}
-                                  placeholder="4000"
-                                  value={item.hoogteNok || ''}
-                                  onChange={(val) => updateItem(index, 'hoogteNok', val)}
-                                />
+                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-2"><Label className="text-xs">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
+                                <div className="space-y-2"><Label className="text-xs">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
+                                <div className="space-y-2"><Label className="text-xs">Deel 3</Label><MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} /><MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} /></div>
                               </div>
                             </div>
                           );
                         }
 
-                        // Default Rectangle - render the field (whether it's 'hoogte' or 'breedte')
                         return (
-                          <DynamicInput
-                            key={hoogteField.key}
-                            field={hoogteField}
-                            value={item[hoogteField.key]}
-                            onChange={(val) => updateItem(index, hoogteField.key, val)}
-                            onKeyDown={handleKeyDown}
-                            disabled={disabledAll}
-                          />
-                        );
-                      })()}
-                    </div>
-
-                    {/* Middle fields (balkafstand, etc.) - excluding textarea */}
-                    <div className="space-y-4">
-                      {(() => {
-                        const fieldsToRender = fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key));
-
-                        // Group adjacent fields with the same group property
-                        const groupedFields = fieldsToRender.reduce((acc, field) => {
-                          const lastGroup = acc[acc.length - 1];
-                          if (field.group && lastGroup && lastGroup[0].group === field.group) {
-                            lastGroup.push(field);
-                          } else {
-                            acc.push([field]);
-                          }
-                          return acc;
-                        }, [] as typeof fields[]);
-
-                        return groupedFields.map((group, groupIndex) => (
-                          <div key={groupIndex} className={cn(group.length > 1 && "grid grid-cols-1 sm:grid-cols-2 gap-4")}>
-                            {group.map(field => (
-                              <div key={field.key} className="space-y-1">
-                                <DynamicInput
-                                  field={field}
-                                  value={item[field.key]}
-                                  onChange={(val) => updateItem(index, field.key, val)}
-                                  onKeyDown={handleKeyDown}
-                                  disabled={disabledAll}
-                                  className="w-full"
-                                />
-
-                              </div>
-                            ))}
-                          </div>
-                        ));
-                      })()}
-                    </div>
-
-
-                    {/* Visualizer Controller with Overlay Controls */}
-                    <div
-                      ref={(el) => { visualizerRefs.current[index] = el; }}
-                      className="relative group border rounded-lg overflow-hidden border-border/30 bg-secondary/5"
-                    >
-                      <VisualizerController
-                        category={categorySlug}
-                        slug={jobSlug}
-                        item={item}
-                        fields={fields}
-                        title={`${itemLabel} ${index + 1}`}
-                        isMagnifier={isMagnifier}
-                        fitContainer={true}
-                        gridLabel={(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) ? ' ' : undefined}
-                        className="min-h-[400px]" // Ensure minimum height
-                        onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-
-                        onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                        onDataGenerated={(data: any) => updateItem(index, 'drawingData', data)}
-                      />
-
-                      {/* Floating Controls - Bottom Left */}
-                      <div className="absolute bottom-3 left-3 flex gap-2 transition-opacity duration-200">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="secondary"
-                              size="icon"
-                              className="h-8 w-8 bg-background/80 hover:bg-background backdrop-blur-sm border border-border/50 shadow-sm"
-                              title="Vergroten"
-                            >
-                              <Maximize2 className="h-4 w-4 text-foreground" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-[95vw] w-full h-[85vh] flex flex-col p-0 bg-zinc-950/95 border-zinc-800 overflow-hidden">
-                            <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
-                              <DialogTitle className="text-lg font-medium text-zinc-200">
-                                Technische Tekening
-                              </DialogTitle>
-                            </div>
-                            <div className="flex-1 w-full h-full p-2 sm:p-4 flex items-center justify-center bg-zinc-900/20 overflow-auto">
-                              <div className="w-full h-full flex items-center justify-center relative">
-                                <VisualizerController
-                                  category={categorySlug}
-                                  slug={jobSlug}
-                                  item={item}
-                                  fields={fields}
-                                  title={`${itemLabel} ${index + 1}`}
-                                  isMagnifier={isMagnifier}
-                                  fitContainer={true}
-                                  gridLabel={(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) ? ' ' : undefined}
-                                  className="w-full h-full"
-                                  onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                                  onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                                />
-                                <div className="absolute bottom-4 right-4 flex flex-col items-end pointer-events-none select-none">
-                                  {(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) && (
-                                    <div className="text-[10px] sm:text-xs text-zinc-500/80 font-bold uppercase tracking-wider mb-0.5">
-                                      Vloer vlak {index + 1}
-                                    </div>
-                                  )}
-                                  <div className="text-[10px] sm:text-xs text-zinc-500 font-medium font-mono">
-                                    {(() => {
-                                      const shape = item.shape || 'rectangle';
-                                      const L = parseFloat(String(item.lengte || 0));
-                                      const H = parseFloat(String(item.hoogte || 0));
-
-                                      let areaMm2 = 0;
-
-                                      if (shape === 'rectangle') {
-                                        areaMm2 = L * H;
-                                      } else if (shape === 'slope') {
-                                        const hL = parseFloat(String(item.hoogteLinks || 0));
-                                        const hR = parseFloat(String(item.hoogteRechts || 0));
-                                        const avgH = (hL + hR) / 2;
-                                        areaMm2 = L * avgH;
-                                      } else if (shape === 'gable') {
-                                        const hNok = parseFloat(String(item.hoogteNok || 0));
-                                        areaMm2 = L * ((H + hNok) / 2);
-                                      } else if (shape === 'l-shape') {
-                                        // Use stored values for L-Shape if available, or calc
-                                        const l1 = parseFloat(String(item.lengte1 || 0));
-                                        const h1 = parseFloat(String(item.hoogte1 || 0));
-                                        const h2 = parseFloat(String(item.hoogte2 || 0));
-                                        areaMm2 = (l1 * h1) + ((L - l1) * h2);
-                                      } else if (shape === 'u-shape') {
-                                        const l1 = parseFloat(String(item.lengte1 || 0));
-                                        const l2 = parseFloat(String(item.lengte2 || 0));
-                                        const h1 = parseFloat(String(item.hoogte1 || 0));
-                                        const h2 = parseFloat(String(item.hoogte2 || 0));
-                                        const h3 = parseFloat(String(item.hoogte3 || 0));
-                                        areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
-                                      } else {
-                                        areaMm2 = L * H;
-                                      }
-
-                                      // Calculate openings area
-                                      const openings = item.openings || [];
-                                      const openingsAreaMm2 = openings.reduce((acc: number, op: any) => {
-                                        return acc + (parseFloat(op.width || 0) * parseFloat(op.height || 0));
-                                      }, 0);
-
-                                      const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
-                                      const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                                      const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-                                      if (openingsAreaMm2 > 0) {
-                                        return (
-                                          <div className="flex flex-col items-end leading-tight">
-                                            <span>{grossStr} m²</span>
-                                            <span className="text-emerald-500 font-bold">Netto: {netStr} m²</span>
-                                          </div>
-                                        );
-                                      }
-
-                                      return `${grossStr} m²`;
-                                    })()}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-
-                      {/* Floating Controls - Bottom Right (Area Helper) */}
-                      {/* Floating Controls - Bottom Right (Area Helper) */}
-                      <div className="absolute bottom-2 right-3 flex flex-col items-end pointer-events-none select-none">
-                        {(categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) && (
-                          <div className="text-[10px] sm:text-xs text-muted-foreground/60 font-bold uppercase tracking-wider mb-0.5">
-                            Vloer vlak {index + 1}
-                          </div>
-                        )}
-                        <div className="text-[10px] sm:text-xs text-muted-foreground/50 font-medium font-mono">
-                          {(() => {
-                            const shape = item.shape || 'rectangle';
-                            const L = parseFloat(String(item.lengte || 0));
-                            const H = parseFloat(String(item.hoogte || 0));
-
-                            let areaMm2 = 0;
-
-                            if (shape === 'rectangle') {
-                              areaMm2 = L * H;
-                            } else if (shape === 'slope') {
-                              const hL = parseFloat(String(item.hoogteLinks || 0));
-                              const hR = parseFloat(String(item.hoogteRechts || 0));
-                              const avgH = (hL + hR) / 2;
-                              areaMm2 = L * avgH;
-                            } else if (shape === 'gable') {
-                              const hNok = parseFloat(String(item.hoogteNok || 0));
-                              areaMm2 = L * ((H + hNok) / 2);
-                            } else if (shape === 'l-shape') {
-                              const l1 = parseFloat(String(item.lengte1 || 0));
-                              const h1 = parseFloat(String(item.hoogte1 || 0));
-                              const h2 = parseFloat(String(item.hoogte2 || 0));
-                              areaMm2 = (l1 * h1) + ((L - l1) * h2);
-                            } else if (shape === 'u-shape') {
-                              const l1 = parseFloat(String(item.lengte1 || 0));
-                              const l2 = parseFloat(String(item.lengte2 || 0));
-                              const h1 = parseFloat(String(item.hoogte1 || 0));
-                              const h2 = parseFloat(String(item.hoogte2 || 0));
-                              const h3 = parseFloat(String(item.hoogte3 || 0));
-                              areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
-                            } else {
-                              areaMm2 = L * H;
-                            }
-
-                            // Calculate openings area
-                            const openings = item.openings || [];
-                            const openingsAreaMm2 = openings.reduce((acc: number, op: any) => {
-                              return acc + (parseFloat(op.width || 0) * parseFloat(op.height || 0));
-                            }, 0);
-
-                            const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
-                            const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                            const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-                            if (openingsAreaMm2 > 0) {
-                              return (
-                                <div className="flex flex-col items-end leading-tight">
-                                  <span>{grossStr} m²</span>
-                                  <span className="text-emerald-500 font-bold">Netto: {netStr} m²</span>
-                                </div>
-                              );
-                            }
-
-                            return `${grossStr} m²`;
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 mt-6">
-                      {(() => {
-                        const epdmFields = fields.filter(f => ['dakrand_breedte'].includes(f.key));
-
-                        if (epdmFields.length === 0) return null;
-
-                        // Reuse grouping logic
-                        const groupedEpdm = epdmFields.reduce((acc, field) => {
-                          const lastGroup = acc[acc.length - 1];
-                          if (field.group && lastGroup && lastGroup[0].group === field.group) {
-                            lastGroup.push(field);
-                          } else {
-                            acc.push([field]);
-                          }
-                          return acc;
-                        }, [] as typeof fields[]);
-
-                        return groupedEpdm.map((group, groupIndex) => (
-                          <div key={`epdm-g-${groupIndex}`} className={cn(group.length > 1 && "grid grid-cols-1 sm:grid-cols-2 gap-4")}>
-                            {group.map(field => (
-                              <div key={field.key} className="space-y-1">
-                                <DynamicInput
-                                  field={field}
-                                  value={item[field.key]}
-                                  onChange={(val) => updateItem(index, field.key, val)}
-                                  onKeyDown={handleKeyDown}
-                                  disabled={disabledAll}
-                                  className="w-full"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        ));
-                      })()}
-                    </div>
-
-                    {/* Controls Moved Here */}
-                    {/* Controls Moved Here */}
-                    <div className="flex flex-col gap-6 mt-6 w-full max-w-4xl mx-auto">
-
-
-
-                      {/* Grid for Balken & Latten */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-
-                        {/* Column 1: Balken (Vertical) */}
-                        {fields.some(f => f.key === 'balkafstand') && (
-                          <div className="flex flex-col gap-3">
-                            {/* Input */}
-                            {(() => {
-                              const field = fields.find(f => f.key === 'balkafstand')!;
-                              return (
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center justify-between">
-                                    <Label htmlFor={`balk-${index}`} className="text-sm font-medium text-foreground">{field.label}</Label>
-                                  </div>
-                                  <MeasurementInput
-                                    id={`balk-${index}`}
-                                    placeholder={field.placeholder}
-                                    value={item[field.key]}
-                                    onChange={(val) => updateItem(index, field.key, val)}
-                                    disabled={disabledAll}
-                                  />
-                                </div>
-                              );
-                            })()}
-
-                            {/* Startindeling Controls */}
-                            <div className="space-y-1.5">
-                              <span className="text-xs font-medium text-muted-foreground block">Startindeling</span>
-                              <div className="inline-flex w-full items-center p-1 bg-muted/50 rounded-lg border border-border/50">
-                                <button
-                                  type="button"
-                                  onClick={() => updateItem(index, 'startFromRight', false)}
-                                  className={cn(
-                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
-                                    !item.startFromRight
-                                      ? "bg-background text-foreground shadow-sm"
-                                      : "text-muted-foreground hover:text-foreground"
-                                  )}
-                                >
-                                  Links
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => updateItem(index, 'startFromRight', true)}
-                                  className={cn(
-                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
-                                    item.startFromRight
-                                      ? "bg-background text-foreground shadow-sm"
-                                      : "text-muted-foreground hover:text-foreground"
-                                  )}
-                                >
-                                  Rechts
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Dubbele Eindbalk Toggle */}
-                            <div className="space-y-1.5 pt-2">
-                              <div className="flex items-center justify-between">
-                                <Label htmlFor={`double-beam-${index}`} className="text-xs font-medium text-muted-foreground">Dubbele Eindbalk</Label>
-                                <Switch
-                                  id={`double-beam-${index}`}
-                                  checked={item.doubleEndBeams || false}
-                                  onCheckedChange={(checked) => updateItem(index, 'doubleEndBeams', checked)}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Kader Balken Toggle (Surrounding Beams) */}
-                            <div className="space-y-1.5 pt-1">
-                              <div className="flex items-center justify-between">
-                                <Label htmlFor={`surrounding-beams-${index}`} className="text-xs font-medium text-muted-foreground">Kader Balken (Rondom)</Label>
-                                <Switch
-                                  id={`surrounding-beams-${index}`}
-                                  checked={item.surroundingBeams || false}
-                                  onCheckedChange={(checked) => updateItem(index, 'surroundingBeams', checked)}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Schuinte / Variant Controls (Moved Here) */}
-                            {(item.shape === 'slope' || item.shape === 'l-shape' || item.shape === 'u-shape') && (
-                              <div className="space-y-1.5 pt-2">
-                                <span className="text-xs font-medium text-muted-foreground block">Schuinte</span>
-                                <div className="inline-flex w-full items-center p-1 bg-muted/50 rounded-lg border border-border/50">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateItem(index, 'variant', 'top')}
-                                    className={cn(
-                                      "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
-                                      (!item.variant || item.variant === 'top')
-                                        ? "bg-background text-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                  >
-                                    {item.shape === 'slope' && "Schuinte Boven"}
-                                    {(item.shape === 'l-shape' || item.shape === 'u-shape') && "Variatie Boven"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateItem(index, 'variant', 'bottom')}
-                                    className={cn(
-                                      "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
-                                      item.variant === 'bottom'
-                                        ? "bg-background text-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                  >
-                                    {item.shape === 'slope' && "Schuinte Onder"}
-                                    {(item.shape === 'l-shape' || item.shape === 'u-shape') && "Variatie Onder"}
-                                  </button>
-                                </div>
-                              </div>
+                          <div className="space-y-4">
+                            {fields.find(f => f.key === 'lengte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
-                          </div>
-                        )}
-
-                        {/* Column 2: Latten (Horizontal) */}
-                        {fields.some(f => f.key === 'latafstand') && (
-                          <div className="flex flex-col gap-3">
-                            {/* Input */}
-                            {(() => {
-                              const field = fields.find(f => f.key === 'latafstand')!;
-                              return (
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center justify-between">
-                                    <Label htmlFor={`lat-${index}`} className="text-sm font-medium text-foreground">{field.label}</Label>
-                                  </div>
-                                  <MeasurementInput
-                                    id={`lat-${index}`}
-                                    placeholder={field.placeholder}
-                                    value={item[field.key]}
-                                    onChange={(val) => updateItem(index, field.key, val)}
-                                    disabled={disabledAll}
-                                  />
-                                </div>
-                              );
-                            })()}
-
-                            {/* Startindeling Controls */}
-                            <div className="space-y-1.5">
-                              <span className="text-xs font-medium text-muted-foreground block">Startindeling</span>
-                              <div className="inline-flex w-full items-center p-1 bg-muted/50 rounded-lg border border-border/50">
-                                <button
-                                  type="button"
-                                  onClick={() => updateItem(index, 'startLattenFromBottom', false)}
-                                  className={cn(
-                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
-                                    !item.startLattenFromBottom
-                                      ? "bg-background text-foreground shadow-sm"
-                                      : "text-muted-foreground hover:text-foreground"
-                                  )}
-                                >
-                                  Boven
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => updateItem(index, 'startLattenFromBottom', true)}
-                                  className={cn(
-                                    "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-center",
-                                    item.startLattenFromBottom
-                                      ? "bg-background text-foreground shadow-sm"
-                                      : "text-muted-foreground hover:text-foreground"
-                                  )}
-                                >
-                                  Onder
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Dubbele Eindlat Toggle */}
-                            <div className="space-y-1.5 pt-2">
-                              <div className="flex items-center justify-between">
-                                <Label htmlFor={`double-lat-${index}`} className="text-xs font-medium text-muted-foreground">Dubbele Eindlat</Label>
-                                <Switch
-                                  id={`double-lat-${index}`}
-                                  checked={item.doubleEndBattens || false}
-                                  onCheckedChange={(checked) => updateItem(index, 'doubleEndBattens', checked)}
-                                />
-                              </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              {shape === 'slope' && (
+                                <><div className="space-y-2"><Label>H. Links</Label><MeasurementInput value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
+                                  <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div></>
+                              )}
+                              {shape === 'gable' && (
+                                <><div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
+                                  <div className="space-y-2"><Label>H. Nok</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div></>
+                              )}
+                              {shape === 'rectangle' && fields.find(f => f.key === 'hoogte' || f.key === 'breedte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!} value={item.hoogte || item.breedte} onChange={v => updateItem(index, fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
                             </div>
                           </div>
-                        )}
-                      </div>
-
+                        );
+                      })()}
                     </div>
 
-
-                    {/* OPENINGS SECTION - Moved Here */}
-                    {showOpeningsSection && (
-                      <div className="mt-6 pt-6 border-t border-border/50 space-y-4">
-
-
-                        {(item.openings || []).map((op: any, opIdx: number) => (
-                          <div key={op.id} className="p-4 rounded-lg bg-muted/20 border border-border/50 space-y-4 animate-in fade-in slide-in-from-top-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-foreground">Opening {opIdx + 1}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                onClick={() => {
-                                  const newOpenings = (item.openings || []).filter((_: any, i: number) => i !== opIdx);
-                                  updateItem(index, 'openings', newOpenings);
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <label className="text-xs font-medium text-muted-foreground">Type</label>
-                                <select
-                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                  value={op.type}
-                                  onChange={(e) => {
-                                    const newOpenings = [...(item.openings || [])];
-                                    newOpenings[opIdx] = { ...op, type: e.target.value };
-                                    updateItem(index, 'openings', newOpenings);
-                                  }}
-                                >
-                                  {isWallCategory ? (
-                                    <>
-                                      <option value="window">Kozijn</option>
-                                      <option value="door">Deur</option>
-                                      <option value="opening">Sparing</option>
-                                      <option value="other">Overig</option>
-                                    </>
-                                  ) : (categorySlug === 'vloeren' || jobSlug.includes('vloer') || jobSlug.includes('vlonder') || jobSlug.includes('balklaag') || jobSlug.includes('vliering')) ? (
-                                    <>
-                                      <option value="opening">Sparing</option>
-                                      <option value="pillar">Pilaar / Kolom</option>
-                                      <option value="tree">Boom</option>
-                                      <option value="hatch">Luik</option>
-                                      <option value="other">Overig</option>
-                                    </>
-                                  ) : categorySlug === 'dakrenovatie' ? (
-                                    <>
-                                      <option value="dakraam">Dakraam</option>
-                                      <option value="schoorsteen">Schoorsteen</option>
-                                      <option value="opening">Sparing</option>
-                                      <option value="other">Overig</option>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <option value="opening">Sparing / Trapgat</option>
-                                      <option value="Lichtkoepel">Lichtkoepel</option>
-                                      <option value="hatch">Luik / Vlieringtrap</option>
-                                      <option value="other">Overig</option>
-                                    </>
-                                  )}
-                                </select>
-                              </div>
-
-                              {/* Toggle removed */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-2">
-                                  <label className="text-xs font-medium text-muted-foreground">Breedte</label>
-                                  <MeasurementInput
-                                    value={op.width}
-                                    onChange={(val) => {
-                                      const newOpenings = [...(item.openings || [])];
-                                      newOpenings[opIdx] = { ...op, width: val || 0 };
-                                      updateItem(index, 'openings', newOpenings);
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-xs font-medium text-muted-foreground">Lengte</label>
-                                  <MeasurementInput
-                                    value={op.height}
-                                    onChange={(val) => {
-                                      const newOpenings = [...(item.openings || [])];
-                                      newOpenings[opIdx] = { ...op, height: val || 0 };
-                                      updateItem(index, 'openings', newOpenings);
-                                    }}
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                                <div className="space-y-2">
-                                  <label className="text-xs font-medium text-muted-foreground">Vanaf Links</label>
-                                  <MeasurementInput
-                                    value={op.fromLeft}
-                                    onChange={(val) => {
-                                      const newOpenings = [...(item.openings || [])];
-                                      newOpenings[opIdx] = { ...op, fromLeft: val || 0 };
-                                      updateItem(index, 'openings', newOpenings);
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-xs font-medium text-muted-foreground">
-                                    {isWallCategory ? 'Vanaf Vloer' : 'Vanaf Boven'}
-                                  </label>
-                                  <MeasurementInput
-                                    value={op.fromBottom}
-                                    onChange={(val) => {
-                                      const newOpenings = [...(item.openings || [])];
-                                      newOpenings[opIdx] = { ...op, fromBottom: val || 0 };
-                                      updateItem(index, 'openings', newOpenings);
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-2 pb-2">
-                                  <div className="flex flex-col items-center gap-2">
-                                    <label className="text-xs font-medium text-muted-foreground">Raveelwerk</label>
-                                    <Switch
-                                      id={`raveel-${op.id}`}
-                                      checked={op.requires_raveelwerk || false}
-                                      onCheckedChange={(checked) => {
-                                        const newOpenings = [...(item.openings || [])];
-                                        newOpenings[opIdx] = { ...op, requires_raveelwerk: checked };
-                                        updateItem(index, 'openings', newOpenings);
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                            </div>
-
-                            {/* Toggle removed from here */}
-                          </div>
-                        ))}
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newOpening = {
-                              id: crypto.randomUUID(),
-                              type: 'opening',
-                              width: 600,
-                              height: 600,
-                              fromLeft: 1000,
-                              fromBottom: 1000
-                            };
-                            updateItem(index, 'openings', [...(item.openings || []), newOpening]);
-                          }}
-                          className="w-full sm:w-auto border-dashed"
-                        >
-                          <PlusCircle className="mr-2 h-4 w-4" />
-                          Opening toevoegen (Optioneel)
-                        </Button>
-                      </div>
-                    )}
-
-
-                    {/* Textarea fields (opmerkingen) - at bottom */}
-                    <div className="space-y-4">
-                      {fields.filter(f => f.type === 'textarea').map((field) => (
-                        <DynamicInput
-                          key={field.key}
-                          field={field}
-                          value={item[field.key]}
-                          onChange={(val) => updateItem(index, field.key, val)}
-                          onKeyDown={handleKeyDown}
-                          disabled={disabledAll}
-                          className="w-full"
-                        />
+                    {/* 2. Secondary Fields (Material properties etc) */}
+                    <div className="pt-4 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
+                        <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                       ))}
                     </div>
 
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    {/* 3. Balken & Latten Configuration (RESTORED LOGIC) */}
+                    {(fields.some(f => f.key === 'balkafstand') || fields.some(f => f.key === 'latafstand')) && (
+                      <div className="pt-6 border-t border-white/5 space-y-6">
+                        {/* Balken */}
+                        {fields.find(f => f.key === 'balkafstand') && (
+                          <div className="space-y-3 p-4 rounded-xl bg-white/5 border border-white/5">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Balken Structuur</h4>
+                            <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Start</Label>
+                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                  <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Links</button>
+                                  <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Rechts</button>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Opties</Label>
+                                <div className="flex flex-col gap-2">
+                                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                                    <span>Dubbele Eindbalk</span>
+                                    <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                                    <span>Kader (Rondom)</span>
+                                    <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Latten */}
+                        {fields.find(f => f.key === 'latafstand') && (
+                          <div className="space-y-3 p-4 rounded-xl bg-white/5 border border-white/5">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Latten Structuur</h4>
+                            <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Start</Label>
+                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Boven</button>
+                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Onder</button>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Opties</Label>
+                                <div className="flex items-center justify-between text-xs text-zinc-400 mt-2">
+                                  <span>Dubbele Eindlat</span>
+                                  <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 4. OPENINGS SECTION (RESTORED LOGIC) */}
+                    {showOpeningsSection && (
+                      <div className="pt-6 border-t border-white/5 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                            <CornerDownRight className="h-3 w-3" /> Openingen & Sparingen
+                          </h4>
+                        </div>
+
+                        <div className="space-y-3">
+                          {(item.openings || []).map((op: any, opIdx: number) => (
+                            <div key={op.id || opIdx} className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-4 animate-in fade-in slide-in-from-top-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-zinc-300">Opening {opIdx + 1}</span>
+                                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-zinc-500 hover:text-red-400"
+                                  onClick={() => {
+                                    const newOpenings = (item.openings || []).filter((_: any, i: number) => i !== opIdx);
+                                    updateItem(index, 'openings', newOpenings);
+                                  }}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-2">
+                                  <select
+                                    className="flex h-9 w-full rounded-md border border-white/10 bg-zinc-900/50 px-3 py-1 text-sm transition-colors focus:border-emerald-500/50 outline-none"
+                                    value={op.type}
+                                    onChange={(e) => {
+                                      const newOpenings = [...(item.openings || [])];
+                                      newOpenings[opIdx] = { ...op, type: e.target.value };
+                                      updateItem(index, 'openings', newOpenings);
+                                    }}
+                                  >
+                                    {isWallCategory ? (
+                                      <><option value="window">Kozijn</option><option value="door">Deur</option><option value="opening">Sparing</option><option value="other">Overig</option></>
+                                    ) : isCeilingCategory || categorySlug === 'vloeren' ? (
+                                      <><option value="opening">Sparing</option><option value="hatch">Luik</option><option value="pillar">Pilaar</option><option value="other">Overig</option></>
+                                    ) : (
+                                      <><option value="dakraam">Dakraam</option><option value="schoorsteen">Schoorsteen</option><option value="opening">Sparing</option><option value="other">Overig</option></>
+                                    )}
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Breedte</Label><MeasurementInput value={op.width} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, width: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Hoogte/Lengte</Label><MeasurementInput value={op.height} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, height: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+
+                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Van Links</Label><MeasurementInput value={op.fromLeft} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromLeft: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Van Onder</Label><MeasurementInput value={op.fromBottom} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromBottom: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                                <Label className="text-xs text-zinc-400">Raveelwerk Vereist</Label>
+                                <Switch checked={op.requires_raveelwerk || false} onCheckedChange={(c) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, requires_raveelwerk: c }; updateItem(index, 'openings', n); }} className="scale-75" />
+                              </div>
+                            </div>
+                          ))}
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              const newOpening = {
+                                id: crypto.randomUUID(),
+                                type: isWallCategory ? 'window' : 'opening',
+                                width: 600,
+                                height: 600,
+                                fromLeft: 1000,
+                                fromBottom: 1000
+                              };
+                              updateItem(index, 'openings', [...(item.openings || []), newOpening]);
+                            }}
+                            className="w-full border-dashed border-zinc-700 hover:border-emerald-500/50 hover:bg-emerald-500/5 hover:text-emerald-400"
+                          >
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Opening toevoegen
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5. Text Area (Opmerkingen) */}
+                    {fields.filter(f => f.type === 'textarea').map(f => (
+                      <div key={f.key} className="pt-4 border-t border-white/5">
+                        <DynamicInput field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} className="w-full" />
+                      </div>
+                    ))}
+                  </div>
 
 
-          </form>
-        </div>
+                  {/* RIGHT COLUMN: Visualizer (7 Cols) */}
+                  <div className="lg:col-span-12 xl:col-span-7">
+                    <div className="xl:sticky xl:top-24 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <Maximize2 className="h-3 w-3" /> Live Tekening
+                        </h4>
+                      </div>
+
+                      <div
+                        ref={(el) => { visualizerRefs.current[index] = el; }}
+                        className="relative aspect-video w-full rounded-2xl border border-white/10 bg-[#09090b] overflow-hidden shadow-2xl flex items-center justify-center group-hover:border-emerald-500/20 transition-all duration-500"
+                      >
+                        {/* Unified Dot Pattern Background - FULL COVERAGE */}
+                        <div
+                          className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                          style={{
+                            backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                            backgroundSize: '24px 24px'
+                          }}
+                        />
+
+                        {/* Inner Container for Drawing - Full Size, No Padding on Container */}
+                        <div className="relative z-10 w-full h-full flex items-center justify-center">
+                          <VisualizerController
+                            category={categorySlug}
+                            slug={jobSlug}
+                            item={item}
+                            fields={fields}
+                            title={`${itemLabel} ${index + 1}`}
+                            isMagnifier={false}
+                            fitContainer={true}
+                            onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                            onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                            className="w-full h-full"
+                          />
+                        </div>
+
+                        {/* Restore: Magnifier Button */}
+                        <div className="absolute bottom-4 left-4 z-20">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="secondary"
+                                size="icon"
+                                className="h-8 w-8 bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-white transition-colors"
+                                title="Vergroten"
+                              >
+                                <Maximize2 className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[95vw] w-full h-[90vh] flex flex-col p-0 bg-[#09090b] border-white/10 overflow-hidden">
+                              <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+                                <DialogTitle className="text-lg font-medium text-zinc-200">
+                                  Technische Tekening: {itemLabel} {index + 1}
+                                </DialogTitle>
+                              </div>
+                              <div className="flex-1 w-full h-full relative bg-[#09090b]">
+                                {/* Dot Pattern for Fullscreen */}
+                                <div
+                                  className="absolute inset-0 z-0 opacity-[0.15]"
+                                  style={{
+                                    backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                                    backgroundSize: '32px 32px'
+                                  }}
+                                />
+                                <div className="relative z-10 w-full h-full p-8 flex items-center justify-center">
+                                  <VisualizerController
+                                    category={categorySlug}
+                                    slug={jobSlug}
+                                    item={item}
+                                    fields={fields}
+                                    title={`${itemLabel} ${index + 1}`}
+                                    isMagnifier={true}
+                                    fitContainer={true}
+                                    className="w-full h-full"
+                                    onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                                    onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                                  />
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+
+
+
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            ))}
+
+            {items.length === 0 && <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-3xl bg-card/20"><p className="text-muted-foreground">Geen items.</p></div>}
+          </div>
+        </form>
       </div>
 
-      {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" asChild disabled={disabledAll}>
-            <Link href={backUrl}>Terug</Link>
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={addItem}
-            disabled={disabledAll}
-            className=""
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Extra {itemLabel} toevoegen
-          </Button>
-
-          <Button
-            type="submit"
-            variant="success"
-            disabled={disabledAll}
-            onClick={handleSave}
-          >
-            {saving ? 'Opslaan...' : 'Opslaan'}
-          </Button>
+          <Button variant="outline" asChild disabled={disabledAll}><Link href={backUrl}>Terug</Link></Button>
+          <Button type="button" variant="outline" onClick={addItem} disabled={disabledAll}><PlusCircle className="mr-2 h-4 w-4" />Extra {itemLabel} toevoegen</Button>
+          <Button type="submit" variant="success" disabled={disabledAll} onClick={handleSave}>{saving ? 'Opslaan...' : 'Opslaan'}</Button>
         </div>
       </div>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={pendingDeleteIndex !== null} onOpenChange={(open) => !open && setPendingDeleteIndex(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{itemLabel} verwijderen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Weet je zeker dat je <strong>{itemLabel} {pendingDeleteIndex !== null ? pendingDeleteIndex + 1 : ''}</strong> wilt verwijderen?
-            </AlertDialogDescription>
+            <AlertDialogDescription>Weet je zeker dat je <strong>{itemLabel} {pendingDeleteIndex !== null ? pendingDeleteIndex + 1 : ''}</strong> wilt verwijderen?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel asChild onClick={() => setPendingDeleteIndex(null)}>
-              <Button variant="ghost">Annuleren</Button>
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingDeleteIndex !== null) {
-                  removeItem(pendingDeleteIndex);
-                  setPendingDeleteIndex(null);
-                }
-              }}
-              asChild
-            >
-              <Button variant="destructiveSoft">Verwijderen</Button>
-            </AlertDialogAction>
+            <AlertDialogCancel asChild onClick={() => setPendingDeleteIndex(null)}><Button variant="ghost">Annuleren</Button></AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (pendingDeleteIndex !== null) { removeItem(pendingDeleteIndex); setPendingDeleteIndex(null); } }} asChild><Button variant="destructiveSoft">Verwijderen</Button></AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1485,45 +720,19 @@ function DynamicInput({
 
       {field.type === 'textarea' ? (
         <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">
-            Optioneel. Alleen invullen bij bijzonderheden.
-          </p>
-          <Textarea
-            id={field.key}
-            placeholder={field.placeholder}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={disabled}
-            className="resize-none"
-            rows={3}
-          />
+          <p className="text-xs text-muted-foreground">Optioneel. Alleen invullen bij bijzonderheden.</p>
+          <Textarea id={field.key} placeholder={field.placeholder} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="resize-none" rows={3} />
         </div>
       ) : field.type === 'select' ? (
         <Select value={value} onValueChange={onChange} disabled={disabled}>
-          <SelectTrigger id={field.key}>
-            <SelectValue placeholder={field.placeholder || "Selecteer..."} />
-          </SelectTrigger>
+          <SelectTrigger id={field.key}><SelectValue placeholder={field.placeholder || "Selecteer..."} /></SelectTrigger>
           <SelectContent>
-            {field.options?.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
+            {field.options?.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
           </SelectContent>
         </Select>
       ) : (
-        <MeasurementInput
-          id={field.key}
-          placeholder={field.placeholder}
-          value={value}
-          onChange={(val: string | number) => onChange(val)}
-          onKeyDown={onKeyDown}
-          disabled={disabled}
-          className={field.suffix ? 'pr-10' : ''}
-        />
+        <MeasurementInput id={field.key} placeholder={field.placeholder} value={value} onChange={(val: string | number) => onChange(val)} onKeyDown={onKeyDown} disabled={disabled} className={field.suffix ? 'pr-10' : ''} />
       )}
-
-
     </div>
   );
 }

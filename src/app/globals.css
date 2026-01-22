@@ -5,37 +5,42 @@
 /* ✅ Zet font in dezelfde @layer base als de rest (netter + consistent) */
 @layer base {
   :root {
-    --background: 0 0% 13%;
-    --foreground: 0 0% 98%;
+    /* Richer, darker light mode foundation */
+    --background: 220 15% 97%;
+    --foreground: 222 47% 11%;
 
-    --card: 0 0% 15%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --popover: 0 0% 13%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 343 100% 38.2%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 158 93% 40%;
+    /* Vibrant Emerald */
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 240 4% 18%;
-    --secondary-foreground: 0 0% 90%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11.2%;
 
-    --muted: 0 0% 20%;
-    --muted-foreground: 0 0% 63.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 240 4% 20%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive-foreground: 210 40% 98%;
 
-    /* ✅ Premium groen als token (zodat Button success niet meer emerald hardcoded is) */
-    --success: 158 45% 35%;
+    /* Premium groen als token (consistent met primary) */
+    --success: 158 93% 40%;
     --success-foreground: 0 0% 98%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 12 100% 60%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 158 93% 40%;
+
+    --radius: 0.75rem;
+    /* Slightly more rounded for modern feel */
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -43,49 +48,49 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 11%;
-    --sidebar-foreground: 0 0% 80%;
-    --sidebar-primary: 343 100% 38.2%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 20%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 12 100% 60%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 0 0% 13%;
+    /* Pure Neutral / Zinc text for less 'purple' feel */
+    --background: 0 0% 9%;
+    /* Deep neutral black/gray */
     --foreground: 0 0% 98%;
 
-    --card: 0 0% 15%;
+    --card: 0 0% 11%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 13%;
+    --popover: 0 0% 9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 343 100% 38.2%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 158 93% 40%;
+    --primary-foreground: 0 0% 9%;
 
-    --secondary: 240 4% 18%;
-    --secondary-foreground: 0 0% 90%;
+    --secondary: 240 5% 15%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 20%;
-    --muted-foreground: 0 0% 63.9%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
 
-    --accent: 240 4% 20%;
+    --accent: 240 5% 15%;
     --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --success: 158 45% 35%;
+    --success: 158 93% 40%;
     --success-foreground: 0 0% 98%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 158 45% 35%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 158 93% 40%;
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -93,14 +98,14 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 0 0% 11%;
-    --sidebar-foreground: 0 0% 80%;
-    --sidebar-primary: 343 100% 38.2%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 20%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 12 100% 60%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   * {
@@ -108,12 +113,23 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: Arial, Helvetica, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
 @layer utilities {
+  .glass {
+    @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-lg;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer utilities {
+
   /* Hide arrows from number inputs */
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button {
@@ -123,6 +139,7 @@
 
   input[type="number"] {
     -moz-appearance: textfield;
-    appearance: textfield; /* ✅ helpt ook buiten firefox */
+    appearance: textfield;
+    /* ✅ helpt ook buiten firefox */
   }
 }

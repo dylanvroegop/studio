@@ -62,14 +62,10 @@ export default function QuoteClientPage({ params }: { params: { id: string } }) 
         }
       `}</style>
 
-            {/* ambience */}
+            {/* ambience - cleaner, less busy */}
             <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
                 <div className="absolute inset-0 bg-background" />
-                <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/10 to-background" />
-                <div className="absolute left-1/2 top-[-340px] h-[920px] w-[920px] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-                <div className="absolute left-[-460px] top-[220px] h-[760px] w-[760px] rounded-full bg-muted/20 blur-3xl" />
-                <div className="absolute right-[-520px] top-[420px] h-[820px] w-[820px] rounded-full bg-muted/15 blur-3xl" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.05),transparent_60%)] opacity-70" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/10 via-background to-background" />
             </div>
 
             <WizardHeader
@@ -79,10 +75,10 @@ export default function QuoteClientPage({ params }: { params: { id: string } }) 
             />
 
             {/* Content */}
-            <div className="px-4 py-6 sm:px-6 sm:py-8">
-                <div className="mx-auto w-full max-w-5xl">
-                    <div className="rounded-3xl border bg-card/55 shadow-sm backdrop-blur-xl">
-                        <div className="oh-cta-green p-5 sm:p-6">
+            <div className="px-4 py-8 sm:px-6 md:py-12">
+                <div className="mx-auto w-full max-w-4xl">
+                    <div className="rounded-2xl border border-white/5 bg-card/40 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="oh-cta-green p-6 sm:p-10">
                             <NewQuoteForm quoteId={params.id} />
                         </div>
                     </div>

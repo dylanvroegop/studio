@@ -250,14 +250,14 @@ export default function NewJobPage() {
       />
 
       {/* STICKY SEARCH */}
-      <div className="bg-background pt-4 pb-3 px-4 max-w-5xl mx-auto w-full">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-md pt-4 pb-4 px-4 border-b border-border/40">
+        <div className="max-w-5xl mx-auto w-full relative">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={zoekterm}
             onChange={(e) => setZoekterm(e.target.value)}
-            placeholder="Zoek (bijv. dak, wand, kozijn, isolatie)…"
-            className="w-full h-11 rounded-xl border bg-secondary/30 px-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/20 transition-all"
+            placeholder="Zoek een klus (bijv. dak, wand, kozijn)..."
+            className="w-full h-12 rounded-2xl border border-input bg-secondary/50 px-11 text-sm shadow-sm transition-all focus:bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50"
           />
         </div>
       </div>
@@ -343,6 +343,10 @@ export default function NewJobPage() {
   CARD COMPONENT
 --------------------------------------------- */
 
+/* ---------------------------------------------
+  CARD COMPONENT
+--------------------------------------------- */
+
 function KlusCard({
   quoteId,
   category,
@@ -363,12 +367,12 @@ function KlusCard({
   return (
     <div
       className={cn(
-        'relative flex items-center justify-between h-full rounded-xl border bg-card transition-all duration-200 overflow-hidden',
-        'hover:border-emerald-600/50 hover:bg-secondary/20',
-        'active:scale-[0.98]',
+        'group relative flex items-center justify-between h-full rounded-2xl border border-white/5 bg-card/40 transition-all duration-300 overflow-hidden backdrop-blur-sm',
+        'hover:border-emerald-500/30 hover:bg-card/60 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1',
+        'active:scale-[0.98] active:duration-100',
         disabled && 'opacity-60 pointer-events-none',
-        'p-3 sm:p-4',
-        'min-h-[64px] sm:min-h-[76px]'
+        'p-0', // Inner padding handled by children for precise star zone
+        'min-h-[80px]'
       )}
     >
       {/* ⭐ STAR ZONE */}
@@ -380,16 +384,16 @@ function KlusCard({
           onToggleFav(category.name);
         }}
         className={cn(
-          'absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center',
-          'hover:bg-secondary/30 active:bg-secondary/40',
+          'absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center border-r border-white/5 transition-colors',
+          'hover:bg-white/5 active:bg-white/10',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/25'
         )}
         style={{ width: STAR_ZONE_W }}
       >
         <Star
           className={cn(
-            'h-4 w-4 transition-colors',
-            isFav ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/35'
+            'h-4 w-4 transition-all duration-300',
+            isFav ? 'fill-amber-400 text-amber-400 scale-110' : 'text-muted-foreground/30 group-hover:text-muted-foreground/50'
           )}
         />
       </button>
@@ -405,20 +409,21 @@ function KlusCard({
       />
 
       {/* CONTENT */}
-      <div className="relative z-0 flex items-center justify-between w-full pointer-events-none">
-        <div
-          className="flex flex-col min-w-0 pr-2"
-          style={{ paddingLeft: STAR_ZONE_W }}
-        >
-          <span className="text-[15px] font-medium text-foreground leading-tight">
+      <div className="relative z-0 flex items-center justify-between w-full pointer-events-none pl-4 pr-4 py-4"
+        style={{ paddingLeft: STAR_ZONE_W + 16 }}
+      >
+        <div className="flex flex-col min-w-0 pr-2">
+          <span className="text-[15px] font-semibold text-zinc-100 leading-tight group-hover:text-white transition-colors">
             {category.name}
           </span>
-          <span className="text-xs text-muted-foreground/85 mt-1 line-clamp-1 leading-snug">
+          <span className="text-xs text-zinc-500 mt-1 line-clamp-1 leading-snug group-hover:text-zinc-400 transition-colors">
             {category.description}
           </span>
         </div>
 
-        <ChevronRight className="h-5 w-5 text-muted-foreground/30 transition-colors shrink-0" />
+        <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/10 group-hover:text-emerald-400 transition-all">
+          <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-emerald-400 transition-colors shrink-0" />
+        </div>
       </div>
     </div>
   );

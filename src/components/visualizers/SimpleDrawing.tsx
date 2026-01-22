@@ -51,8 +51,19 @@ export function SimpleDrawing({ item, type = 'box', mode, className, fitContaine
     if (currentMode === 'linear') gridLabel = 'Lineair / Profiel';
     if (currentMode === 'object') gridLabel = 'Object / Element';
 
+    // Calculate Area
+    const areaStats = React.useMemo(() => {
+        const areaMm2 = drawingWidth * drawingHeight;
+        return {
+            gross: areaMm2,
+            net: areaMm2,
+            hasOpenings: false
+        };
+    }, [drawingWidth, drawingHeight]);
+
     return (
         <BaseDrawingFrame
+            areaStats={areaStats}
             width={drawingWidth}
             height={drawingHeight}
             primarySpacing={balkafstand}
