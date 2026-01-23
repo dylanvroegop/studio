@@ -343,148 +343,229 @@ export default function GenericMeasurementPage() {
                   </div>
                 </div>
 
-                <div className="p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
 
-                  {/* LEFT COLUMN: Inputs & Configuration (5 Cols) */}
-                  <div className="lg:col-span-12 xl:col-span-5 space-y-8">
+                <div className="p-6 sm:p-8 space-y-6">
 
-                    {/* 1. Main Dimensions */}
-                    <div className="space-y-4">
-                      {(() => {
-                        const shape = item.shape || 'rectangle';
+                  {/* 1. Main Dimensions Row - AT THE TOP */}
+                  <div className="space-y-4">
+                    {(() => {
+                      const shape = item.shape || 'rectangle';
 
-                        if (shape === 'l-shape') {
-                          const updateL = (key: 'lengte1' | 'lengte2', val: string) => {
-                            const numVal = parseFloat(val) || 0;
-                            const otherKey = key === 'lengte1' ? 'lengte2' : 'lengte1';
-                            const otherVal = parseFloat(item[otherKey]) || 0;
-                            setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: numVal + otherVal } : it));
-                          };
-                          return (
-                            <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                              <div className="space-y-4">
-                                <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
-                              </div>
-                              <div className="space-y-4">
-                                <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        if (shape === 'u-shape') {
-                          const updateU = (key: 'lengte1' | 'lengte2' | 'lengte3', val: string) => {
-                            const numVal = parseFloat(val) || 0;
-                            const l1 = key === 'lengte1' ? numVal : (parseFloat(item.lengte1) || 0);
-                            const l2 = key === 'lengte2' ? numVal : (parseFloat(item.lengte2) || 0);
-                            const l3 = key === 'lengte3' ? numVal : (parseFloat(item.lengte3) || 0);
-                            setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: l1 + l2 + l3 } : it));
-                          };
-                          return (
-                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="space-y-2"><Label className="text-xs">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
-                                <div className="space-y-2"><Label className="text-xs">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
-                                <div className="space-y-2"><Label className="text-xs">Deel 3</Label><MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} /><MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} /></div>
-                              </div>
-                            </div>
-                          );
-                        }
-
+                      if (shape === 'l-shape') {
+                        const updateL = (key: 'lengte1' | 'lengte2', val: string) => {
+                          const numVal = parseFloat(val) || 0;
+                          const otherKey = key === 'lengte1' ? 'lengte2' : 'lengte1';
+                          const otherVal = parseFloat(item[otherKey]) || 0;
+                          setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: numVal + otherVal } : it));
+                        };
                         return (
-                          <div className="space-y-4">
-                            {fields.find(f => f.key === 'lengte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
-                            <div className="grid grid-cols-2 gap-4">
-                              {shape === 'slope' && (
-                                <><div className="space-y-2"><Label>H. Links</Label><MeasurementInput value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
-                                  <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div></>
-                              )}
-                              {shape === 'gable' && (
-                                <><div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
-                                  <div className="space-y-2"><Label>H. Nok</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div></>
-                              )}
-                              {shape === 'rectangle' && fields.find(f => f.key === 'hoogte' || f.key === 'breedte') && (
-                                <DynamicInput field={fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!} value={item.hoogte || item.breedte} onChange={v => updateItem(index, fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                              )}
+                          <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                            <div className="space-y-4">
+                              <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
+                            </div>
+                            <div className="space-y-4">
+                              <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
                             </div>
                           </div>
                         );
-                      })()}
-                    </div>
+                      }
 
-                    {/* 2. Secondary Fields (Material properties etc) */}
-                    <div className="pt-4 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
-                        <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                      ))}
-                    </div>
-
-                    {/* 3. Balken & Latten Configuration (RESTORED LOGIC) */}
-                    {(fields.some(f => f.key === 'balkafstand') || fields.some(f => f.key === 'latafstand')) && (
-                      <div className="pt-6 border-t border-white/5 space-y-6">
-                        {/* Balken */}
-                        {fields.find(f => f.key === 'balkafstand') && (
-                          <div className="space-y-3 p-4 rounded-xl bg-white/5 border border-white/5">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Balken Structuur</h4>
-                            <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Start</Label>
-                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                  <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Links</button>
-                                  <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Rechts</button>
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Opties</Label>
-                                <div className="flex flex-col gap-2">
-                                  <div className="flex items-center justify-between text-xs text-zinc-400">
-                                    <span>Dubbele Eindbalk</span>
-                                    <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
-                                  </div>
-                                  <div className="flex items-center justify-between text-xs text-zinc-400">
-                                    <span>Kader (Rondom)</span>
-                                    <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
-                                  </div>
-                                </div>
-                              </div>
+                      if (shape === 'u-shape') {
+                        const updateU = (key: 'lengte1' | 'lengte2' | 'lengte3', val: string) => {
+                          const numVal = parseFloat(val) || 0;
+                          const l1 = key === 'lengte1' ? numVal : (parseFloat(item.lengte1) || 0);
+                          const l2 = key === 'lengte2' ? numVal : (parseFloat(item.lengte2) || 0);
+                          const l3 = key === 'lengte3' ? numVal : (parseFloat(item.lengte3) || 0);
+                          setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: l1 + l2 + l3 } : it));
+                        };
+                        return (
+                          <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-2"><Label className="text-xs">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
+                              <div className="space-y-2"><Label className="text-xs">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
+                              <div className="space-y-2"><Label className="text-xs">Deel 3</Label><MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} /><MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} /></div>
                             </div>
                           </div>
-                        )}
+                        );
+                      }
 
-                        {/* Latten */}
-                        {fields.find(f => f.key === 'latafstand') && (
-                          <div className="space-y-3 p-4 rounded-xl bg-white/5 border border-white/5">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Latten Structuur</h4>
-                            <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                      // Default: Rectangle, Slope, Gable - show main dimensions in a row
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          {fields.find(f => f.key === 'lengte') && (
+                            <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          )}
+                          {shape === 'slope' && (
+                            <>
+                              <div className="space-y-2"><Label>H. Links</Label><MeasurementInput value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
+                              <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div>
+                            </>
+                          )}
+                          {shape === 'gable' && (
+                            <>
+                              <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
+                              <div className="space-y-2"><Label>H. Nok</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
+                            </>
+                          )}
+                          {shape === 'rectangle' && fields.find(f => f.key === 'hoogte' || f.key === 'breedte') && (
+                            <DynamicInput field={fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!} value={item.hoogte || item.breedte} onChange={v => updateItem(index, fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Start</Label>
-                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Boven</button>
-                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Onder</button>
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Opties</Label>
-                                <div className="flex items-center justify-between text-xs text-zinc-400 mt-2">
-                                  <span>Dubbele Eindlat</span>
-                                  <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
-                                </div>
-                              </div>
+                  {/* 2. FULL-WIDTH DRAWING */}
+                  <div
+                    ref={(el) => { visualizerRefs.current[index] = el; }}
+                    className="relative aspect-[4/3] w-full min-h-[350px] rounded-2xl border border-white/10 bg-[#09090b] overflow-hidden shadow-2xl flex items-center justify-center group-hover:border-emerald-500/20 transition-all duration-500"
+                  >
+                    {/* Dot Pattern Background */}
+                    <div
+                      className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                      style={{
+                        backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                        backgroundSize: '24px 24px'
+                      }}
+                    />
+
+                    {/* Drawing */}
+                    <div className="relative z-10 w-full h-full flex items-center justify-center">
+                      <VisualizerController
+                        category={categorySlug}
+                        slug={jobSlug}
+                        item={item}
+                        fields={fields}
+                        title={`${itemLabel} ${index + 1}`}
+                        isMagnifier={false}
+                        fitContainer={true}
+                        onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                        onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                        className="w-full h-full"
+                      />
+                    </div>
+
+                    {/* Magnifier Button */}
+                    <div className="absolute bottom-4 left-4 z-20">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8 bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-white transition-colors"
+                            title="Vergroten"
+                          >
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-[95vw] w-full h-[90vh] flex flex-col p-0 bg-[#09090b] border-white/10 overflow-hidden">
+                          <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+                            <DialogTitle className="text-lg font-medium text-zinc-200">
+                              Technische Tekening: {itemLabel} {index + 1}
+                            </DialogTitle>
+                          </div>
+                          <div className="flex-1 w-full h-full relative bg-[#09090b]">
+                            <div
+                              className="absolute inset-0 z-0 opacity-[0.15]"
+                              style={{
+                                backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                                backgroundSize: '32px 32px'
+                              }}
+                            />
+                            <div className="relative z-10 w-full h-full p-8 flex items-center justify-center">
+                              <VisualizerController
+                                category={categorySlug}
+                                slug={jobSlug}
+                                item={item}
+                                fields={fields}
+                                title={`${itemLabel} ${index + 1}`}
+                                isMagnifier={true}
+                                fitContainer={true}
+                                className="w-full h-full"
+                                onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                                onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                              />
                             </div>
                           </div>
-                        )}
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+
+                  {/* 3. Configuration Sections - BELOW THE DRAWING */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    {/* Secondary Fields (Material properties etc) */}
+                    {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).length > 0 && (
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra Afmetingen</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
+                            <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {/* 4. OPENINGS SECTION (RESTORED LOGIC) */}
+                    {/* Balken Configuration */}
+                    {fields.find(f => f.key === 'balkafstand') && (
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Balken Structuur</h4>
+                        <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Start</Label>
+                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                              <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Links</button>
+                              <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Rechts</button>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Opties</Label>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>Dubbele Eindbalk</span>
+                                <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>Kader (Rondom)</span>
+                                <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Latten Configuration */}
+                    {fields.find(f => f.key === 'latafstand') && (
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Latten Structuur</h4>
+                        <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Start</Label>
+                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                              <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Boven</button>
+                              <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Onder</button>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Opties</Label>
+                            <div className="flex items-center justify-between text-xs text-zinc-400 mt-2">
+                              <span>Dubbele Eindlat</span>
+                              <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Openings Section */}
                     {showOpeningsSection && (
-                      <div className="pt-6 border-t border-white/5 space-y-4">
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4 md:col-span-2">
                         <div className="flex items-center justify-between">
                           <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                             <CornerDownRight className="h-3 w-3" /> Openingen & Sparingen
@@ -505,8 +586,8 @@ export default function GenericMeasurementPage() {
                                 </Button>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="col-span-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                <div className="col-span-2 sm:col-span-1">
                                   <select
                                     className="flex h-9 w-full rounded-md border border-white/10 bg-zinc-900/50 px-3 py-1 text-sm transition-colors focus:border-emerald-500/50 outline-none"
                                     value={op.type}
@@ -563,109 +644,18 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
-                    {/* 5. Text Area (Opmerkingen) */}
+                    {/* Text Area (Opmerkingen) */}
                     {fields.filter(f => f.type === 'textarea').map(f => (
-                      <div key={f.key} className="pt-4 border-t border-white/5">
+                      <div key={f.key} className="p-4 rounded-xl bg-white/5 border border-white/5 md:col-span-2">
                         <DynamicInput field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} className="w-full" />
                       </div>
                     ))}
                   </div>
 
-
-                  {/* RIGHT COLUMN: Visualizer (7 Cols) */}
-                  <div className="lg:col-span-12 xl:col-span-7">
-                    <div className="xl:sticky xl:top-24 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                          <Maximize2 className="h-3 w-3" /> Live Tekening
-                        </h4>
-                      </div>
-
-                      <div
-                        ref={(el) => { visualizerRefs.current[index] = el; }}
-                        className="relative aspect-video w-full rounded-2xl border border-white/10 bg-[#09090b] overflow-hidden shadow-2xl flex items-center justify-center group-hover:border-emerald-500/20 transition-all duration-500"
-                      >
-                        {/* Unified Dot Pattern Background - FULL COVERAGE */}
-                        <div
-                          className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
-                          style={{
-                            backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                            backgroundSize: '24px 24px'
-                          }}
-                        />
-
-                        {/* Inner Container for Drawing - Full Size, No Padding on Container */}
-                        <div className="relative z-10 w-full h-full flex items-center justify-center">
-                          <VisualizerController
-                            category={categorySlug}
-                            slug={jobSlug}
-                            item={item}
-                            fields={fields}
-                            title={`${itemLabel} ${index + 1}`}
-                            isMagnifier={false}
-                            fitContainer={true}
-                            onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                            onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                            className="w-full h-full"
-                          />
-                        </div>
-
-                        {/* Restore: Magnifier Button */}
-                        <div className="absolute bottom-4 left-4 z-20">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="secondary"
-                                size="icon"
-                                className="h-8 w-8 bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-white transition-colors"
-                                title="Vergroten"
-                              >
-                                <Maximize2 className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-[95vw] w-full h-[90vh] flex flex-col p-0 bg-[#09090b] border-white/10 overflow-hidden">
-                              <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
-                                <DialogTitle className="text-lg font-medium text-zinc-200">
-                                  Technische Tekening: {itemLabel} {index + 1}
-                                </DialogTitle>
-                              </div>
-                              <div className="flex-1 w-full h-full relative bg-[#09090b]">
-                                {/* Dot Pattern for Fullscreen */}
-                                <div
-                                  className="absolute inset-0 z-0 opacity-[0.15]"
-                                  style={{
-                                    backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                                    backgroundSize: '32px 32px'
-                                  }}
-                                />
-                                <div className="relative z-10 w-full h-full p-8 flex items-center justify-center">
-                                  <VisualizerController
-                                    category={categorySlug}
-                                    slug={jobSlug}
-                                    item={item}
-                                    fields={fields}
-                                    title={`${itemLabel} ${index + 1}`}
-                                    isMagnifier={true}
-                                    fitContainer={true}
-                                    className="w-full h-full"
-                                    onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                                    onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                                  />
-                                </div>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-
-
-
-                      </div>
-                    </div>
-                  </div>
-
                 </div>
               </div>
             ))}
+
 
             {items.length === 0 && <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-3xl bg-card/20"><p className="text-muted-foreground">Geen items.</p></div>}
           </div>

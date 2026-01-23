@@ -130,10 +130,11 @@ export default function GenericSubCategoryPage() {
               : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
           await updateDoc(quoteRef, {
-            [`klussen.${nieuweKlusId}.klusomschrijving`]: {
+            [`klussen.${nieuweKlusId}.meta`]: {
               title: item.title,
-              type: categorySlug, // ✅ Dynamic Type
+              type: categorySlug, // Category slug
               description: item.description,
+              slug: item.slug // Job slug
             },
           });
 

@@ -210,10 +210,11 @@ export default function NewJobPage() {
                 : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
             await updateDoc(quoteRef, {
-              [`klussen.${nieuweKlusId}.klusomschrijving`]: {
+              [`klussen.${nieuweKlusId}.meta`]: {
                 title: singleItem.title,
-                type: category.slug,
+                type: category.slug, // Category slug (e.g. 'wanden')
                 description: singleItem.description,
+                slug: singleItem.slug // Job slug (e.g. 'hsb-voorzetwand')
               },
             });
 

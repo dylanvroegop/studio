@@ -24,7 +24,7 @@ const buttonVariants = cva(
 
         // volgende / opslaan
         success:
-          "border border-success/50 bg-success/15 text-success-foreground hover:bg-success/25 hover:border-success/65 focus-visible:ring-success focus-visible:ring-offset-0",
+          "bg-success text-success-foreground hover:bg-success/90 shadow-lg shadow-success/20",
 
         successGhost:
           "border border-input bg-transparent text-foreground " +

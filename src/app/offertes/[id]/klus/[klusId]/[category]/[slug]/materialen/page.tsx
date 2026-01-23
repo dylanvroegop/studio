@@ -113,9 +113,17 @@ function sanitizeNlMoneyInput(raw: string): string {
   return `${withDots},${decPartRaw || ''}`;
 }
 
-function parseNLMoneyToNumber(raw: string): number | null {
-  if (!raw) return null;
-  let s = raw.replace(/\s/g, '').replace('€', '');
+function parseNLMoneyToNumber(raw: string | number | null | undefined): number | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  // If raw is already a number, return it
+  if (typeof raw === 'number') return raw;
+
+  // Handle "9.3 p/m2" format - extract the first number
+  const stringVal = String(raw);
+  const match = stringVal.match(/^([\d.,]+)/);
+  if (!match) return null;
+
+  let s = match[1].replace(/\s/g, '').replace('€', '');
   const hasDot = s.includes('.');
   const hasComma = s.includes(',');
   if (hasDot && hasComma) {
@@ -224,10 +232,10 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
     if (!groupId || !title) return;
 
     const material = (group?.materials?.[0] as any);
-    const rowId = material?.id || material?.row_id || null;
+    const rowId = material?.id || material?.row_id || null; // Kept for logic, but will be stripped on save if needed
 
     out[groupId] = {
-      // If we have a material, save its details. If not, save null/empty
+      // We keep rowId here to allow the helper to work, but the save logic dictates what goes to firestore
       id: rowId ? String(rowId) : null,
       materiaalnaam: material?.materiaalnaam || '',
       prijs: typeof material?.prijs === 'number' ? material.prijs : 0,
@@ -243,7 +251,7 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
 // ==================================
 // STYLING CONSTANTS
 // ==================================
-const POSITIVE_BTN_SOFT = 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 hover:border-emerald-500/65 focus-visible:ring-emerald-500 focus-visible:ring-offset-0';
+const POSITIVE_BTN_SOFT = 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20';
 const DESTRUCTIVE_BTN_SOFT = 'border border-red-500/50 bg-red-500/15 text-red-100 hover:bg-red-500/25 hover:border-red-500/65 focus-visible:ring-red-500 focus-visible:ring-offset-0';
 const SELECT_ITEM_GREEN = 'text-foreground focus:bg-emerald-600/15 focus:text-foreground data-[highlighted]:bg-emerald-600/15 data-[highlighted]:text-foreground data-[state=checked]:bg-emerald-600/15 data-[state=checked]:text-foreground';
 const TERUG_HOVER_RED = 'hover:bg-destructive hover:text-destructive-foreground hover:border-destructive focus-visible:ring-destructive';
@@ -738,6 +746,7 @@ export default function GenericMaterialsPageRedesigned() {
         const data = snap.data();
         const klusNode = data?.klussen?.[klusId];
 
+
         if (klusNode) setKlus(klusNode as unknown as Job);
 
         if (klusNode?.components && Array.isArray(klusNode.components)) {
@@ -746,27 +755,59 @@ export default function GenericMaterialsPageRedesigned() {
 
         if (klusNode?.materialen) {
           const mat = klusNode.materialen;
-          const rawSels = mat.selections || {};
-          setGekozenMaterialen(rawSels);
+          // Prefer new structure 'materialen_lijst'
+          const materialenLijst = mat.materialen_lijst || {};
 
-          // Legacy migration: merge extraMaterials into custommateriaal if needed
-          let mergedCustom = mat.custommateriaal || {};
-          const legacyExtra = mat.extraMaterials || [];
-          if (Array.isArray(legacyExtra) && legacyExtra.length > 0) {
-            const hasExisting = Object.keys(mergedCustom).length > 0;
-            legacyExtra.forEach((m: any, idx: number) => {
-              if (m && m.id) {
-                // Create a pseudo-group for each legacy item
-                const gid = `legacy_migrated_${m.id}_${idx}_${Date.now()}`;
-                mergedCustom[gid] = {
+          // Separate standard selections from custom groups based on known section keys vs arbitrary keys
+          // We can use the fact that custom groups usually have 'title' and 'order' saved, while standard ones don't (or don't need them)
+          // OR simply: use the active sections logic to pick out standard ones.
+
+          const newGekozen: Record<string, any> = {};
+          const newCustomGroupsMap: Record<string, any> = {};
+
+          // Helper to identify standard keys
+          // We'll trust that standard keys are specific slugs (not uuids). 
+          // But to be robust, let's look at the structure.
+          // Custom items we saved have { title, order, ... }
+          // Standard items { materiaalnaam, ... }
+
+          // Fallback to old 'selections' and 'custommateriaal' if 'materialen_lijst' is empty/missing
+          // (Legacy support for existing quotes)
+          if (Object.keys(materialenLijst).length === 0 && (mat.selections || mat.custommateriaal)) {
+            Object.assign(newGekozen, mat.selections || {});
+            Object.assign(newCustomGroupsMap, mat.custommateriaal || {});
+
+            // Legacy legacy support
+            const legacyExtra = mat.extraMaterials || [];
+            if (Array.isArray(legacyExtra) && legacyExtra.length > 0) {
+              legacyExtra.forEach((m: any, idx: number) => {
+                const gid = `legacy_${m.id}_${idx}`;
+                newCustomGroupsMap[gid] = {
                   id: m.id,
-                  title: m.materiaalnaam || m.naam || 'Extra materiaal',
-                  order: (hasExisting ? 2000 : 0) + idx
+                  title: m.materiaalnaam || 'Extra',
+                  order: 9000 + idx
                 };
+              });
+            }
+          } else {
+            // New structure distribution
+            Object.entries(materialenLijst).forEach(([key, val]: [string, any]) => {
+              // If it has a 'title' (Group title) and isn't just a material title, it's likely a custom group
+              // Standard selections don't need 'title' saved (we know the section label).
+              // Custom selections save 'title' as the Name of the group.
+              // ALSO: Standard keys match the section slugs. Custom keys are UUIDs.
+              // Let's assume keys starting with 'custom_' or being UUIDs are custom? 
+              // Or simply check for 'order' property which we save for custom groups but not standard.
+              if (val.order !== undefined || val.title) {
+                newCustomGroupsMap[key] = val;
+              } else {
+                newGekozen[key] = val;
               }
             });
           }
-          setFirestoreCustommateriaal(mergedCustom);
+
+          setGekozenMaterialen(newGekozen);
+          setFirestoreCustommateriaal(newCustomGroupsMap);
           hasSavedConfigRef.current = true;
         }
         if (klusNode?.werkwijze?.workMethodId) setGekozenPresetId(klusNode.werkwijze.workMethodId);
@@ -788,6 +829,8 @@ export default function GenericMaterialsPageRedesigned() {
       let changed = false;
       Object.keys(prev).forEach(k => {
         const val = prev[k];
+        // Only try to link back if we have an ID.
+        // If we don't have an ID (new clean format), we just use the preserved values.
         if (val && val.id && !val.materiaalnaam) {
           const found = alleMaterialen.find(m => m.id === val.id);
           if (found) { next[k] = found; changed = true; }
@@ -1145,59 +1188,83 @@ export default function GenericMaterialsPageRedesigned() {
     else setIsAutosaving(true);
 
     try {
-      // Save full material objects with id, materiaalnaam, prijs, and eenheid
-      // Save full material objects with id, materiaalnaam, prijs, and eenheid
-      const cleanSelections: Record<string, { id: string; materiaalnaam: string; prijs: number; prijs_per_stuk?: number; eenheid: string }> = {};
+      // CLEANER SAVE STRUCTURE as requested:
+      // 1. All materials in 'materialen_lijst' including custom ones.
+      // 2. No flattening of components (they have their own list).
+      // 3. No ID saved (supabase row_id).
 
-      // 1. Add Main Selections (Filter out old component_ keys to avoid staleness)
+      const materialenLijst: Record<string, any> = {};
+
+      // 1. Standard Selections
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
-        if (k.startsWith('component_')) return; // Skip old component keys
-        if (v?.id) {
-          cleanSelections[k] = {
-            id: v.id,
+        if (k.startsWith('component_')) return; // Ignore legacy flat components
+        if (v) {
+          materialenLijst[k] = {
+            // No ID
             materiaalnaam: v.materiaalnaam || '',
-            prijs: typeof v.prijs === 'number' ? v.prijs : 0,
+            prijs: v.eenheid ? `${typeof v.prijs === 'number' ? v.prijs : 0} ${v.eenheid}` : (typeof v.prijs === 'number' ? v.prijs : 0),
             prijs_per_stuk: typeof v.prijs_per_stuk === 'number' ? v.prijs_per_stuk : 0,
-            eenheid: v.eenheid || ''
+            // eenheid: v.eenheid || '' // Removed per request
           };
         }
       });
 
-      // 2. Add Component Materials (Flattened into selections for N8N)
-      // This ensures that "Extra Components" (Kozijnen, Vensterbanken) are included in the main material list
-      // which N8N uses for calculations.
-      components.forEach((comp) => {
-        if (comp.materials && Array.isArray(comp.materials)) {
-          comp.materials.forEach((mItem: any) => {
-            if (mItem.material && mItem.material.id) {
-              // Create a unique key for this component's material
-              const compKey = `component_${comp.id}_${mItem.sectionKey}`;
-              cleanSelections[compKey] = {
-                id: mItem.material.id,
-                materiaalnaam: mItem.material.materiaalnaam || '',
-                prijs: typeof mItem.material.prijs === 'number' ? mItem.material.prijs : 0,
-                prijs_per_stuk: typeof mItem.material.prijs_per_stuk === 'number' ? mItem.material.prijs_per_stuk : 0,
-                eenheid: mItem.material.eenheid || ''
-              };
-            }
-          });
-        }
+      // 2. Custom Groups (Merged into materialen_lijst)
+      // We use the bouwCustommateriaalMapUitCustomGroups helper, but need to strip IDs
+      // and ensure we keep 'title' and 'order' for reconstruction
+      const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
+      Object.entries(customMap).forEach(([gid, cm]: [string, any]) => {
+        materialenLijst[gid] = {
+          // No ID
+          materiaalnaam: cm.materiaalnaam || '',
+          prijs: cm.eenheid ? `${typeof cm.prijs === 'number' ? cm.prijs : 0} ${cm.eenheid}` : (typeof cm.prijs === 'number' ? cm.prijs : 0),
+          prijs_per_stuk: typeof cm.prijs_per_stuk === 'number' ? cm.prijs_per_stuk : 0,
+          // eenheid: cm.eenheid || '', // Removed per request
+          title: cm.title, // Keep title for group reconstruction
+          order: cm.order  // Keep order
+        };
       });
 
-      const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
-
       const updatePayload: any = {
-        // Use dot notation for materialen subfields to allow deleteField() to work
-        [`klussen.${klusId}.components`]: JSON.parse(JSON.stringify(components)),
+        // Deep clean components to remove metadata like 'aangemaakt_op', 'gebruikerid', etc.
+        [`klussen.${klusId}.components`]: JSON.parse(JSON.stringify(components.map(c => ({
+          ...c,
+          materials: (c.materials || []).map((m: any) => {
+            // Keep structure but clean the inner 'material' object
+            if (!m.material) return m;
+
+            // Format price: "9.3 p/m2"
+            const rawPrice = typeof m.material.prijs === 'number' ? m.material.prijs : 0;
+            const unit = m.material.eenheid || '';
+            const formattedPrice = unit ? `${rawPrice} ${unit}` : rawPrice; // Use rawPrice number if no unit, or string if unit exists? User wants "9.3 p/m2" which is a string.
+
+            return {
+              sectionKey: m.sectionKey,
+              material: {
+                materiaalnaam: m.material.materiaalnaam || '',
+                prijs: formattedPrice,
+                // We keep 'prijs_per_stuk' just in case, but cleaned
+                prijs_per_stuk: m.material.prijs_per_stuk || 0,
+                // We remove id, row_id, etc.
+              }
+            };
+          })
+        })))),
         [`klussen.${klusId}.materialen.jobKey`]: JOB_KEY,
-        [`klussen.${klusId}.materialen.selections`]: JSON.parse(JSON.stringify(cleanSelections)),
-        [`klussen.${klusId}.materialen.custommateriaal`]: JSON.parse(JSON.stringify(customMap)),
+
+        // The new clean list
+        [`klussen.${klusId}.materialen.materialen_lijst`]: JSON.parse(JSON.stringify(materialenLijst)),
+
         [`klussen.${klusId}.materialen.savedByUid`]: user.uid,
-        // Delete legacy field at top level (required by Firestore)
+
+        // CLEANUP: Removing old dirty fields
+        [`klussen.${klusId}.materialen.selections`]: deleteField(),
+        [`klussen.${klusId}.materialen.custommateriaal`]: deleteField(),
         [`klussen.${klusId}.materialen.extraMaterials`]: deleteField(),
+
         [`klussen.${klusId}.werkwijze`]: JSON.parse(JSON.stringify({
           workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
-          presetLabel: presets.find(p => p.id === gekozenPresetId)?.name || null,
+          // presetLabel removed to prevent AI confusion (Solution 1)
           savedByUid: user.uid
         })),
         [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
@@ -1208,7 +1275,13 @@ export default function GenericMaterialsPageRedesigned() {
       if (kleinMateriaalConfig.mode === 'none') {
         updatePayload[`klussen.${klusId}.kleinMateriaal`] = deleteField();
       } else {
-        updatePayload[`klussen.${klusId}.kleinMateriaal`] = kleinMateriaalConfig;
+        const cleanKlein: any = { mode: kleinMateriaalConfig.mode };
+        if (kleinMateriaalConfig.mode === 'percentage' && kleinMateriaalConfig.percentage != null) {
+          cleanKlein.percentage = kleinMateriaalConfig.percentage;
+        } else if (kleinMateriaalConfig.mode === 'fixed' && kleinMateriaalConfig.fixedAmount != null) {
+          cleanKlein.fixedAmount = kleinMateriaalConfig.fixedAmount;
+        }
+        updatePayload[`klussen.${klusId}.kleinMateriaal`] = cleanKlein;
       }
 
       await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);

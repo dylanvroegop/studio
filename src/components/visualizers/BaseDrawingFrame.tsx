@@ -58,12 +58,12 @@ export interface DrawingContext {
 
 export function calculateDrawingMetrics(width: number, height: number, fitContainer?: boolean) {
     // Increase container width slightly to accommodate right-side dimensions
-    const SVG_WIDTH = fitContainer ? 1200 : 700;
-    const SVG_HEIGHT = fitContainer ? 800 : 450;
+    const SVG_WIDTH = fitContainer ? 1200 : 900;
+    const SVG_HEIGHT = fitContainer ? 900 : 675;
 
-    // Margins - Validated for new tighter dimension offsets (Maximized View)
-    const marginX = fitContainer ? 40 : 40;
-    const marginY = fitContainer ? 40 : 40;
+    // Margins - Increased to accommodate all dimension lines
+    const marginX = fitContainer ? 120 : 120;
+    const marginY = fitContainer ? 120 : 120;
 
     // Available drawing area
     const drawW = SVG_WIDTH - (marginX * 2);
@@ -165,7 +165,7 @@ export function BaseDrawingFrame({
                     <text
                         x={x + w / 2} y={dimY + 3} textAnchor="middle" dominantBaseline="middle" fill={colors.TEXT_WHITE}
                         className="font-mono font-bold"
-                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px' }}
+                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px' }}
                     >
                         {labelW}
                     </text>
@@ -196,7 +196,7 @@ export function BaseDrawingFrame({
                                     <text
                                         textAnchor="middle" dominantBaseline="middle" fill={colors.TEXT_WHITE}
                                         className="font-mono font-bold"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px' }}
+                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px' }}
                                     >
                                         {labelH}
                                     </text>
@@ -221,7 +221,7 @@ export function BaseDrawingFrame({
                                     <text
                                         x={rightLineX + 6} y={y + h / 2 + 3} textAnchor="start" fill={colors.DIM_TOTAL}
                                         className="font-mono font-bold"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '16px' }}
+                                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px' }}
                                     >
                                         {rightHeightLabel}
                                     </text>
@@ -284,7 +284,7 @@ export function BaseDrawingFrame({
                             <text
                                 x={midX} y={dimY - 2} textAnchor="middle" fill={colors.DIM_GRID}
                                 className="font-mono select-none"
-                                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: fitContainer ? '14px' : '10px' }}
+                                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: fitContainer ? '16px' : '12px' }}
                             >
                                 {seg.val}
                             </text>

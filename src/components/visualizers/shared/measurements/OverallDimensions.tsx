@@ -18,8 +18,8 @@ export const OverallDimensions: React.FC<OverallDimensionsProps> = ({
     svgBaseX,
     svgBaseY,
     pxPerMm,
-    offsetBottom = 80,
-    offsetLeft = 80
+    offsetBottom = 100,
+    offsetLeft = 100
 }) => {
     const wallWidthPx = wallLength * pxPerMm;
     const wallHeightPx = wallHeight * pxPerMm;

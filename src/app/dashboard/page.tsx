@@ -413,9 +413,7 @@ export default function Dashboard() {
               <CardContent className="relative p-8 md:p-10">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
                   <div className="min-w-0 max-w-lg relative z-10 space-y-2">
-                    <Badge variant="outline" className="text-emerald-400 border-emerald-500/20 bg-emerald-500/10 mb-2">
-                      Aanbevolen
-                    </Badge>
+
                     <h1 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight text-white drop-shadow-sm">Nieuwe klus starten</h1>
                     <p className="text-lg text-zinc-400 max-w-md">
                       Maak direct een nieuwe calculatie. Kies een werkwijze en voeg materialen toe in enkele seconden.
