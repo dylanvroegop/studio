@@ -2,10 +2,10 @@
 
 import React, { useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
-
-import { WallOpening, DrawingData, Beam as BeamData, DimensionLine } from '@/lib/drawing-types';
+import { WallOpening, DrawingData, Beam as BeamData, DimensionLine as DimensionLineType } from '@/lib/drawing-types';
 import { OpeningLabels } from './shared/OpeningLabels';
-import { GridMeasurements, OpeningMeasurements } from './shared/measurements';
+import { GridMeasurements, OpeningMeasurements, OverallDimensions, DimensionLine } from './shared/measurements';
+import { BaseDrawingFrame } from './BaseDrawingFrame';
 
 // Helper to remove undefined values for Firestore
 const removeUndefined = (obj: any): any => {
@@ -24,10 +24,7 @@ const removeUndefined = (obj: any): any => {
     return obj;
 };
 
-export { type WallOpening }; // Re-export for compatibility if needed, or remove local interface
-
-// Remove local WallOpening interface if it conflicts, checking line 6-13
-
+export { type WallOpening };
 
 export interface WallDrawingProps {
     lengte: string | number;
@@ -101,16 +98,22 @@ export function WallDrawing({
     let l2 = 0;
     let l3 = 0;
 
-    if (shape === 'slope') {
-        hLeft = typeof hoogteLinks === 'number' ? hoogteLinks : parseFloat(String(hoogteLinks)) || 0;
-        hRight = typeof hoogteRechts === 'number' ? hoogteRechts : parseFloat(String(hoogteRechts)) || 0;
+    // Extract detailed props for shapes
+    if (shape === 'gable') {
+        const hL = typeof hoogteLinks === 'number' ? hoogteLinks : parseFloat(String(hoogteLinks)) || 0;
+        const hR = typeof hoogteRechts === 'number' ? hoogteRechts : parseFloat(String(hoogteRechts)) || 0;
+        const hN = typeof hoogteNok === 'number' ? hoogteNok : parseFloat(String(hoogteNok)) || 0;
 
-    } else if (shape === 'gable') {
-        // usually 'hoogte' is the side height (eaves)
-        hLeft = hStd;
-        hRight = hStd;
+        hLeft = hL || hStd;
+        hRight = hR || hStd;
+        hPeak = hN || hStd + 500;
+    } else if (shape === 'slope') {
+        const hL = typeof hoogteLinks === 'number' ? hoogteLinks : parseFloat(String(hoogteLinks)) || 0;
+        const hR = typeof hoogteRechts === 'number' ? hoogteRechts : parseFloat(String(hoogteRechts)) || 0;
+
+        hLeft = hL || hStd;
+        hRight = hR || hStd;
         hPeak = typeof hoogteNok === 'number' ? hoogteNok : parseFloat(String(hoogteNok)) || 0;
-
     } else if (shape === 'l-shape' || shape === 'u-shape') {
         h1 = typeof hoogte1 === 'number' ? hoogte1 : parseFloat(String(hoogte1)) || 0;
         h2 = typeof hoogte2 === 'number' ? hoogte2 : parseFloat(String(hoogte2)) || 0;
@@ -125,86 +128,44 @@ export function WallDrawing({
         hRight = shape === 'l-shape' ? h2 : h3;
     }
 
-    const lengteDisplay = lengteNum > 0 ? `${lengteNum}` : '---';
-    const hL_disp = hLeft > 0 ? `${hLeft}` : '---';
-    const hR_disp = hRight > 0 ? `${hRight}` : '---';
-    const hP_disp = hPeak > 0 ? `${hPeak}` : '---';
+    // Determine MAX Height for canvas scaling
+    const heights = [hStd, hLeft, hRight, hPeak, h1, h2, h3];
+    const maxH = Math.max(...heights);
 
-    let hoogteDisplay = hL_disp;
-    if (shape === 'slope') hoogteDisplay = `${hL_disp} / ${hR_disp}`;
-    else if (shape === 'gable') hoogteDisplay = `${hL_disp} / ${hP_disp} / ${hR_disp}`;
-    else if (shape === 'l-shape') hoogteDisplay = `${h1} / ${h2}`;
-    else if (shape === 'u-shape') hoogteDisplay = `${h1} / ${h2} / ${h3}`;
+    // Calculate effective dimensions for BaseDrawingFrame
+    let effectiveLength = lengteNum;
+    if (shape === 'l-shape') effectiveLength = l1 + l2;
+    if (shape === 'u-shape') effectiveLength = l1 + l2 + l3;
 
-    // Generate unique ID for this instance to prevent ID collisions (e.g. between small card and modal)
-    const uniqueId = React.useId().replace(/:/g, '');
-    const drawingId = `main-drawing-${uniqueId}`;
-    const clipId = `magnifier-clip-${uniqueId}`;
+    // Use maxH for height to Ensure room for highest point
+    const drawingHeight = maxH;
 
-    // Aspect Ratio & Scaling Logic
-    // If fitContainer is true (Expanded View), use a larger canvas for better detail and layout filling.
-    const SVG_WIDTH = fitContainer ? 1200 : 600;
-    const SVG_HEIGHT = fitContainer ? 800 : 450;
+    // Area Calculation (reused existing logic)
+    const areaStats = useMemo(() => {
+        const L = lengteNum;
+        let areaMm2 = L * hStd;
+        if (shape === 'slope') areaMm2 = L * ((hLeft + hRight) / 2);
+        if (shape === 'gable') areaMm2 = L * ((hLeft + hPeak) / 2);
+        if (shape === 'l-shape') areaMm2 = (l1 * h1) + ((L - l1) * h2);
+        if (shape === 'u-shape') areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
 
-    // Margins - slightly larger for expanded view to ensure text fits
-    const MARGIN_X = fitContainer ? 120 : 80;
-    const MARGIN_Y = fitContainer ? 60 : 40;
+        const openingsAreaMm2 = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
+        return {
+            gross: areaMm2,
+            net: Math.max(0, areaMm2 - openingsAreaMm2),
+            hasOpenings: openingsAreaMm2 > 0
+        };
+    }, [lengteNum, hStd, shape, hLeft, hRight, hPeak, l1, h1, h2, l2, h3, openings]);
 
-    const MAX_DRAW_WIDTH = SVG_WIDTH - (MARGIN_X * 2);
-    const MAX_DRAW_HEIGHT = SVG_HEIGHT - (MARGIN_Y * 2) - 60; // Extra buffer for bottom dims
-
-    const maxH = Math.max(hLeft, hRight, shape === 'gable' ? hPeak : 0, shape === 'l-shape' ? Math.max(h1, h2) : 0, shape === 'u-shape' ? Math.max(h1, h2, h3) : 0) || 2600;
-    const currentLen = lengteNum || 1000;
-
-    const scaleX = MAX_DRAW_WIDTH / currentLen;
-    const scaleY = MAX_DRAW_HEIGHT / maxH;
-    const pxPerMm = Math.min(scaleX, scaleY);
-
-    const drawWidth = currentLen * pxPerMm;
-    const drawHeight = maxH * pxPerMm;
-
-    const startX = (SVG_WIDTH - drawWidth) / 2;
-    const startY = (SVG_HEIGHT - drawHeight - 60) / 2; // Shift up to leave room at bottom
-
-    const Y_BOTTOM = startY + drawHeight;
-    const WALL_X = startX;
-    const WALL_WIDTH = drawWidth;
-
-    const getY = (mm: number) => Y_BOTTOM - (mm * pxPerMm);
-
-    const yLeft = getY(hLeft);
-    const yRight = getY(hRight);
-    const yPeak = getY(hPeak);
-    // Shape Ys
-    const yH1 = getY(h1);
-    const yH2 = getY(h2);
-    const yH3 = getY(h3);
-
-    // Stud width is 50mm, plates are 38mm
-    const STUD_WIDTH_MM = 50;
-    const PLATE_HEIGHT_MM = 50;
-    const studWidthPx = Math.max(1.5, STUD_WIDTH_MM * pxPerMm);
-    const PLATE_HEIGHT = Math.max(1.5, PLATE_HEIGHT_MM * pxPerMm);
-
-    // Dimension Y Levels
-    const DIM_Y_Gap = Y_BOTTOM + 25; // First row below wall (Stud Centers)
-    const DIM_Y_LENGTH = Y_BOTTOM + 50; // Second row below wall (Total Length)
-
-    // Drag Logic
+    // Internal Drag State
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
-    const dragStartRef = React.useRef<{
-        x: number;
-        y: number;
-        opId: string;
-        origLeft: number;
-        origBottom: number;
-    } | null>(null);
+    const dragStartRef = useRef<{ x: number; y: number; opId: string; origLeft: number; origBottom: number } | null>(null);
 
-    // Magnifier Logic
-    const [lensPos, setLensPos] = React.useState({ x: 0, y: 0 });
+    // Pointer Handlers
+    const metricsRef = useRef<any>(null);
 
     const handlePointerDown = (e: React.PointerEvent, op: WallOpening) => {
-        if (isMagnifier) return; // Magnifier tool active - disable drag
+        if (isMagnifier) return;
         if (!onOpeningsChange) return;
         e.preventDefault();
         e.stopPropagation();
@@ -220,54 +181,30 @@ export function WallDrawing({
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
-        // Update magnifier position
-        if (isMagnifier) {
-            const svg = (e.currentTarget as Element).closest('svg');
-            if (svg) {
-                const pt = svg.createSVGPoint();
-                pt.x = e.clientX;
-                pt.y = e.clientY;
-                // Transform to SVG coordinates
-                const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-                setLensPos({ x: svgP.x, y: svgP.y });
-            }
-        }
+        if (!draggingId || !dragStartRef.current || !onOpeningsChange || !metricsRef.current) return;
 
-        if (!draggingId || !dragStartRef.current || !onOpeningsChange) return;
+        const { pxPerMm } = metricsRef.current;
         const start = dragStartRef.current;
-
 
         const dxPx = e.clientX - start.x;
         const dyPx = e.clientY - start.y;
 
         const dxMm = dxPx / pxPerMm;
-        const dyMm = -(dyPx / pxPerMm); // Up is positive MM, Down is positive Pixels
+        const dyMm = -(dyPx / pxPerMm); // Up is positive MM
 
         const newLeft = Math.round(start.origLeft + dxMm);
         const newBottom = Math.round(start.origBottom + dyMm);
 
-        // Optional: constrain to wall bounds?
-        // Let's keep it free for now as per "move it around" flexibility, 
-        // but maybe constrain min to 0?
-        // const constrainedLeft = Math.max(0, Math.min(lengteNum - 100, newLeft));
-        // const constrainedBottom = Math.max(0, Math.min(maxH - 100, newBottom));
-
         const updatedOpenings = openings.map(o => {
             if (o.id === draggingId) {
                 let finalBottom = newBottom;
-
-                // Sticky bottom for doors
-                if (o.type === 'door' || o.type === 'opening') { // 'opening' (loop) usually implies walk-through too? Let's treat door/opening as sticky. 'window' is not.
-                    if (Math.abs(finalBottom) < 100) { // Snap within 100mm
-                        finalBottom = 0;
-                    }
+                if (o.type === 'door' || o.type === 'door-frame' || o.type === 'opening') {
+                    if (Math.abs(finalBottom) < 100) finalBottom = 0;
                 }
-
                 return { ...o, fromLeft: newLeft, fromBottom: finalBottom };
             }
             return o;
         });
-
         onOpeningsChange(updatedOpenings);
     };
 
@@ -279,1124 +216,286 @@ export function WallDrawing({
         }
     };
 
-    // Helper: Get Wall Top Y (mm) at given X - MOVED OUT OF USEMEMO for shared use
-    const getWallTopMm = (xMm: number) => {
-        const ratio = xMm / lengteNum;
+    return (
+        <BaseDrawingFrame
+            width={effectiveLength}
+            height={drawingHeight}
+            areaStats={areaStats}
+            className={className}
+            fitContainer={fitContainer}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            widthLabel={lengteNum > 0 ? `${lengteNum}` : '---'}
+            heightLabel={hStd > 0 ? `${hStd}` : '---'}
+            primarySpacing={undefined} // Disable Base H.O.H
+            gridLabel={!balkafstand ? 'Wand Vlak' : undefined}
+            suppressTotalDimensions={true} // WallDrawing renders its own specific dims
+        >
+            {(ctx) => {
+                metricsRef.current = ctx; // Capture for drag logic
+                const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT } = ctx;
 
-        if (variant === 'bottom' && (shape === 'slope' || shape === 'l-shape' || shape === 'u-shape')) {
-            return maxH;
-        }
+                // Mapped Coordinates (replacing WallDrawing's internal calcs)
+                const WALL_X = startX;
+                const WALL_WIDTH = rectW;
+                const Y_BOTTOM = startY + rectH;
 
-        if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
-        if (shape === 'gable') {
-            return ratio <= 0.5
-                ? hLeft + (hPeak - hLeft) * (ratio / 0.5)
-                : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
-        }
-        if (shape === 'l-shape') {
-            return xMm <= l1 ? h1 : h2;
-        }
-        if (shape === 'u-shape') {
-            if (xMm <= l1) return h1;
-            if (xMm <= l1 + l2) return h2;
-            return h3;
-        }
-        return hLeft;
-    };
+                const getY = (mm: number) => Y_BOTTOM - (mm * pxPerMm);
 
-    const studData = useMemo(() => {
-        if (lengteNum <= 0 || balkafstandNum <= 0) {
-            return { beams: [], gaps: [] };
-        }
-
-
-        // Stud dimensions
-        const STUD_W = 50; // Stud width in mm
-        const HALF_STUD = STUD_W / 2; // 25mm
-        const timberW = Math.max(1.5, STUD_W * pxPerMm); // Width of studs/beams
-
-        // 1. Identify Openings in Screen Coordinates for Collision
-        const ops = openings.map(o => {
-            const wPx = o.width * pxPerMm;
-            const hPx = o.height * pxPerMm;
-            const lPx = o.fromLeft * pxPerMm;
-            const bPx = o.fromBottom * pxPerMm;
-            // Opening Rect (The Empty Space)
-            // Left, Right, Bottom (y-up from floor), Top (y-up from floor)
-            // Note: Canvas Y is inverted (0 at top).
-            // Logic is easier in "Wall MM" space first.
-            return {
-                l: o.fromLeft,
-                r: o.fromLeft + o.width,
-                b: o.fromBottom,
-                t: o.fromBottom + o.height,
-                type: o.type
-            };
-        });
-
-        const WALL_HEIGHT_MM = maxH; // Approx simple height or calc per X
-
-        // getWallTopMm moved to main scope
-
-        const getWallBottomMm = (xMm: number) => {
-            if (variant !== 'bottom') return 0;
-            const ratio = xMm / lengteNum;
-
-            if (shape === 'slope') {
-                // Slope bottom:
-                // We define slope by hLeft and hRight.
-                // If variant=bottom, does hLeft mean "Wall height at left"? yes.
-                // So if hLeft=2000, hRight=1000. Top is at max(2000, 2600?)
-                // If top is FLAT, and hLeft=2000, hRight=1000.
-                // It means at Left, floor is at (TotalTop - 2000).
-                // At Right, floor is at (TotalTop - 1000).
-                // This seems convoluted.
-                // Easier: Slope Bottom usually means floor rises.
-                // Let's assume Top is at maxH.
-                // Bottom at x=0 is (maxH - hLeft).
-                // Bottom at x=L is (maxH - hRight).
-                return (maxH - hLeft) + ((maxH - hRight) - (maxH - hLeft)) * ratio;
-            }
-            if (shape === 'l-shape') {
-                // Step Bottom.
-                // Left section height h1. Right section height h2.
-                // Top is maxH. 
-                // Left bottom = maxH - h1.
-                // Right bottom = maxH - h2.
-                return xMm <= l1 ? (maxH - h1) : (maxH - h2);
-            }
-            if (shape === 'u-shape') {
-                if (xMm <= l1) return maxH - h1;
-                if (xMm <= l1 + l2) return maxH - h2;
-                return maxH - h3;
-            }
-            return 0;
-        };
-
-        // 2. DEFINE WALL SEGMENTS
-        // Each segment is treated as a separate wall with its own Start/End studs and Grid.
-        type Segment = { startX: number; length: number; label: string };
-        const segments: Segment[] = [];
-
-        if (shape === 'l-shape') {
-            segments.push({ startX: 0, length: l1, label: 'L1' });
-            segments.push({ startX: l1, length: lengteNum - l1, label: 'L2' });
-        } else if (shape === 'u-shape') {
-            segments.push({ startX: 0, length: l1, label: 'L1' });
-            segments.push({ startX: l1, length: l2, label: 'L2' });
-            segments.push({ startX: l1 + l2, length: lengteNum - (l1 + l2), label: 'L3' });
-        } else {
-            // Rectangle, Slope, Gable = 1 Segment
-            segments.push({ startX: 0, length: lengteNum, label: 'Main' });
-        }
-
-        // 3. GENERATE BEAMS PER SEGMENT
-        // 3. GENERATE BEAMS PER SEGMENT
-        type Beam = BeamData & { x: number; y: number; w: number; h: number; };
-        const beams: Beam[] = [];
-        const gapsMm: { val: number, c1: number, c2: number }[] = [];
-
-        segments.forEach(seg => {
-            if (seg.length <= 0) return;
-
-            const segEnd = seg.startX + seg.length;
-            const segBeams: number[] = [];
-
-            // A. Start Stud (Flush Left)
-            const startStudX = seg.startX;
-            segBeams.push(startStudX);
-
-            // B. End Stud (Flush Right: end - 50)
-            const endStudX = segEnd - STUD_W;
-            // Only add if distinct from start stud (avoid double-counting)
-            if (endStudX > startStudX + 1) {
-                segBeams.push(endStudX);
-            }
-
-            // C. Grid Studs (H.O.H.)
-            const numIntervals = Math.floor(seg.length / balkafstandNum);
-            for (let i = 1; i <= numIntervals; i++) {
-                const xRel = i * balkafstandNum;
-                // Center-to-Center logic: Grid line at xRel. Stud Left = xRel - 25.
-                // Relative to Segment Start.
-                const gridX = seg.startX + xRel - HALF_STUD;
-
-                // Collision with Start/End studs of THIS segment
-                const overlapStart = (gridX < startStudX + STUD_W - 1);
-                const overlapEnd = (gridX + STUD_W > endStudX + 1);
-
-                if (!overlapStart && !overlapEnd) {
-                    segBeams.push(gridX);
-                }
-            }
-
-            // D. Process & Add Studs
-            const uniqueX = Array.from(new Set(segBeams)).sort((a, b) => a - b);
-
-            uniqueX.forEach(xMm => {
-                // Calculate Draw Params
-                const sL = xMm;
-                const sR = xMm + STUD_W;
-                const centerX = xMm + HALF_STUD;
-
-                const wallTop = getWallTopMm(centerX);
-                const wallBottom = getWallBottomMm(centerX);
-
-                const hMm = (wallTop - PLATE_HEIGHT_MM) - (wallBottom + PLATE_HEIGHT_MM);
-                const fullBeam: Beam = {
-                    x: WALL_X + xMm * pxPerMm,
-                    y: getY(wallTop - PLATE_HEIGHT_MM), // Top plate
-                    w: timberW,
-                    h: hMm * pxPerMm,
-                    type: 'stud',
-                    xMm: xMm,
-                    yMm: wallBottom + PLATE_HEIGHT_MM,
-                    wMm: STUD_WIDTH_MM,
-                    hMm: hMm
+                // Helper: Get Wall Top Y (mm) at given X 
+                const getWallTopMm = (xMm: number) => {
+                    const ratio = xMm / lengteNum;
+                    if (variant === 'bottom' && (shape === 'slope' || shape === 'l-shape' || shape === 'u-shape')) return maxH;
+                    if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
+                    if (shape === 'gable') return ratio <= 0.5 ? hLeft + (hPeak - hLeft) * (ratio / 0.5) : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
+                    if (shape === 'l-shape') return xMm <= l1 ? h1 : h2;
+                    if (shape === 'u-shape') {
+                        if (xMm <= l1) return h1;
+                        if (xMm <= l1 + l2) return h2;
+                        return h3;
+                    }
+                    return hLeft;
                 };
 
-                // Check Openings Collision (Cripples)
-                const hittingOpening = ops.find(op => (sR > op.l && sL < op.r));
-
-                if (hittingOpening) {
-                    // Top Cripple
-                    const headerY = hittingOpening.t + STUD_W;
-                    const topCripH = (wallTop - PLATE_HEIGHT_MM) - headerY;
-                    if (topCripH > 10) {
-                        beams.push({
-                            ...fullBeam,
-                            y: getY(wallTop - PLATE_HEIGHT_MM),
-                            h: topCripH * pxPerMm,
-                            type: 'cripple-top',
-                            hMm: topCripH,
-                            yMm: (wallTop - PLATE_HEIGHT_MM) - topCripH
-                        });
+                const getWallBottomMm = (xMm: number) => {
+                    if (variant !== 'bottom') return 0;
+                    const ratio = xMm / lengteNum;
+                    if (shape === 'slope') return (maxH - hLeft) + ((maxH - hRight) - (maxH - hLeft)) * ratio;
+                    if (shape === 'l-shape') return xMm <= l1 ? (maxH - h1) : (maxH - h2);
+                    if (shape === 'u-shape') {
+                        if (xMm <= l1) return maxH - h1;
+                        if (xMm <= l1 + l2) return maxH - h2;
+                        return maxH - h3;
                     }
-                    // Bottom Cripple
-                    const sillY = hittingOpening.b;
-                    const botCripH = sillY - (wallBottom + PLATE_HEIGHT_MM);
-                    if (botCripH > 10) {
-                        beams.push({
-                            ...fullBeam,
-                            y: getY(sillY),
-                            h: botCripH * pxPerMm,
-                            type: 'cripple-bottom',
-                            hMm: botCripH,
-                            yMm: wallBottom + PLATE_HEIGHT_MM
-                        });
-                    }
-                } else {
-                    beams.push(fullBeam);
-                }
-            });
-
-            // E. Gaps logic
-            const centers = uniqueX.map(x => x + HALF_STUD);
-            for (let i = 0; i < centers.length - 1; i++) {
-                // Determine Start Point of this gap interval
-                // If it's the very first interval (i=0), start from Segment Start (Wall Edge)
-                const startMm = (i === 0) ? seg.startX : centers[i];
-
-                // Determine End Point of this gap interval
-                // If it's the very last interval (i = length-2), end at Segment End (Wall Edge)
-                const endMm = (i === centers.length - 2) ? segEnd : centers[i + 1];
-
-                gapsMm.push({
-                    val: endMm - startMm,
-                    c1: WALL_X + startMm * pxPerMm,
-                    c2: WALL_X + endMm * pxPerMm
-                });
-            }
-        });
-
-        // 4. Add FIXED Opening Frames (Kings, Headers, Sills)
-        const PLATE_H = PLATE_HEIGHT_MM;
-        ops.forEach(op => {
-            // Kings
-            [op.l - STUD_W, op.r].forEach(kx => {
-                const cx = kx + HALF_STUD;
-                const wt = getWallTopMm(cx);
-                const wb = getWallBottomMm(cx);
-                const kHeight = (wt - PLATE_H) - (wb + PLATE_H);
-                beams.push({
-                    x: WALL_X + kx * pxPerMm,
-                    y: getY(wt - PLATE_H),
-                    w: timberW,
-                    h: kHeight * pxPerMm,
-                    type: 'king',
-                    xMm: kx,
-                    yMm: wb + PLATE_H,
-                    wMm: STUD_WIDTH_MM,
-                    hMm: kHeight
-                });
-            });
-
-            // Header
-            beams.push({
-                x: WALL_X + op.l * pxPerMm,
-                y: getY(op.t + STUD_W),
-                w: (op.r - op.l) * pxPerMm,
-                h: timberW,
-                type: 'header',
-                xMm: op.l,
-                yMm: op.t,
-                wMm: op.r - op.l,
-                hMm: STUD_WIDTH_MM
-            });
-
-            // Sill - Only doors don't have a sill
-            if (op.type !== 'door') {
-                beams.push({
-                    x: WALL_X + op.l * pxPerMm,
-                    y: getY(op.b),
-                    w: (op.r - op.l) * pxPerMm,
-                    h: timberW,
-                    type: 'sill',
-                    xMm: op.l,
-                    yMm: op.b - STUD_WIDTH_MM,
-                    wMm: op.r - op.l,
-                    hMm: STUD_WIDTH_MM
-                });
-            }
-        });
-
-        const gaps = gapsMm.map(g => ({ value: g.val, centerX1: g.c1, centerX2: g.c2 }));
-
-        return { beams, gaps };
-
-    }, [lengteNum, balkafstandNum, WALL_X, WALL_WIDTH, studWidthPx, yLeft, yRight, yPeak, yH1, yH2, shape, pxPerMm, openings, startFromRight, l1, l2, l3, h1, h2, h3, variant]);
-
-    const dotGrid = useMemo(() => {
-        const dots: { x: number; y: number }[] = [];
-        const spacing = 12;
-        for (let x = spacing / 2; x < SVG_WIDTH; x += spacing) {
-            for (let y = spacing / 2; y < SVG_HEIGHT; y += spacing) {
-                dots.push({ x, y });
-            }
-        }
-        return dots;
-    }, [SVG_WIDTH, SVG_HEIGHT]);
-
-    const timberColor = 'rgb(70, 75, 85)';
-    const timberStroke = 'rgb(55, 60, 70)';
-
-    let topPlatePath = '';
-    if (shape === 'slope') {
-        topPlatePath = `
-            ${WALL_X},${yLeft}
-            ${WALL_X + WALL_WIDTH},${yRight}
-            ${WALL_X + WALL_WIDTH},${yRight + PLATE_HEIGHT}
-            ${WALL_X},${yLeft + PLATE_HEIGHT}
-        `;
-    } else if (shape === 'gable') {
-        const midX = WALL_X + WALL_WIDTH / 2;
-        topPlatePath = `
-            ${WALL_X},${yLeft}
-            ${midX},${yPeak}
-            ${WALL_X + WALL_WIDTH},${yRight}
-            ${WALL_X + WALL_WIDTH},${yRight + PLATE_HEIGHT}
-            ${midX},${yPeak + PLATE_HEIGHT}
-            ${WALL_X},${yLeft + PLATE_HEIGHT}
-        `;
-    } else if (shape === 'l-shape') {
-        const xL1 = WALL_X + (l1 * pxPerMm);
-
-        if (variant === 'bottom') {
-            // Top is flat at maxH
-            // Bottom varies.
-            // We are drawing TOP Plate here.
-            // So Top Plate is just a flat rect across?
-            // Yes, if variant is 'bottom', the TOP of the wall is straight. 
-            // Wait, usually "step wall bottom" means the wall hangs? Or sits on a step?
-            // Usually sits on a step. So the bottom plate steps. The top plate is straight.
-            // So Top Plate Path is simple rectangle.
-            const yTop = getY(maxH);
-            topPlatePath = `
-                ${WALL_X},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop + PLATE_HEIGHT}
-                ${WALL_X},${yTop + PLATE_HEIGHT}
-             `;
-        } else {
-            // Standard L-Shape Top
-            topPlatePath = `
-                ${WALL_X},${yH1}
-                ${xL1},${yH1}
-                ${xL1},${yH2}
-                ${WALL_X + WALL_WIDTH},${yH2}
-                ${WALL_X + WALL_WIDTH},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH1 + PLATE_HEIGHT}
-                ${WALL_X},${yH1 + PLATE_HEIGHT}
-            `;
-        }
-    } else if (shape === 'u-shape') {
-        const xL1 = WALL_X + (l1 * pxPerMm);
-        const xL2 = WALL_X + ((l1 + l2) * pxPerMm);
-
-        if (variant === 'bottom') {
-            // Flat Top
-            const yTop = getY(maxH);
-            topPlatePath = `
-                ${WALL_X},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop}
-                ${WALL_X + WALL_WIDTH},${yTop + PLATE_HEIGHT}
-                ${WALL_X},${yTop + PLATE_HEIGHT}
-             `;
-        } else {
-            // Stepped Top
-            topPlatePath = `
-                ${WALL_X},${yH1}
-                ${xL1},${yH1}
-                ${xL1},${yH2}
-                ${xL2},${yH2}
-                ${xL2},${yH3}
-                ${WALL_X + WALL_WIDTH},${yH3}
-                ${WALL_X + WALL_WIDTH},${yH3 + PLATE_HEIGHT}
-                ${xL2},${yH3 + PLATE_HEIGHT}
-                ${xL2},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH2 + PLATE_HEIGHT}
-                ${xL1},${yH1 + PLATE_HEIGHT}
-                ${WALL_X},${yH1 + PLATE_HEIGHT}
-             `;
-        }
-    } else {
-        topPlatePath = `
-            ${WALL_X},${yLeft}
-            ${WALL_X + WALL_WIDTH},${yLeft}
-            ${WALL_X + WALL_WIDTH},${yLeft + PLATE_HEIGHT}
-            ${WALL_X},${yLeft + PLATE_HEIGHT}
-        `;
-    }
-
-    // BOTTOM PLATE PATH
-    let bottomPlatePath = '';
-    const yBotBase = Y_BOTTOM - PLATE_HEIGHT;
-    const yBotLine = Y_BOTTOM;
-
-    if (variant === 'bottom') {
-        // Calculated per shape
-        if (shape === 'slope') {
-            // Sloped Bottom
-            // Bottom varies from (maxH-hLeft) to (maxH-hRight)
-            // Canvas Y: getY(maxH - hLeft) etc.
-            const yB_Left = getY(maxH - hLeft);
-            const yB_Right = getY(maxH - hRight);
-
-            // Plate is ABOVE this line? Or BELOW?
-            // Usually "Bottom Plate" is at the bottom of the studs.
-            // If floor is sloped, plate follows floor.
-            // We draw plate of thickness PLATE_HEIGHT up from the bottom line?
-            // Or studs sit on plate. 
-            // Let's assume plate is the bottom-most element.
-            // So top of plate is yB_Left?? No, yB_Left is the stud bottom.
-            // Plate is below that.
-            // Let's draw plate from yB_Left down to yB_Left + PLATE_H?
-            // But valid drawing area is UP.
-            // Visualizer: Y_BOTTOM is the floor logic for standard.
-            // Let's assume standard: Plate is at Y_BOTTOM - PLATE_HEIGHT (top of plate) to Y_BOTTOM (bot of plate).
-
-            // Sloped: Top of plate is yB_Left. 
-            // Bot of plate is yB_Left + PLATE_H (downwards in canvas).
-
-            bottomPlatePath = `
-                ${WALL_X},${yB_Left}
-                ${WALL_X + WALL_WIDTH},${yB_Right}
-                ${WALL_X + WALL_WIDTH},${yB_Right + PLATE_HEIGHT}
-                ${WALL_X},${yB_Left + PLATE_HEIGHT}
-             `;
-        } else if (shape === 'l-shape') {
-            // Stepped Bottom
-            // L1: h1. L2: h2.
-            // Bot1 = maxH - h1. Bot2 = maxH - h2.
-            const yB1 = getY(maxH - h1);
-            const yB2 = getY(maxH - h2);
-            const xL1 = WALL_X + (l1 * pxPerMm);
-
-            bottomPlatePath = `
-                ${WALL_X},${yB1}
-                ${xL1},${yB1}
-                ${xL1},${yB2}
-                ${WALL_X + WALL_WIDTH},${yB2}
-                ${WALL_X + WALL_WIDTH},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB1 + PLATE_HEIGHT}
-                ${WALL_X},${yB1 + PLATE_HEIGHT}
-             `;
-        } else if (shape === 'u-shape') {
-            const yB1 = getY(maxH - h1);
-            const yB2 = getY(maxH - h2);
-            const yB3 = getY(maxH - h3);
-            const xL1 = WALL_X + (l1 * pxPerMm);
-            const xL2 = WALL_X + ((l1 + l2) * pxPerMm);
-
-            bottomPlatePath = `
-                ${WALL_X},${yB1}
-                ${xL1},${yB1}
-                ${xL1},${yB2}
-                ${xL2},${yB2}
-                ${xL2},${yB3}
-                ${WALL_X + WALL_WIDTH},${yB3}
-                ${WALL_X + WALL_WIDTH},${yB3 + PLATE_HEIGHT}
-                ${xL2},${yB3 + PLATE_HEIGHT}
-                ${xL2},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB2 + PLATE_HEIGHT}
-                ${xL1},${yB1 + PLATE_HEIGHT}
-                ${WALL_X},${yB1 + PLATE_HEIGHT}
-             `;
-        } else {
-            // Fallback
-            bottomPlatePath = `
-                ${WALL_X},${yBotBase}
-                ${WALL_X + WALL_WIDTH},${yBotBase}
-                ${WALL_X + WALL_WIDTH},${yBotLine}
-                ${WALL_X},${yBotLine}
-             `;
-        }
-    } else {
-        // Standard Flat Bottom
-        bottomPlatePath = `
-            ${WALL_X},${yBotBase}
-            ${WALL_X + WALL_WIDTH},${yBotBase}
-            ${WALL_X + WALL_WIDTH},${yBotLine}
-            ${WALL_X},${yBotLine}
-         `;
-    }
-
-    const drawOpenings = useMemo(() => {
-        if (!openings || openings.length === 0) return null;
-
-        return openings.map((op) => {
-            const wPx = op.width * pxPerMm;
-            const hPx = op.height * pxPerMm;
-            const leftPx = op.fromLeft * pxPerMm;
-            const bottomPx = op.fromBottom * pxPerMm;
-
-            const x = WALL_X + leftPx;
-            const y = Y_BOTTOM - bottomPx - hPx;
-
-            return {
-                ...op,
-                drawX: x,
-                drawY: y,
-                drawW: wPx,
-                drawH: hPx
-            };
-        });
-    }, [openings, pxPerMm, WALL_X, Y_BOTTOM]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    return (
-        <div className={cn("relative select-none", className)}>
-            <svg
-                width="100%"
-                height="100%"
-                viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-            >
-                <g id={drawingId}>
-                    {/* Background and Dots removed to use container background */}
-
-                    {/* Top Plate */}
-                    {lengteNum > 0 && (
-                        <polygon
-                            points={topPlatePath}
-                            fill={timberColor}
-                            stroke={timberStroke}
-                            strokeWidth="0.5"
-                        />
-                    )}
-
-                    {/* Bottom Plate */}
-                    {lengteNum > 0 && (
-                        <polygon
-                            points={bottomPlatePath}
-                            fill={timberColor}
-                            stroke={timberStroke}
-                            strokeWidth="0.5"
-                        />
-                    )}
-
-                    {/* ALL Beams (Studs, Headers, Sills, Cripples) */}
-                    {studData.beams.map((beam, i) => (
-                        <rect
-                            key={i}
-                            x={beam.x}
-                            y={beam.y}
-                            width={beam.w}
-                            height={beam.h}
-                            fill={timberColor}
-                            stroke={timberStroke}
-                            strokeWidth="0.5"
-                        />
-                    ))}
-
-                    {/* Render Openings */}
-                    {drawOpenings && drawOpenings.map((op) => (
-                        <g
-                            key={op.id}
-                            onPointerDown={(e) => handlePointerDown(e, op)}
-                            onPointerMove={handlePointerMove}
-                            onPointerUp={handlePointerUp}
-                            className={cn(
-                                onOpeningsChange ? "cursor-move" : "",
-                                draggingId === op.id ? "opacity-90" : ""
-                            )}
-                            style={{ cursor: onOpeningsChange ? 'move' : 'default' }}
-                        >
-                            {/* The hole itself */}
-                            <rect
-                                x={op.drawX}
-                                y={op.drawY}
-                                width={op.drawW}
-                                height={op.drawH}
-                                fill="#09090b"
-                                stroke={draggingId === op.id ? "#10b981" : timberStroke}
-                                strokeWidth={draggingId === op.id ? "2" : "1"}
-                            />
-
-                            {/* Optional: Cross */}
-                            <line x1={op.drawX} y1={op.drawY} x2={op.drawX + op.drawW} y2={op.drawY + op.drawH} stroke={draggingId === op.id ? "#10b981" : timberStroke} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
-                            <line x1={op.drawX} y1={op.drawY + op.drawH} x2={op.drawX + op.drawW} y2={op.drawY} stroke={draggingId === op.id ? "#10b981" : timberStroke} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
-
-                            {/* Opening Labels (Type + Internal Dims) */}
-                            <OpeningLabels
-                                centerX={op.drawX + op.drawW / 2}
-                                centerY={op.drawY + op.drawH / 2}
-                                typeName={op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing'}
-                                width={op.width}
-                                height={op.height}
-                            />
-                        </g>
-                    ))}
-
-
-
-                    {/* Opening Measurements - Standardized Universal Component */}
-                    <OpeningMeasurements
-                        openings={openings.map(op => ({
-                            id: op.id,
-                            width: op.width,
-                            height: op.height,
-                            fromLeft: op.fromLeft,
-                            fromBottom: op.fromBottom,
-                            type: op.type
-                        }))}
-                        wallLength={lengteNum}
-                        wallHeight={maxH}
-                        svgBaseX={WALL_X}
-                        svgBaseY={Y_BOTTOM}
-                        pxPerMm={pxPerMm}
-                        getWallTopMm={getWallTopMm}
-                    />
-
-
-                    {/* H.O.H Gap Dimensions - Moved to TOP as requested */}
-                    {/* H.O.H Gap Dimensions - Replaced by Shared Component */}
-                    {studData.gaps.length > 0 && (
-                        <GridMeasurements
-                            gaps={studData.gaps.map(g => ({
-                                value: g.value,
-                                c1: g.centerX1,
-                                c2: g.centerX2
-                            }))}
-                            svgBaseYTop={
-                                Math.min(yLeft, yRight, shape === 'gable' ? yPeak : yLeft, shape === 'u-shape' ? yH3 : yLeft)
+                    return 0;
+                };
+
+                const STUD_W = 50;
+                const HALF_STUD = 25;
+                const timberW = Math.max(1.5, STUD_W * pxPerMm);
+                const PLATE_HEIGHT_MM = 44;
+                const PLATE_HEIGHT = PLATE_HEIGHT_MM * pxPerMm;
+
+                // Beams & Gaps Generation
+                const { beams, gaps } = (() => {
+                    if (lengteNum <= 0 || balkafstandNum <= 0) return { beams: [], gaps: [] };
+
+                    const b: any[] = [];
+                    const g: any[] = [];
+
+                    type Segment = { startX: number; length: number; label: string };
+                    const segments: Segment[] = [];
+                    if (shape === 'l-shape') { segments.push({ startX: 0, length: l1, label: 'L1' }); segments.push({ startX: l1, length: lengteNum - l1, label: 'L2' }); }
+                    else if (shape === 'u-shape') { segments.push({ startX: 0, length: l1, label: 'L1' }); segments.push({ startX: l1, length: l2, label: 'L2' }); segments.push({ startX: l1 + l2, length: lengteNum - (l1 + l2), label: 'L3' }); }
+                    else { segments.push({ startX: 0, length: lengteNum, label: 'Main' }); }
+
+                    segments.forEach((seg: any) => {
+                        if (seg.length <= 0) return;
+                        const segBeams: number[] = [seg.startX]; // Start Stud
+                        const endStudX = seg.startX + seg.length - STUD_W;
+                        if (endStudX > seg.startX + 1) segBeams.push(endStudX); // End Stud
+
+                        const numIntervals = Math.floor(seg.length / balkafstandNum);
+                        for (let i = 1; i <= numIntervals; i++) {
+                            const gridX = seg.startX + (i * balkafstandNum) - HALF_STUD;
+                            if (!(gridX < seg.startX + STUD_W - 1) && !(gridX + STUD_W > endStudX + 1)) segBeams.push(gridX);
+                        }
+
+                        const uniqueX = Array.from(new Set(segBeams)).sort((a, b) => a - b);
+
+                        // Add Studs
+                        uniqueX.forEach(xMm => {
+                            const center = xMm + HALF_STUD;
+                            const wt = getWallTopMm(center);
+                            const wb = getWallBottomMm(center);
+                            const hMm = (wt - PLATE_HEIGHT_MM) - (wb + PLATE_HEIGHT_MM);
+                            const fullBeam = { x: WALL_X + xMm * pxPerMm, y: getY(wt - PLATE_HEIGHT_MM), w: timberW, h: hMm * pxPerMm, type: 'stud', xMm, yMm: wb + PLATE_HEIGHT_MM, hMm };
+
+                            const op = openings.find(o => (xMm + STUD_W > o.fromLeft && xMm < o.fromLeft + o.width));
+                            if (op) {
+                                const headerY = op.fromBottom + op.height + STUD_W;
+                                const topCripH = (wt - PLATE_HEIGHT_MM) - headerY;
+                                if (topCripH > 10) b.push({ ...fullBeam, y: getY(wt - PLATE_HEIGHT_MM), h: topCripH * pxPerMm, type: 'cripple-top' });
+
+                                const sillY = op.fromBottom;
+                                const botCripH = sillY - (wb + PLATE_HEIGHT_MM);
+                                if (botCripH > 10) b.push({ ...fullBeam, y: getY(sillY), h: botCripH * pxPerMm, type: 'cripple-bottom' });
+                            } else {
+                                b.push(fullBeam);
                             }
-                        />
-                    )}
+                        });
 
+                        // Gaps
+                        const centers = uniqueX.map(x => x + HALF_STUD);
+                        for (let i = 0; i < centers.length - 1; i++) {
+                            const startMm = (i === 0) ? seg.startX : centers[i];
+                            const endMm = (i === centers.length - 2) ? seg.startX + seg.length : centers[i + 1];
+                            g.push({ value: endMm - startMm, c1: WALL_X + startMm * pxPerMm, c2: WALL_X + endMm * pxPerMm });
+                        }
+                    });
 
-                    {/* Segments Dimensions (L-Shape / U-Shape) - Stacked at Bottom */}
-                    {lengteNum > 0 && (shape === 'l-shape' || shape === 'u-shape') && (
-                        <g className="text-emerald-500">
-                            {(() => {
-                                // Define segments
-                                const segs = [];
-                                if (shape === 'l-shape') {
-                                    segs.push({ len: l1, label: l1 });
-                                    segs.push({ len: l2, label: l2 });
-                                } else {
-                                    segs.push({ len: l1, label: l1 });
-                                    segs.push({ len: l2, label: l2 });
-                                    segs.push({ len: l3, label: l3 });
-                                }
+                    // Fixed Openings Frames
+                    openings.forEach(op => {
+                        [op.fromLeft - STUD_W, op.fromLeft + op.width].forEach(kx => {
+                            const center = kx + HALF_STUD;
+                            const wt = getWallTopMm(center); const wb = getWallBottomMm(center);
+                            const kh = (wt - PLATE_HEIGHT_MM) - (wb + PLATE_HEIGHT_MM);
+                            const opY = getY(wt - PLATE_HEIGHT_MM);
+                            const opH = kh * pxPerMm;
+                            if (kh > 0) b.push({ x: WALL_X + kx * pxPerMm, y: opY, w: timberW, h: opH, type: 'king' });
+                        });
+                        b.push({ x: WALL_X + op.fromLeft * pxPerMm, y: getY(op.fromBottom + op.height + STUD_W), w: op.width * pxPerMm, h: timberW, type: 'header' });
 
-                                // Move to Bottom: Y position below wall but above Total Length
-                                // Total Length is at DIM_Y_LENGTH (approx 60px below).
-                                // Let's put segments at DIM_Y_LENGTH - 15
-                                const dimY = DIM_Y_LENGTH - 15;
-                                let currentX = WALL_X;
+                        // Standard Sill (Windows/Openings) - Sits BELOW the opening
+                        if (op.type !== 'door' && op.type !== 'door-frame') {
+                            b.push({ x: WALL_X + op.fromLeft * pxPerMm, y: getY(op.fromBottom), w: op.width * pxPerMm, h: timberW, type: 'sill' });
+                        }
+                    });
 
-                                return segs.map((seg, i) => {
-                                    const wPx = seg.len * pxPerMm;
-                                    const startX = currentX;
-                                    const endX = startX + wPx;
-                                    const midX = startX + wPx / 2;
+                    return { beams: b, gaps: g };
+                })();
 
-                                    currentX = endX;
-
-                                    return (
-                                        <g key={i}>
-                                            {/* Main Dim Line */}
-                                            <line x1={startX} y1={dimY} x2={endX} y2={dimY} stroke="currentColor" strokeWidth="1" />
-
-                                            {/* Extension Lines (Down to Bottom) */}
-                                            {/* Since dimY is below wall, we extend UP to wall bottom (Y_BOTTOM) */}
-                                            {/* Actually, they should extend UP to the wall bottom to connect visually */}
-                                            <line x1={startX} y1={dimY} x2={startX} y2={Y_BOTTOM + 2} stroke="currentColor" strokeWidth="1" />
-                                            <line x1={endX} y1={dimY} x2={endX} y2={Y_BOTTOM + 2} stroke="currentColor" strokeWidth="1" />
-
-                                            {/* Dots at Intersections with Dim Line */}
-                                            <circle cx={startX} cy={dimY} r="1.5" fill="currentColor" />
-                                            <circle cx={endX} cy={dimY} r="1.5" fill="currentColor" />
-
-                                            {/* Label */}
-                                            <rect x={midX - 12} y={dimY - 5} width="24" height="10" fill="#09090b" opacity="0.8" />
-                                            <text
-                                                x={midX}
-                                                y={dimY + 3}
-                                                textAnchor="middle"
-                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
-                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                            >
-                                                {Math.round(seg.len)}
-                                            </text>
-                                        </g>
-                                    );
-                                });
-                            })()}
-                        </g>
-                    )}
-
-                    {/* Bottom Length Dimension - FURTHEST from drawing */}
-                    {lengteNum > 0 && (
-                        <g className="text-emerald-500">
-                            {(() => {
-                                const totalWidthY = Y_BOTTOM + 80; // Place furthest below
-                                return (
-                                    <>
-                                        <line x1={WALL_X} y1={totalWidthY} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" />
-                                        {/* Extension Lines - SOLID */}
-                                        <line x1={WALL_X} y1={Y_BOTTOM + 5} x2={WALL_X} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                        <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 5} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                        {/* Dots */}
-                                        <circle cx={WALL_X} cy={totalWidthY} r="1.5" fill="currentColor" />
-                                        <circle cx={WALL_X + WALL_WIDTH} cy={totalWidthY} r="1.5" fill="currentColor" />
-                                        {/* Text label */}
-                                        <rect x={WALL_X + WALL_WIDTH / 2 - 12} y={totalWidthY - 5} width="24" height="10" fill="#09090b" opacity="1" />
-                                        <text
-                                            x={WALL_X + WALL_WIDTH / 2}
-                                            y={totalWidthY + 3}
-                                            textAnchor="middle"
-                                            dominantBaseline="middle"
-                                            className="fill-emerald-400 text-[12px] font-mono font-bold"
-                                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                        >
-                                            {lengteDisplay}
-                                        </text>
-                                    </>
-                                );
-                            })()}
-                        </g>
-                    )}
-
-                    {/* Left Height Dimension */}
-                    {lengteNum > 0 && (
-                        <g className="text-emerald-500">
-                            {(() => {
-                                // Logic for Split Dimensions on Left Side
-                                // Only if L-shape or U-shape and h1 > h2 (or based on variant?)
-                                // Assuming Standard Top Variant for "Step" visualization logic for now, 
-                                // or generic logic: if adjacent wall is shorter, split the dimension.
-
-                                let showSplit = false;
-                                let splitHeight = 0; // Height of the "short" part (from bottom)
-
-                                if ((shape === 'l-shape' || shape === 'u-shape') && variant !== 'bottom') {
-                                    if (h1 > h2) {
-                                        showSplit = true;
-                                        splitHeight = h2;
-                                    }
-                                }
-
-                                // If variant is bottom, the logic is inverted? 
-                                // If Left is Tall (H1), Middle is Short (H2).
-                                // Step is at Bottom. 
-                                // Maybe user wants split there too? Let's stick to the Top Variant user case first (Step Down).
-
-                                if (showSplit) {
-                                    const ySplit = getY(splitHeight);
-                                    const topPartH = h1 - splitHeight;
-
-                                    // Layout Constants
-                                    const wallBuffer = 2; // Space between wall and start of ticks
-                                    const splitLineX = WALL_X - 30; // Position of split dimension line
-                                    const totalLineX = WALL_X - 80; // Position of total height dimension line (increased spacing)
-                                    const textPad = 10; // Padding for text
-
-                                    return (
-                                        <>
-                                            {/* SHARED EXTENSIONS (Connect Dim Lines to Wall) */}
-                                            {/* Top Extension (Total Height) */}
-                                            <line x1={totalLineX} y1={yLeft} x2={WALL_X - wallBuffer} y2={yLeft} stroke="currentColor" strokeWidth="1" />
-                                            <circle cx={totalLineX} cy={yLeft} r="1.5" fill="currentColor" />
-
-                                            {/* Bottom Extension (Total Height) */}
-                                            <line x1={totalLineX} y1={Y_BOTTOM} x2={WALL_X - wallBuffer} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                            <circle cx={totalLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
-
-                                            {/* Middle Extension (Split Point) */}
-                                            <line x1={splitLineX} y1={ySplit} x2={WALL_X - wallBuffer} y2={ySplit} stroke="currentColor" strokeWidth="1" />
-                                            <circle cx={splitLineX} cy={ySplit} r="1.5" fill="currentColor" />
-
-                                            {/* --- TOTAL HEIGHT DIMENSION LINE --- */}
-                                            <line x1={totalLineX} y1={yLeft} x2={totalLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                            <text
-                                                x={totalLineX - textPad}
-                                                y={(yLeft + Y_BOTTOM) / 2 + 3}
-                                                textAnchor="end"
-                                                className="fill-emerald-400 text-[12px] font-mono font-bold"
-                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                            >
-                                                {hL_disp}
-                                            </text>
-
-                                            {/* --- SPLIT HEIGHT DIMENSION LINES --- */}
-                                            {/* Lower Segment */}
-                                            <line x1={splitLineX} y1={ySplit} x2={splitLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                            <circle cx={splitLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" /> {/* Dot at intersection with bottom ext */}
-
-                                            <text
-                                                x={splitLineX - textPad}
-                                                y={(ySplit + Y_BOTTOM) / 2 + 3}
-                                                textAnchor="end"
-                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
-                                            >
-                                                {Math.round(splitHeight)}
-                                            </text>
-
-                                            {/* Upper Segment */}
-                                            <line x1={splitLineX} y1={yLeft} x2={splitLineX} y2={ySplit} stroke="currentColor" strokeWidth="1" />
-                                            <circle cx={splitLineX} cy={yLeft} r="1.5" fill="currentColor" /> {/* Dot at intersection with top ext */}
-
-                                            <text
-                                                x={splitLineX - textPad}
-                                                y={(yLeft + ySplit) / 2 + 3}
-                                                textAnchor="end"
-                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
-                                            >
-                                                {Math.round(topPartH)}
-                                            </text>
-                                        </>
-                                    );
-                                }
-
-                                // Standard Full Height Dim - FURTHEST from drawing
-                                const totalHeightX = WALL_X - 80; // Place furthest left
-                                return (
-                                    <>
-                                        {/* Main vertical dimension line */}
-                                        <line x1={totalHeightX} y1={yLeft} x2={totalHeightX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" />
-                                        {/* Extensions - SOLID */}
-                                        <line x1={totalHeightX} y1={yLeft} x2={WALL_X - 5} y2={yLeft} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                        <line x1={totalHeightX} y1={Y_BOTTOM} x2={WALL_X - 5} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                        {/* Dots */}
-                                        <circle cx={totalHeightX} cy={yLeft} r="1.5" fill="currentColor" />
-                                        <circle cx={totalHeightX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
-
-                                        {/* Rotated text label */}
-                                        <g transform={`translate(${totalHeightX}, ${(yLeft + Y_BOTTOM) / 2}) rotate(-90)`}>
-                                            <rect x="-12" y="-5" width="24" height="10" fill="#09090b" opacity="1" />
-                                            <text
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                className="fill-emerald-400 text-[12px] font-mono font-bold"
-                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                            >
-                                                {hL_disp}
-                                            </text>
-                                        </g>
-                                    </>
-                                );
-                            })()}
-                        </g>
-                    )}
-
-                    {/* Right Height Dimension */}
-                    <g className="text-emerald-500">
-                        {(() => {
-                            return null;
-                        })()}
-                    </g>
-
-                    {/* Ridge */}
-                    {lengteNum > 0 && shape === 'gable' && (
-                        <g className="text-emerald-500">
-                            <line x1={WALL_X + WALL_WIDTH / 2} y1={yPeak} x2={WALL_X + WALL_WIDTH / 2 + 40} y2={yPeak} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
-                            <text
-                                x={WALL_X + WALL_WIDTH / 2 + 5}
-                                y={yPeak - 4}
-                                textAnchor="start"
-                                className="fill-emerald-400 text-[8px] font-mono font-medium"
-                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                            >
-                                {hP_disp}
-                            </text>
-                        </g>
-                    )}
-
-                    {/* Balk Callout - OUTSIDE wall frame, at 30 degree angle */}
-                    {lengteNum > 0 && studData.beams.length > 0 && (() => {
-                        // Find a stud near the middle of the wall
-                        const studsOnly = studData.beams.filter(b => b.type === 'stud');
-                        const middleIndex = Math.floor(studsOnly.length / 2);
-                        const middleStud = studsOnly[middleIndex] || studsOnly[0] || studData.beams[0];
-                        if (!middleStud) return null;
-
-                        // Position: X at middle stud, dot just below top plate
-                        const studCenterX = middleStud.x + middleStud.w / 2;
-                        const dotY = middleStud.y + 25;
-
-                        // Calculate position at ~30 degree angle, further out
-                        const distance = 120;
-                        const angleRad = (30 * Math.PI) / 180;
-                        const offsetX = distance * Math.sin(angleRad);
-                        const offsetY = distance * Math.cos(angleRad);
-
-                        const labelX = studCenterX - offsetX;
-                        const labelY = dotY - offsetY;
-
-                        return (
-                            <g className="pointer-events-none">
-                                {/* Small dot on the stud */}
-                                <circle
-                                    cx={studCenterX}
-                                    cy={dotY}
-                                    r={1.5}
-                                    fill="#10b981"
-                                />
-
-                                {/* Dashed leader line - at 30 degree angle */}
-                                <line
-                                    x1={studCenterX}
-                                    y1={dotY}
-                                    x2={labelX}
-                                    y2={labelY}
-                                    stroke="#10b981"
-                                    strokeWidth="0.5"
-                                    strokeDasharray="3,2"
-                                />
-
-                                {/* Circle around the label */}
-                                <circle
-                                    cx={labelX}
-                                    cy={labelY}
-                                    r={16}
-                                    fill="#09090b"
-                                    stroke="#10b981"
-                                    strokeWidth="0.5"
-                                />
-
-                                {/* Label text inside circle */}
-                                <text
-                                    x={labelX}
-                                    y={labelY + 1}
-                                    textAnchor="middle"
-                                    dominantBaseline="middle"
-                                    fill="#10b981"
-                                    className="text-[10px] font-medium"
-                                    style={{ fontFamily: "'Inter', sans-serif" }}
-                                >
-                                    Balk
-                                </text>
-                            </g>
-                        );
-                    })()}
-                </g>
-
-                {/* MAGNIFIER LENS */}
-                {
-                    isMagnifier && lensPos.x !== 0 && (
-                        <g pointerEvents="none">
-                            <defs>
-                                <clipPath id={clipId}>
-                                    <circle cx={lensPos.x} cy={lensPos.y} r={60} />
-                                </clipPath>
-                            </defs>
-
-                            {/* Shadow/Border Ring behind */}
-                            <circle cx={lensPos.x} cy={lensPos.y} r={62} fill="black" opacity="0.5" />
-
-                            {/* The Magnified Content */}
-                            <g clipPath={`url(#${clipId})`}>
-                                {/* Opaque background inside lens to hide non-magnified stuff behind it */}
-                                <rect x={lensPos.x - 60} y={lensPos.y - 60} width={120} height={120} fill="#09090b" />
-                                <use
-                                    href={`#${drawingId}`}
-                                    transform={`translate(${-lensPos.x}, ${-lensPos.y}) scale(2)`}
-                                />
-                            </g>
-
-                            {/* Lens Border / Crosshair */}
-                            <circle cx={lensPos.x} cy={lensPos.y} r={60} stroke="#10b981" strokeWidth="2" fill="none" />
-                            <line x1={lensPos.x - 5} y1={lensPos.y} x2={lensPos.x + 5} y2={lensPos.y} stroke="#10b981" strokeWidth="1" opacity="0.5" />
-                            <line x1={lensPos.x} y1={lensPos.y - 5} x2={lensPos.x} y2={lensPos.y + 5} stroke="#10b981" strokeWidth="1" opacity="0.5" />
-                        </g>
-                    )
+                // Plate Paths Generation
+                let topPlatePath = '';
+                if (shape === 'slope') {
+                    topPlatePath = `${WALL_X},${getY(hLeft)} ${WALL_X + WALL_WIDTH},${getY(hRight)} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT}`;
+                } else if (shape === 'gable') {
+                    const midX = WALL_X + WALL_WIDTH / 2;
+                    const peakY = getY(hPeak);
+                    topPlatePath = `${WALL_X},${getY(hLeft)} ${midX},${peakY} ${WALL_X + WALL_WIDTH},${getY(hRight)} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT} ${midX},${peakY + PLATE_HEIGHT} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT}`;
+                } else {
+                    topPlatePath = `${WALL_X},${getY(hLeft)} ${WALL_X + WALL_WIDTH},${getY(hRight)} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT}`;
                 }
-            </svg>
 
-            {/* Internal Area Calculation Overlay (Netto/Bruto) */}
-            {
-                (() => {
-                    const areaMm2 = (() => {
-                        const L = lengteNum;
-                        const H = maxH; // Approx base height logic
+                let bottomPlatePath = '';
+                const yBot = getY(0);
+                bottomPlatePath = `${WALL_X},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot} ${WALL_X},${yBot}`;
 
-                        if (shape === 'rectangle') return L * H;
-                        if (shape === 'slope') return L * ((hLeft + hRight) / 2);
-                        if (shape === 'gable') return L * ((hLeft + hPeak) / 2);
-                        if (shape === 'l-shape') return (l1 * h1) + ((L - l1) * h2);
-                        if (shape === 'u-shape') return (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
-                        return L * H;
-                    })();
+                // Calculate Segments for Dimensions
+                const segments: { len: number }[] = [];
+                if (shape === 'l-shape') { segments.push({ len: l1 }); segments.push({ len: l2 }); }
+                else if (shape === 'u-shape') { segments.push({ len: l1 }); segments.push({ len: l2 }); segments.push({ len: l3 }); }
 
-                    // Openings
-                    const openingsAreaMm2 = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
-                    const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
+                return (
+                    <>
+                        <polygon points={topPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        <polygon points={bottomPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        {beams.map((b: any, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
 
-                    const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        {openings.map((op) => {
+                            const wPx = op.width * pxPerMm;
+                            const hPx = op.height * pxPerMm;
+                            const drawX = WALL_X + op.fromLeft * pxPerMm;
+                            const drawY = getY(op.fromBottom + op.height);
 
-                    return (
-                        <div className="absolute bottom-0 right-0 m-1 z-20 pointer-events-none select-none">
-                            <div className="text-[10px] sm:text-xs font-mono bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-right">
-                                {openingsAreaMm2 > 0 ? (
-                                    <div className="flex flex-col items-end leading-tight">
-                                        <span className="text-zinc-500">Bruto: {grossStr} m²</span>
-                                        <span className="text-emerald-400 font-bold">Netto: {netStr} m²</span>
-                                    </div>
-                                ) : (
-                                    <span className="text-zinc-300">{grossStr} m²</span>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })()}
+                            // Calculate Onderdorpel Rect if applicable
+                            let onderdorpelRect = null;
+                            if ((op.type === 'door' || op.type === 'door-frame') && op.onderdorpel && op.onderdorpelDikte) {
+                                const thPx = op.onderdorpelDikte * pxPerMm;
+                                // Draws from (fromBottom + thick) DOWN to fromBottom
+                                const odY = getY(op.fromBottom + op.onderdorpelDikte);
+                                onderdorpelRect = <rect x={drawX} y={odY} width={wPx} height={thPx} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />;
+                            }
 
-            {/* Custom Title Placement */}
-            {title && (
-                <text
-                    x={25}
-                    y={SVG_HEIGHT - 25}
-                    textAnchor="start"
-                    fill="rgb(100, 116, 139)"
-                    fontSize="14"
-                    style={{ fontFamily: 'monospace' }}
-                >
-                    {title}
-                </text>
-            )}
-        </div >
+                            return (
+                                <g key={op.id}
+                                    onPointerDown={(e) => handlePointerDown(e, op)}
+                                    style={{ cursor: onOpeningsChange ? 'move' : 'default' }}
+                                >
+                                    {/* Hole */}
+                                    <rect x={drawX} y={drawY} width={wPx} height={hPx} fill="#09090b" stroke={draggingId === op.id ? "#10b981" : "rgb(55, 60, 70)"} strokeWidth={draggingId === op.id ? "2" : "1"} />
+
+                                    {/* Onderdorpel Overlay */}
+                                    {onderdorpelRect}
+
+                                    {/* Cross */}
+                                    <line x1={drawX} y1={drawY} x2={drawX + wPx} y2={drawY + hPx} stroke="rgb(55, 60, 70)" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
+                                    <line x1={drawX} y1={drawY + hPx} x2={drawX + wPx} y2={drawY} stroke="rgb(55, 60, 70)" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
+
+                                    {/* Labels */}
+                                    <OpeningLabels
+                                        centerX={drawX + wPx / 2}
+                                        centerY={drawY + hPx / 2}
+                                        typeName={
+                                            op.type === 'door-frame' ? 'Deurkozijn' :
+                                                op.type === 'door' ? 'Deur' :
+                                                    op.type === 'window' ? 'Raamkozijn' : 'Sparing'
+                                        }
+                                        width={op.width}
+                                        height={op.height}
+                                    />
+                                </g>
+                            );
+                        })}
+
+                        {/* --- STANDARD DIMENSIONS using Shared Components --- */}
+                        <OverallDimensions
+                            wallLength={lengteNum}
+                            wallHeight={maxH}
+                            svgBaseX={WALL_X}
+                            svgBaseY={Y_BOTTOM}
+                            pxPerMm={pxPerMm}
+                        />
+
+                        {/* Segments (L-Shape/U-Shape) - using DimensionLine directly for consistent style */}
+                        {segments.length > 0 && (
+                            <g>
+                                {(() => {
+                                    let currentX = WALL_X;
+                                    return segments.map((seg, i) => {
+                                        const wPx = seg.len * pxPerMm;
+                                        const endX = currentX + wPx;
+
+                                        // Draw segment dimension ABOVE the Total dimension
+                                        // Total is at Y_BOTTOM + 100 (default offsetBottom)
+                                        // We place segments at Y_BOTTOM + 50
+                                        const component = (
+                                            <DimensionLine
+                                                key={i}
+                                                p1={{ x: currentX, y: Y_BOTTOM }}
+                                                p2={{ x: endX, y: Y_BOTTOM }}
+                                                offset={50}
+                                                label={Math.round(seg.len)}
+                                                orientation="horizontal"
+                                                className="text-emerald-500"
+                                            />
+                                        );
+                                        currentX = endX;
+                                        return component;
+                                    });
+                                })()}
+                            </g>
+                        )}
+
+                        <OpeningMeasurements
+                            openings={openings.map(op => ({ ...op, width: op.width, height: op.height, fromLeft: op.fromLeft, fromBottom: op.fromBottom, type: op.type, id: op.id }))}
+                            wallLength={lengteNum}
+                            wallHeight={maxH}
+                            svgBaseX={WALL_X}
+                            svgBaseY={Y_BOTTOM}
+                            pxPerMm={pxPerMm}
+                            getWallTopMm={getWallTopMm}
+                        />
+
+                        {gaps.length > 0 && <GridMeasurements gaps={gaps} svgBaseYTop={getY(maxH)} />}
+
+                        {/* Custom Title Placement */}
+                        {title && (
+                            <text
+                                x={20}
+                                y={SVG_HEIGHT - 20}
+                                textAnchor="start"
+                                fill="rgb(100, 116, 139)"
+                                fontSize="14"
+                                style={{ fontFamily: 'monospace' }}
+                            >
+                                {title}
+                            </text>
+                        )}
+                    </>
+                );
+            }}
+        </BaseDrawingFrame>
     );
 }
 

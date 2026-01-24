@@ -473,7 +473,16 @@ export default function GenericMeasurementPage() {
                                   value={op.type}
                                   onValueChange={(value) => {
                                     const newOpenings = [...(item.openings || [])];
-                                    newOpenings[opIdx] = { ...op, type: value };
+                                    let w = op.width;
+                                    let h = op.height;
+
+                                    // Apply sizing defaults when type changes
+                                    if (value === 'window') { w = 1000; h = 1000; }
+                                    else if (value === 'door-frame') { w = 918; h = 2059; }
+                                    else if (value === 'door') { w = 830; h = 2015; }
+                                    else if (value === 'opening') { w = 1000; h = 1000; }
+
+                                    newOpenings[opIdx] = { ...op, type: value, width: w, height: h };
                                     updateItem(index, 'openings', newOpenings);
                                   }}
                                 >
@@ -483,7 +492,8 @@ export default function GenericMeasurementPage() {
                                   <SelectContent>
                                     {isWallCategory ? (
                                       <>
-                                        <SelectItem value="window">Kozijn</SelectItem>
+                                        <SelectItem value="window">Raamkozijn</SelectItem>
+                                        <SelectItem value="door-frame">Deurkozijn</SelectItem>
                                         <SelectItem value="door">Deur</SelectItem>
                                         <SelectItem value="opening">Sparing</SelectItem>
                                         <SelectItem value="other">Overig</SelectItem>
@@ -516,10 +526,37 @@ export default function GenericMeasurementPage() {
                                 <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">V. Onder</Label><MeasurementInput className="h-8 text-sm" value={op.fromBottom} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromBottom: v || 0 }; updateItem(index, 'openings', n); }} /></div>
                               </div>
 
-                              <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                                <Label className="text-xs text-zinc-400">Raveelwerk</Label>
-                                <Switch checked={op.requires_raveelwerk || false} onCheckedChange={(c) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, requires_raveelwerk: c }; updateItem(index, 'openings', n); }} className="scale-75 origin-right" />
-                              </div>
+                              {/* Onderdorpel Logic for Doors */}
+                              {(op.type === 'door' || op.type === 'door-frame') && (
+                                <div className="space-y-3 pt-2 border-t border-white/5">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-xs text-zinc-400">Onderdorpel</Label>
+                                    <Switch
+                                      checked={op.onderdorpel || false}
+                                      onCheckedChange={(c) => {
+                                        const n = [...(item.openings || [])];
+                                        n[opIdx] = { ...op, onderdorpel: c, onderdorpelDikte: c ? 20 : 0 }; // Default 20mm
+                                        updateItem(index, 'openings', n);
+                                      }}
+                                      className="scale-75 origin-right"
+                                    />
+                                  </div>
+                                  {op.onderdorpel && (
+                                    <div className="space-y-1 animation-in slide-in-from-top-1 fade-in duration-200">
+                                      <Label className="text-[10px] uppercase text-zinc-500">Dikte (mm)</Label>
+                                      <MeasurementInput
+                                        className="h-8 text-sm"
+                                        value={op.onderdorpelDikte}
+                                        onChange={(v) => {
+                                          const n = [...(item.openings || [])];
+                                          n[opIdx] = { ...op, onderdorpelDikte: v || 0 };
+                                          updateItem(index, 'openings', n);
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -530,8 +567,8 @@ export default function GenericMeasurementPage() {
                             const newOpening = {
                               id: crypto.randomUUID(),
                               type: isWallCategory ? 'window' : 'opening',
-                              width: 600,
-                              height: 600,
+                              width: isWallCategory ? 1000 : 600,
+                              height: isWallCategory ? 1000 : 600,
                               fromLeft: 1000,
                               fromBottom: 1000
                             };
@@ -585,10 +622,12 @@ export default function GenericMeasurementPage() {
                               <span>Dubbele Eindbalk</span>
                               <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
                             </div>
-                            <div className="flex items-center justify-between text-xs text-zinc-400">
-                              <span>Kader (Rondom)</span>
-                              <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
-                            </div>
+                            {!jobSlug.includes('hellend-dak') && !isWallCategory && (
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>Kader (Rondom)</span>
+                                <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

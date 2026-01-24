@@ -1,10 +1,13 @@
 export interface WallOpening {
     id: string;
-    type: 'door' | 'window' | 'opening';
+    type: 'door' | 'window' | 'opening' | 'door-frame' | 'other';
     width: number;
     height: number;
     fromLeft: number;
     fromBottom: number;
+    requires_raveelwerk?: boolean;
+    onderdorpel?: boolean;
+    onderdorpelDikte?: number;
 }
 
 export interface Beam {
