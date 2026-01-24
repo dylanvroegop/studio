@@ -2,6 +2,7 @@ import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { RoofDrawingProps } from './RoofDrawing';
 import { OverallDimensions, OpeningMeasurements } from './shared/measurements';
+import { OpeningLabels } from './shared/OpeningLabels';
 
 interface EPDMDrawingProps extends RoofDrawingProps {
     dakrandWidth?: number;
@@ -108,33 +109,8 @@ export function EPDMDrawing({
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
     const dakrandNum = typeof dakrandWidth === 'number' ? dakrandWidth : parseFloat(String(dakrandWidth)) || 0;
 
-    if (lengteNum <= 0 || heightNum <= 0) {
-        // Render an "empty" frame that preserves the look and feel
-        return (
-            <BaseDrawingFrame
-                width={1000} // Dummy width
-                height={1000} // Dummy height
-                widthLabel=""
-                heightLabel=""
-                className={className}
-                fitContainer={true}
-            >
-                {({ SVG_WIDTH, SVG_HEIGHT }) => (
-                    <text
-                        x={SVG_WIDTH / 2}
-                        y={SVG_HEIGHT / 2}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill="rgb(113, 113, 122)" // zinc-500
-                        fontSize="14"
-                        style={{ fontFamily: 'monospace' }}
-                    >
-                        Voer afmetingen in...
-                    </text>
-                )}
-            </BaseDrawingFrame>
-        );
-    }
+    // Use fallback dimensions for rendering if input is empty/zero
+    const isBlank = lengteNum <= 0 || heightNum <= 0;
 
     return (
         <BaseDrawingFrame
@@ -317,6 +293,13 @@ export function EPDMDrawing({
                             <path
                                 d={`M ${xPx} ${yPx} L ${xPx + wPx} ${yPx + hPx} M ${xPx + wPx} ${yPx} L ${xPx} ${yPx + hPx}`}
                                 stroke="rgb(70, 75, 85)" strokeWidth="1" opacity="0.3"
+                            />
+                            <OpeningLabels
+                                centerX={xPx + wPx / 2}
+                                centerY={yPx + hPx / 2}
+                                typeName={labelMap[op.type] || op.type || 'Sparing'}
+                                width={op.width}
+                                height={op.height}
                             />
                         </g>
                     );

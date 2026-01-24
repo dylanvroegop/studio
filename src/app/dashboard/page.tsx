@@ -125,17 +125,29 @@ function getDetailHref(quoteId: string) {
 
 // Helper to check if a single job (klus) is complete
 function jobIsComplete(job: any): boolean {
+  // Legacy support
   const selections = job?.materialen?.selections;
   const hasSelections =
     selections &&
     typeof selections === 'object' &&
     Object.keys(selections).length > 0;
 
+  // New structure support
+  const materialenLijst = job?.materialen?.materialen_lijst;
+  const hasMaterialenLijst =
+    materialenLijst &&
+    typeof materialenLijst === 'object' &&
+    Object.keys(materialenLijst).length > 0;
+
+  // Check preset usage (legacy label or new ID)
   const presetLabel = job?.werkwijze?.presetLabel;
   const hasWerkwijzePreset =
     !!presetLabel && presetLabel.trim().toLowerCase() !== 'nieuw';
 
-  return hasSelections || hasWerkwijzePreset;
+  const workMethodId = job?.werkwijze?.workMethodId;
+  const hasWorkMethodId = !!workMethodId && workMethodId !== 'default';
+
+  return hasSelections || hasMaterialenLijst || hasWerkwijzePreset || hasWorkMethodId;
 }
 
 // Calculate work completion status for a quote

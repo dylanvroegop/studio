@@ -778,20 +778,24 @@ export function WallStructureVisualizer({
                     ))}
 
                     {/* Top Plate */}
-                    <polygon
-                        points={topPlatePath}
-                        fill={timberColor}
-                        stroke={timberStroke}
-                        strokeWidth="0.5"
-                    />
+                    {lengteNum > 0 && (
+                        <polygon
+                            points={topPlatePath}
+                            fill={timberColor}
+                            stroke={timberStroke}
+                            strokeWidth="0.5"
+                        />
+                    )}
 
                     {/* Bottom Plate */}
-                    <polygon
-                        points={bottomPlatePath}
-                        fill={timberColor}
-                        stroke={timberStroke}
-                        strokeWidth="0.5"
-                    />
+                    {lengteNum > 0 && (
+                        <polygon
+                            points={bottomPlatePath}
+                            fill={timberColor}
+                            stroke={timberStroke}
+                            strokeWidth="0.5"
+                        />
+                    )}
 
                     {/* ALL Beams (Studs, Headers, Sills, Cripples) */}
                     {studData.beams.map((beam, i) => (
@@ -990,7 +994,7 @@ export function WallStructureVisualizer({
 
 
                     {/* Segments Dimensions (L-Shape / U-Shape) - Stacked at Bottom */}
-                    {(shape === 'l-shape' || shape === 'u-shape') && (
+                    {lengteNum > 0 && (shape === 'l-shape' || shape === 'u-shape') && (
                         <g className="text-emerald-500">
                             {(() => {
                                 // Define segments
@@ -1052,77 +1056,131 @@ export function WallStructureVisualizer({
                     )}
 
                     {/* Bottom Length Dimension */}
-                    <g className="text-emerald-500">
-                        <line x1={WALL_X} y1={DIM_Y_LENGTH} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        {/* Extension Lines */}
-                        <line x1={WALL_X} y1={Y_BOTTOM + 2} x2={WALL_X} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 2} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
-                        {/* Dots */}
-                        <circle cx={WALL_X} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
-                        <circle cx={WALL_X + WALL_WIDTH} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
-                        <text
-                            x={WALL_X + WALL_WIDTH / 2}
-                            y={DIM_Y_LENGTH + 8}
-                            textAnchor="middle"
-                            className="fill-emerald-400 text-[8px] font-mono font-medium"
-                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                        >
-                            {lengteDisplay}
-                        </text>
-                    </g>
+                    {lengteNum > 0 && (
+                        <g className="text-emerald-500">
+                            <line x1={WALL_X} y1={DIM_Y_LENGTH} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
+                            {/* Extension Lines */}
+                            <line x1={WALL_X} y1={Y_BOTTOM + 2} x2={WALL_X} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
+                            <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 2} x2={WALL_X + WALL_WIDTH} y2={DIM_Y_LENGTH} stroke="currentColor" strokeWidth="1" />
+                            {/* Dots */}
+                            <circle cx={WALL_X} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
+                            <circle cx={WALL_X + WALL_WIDTH} cy={DIM_Y_LENGTH} r="1.5" fill="currentColor" />
+                            <text
+                                x={WALL_X + WALL_WIDTH / 2}
+                                y={DIM_Y_LENGTH + 8}
+                                textAnchor="middle"
+                                className="fill-emerald-400 text-[8px] font-mono font-medium"
+                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                            >
+                                {lengteDisplay}
+                            </text>
+                        </g>
+                    )}
 
                     {/* Left Height Dimension */}
-                    <g className="text-emerald-500">
-                        {(() => {
-                            // Logic for Split Dimensions on Left Side
-                            // Only if L-shape or U-shape and h1 > h2 (or based on variant?)
-                            // Assuming Standard Top Variant for "Step" visualization logic for now, 
-                            // or generic logic: if adjacent wall is shorter, split the dimension.
+                    {lengteNum > 0 && (
+                        <g className="text-emerald-500">
+                            {(() => {
+                                // Logic for Split Dimensions on Left Side
+                                // Only if L-shape or U-shape and h1 > h2 (or based on variant?)
+                                // Assuming Standard Top Variant for "Step" visualization logic for now, 
+                                // or generic logic: if adjacent wall is shorter, split the dimension.
 
-                            let showSplit = false;
-                            let splitHeight = 0; // Height of the "short" part (from bottom)
+                                let showSplit = false;
+                                let splitHeight = 0; // Height of the "short" part (from bottom)
 
-                            if ((shape === 'l-shape' || shape === 'u-shape') && variant !== 'bottom') {
-                                if (h1 > h2) {
-                                    showSplit = true;
-                                    splitHeight = h2;
+                                if ((shape === 'l-shape' || shape === 'u-shape') && variant !== 'bottom') {
+                                    if (h1 > h2) {
+                                        showSplit = true;
+                                        splitHeight = h2;
+                                    }
                                 }
-                            }
 
-                            // If variant is bottom, the logic is inverted? 
-                            // If Left is Tall (H1), Middle is Short (H2).
-                            // Step is at Bottom. 
-                            // Maybe user wants split there too? Let's stick to the Top Variant user case first (Step Down).
+                                // If variant is bottom, the logic is inverted? 
+                                // If Left is Tall (H1), Middle is Short (H2).
+                                // Step is at Bottom. 
+                                // Maybe user wants split there too? Let's stick to the Top Variant user case first (Step Down).
 
-                            if (showSplit) {
-                                const ySplit = getY(splitHeight);
-                                const topPartH = h1 - splitHeight;
+                                if (showSplit) {
+                                    const ySplit = getY(splitHeight);
+                                    const topPartH = h1 - splitHeight;
 
-                                // Layout Constants
-                                const wallBuffer = 2; // Space between wall and start of ticks
-                                const splitLineX = WALL_X - 30; // Position of split dimension line
-                                const totalLineX = WALL_X - 80; // Position of total height dimension line (increased spacing)
-                                const textPad = 10; // Padding for text
+                                    // Layout Constants
+                                    const wallBuffer = 2; // Space between wall and start of ticks
+                                    const splitLineX = WALL_X - 30; // Position of split dimension line
+                                    const totalLineX = WALL_X - 80; // Position of total height dimension line (increased spacing)
+                                    const textPad = 10; // Padding for text
 
+                                    return (
+                                        <>
+                                            {/* SHARED EXTENSIONS (Connect Dim Lines to Wall) */}
+                                            {/* Top Extension (Total Height) */}
+                                            <line x1={totalLineX} y1={yLeft} x2={WALL_X - wallBuffer} y2={yLeft} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={totalLineX} cy={yLeft} r="1.5" fill="currentColor" />
+
+                                            {/* Bottom Extension (Total Height) */}
+                                            <line x1={totalLineX} y1={Y_BOTTOM} x2={WALL_X - wallBuffer} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={totalLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
+
+                                            {/* Middle Extension (Split Point) */}
+                                            <line x1={splitLineX} y1={ySplit} x2={WALL_X - wallBuffer} y2={ySplit} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={splitLineX} cy={ySplit} r="1.5" fill="currentColor" />
+
+                                            {/* --- TOTAL HEIGHT DIMENSION LINE --- */}
+                                            <line x1={totalLineX} y1={yLeft} x2={totalLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                            <text
+                                                x={totalLineX - textPad}
+                                                y={(yLeft + Y_BOTTOM) / 2 + 3}
+                                                textAnchor="end"
+                                                className="fill-emerald-400 text-[12px] font-mono font-bold"
+                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                            >
+                                                {hL_disp}
+                                            </text>
+
+                                            {/* --- SPLIT HEIGHT DIMENSION LINES --- */}
+                                            {/* Lower Segment */}
+                                            <line x1={splitLineX} y1={ySplit} x2={splitLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={splitLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" /> {/* Dot at intersection with bottom ext */}
+
+                                            <text
+                                                x={splitLineX - textPad}
+                                                y={(ySplit + Y_BOTTOM) / 2 + 3}
+                                                textAnchor="end"
+                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
+                                            >
+                                                {Math.round(splitHeight)}
+                                            </text>
+
+                                            {/* Upper Segment */}
+                                            <line x1={splitLineX} y1={yLeft} x2={splitLineX} y2={ySplit} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={splitLineX} cy={yLeft} r="1.5" fill="currentColor" /> {/* Dot at intersection with top ext */}
+
+                                            <text
+                                                x={splitLineX - textPad}
+                                                y={(yLeft + ySplit) / 2 + 3}
+                                                textAnchor="end"
+                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
+                                            >
+                                                {Math.round(topPartH)}
+                                            </text>
+                                        </>
+                                    );
+                                }
+
+                                // Standard Full Height Dim
                                 return (
                                     <>
-                                        {/* SHARED EXTENSIONS (Connect Dim Lines to Wall) */}
-                                        {/* Top Extension (Total Height) */}
-                                        <line x1={totalLineX} y1={yLeft} x2={WALL_X - wallBuffer} y2={yLeft} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={totalLineX} cy={yLeft} r="1.5" fill="currentColor" />
+                                        <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 25} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                        {/* Extensions */}
+                                        <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 2} y2={yLeft} stroke="currentColor" strokeWidth="1" />
+                                        <line x1={WALL_X - 25} y1={Y_BOTTOM} x2={WALL_X - 2} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                        {/* Dots */}
+                                        <circle cx={WALL_X - 25} cy={yLeft} r="1.5" fill="currentColor" />
+                                        <circle cx={WALL_X - 25} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
 
-                                        {/* Bottom Extension (Total Height) */}
-                                        <line x1={totalLineX} y1={Y_BOTTOM} x2={WALL_X - wallBuffer} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={totalLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
-
-                                        {/* Middle Extension (Split Point) */}
-                                        <line x1={splitLineX} y1={ySplit} x2={WALL_X - wallBuffer} y2={ySplit} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={splitLineX} cy={ySplit} r="1.5" fill="currentColor" />
-
-                                        {/* --- TOTAL HEIGHT DIMENSION LINE --- */}
-                                        <line x1={totalLineX} y1={yLeft} x2={totalLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
                                         <text
-                                            x={totalLineX - textPad}
+                                            x={WALL_X - 40}
                                             y={(yLeft + Y_BOTTOM) / 2 + 3}
                                             textAnchor="end"
                                             className="fill-emerald-400 text-[8px] font-mono font-medium"
@@ -1130,61 +1188,11 @@ export function WallStructureVisualizer({
                                         >
                                             {hL_disp}
                                         </text>
-
-                                        {/* --- SPLIT HEIGHT DIMENSION LINES --- */}
-                                        {/* Lower Segment */}
-                                        <line x1={splitLineX} y1={ySplit} x2={splitLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={splitLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" /> {/* Dot at intersection with bottom ext */}
-
-                                        <text
-                                            x={splitLineX - textPad}
-                                            y={(ySplit + Y_BOTTOM) / 2 + 3}
-                                            textAnchor="end"
-                                            className="fill-emerald-400 text-[8px] font-mono font-medium"
-                                        >
-                                            {Math.round(splitHeight)}
-                                        </text>
-
-                                        {/* Upper Segment */}
-                                        <line x1={splitLineX} y1={yLeft} x2={splitLineX} y2={ySplit} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={splitLineX} cy={yLeft} r="1.5" fill="currentColor" /> {/* Dot at intersection with top ext */}
-
-                                        <text
-                                            x={splitLineX - textPad}
-                                            y={(yLeft + ySplit) / 2 + 3}
-                                            textAnchor="end"
-                                            className="fill-emerald-400 text-[8px] font-mono font-medium"
-                                        >
-                                            {Math.round(topPartH)}
-                                        </text>
                                     </>
                                 );
-                            }
-
-                            // Standard Full Height Dim
-                            return (
-                                <>
-                                    <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 25} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                    {/* Extensions */}
-                                    <line x1={WALL_X - 25} y1={yLeft} x2={WALL_X - 2} y2={yLeft} stroke="currentColor" strokeWidth="1" />
-                                    <line x1={WALL_X - 25} y1={Y_BOTTOM} x2={WALL_X - 2} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                    {/* Dots */}
-                                    <circle cx={WALL_X - 25} cy={yLeft} r="1.5" fill="currentColor" />
-                                    <circle cx={WALL_X - 25} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
-
-                                    <text
-                                        x={WALL_X - 40}
-                                        y={(yLeft + Y_BOTTOM) / 2 + 3}
-                                        textAnchor="end"
-                                        className="fill-emerald-400 text-[8px] font-mono font-medium"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                    >
-                                        {hL_disp}
-                                    </text>
-                                </>
-                            );
-                        })()}
-                    </g>
+                            })()}
+                        </g>
+                    )}
 
                     {/* Right Height Dimension */}
                     <g className="text-emerald-500">
@@ -1194,7 +1202,8 @@ export function WallStructureVisualizer({
                     </g>
 
                     {/* Ridge */}
-                    {shape === 'gable' && (
+                    {/* Ridge */}
+                    {lengteNum > 0 && shape === 'gable' && (
                         <g className="text-emerald-500">
                             <line x1={WALL_X + WALL_WIDTH / 2} y1={yPeak} x2={WALL_X + WALL_WIDTH / 2 + 40} y2={yPeak} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
                             <text

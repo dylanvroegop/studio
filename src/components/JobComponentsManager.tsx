@@ -84,7 +84,9 @@ export function JobComponentsManager({
 
     const handleEdit = (comp: JobComponent) => {
         setSelectedType(comp.type);
-        setTempMeasurements({ ...comp.measurements, _variantMode: !!comp.slug }); // If it has a slug, treat as variant mode to skip list
+        // Fallback to legacy 'measurements' if specific one is missing
+        const measurements = (comp as any)[`measurements_${comp.type}`] || comp.measurements || {};
+        setTempMeasurements({ ...measurements, _variantMode: !!comp.slug }); // If it has a slug, treat as variant mode to skip list
         setEditingId(comp.id);
         setOpen(true);
     };
@@ -105,7 +107,9 @@ export function JobComponentsManager({
         // Lookup slug from JOB_REGISTRY if applicable
         let matchedItem: any = null;
         if (selectedType === 'kozijn' || selectedType === 'deur') {
-            const variantTitle = subtitle || (editingId ? components.find(c => c.id === editingId)?.measurements?.subtitle : null);
+            const prevComp = editingId ? components.find(c => c.id === editingId) : null;
+            const prevMeasurements = prevComp ? ((prevComp as any)[`measurements_${selectedType}`] || prevComp.measurements) : null;
+            const variantTitle = subtitle || (prevMeasurements?.subtitle);
             if (variantTitle) {
                 // Determine which category to search.
                 if (selectedType === 'kozijn') {
@@ -120,7 +124,21 @@ export function JobComponentsManager({
             id: editingId || (typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2)),
             type: selectedType as JobComponentType,
             label: newLabel,
-            measurements: { ...actualMeasurements, subtitle },
+            measurements: {}, // Keep empty for type safety / legacy interface? Or populate? 
+            // We'll populate the specific key below, but 'measurements' is typed in JobComponent.
+            // checking JobComponent type definition might be needed. 
+            // Assuming JobComponent has [key: string]: any or we just use measurements for now but ALSO add the specific key?
+            // User requested "measurements_${type}".
+            // Let's store BOTH or just the specific one?
+            // "currently it stores ... under 'maatwerk' ... I want ... slug + maatwerk ... component ... doing the same thing"
+            // If I change 'measurements' to {} and put data in `measurements_${type}`, I need to update the interface or cast.
+            // Let's start by storing it in the dynamic key AND 'measurements' for compatibility if feasible, OR just dynamic key if we update readers.
+            // I'll assume we want to Move away from 'measurements'.
+            // So:
+            [`measurements_${selectedType}`]: { ...actualMeasurements, subtitle },
+            measurements: { ...actualMeasurements, subtitle }, // Keeping this for UI compatibility in other places for now? 
+            // User said: "maybe doing the same thing? it already has 'type' in there but to be safe"
+            // If I duplicate, it is safe.
             slug: matchedItem?.slug || (editingId ? components.find(c => c.id === editingId)?.slug : undefined),
         };
 
@@ -181,11 +199,14 @@ export function JobComponentsManager({
                                             <div className="font-medium text-sm">{comp.label}</div>
                                             <div className="text-xs text-muted-foreground">{config?.title}</div>
                                             <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
-                                                {Object.entries(comp.measurements).filter(([k]) => k !== 'subtitle' && k !== '_variantMode').map(([k, v]) => (
-                                                    <span key={k} className="bg-secondary px-1.5 py-0.5 rounded text-[10px]">
-                                                        {k}: {v}
-                                                    </span>
-                                                ))}
+                                                {(() => {
+                                                    const m = (comp as any)[`measurements_${comp.type}`] || comp.measurements || {};
+                                                    return Object.entries(m).filter(([k]) => k !== 'subtitle' && k !== '_variantMode').map(([k, v]) => (
+                                                        <span key={k} className="bg-secondary px-1.5 py-0.5 rounded text-[10px]">
+                                                            {k}: {v as React.ReactNode}
+                                                        </span>
+                                                    ));
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
@@ -313,7 +334,9 @@ export function JobComponentsManager({
 
                                     // Helper to lookup variant measurements
                                     if (selectedType === 'kozijn' || selectedType === 'deur') {
-                                        const variantTitle = tempMeasurements.subtitle || (editingId ? components.find(c => c.id === editingId)?.measurements?.subtitle : null);
+                                        const prevComp = editingId ? components.find(c => c.id === editingId) : null;
+                                        const prevMeasurements = prevComp ? ((prevComp as any)[`measurements_${selectedType}`] || prevComp.measurements) : null;
+                                        const variantTitle = tempMeasurements.subtitle || prevMeasurements?.subtitle;
                                         if (variantTitle) {
                                             let matchedItem: any = null;
                                             if (selectedType === 'kozijn') matchedItem = JOB_REGISTRY.kozijnen.items.find((i: any) => i.title === variantTitle);

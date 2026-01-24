@@ -283,3 +283,158 @@ export async function getJobsForQuoteSelectionAction(quoteId: string) {
   // Jobs already have string createdAt from getJobsForQuote
   return jobs;
 }
+
+/* ---------------------------------------------
+ n8n Proxy Actions
+--------------------------------------------- */
+
+export async function calculateMaterialsAction(jobData: any) {
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    console.error("N8N_WEBHOOK_URL is not defined");
+    return { error: "Server configuratie fout: Webhook URL ontbreekt." };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobData),
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      throw new Error(`n8n webhook error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return { data };
+  } catch (error: any) {
+    console.error("Error in calculateMaterialsAction:", error);
+    return { error: "Fout bij ophalen materialen." };
+  }
+}
+
+export async function calculateMaterialsActionWithFirestore(quoteId: string, jobId: string, jobData: any) {
+  const { firestore } = initializeFirebaseServer();
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    console.error("N8N_WEBHOOK_URL is not defined");
+    return { error: "Server configuratie fout: Webhook URL ontbreekt." };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobData),
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      throw new Error(`n8n webhook error: ${response.status} ${response.statusText}`);
+    }
+
+    const rawData = await response.json();
+    let materials: any[] = [];
+
+    // Parse logic
+    if (Array.isArray(rawData) && rawData.length === 1 && rawData[0].materialen) {
+      materials = rawData[0].materialen;
+    } else if (rawData && rawData.materialen && Array.isArray(rawData.materialen)) {
+      materials = rawData.materialen;
+    } else if (Array.isArray(rawData) && rawData.length > 0 && !rawData[0].materiaal) {
+      if (rawData[0].json && rawData[0].json.materialen) {
+        materials = rawData[0].json.materialen;
+      }
+    } else if (Array.isArray(rawData)) {
+      if (rawData.length > 0 && rawData[0].materiaal) {
+        materials = rawData;
+      }
+    } else if (rawData && rawData.success && rawData.materialen) {
+      materials = rawData.materialen;
+    }
+
+    if (quoteId && jobId && materials.length > 0) {
+      const jobRef = doc(firestore, `quotes/${quoteId}/jobs/${jobId}`);
+      await updateDoc(jobRef, {
+        materialen: materials,
+        updatedAt: serverTimestamp()
+      });
+    }
+
+    return { data: materials };
+  } catch (error: any) {
+    console.error("Error in calculateMaterialsAction:", error);
+    return { error: "Fout bij ophalen materialen." };
+  }
+}
+
+export async function fetchMaterialsFromN8nAction(jobData: any) {
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    console.error("N8N_WEBHOOK_URL is not defined");
+    return { error: "Server configuratie fout: Webhook URL ontbreekt." };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobData),
+      cache: 'no-store'
+    });
+
+    // FIRE AND FORGET / POLLING STRATEGY
+    // We do NOT wait for the full JSON response anymore.
+    // We just check if the request was accepted (200 OK).
+    if (!response.ok) {
+      throw new Error(`n8n webhook error: ${response.status} ${response.statusText}`);
+    }
+
+    // Indicate that the calculation started
+    return {
+      data: [],
+      started: true,
+      message: "Calculatie aangevraagd. Polling gestart..."
+    };
+
+  } catch (error: any) {
+    console.error("Error in fetchMaterialsFromN8nAction:", error);
+    return { error: "Fout bij ophalen materialen: " + error.message };
+  }
+}
+
+export async function checkCalculationStatusAction(quoteId: string, userId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return { error: "Server config error: Missing Supabase Admin Key" };
+  }
+
+  // Use Service Role to bypass RLS
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('quotes collection')
+      .select('status, data_json')
+      .eq('quoteid', quoteId)
+      .eq('gebruikerid', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Supabase polling error (server):", error);
+      return { error: error.message };
+    }
+
+    return { data };
+  } catch (e: any) {
+    return { error: e.message };
+  }
+}

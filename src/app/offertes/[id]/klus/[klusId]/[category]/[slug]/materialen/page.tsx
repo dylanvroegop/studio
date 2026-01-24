@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 import { PersonalNotes } from '@/components/PersonalNotes';
+import { QuoteNotes } from '@/components/QuoteNotes';
 import { WizardHeader } from '@/components/WizardHeader';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
 import { JobComponent, JobComponentType, Job } from '@/lib/types';
@@ -797,10 +798,17 @@ export default function GenericMaterialsPageRedesigned() {
               // Custom selections save 'title' as the Name of the group.
               // ALSO: Standard keys match the section slugs. Custom keys are UUIDs.
               // Let's assume keys starting with 'custom_' or being UUIDs are custom? 
-              // Or simply check for 'order' property which we save for custom groups but not standard.
-              if (val.order !== undefined || val.title) {
+              // Support for new nested structure with sectionKey
+              if (val.material && val.sectionKey) {
+                // It's a standard selection in the new format
+                newGekozen[val.sectionKey] = val.material;
+              }
+              // Support for custom groups (check for title/order)
+              else if (val.order !== undefined || val.title) {
                 newCustomGroupsMap[key] = val;
-              } else {
+              }
+              // Fallback for legacy standard selections (flat structure)
+              else {
                 newGekozen[key] = val;
               }
             });
@@ -1200,11 +1208,13 @@ export default function GenericMaterialsPageRedesigned() {
         if (k.startsWith('component_')) return; // Ignore legacy flat components
         if (v) {
           materialenLijst[k] = {
-            // No ID
-            materiaalnaam: v.materiaalnaam || '',
-            prijs: v.eenheid ? `${typeof v.prijs === 'number' ? v.prijs : 0} ${v.eenheid}` : (typeof v.prijs === 'number' ? v.prijs : 0),
-            prijs_per_stuk: typeof v.prijs_per_stuk === 'number' ? v.prijs_per_stuk : 0,
-            // eenheid: v.eenheid || '' // Removed per request
+            sectionKey: k,
+            material: {
+              materiaalnaam: v.materiaalnaam || '',
+              prijs: v.eenheid ? `${typeof v.prijs === 'number' ? v.prijs : 0} ${v.eenheid}` : (typeof v.prijs === 'number' ? v.prijs : 0),
+              prijs_per_stuk: typeof v.prijs_per_stuk === 'number' ? v.prijs_per_stuk : 0,
+              // eenheid: v.eenheid || '' // Removed per request
+            }
           };
         }
       });
@@ -1571,7 +1581,8 @@ export default function GenericMaterialsPageRedesigned() {
                               // ALL COMPONENTS: Simplified rendering (Vlizotrap Style)
                               // User requested uniform "clean list" style for everything, including Kozijnen/Deuren.
                               if (targetComponentType) {
-                                const hasMeasurements = comp.measurements && Object.keys(comp.measurements).length > 0;
+                                const measurements = (comp as any)[`measurements_${comp.type}`] || comp.measurements;
+                                const hasMeasurements = measurements && Object.keys(measurements).length > 0;
 
                                 return (
                                   <div key={comp.id} className="mt-2 space-y-1.5">
@@ -1764,11 +1775,17 @@ export default function GenericMaterialsPageRedesigned() {
           {/* (Legacy Helper Removed) */}
 
           {/* Klein Material - Card style */}
-          <div className="pb-24">
+          <div className="pb-8">
             {renderKleinMateriaalSectie()}
           </div>
         </div>
       </main>
+
+      {/* Quote Notes Section - Persistent at bottom */}
+      {/* Quote Notes Section - Persistent at bottom */}
+      <div className="max-w-5xl mx-auto px-4 pb-24">
+        <QuoteNotes quoteId={quoteId} />
+      </div>
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
@@ -1792,7 +1809,7 @@ export default function GenericMaterialsPageRedesigned() {
             disabled={isOpslaan || isApplyingPreset || isPaginaLaden}
             onClick={handleNext}
           >
-            {isOpslaan ? 'Opslaan...' : isApplyingPreset ? 'Configuratie toepassen...' : 'Volgende'}
+            {isOpslaan ? 'Opslaan...' : isApplyingPreset ? 'Configuratie toepassen...' : 'Opslaan'}
           </Button>
         </div>
       </div >
@@ -1932,7 +1949,7 @@ export default function GenericMaterialsPageRedesigned() {
           const converted: any = {
             ...mat,
             id: mat.id || mat.row_id,
-            prijs: typeof mat.prijs === 'number' ? mat.prijs : 0,
+            prijs: typeof mat.prijs === 'number' ? mat.prijs : (parseNLMoneyToNumber(mat.prijs) || 0),
             categorie: mat.subsectie || null,
             materiaalnaam: mat.materiaalnaam || '',
             eenheid: mat.eenheid || 'stuk',
@@ -1957,7 +1974,7 @@ export default function GenericMaterialsPageRedesigned() {
           const converted: any = {
             ...newMaterial,
             id: newMaterial.id || newMaterial.row_id,
-            prijs: typeof newMaterial.prijs === 'number' ? newMaterial.prijs : 0,
+            prijs: typeof newMaterial.prijs === 'number' ? newMaterial.prijs : (parseNLMoneyToNumber(newMaterial.prijs) || 0),
             quantity: 1
           };
           if (activeComponentId && actieveSectie) {

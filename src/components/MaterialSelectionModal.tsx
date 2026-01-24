@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Calculator, Package, Search, Filter, ArrowLeft, ChevronDown, Star } from 'lucide-react';
+import { Loader2, Plus, Package, Search, Filter, ArrowLeft, ChevronDown, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,41 +15,9 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-// ==========================================
-// 1. HELPER FUNCTIONS (Logic Core)
-// ==========================================
-
-// Centralized logic for naming. Used by both Preview and Save.
-// This ensures WYSIWYG (What You See Is What You Get).
-function constructFinalName(
-  baseName: string,
-  isCalculatie: boolean,
-  dimensions: {
-    lengte: string,
-    breedte: string,
-    dikte: string,
-    hoogte: string,
-    maatUnit: string,
-    eenheid: string
-  }
-): string {
-  const cleanName = (baseName || '').trim();
-  if (!cleanName) return '';
-
-  if (!isCalculatie) return cleanName;
-
-  const l = dimensions.lengte.trim();
-  const b = dimensions.breedte.trim();
-  const u = (dimensions.maatUnit || 'mm').trim();
-
-  // Determine the 3rd dimension based on unit type (p/m3 uses height, others use thickness)
-  const thirdDim = dimensions.eenheid === 'p/m3' ? dimensions.hoogte.trim() : dimensions.dikte.trim();
-
-  if (!l || !b) return cleanName; // Don't append incomplete dimensions
-
-  // Result: "Test 1000 × 1000 × 12mm"
-  // Note: Using the multiplication symbol '×' consistently
-  return `${cleanName} ${l} × ${b} × ${thirdDim}${u}`;
+// Centralized logic for naming.
+function constructFinalName(baseName: string): string {
+  return (baseName || '').trim();
 }
 
 function parsePriceToNumber(raw: unknown): number | null {
@@ -77,22 +45,9 @@ function parsePriceToNumber(raw: unknown): number | null {
 }
 
 // Logic to show estimated price in the red check bar
-function calculatePiecePrice(price: number, unit: string, L: string, B: string, maatUnit: string): number | null {
-  const lengte = parseFloat(L.replace(',', '.'));
-  const breedte = parseFloat(B.replace(',', '.'));
-  if (isNaN(lengte) || isNaN(breedte)) return null;
-
-  let areaM2 = 0;
-  if (maatUnit === 'mm') areaM2 = (lengte * breedte) / 1000000;
-  else if (maatUnit === 'cm') areaM2 = (lengte * breedte) / 10000;
-  else areaM2 = lengte * breedte;
-
-  if (unit === 'p/m2') return price * areaM2;
-  if (unit === 'p/m1') {
-    const lengthM1 = maatUnit === 'mm' ? lengte / 1000 : maatUnit === 'cm' ? lengte / 100 : lengte;
-    return price * lengthM1;
-  }
-  return null;
+// In 'Los Artikel' mode (per stuk/doos/etc), the price entered IS the price per piece.
+function calculatePiecePrice(price: number): number | null {
+  return price;
 }
 
 function formatEuro(amount: number | null): string {
@@ -146,7 +101,7 @@ function InputMetSuffix(props: {
 // ==========================================
 
 const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
-const MAAT_UNITS: string[] = ['mm', 'cm', 'm'];
+
 
 export type ExistingMaterial = {
   row_id: string;
@@ -193,7 +148,6 @@ export function MaterialSelectionModal({
   const [displayLimit, setDisplayLimit] = useState(50);
 
   // Form State
-  const [isCalculatie, setIsCalculatie] = useState<boolean>(true);
   const [customNaam, setCustomNaam] = useState<string>('');
   const [customEenheid, setCustomEenheid] = useState<string>('');
   const [customPrijs, setCustomPrijs] = useState<string>('');
@@ -203,12 +157,6 @@ export function MaterialSelectionModal({
   // --- AUTOCOMPLETE FOCUS STATES ---
   const [categorieDropdownOpen, setCategorieDropdownOpen] = useState(false);
   const [leverancierDropdownOpen, setLeverancierDropdownOpen] = useState(false);
-
-  const [maatUnit, setMaatUnit] = useState<string>('mm');
-  const [maatLengte, setMaatLengte] = useState<string>('');
-  const [maatBreedte, setMaatBreedte] = useState<string>('');
-  const [maatDikte, setMaatDikte] = useState<string>('');
-  const [maatHoogte, setMaatHoogte] = useState<string>('');
 
   // --- RESET ON OPEN ---
   useEffect(() => {
@@ -226,26 +174,12 @@ export function MaterialSelectionModal({
       setCustomPrijs('');
       setCustomSubsectie('');
       setCustomLeverancier('');
-      setMaatUnit('mm');
-      setMaatLengte('');
-      setMaatBreedte('');
-      setMaatDikte('');
-      setMaatHoogte('');
     }
   }, [open, defaultCategory]);
 
   useEffect(() => {
     setDisplayLimit(50);
   }, [searchTerm, categoryFilter]);
-
-  // Clear irrelevant dimensions when unit changes
-  useEffect(() => {
-    if (customEenheid === 'p/m3') {
-      setMaatDikte('');
-    } else if (customEenheid === 'p/m1' || customEenheid === 'p/m2') {
-      setMaatHoogte('');
-    }
-  }, [customEenheid]);
 
   // --- SEARCH LOGIC ---
   const uniqueCategories = useMemo(() => {
@@ -299,32 +233,14 @@ export function MaterialSelectionModal({
   const isPrijsOk = prijsNum != null && prijsNum >= 0;
   const isEenheidOk = (customEenheid || '').trim().length > 0;
 
-  const isMaatOk = useMemo(() => {
-    if (!isCalculatie) return true;
-    const l = maatLengte.trim();
-    const b = maatBreedte.trim();
-    const u = maatUnit.trim();
-    // Only require lengte and breedte - dikte/hoogte is optional
-    return l.length > 0 && b.length > 0 && u.length > 0;
-  }, [isCalculatie, maatLengte, maatBreedte, maatUnit]);
-
   const canSaveCustom = useMemo(() => {
-    const basisCheck = !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
-    if (isCalculatie) return basisCheck && isMaatOk;
-    return basisCheck;
-  }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk, isCalculatie]);
+    return !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
+  }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk]);
 
   // --- PREVIEW NAME GENERATOR ---
   const previewNaam = useMemo(() => {
-    return constructFinalName(customNaam, isCalculatie, {
-      lengte: maatLengte,
-      breedte: maatBreedte,
-      dikte: maatDikte,
-      hoogte: maatHoogte,
-      maatUnit,
-      eenheid: customEenheid
-    });
-  }, [customNaam, isCalculatie, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
+    return constructFinalName(customNaam);
+  }, [customNaam]);
 
   // --- SAVE ACTION ---
   const saveCustomMaterial = async () => {
@@ -342,35 +258,20 @@ export function MaterialSelectionModal({
       const eenheid = (customEenheid || '').trim();
       if (!eenheid) throw new Error('Kies een eenheid.');
 
-      if (isCalculatie && !isMaatOk) {
-        throw new Error('Vul alle afmetingen in.');
-      }
-
       setSavingCustom(true);
 
       // 2. Generate the FINAL string using the shared helper
-      const finalNameToSend = constructFinalName(baseName, isCalculatie, {
-        lengte: maatLengte,
-        breedte: maatBreedte,
-        dikte: maatDikte,
-        hoogte: maatHoogte,
-        maatUnit: maatUnit,
-        eenheid: eenheid
-      });
+      const finalNameToSend = constructFinalName(baseName);
 
       // Calculate price per piece if possible
-      let calculatedPiecePrice = prijsNumLocal;
-      if (isCalculatie) {
-        const piece = calculatePiecePrice(prijsNumLocal, customEenheid, maatLengte, maatBreedte, maatUnit);
-        if (piece !== null) calculatedPiecePrice = piece;
-      }
+      const calculatedPiecePrice = prijsNumLocal;
 
       // 3. Prepare Payload
       const payload: any = {
         materiaalnaam: finalNameToSend,
         eenheid,
         prijs: prijsNumLocal, // Unit price
-        prijs_per_stuk: calculatedPiecePrice, // Calculated piece price
+        prijs_per_stuk: calculatedPiecePrice, // Calculated piece price (same as unit price for simple items)
         categorie: customSubsectie.trim() || 'Overig',
         leverancier: customLeverancier.trim() || null,
       };
@@ -445,30 +346,14 @@ export function MaterialSelectionModal({
               </div>
 
               <div className="mb-4">
-                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Of maak nieuw</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => { setIsCalculatie(true); setStep('form'); }}
-                    className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/50 hover:border-foreground/20 transition-all"
-                  >
-                    <Calculator className="h-4 w-4 text-emerald-500" />
-                    <div className="text-left">
-                      <div className="text-xs font-semibold text-foreground">Calculatie</div>
-                      <div className="text-[9px] text-muted-foreground">Maten verplicht</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => { setIsCalculatie(false); setStep('form'); }}
-                    className="flex items-center justify-center gap-2 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/50 hover:border-foreground/20 transition-all"
-                  >
-                    <Package className="h-4 w-4 text-emerald-500" />
-                    <div className="text-left">
-                      <div className="text-xs font-semibold text-foreground">Los Artikel</div>
-                      <div className="text-[9px] text-muted-foreground">Geen maten</div>
-                    </div>
-                  </button>
-                </div>
+                <Button
+                  onClick={() => { setStep('form'); }}
+                  variant="outline"
+                  className="w-full h-12 border-dashed border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:bg-muted/10 hover:border-emerald-500/50 transition-all group"
+                >
+                  <Plus className="mr-2 h-4 w-4 group-hover:text-emerald-500 transition-colors" />
+                  <span className="font-medium">Nieuw materiaal toevoegen</span>
+                </Button>
               </div>
 
               <div className="space-y-3">
@@ -601,7 +486,7 @@ export function MaterialSelectionModal({
               </Button>
               <div className="flex flex-col gap-1">
                 <DialogTitle className="text-xl font-bold text-white leading-none">
-                  Nieuw {isCalculatie ? 'Calculatie Product' : 'Los Artikel'}
+                  Nieuw Materiaal
                 </DialogTitle>
                 <DialogDescription className="text-zinc-400 text-sm">
                   Vul de gegevens van het materiaal in.
@@ -626,7 +511,7 @@ export function MaterialSelectionModal({
                       setCustomNaam(capitalized);
                     }
                   }}
-                  placeholder={isCalculatie ? "bijv. Gipsplaat AK" : "bijv. Keukenkraan chroom"}
+                  placeholder="bijv. Keukenkraan chroom"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -637,14 +522,9 @@ export function MaterialSelectionModal({
                       <SelectValue placeholder="Kies" />
                     </SelectTrigger>
                     <SelectContent>
-                      {isCalculatie
-                        ? EENHEDEN.filter(e => e.includes('p/m') || e === 'stuk').map((e) => (
-                          <SelectItem key={e} value={e}>{e}</SelectItem>
-                        ))
-                        : EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
-                          <SelectItem key={e} value={e}>{e}</SelectItem>
-                        ))
-                      }
+                      {EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -670,50 +550,7 @@ export function MaterialSelectionModal({
                 </div>
               </div>
 
-              {isCalculatie && (
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-inner">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium text-white uppercase tracking-tight">Afmetingen *</div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Unit</div>
-                      <Select value={maatUnit} onValueChange={setMaatUnit}>
-                        <SelectTrigger className="h-7 w-[70px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MAAT_UNITS.map((u) => (
-                            <SelectItem key={u} value={u}>{u}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Lengte</div>
-                      <InputMetSuffix value={maatLengte} onChange={setMaatLengte} suffix={maatUnit} placeholder="0" />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Breedte</div>
-                      <InputMetSuffix value={maatBreedte} onChange={setMaatBreedte} suffix={maatUnit} placeholder="0" />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">
-                        {customEenheid === 'p/m3' ? 'Hoogte' : 'Dikte'}
-                      </div>
-                      <InputMetSuffix
-                        value={customEenheid === 'p/m3' ? maatHoogte : maatDikte}
-                        onChange={customEenheid === 'p/m3' ? setMaatHoogte : setMaatDikte}
-                        suffix={maatUnit}
-                        placeholder="0"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-[10px] italic text-muted-foreground">
-                    Wordt opgeslagen als: <span className="font-semibold text-emerald-500">{previewNaam}</span>
-                  </div>
-                </div>
-              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Categorie (optioneel)</div>
@@ -793,7 +630,7 @@ export function MaterialSelectionModal({
 
               {/* CHECK BAR (RED) */}
               {/* RECEIPT PREVIEW CARD */}
-              {isPrijsOk && (isCalculatie ? isMaatOk : true) && customEenheid && (
+              {isPrijsOk && customEenheid && (
                 <div className="mx-0 mb-2 mt-6 flex items-center justify-between rounded-r-lg rounded-l-sm border border-border/50 bg-card/50 px-5 py-4 shadow-sm border-l-4 border-l-emerald-500 animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex items-start gap-4">
                     <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10">
@@ -809,13 +646,10 @@ export function MaterialSelectionModal({
 
                   <div className="text-right ml-6 shrink-0">
                     <div className="text-xl font-bold text-white leading-none tracking-tight">
-                      {formatEuro(isCalculatie
-                        ? (calculatePiecePrice(prijsNum!, customEenheid, maatLengte, maatBreedte, maatUnit) ?? prijsNum)
-                        : prijsNum
-                      )}
+                      {formatEuro(prijsNum)}
                     </div>
                     <div className="text-[11px] font-medium text-muted-foreground mt-1.5 uppercase tracking-wide">
-                      {isCalculatie ? 'Totaal per stuk' : `Per ${customEenheid}`}
+                      Per {customEenheid}
                     </div>
                   </div>
                 </div>
@@ -842,9 +676,10 @@ export function MaterialSelectionModal({
               </Button>
             </DialogFooter>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        )
+        }
+      </DialogContent >
+    </Dialog >
   );
 }
 

@@ -4,6 +4,8 @@ import React, { useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 import { WallOpening, DrawingData, Beam as BeamData, DimensionLine } from '@/lib/drawing-types';
+import { OpeningLabels } from './shared/OpeningLabels';
+import { GridMeasurements, OpeningMeasurements } from './shared/measurements';
 
 // Helper to remove undefined values for Firestore
 const removeUndefined = (obj: any): any => {
@@ -275,6 +277,31 @@ export function WallDrawing({
         }
     };
 
+    // Helper: Get Wall Top Y (mm) at given X - MOVED OUT OF USEMEMO for shared use
+    const getWallTopMm = (xMm: number) => {
+        const ratio = xMm / lengteNum;
+
+        if (variant === 'bottom' && (shape === 'slope' || shape === 'l-shape' || shape === 'u-shape')) {
+            return maxH;
+        }
+
+        if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
+        if (shape === 'gable') {
+            return ratio <= 0.5
+                ? hLeft + (hPeak - hLeft) * (ratio / 0.5)
+                : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
+        }
+        if (shape === 'l-shape') {
+            return xMm <= l1 ? h1 : h2;
+        }
+        if (shape === 'u-shape') {
+            if (xMm <= l1) return h1;
+            if (xMm <= l1 + l2) return h2;
+            return h3;
+        }
+        return hLeft;
+    };
+
     const studData = useMemo(() => {
         if (lengteNum <= 0 || balkafstandNum <= 0) {
             return { beams: [], gaps: [] };
@@ -307,41 +334,7 @@ export function WallDrawing({
 
         const WALL_HEIGHT_MM = maxH; // Approx simple height or calc per X
 
-        // Helper: Get Wall Top Y (mm) at given X
-        // Note: X is relative to current length
-        const getWallTopMm = (xMm: number) => {
-            const ratio = xMm / lengteNum;
-
-            // BOTTOM VARIANT LOGIC:
-            // If variant === 'bottom', the TOP is flat (at maxH), and BOTTOM changes.
-            // But this function `getWallTopMm` returns the PHYSICAL TOP bound of the wall.
-            // If variant is bottom, PHYSICAL TOP is usually flat (maxH).
-            // But we need a separate `getWallBottomMm` function.
-            // However, stud length = Top - Bottom.
-            // If variant = bottom, we treat wallTop as maxH?
-
-            if (variant === 'bottom' && (shape === 'slope' || shape === 'l-shape' || shape === 'u-shape')) {
-                // Top is flat at highest point
-                return maxH;
-            }
-
-            // --- STANDARD TOP VARIANT ---
-            if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
-            if (shape === 'gable') {
-                return ratio <= 0.5
-                    ? hLeft + (hPeak - hLeft) * (ratio / 0.5)
-                    : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
-            }
-            if (shape === 'l-shape') {
-                return xMm <= l1 ? h1 : h2;
-            }
-            if (shape === 'u-shape') {
-                if (xMm <= l1) return h1;
-                if (xMm <= l1 + l2) return h2;
-                return h3;
-            }
-            return hLeft;
-        };
+        // getWallTopMm moved to main scope
 
         const getWallBottomMm = (xMm: number) => {
             if (variant !== 'bottom') return 0;
@@ -790,26 +783,6 @@ export function WallDrawing({
         });
     }, [openings, pxPerMm, WALL_X, Y_BOTTOM]);
 
-    // Data Extraction Effect
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -921,20 +894,24 @@ export function WallDrawing({
                     {/* Background and Dots removed to use container background */}
 
                     {/* Top Plate */}
-                    <polygon
-                        points={topPlatePath}
-                        fill={timberColor}
-                        stroke={timberStroke}
-                        strokeWidth="0.5"
-                    />
+                    {lengteNum > 0 && (
+                        <polygon
+                            points={topPlatePath}
+                            fill={timberColor}
+                            stroke={timberStroke}
+                            strokeWidth="0.5"
+                        />
+                    )}
 
                     {/* Bottom Plate */}
-                    <polygon
-                        points={bottomPlatePath}
-                        fill={timberColor}
-                        stroke={timberStroke}
-                        strokeWidth="0.5"
-                    />
+                    {lengteNum > 0 && (
+                        <polygon
+                            points={bottomPlatePath}
+                            fill={timberColor}
+                            stroke={timberStroke}
+                            strokeWidth="0.5"
+                        />
+                    )}
 
                     {/* ALL Beams (Studs, Headers, Sills, Cripples) */}
                     {studData.beams.map((beam, i) => (
@@ -978,292 +955,56 @@ export function WallDrawing({
                             <line x1={op.drawX} y1={op.drawY} x2={op.drawX + op.drawW} y2={op.drawY + op.drawH} stroke={draggingId === op.id ? "#10b981" : timberStroke} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
                             <line x1={op.drawX} y1={op.drawY + op.drawH} x2={op.drawX + op.drawW} y2={op.drawY} stroke={draggingId === op.id ? "#10b981" : timberStroke} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
 
+                            {/* Opening Labels (Type + Internal Dims) */}
+                            <OpeningLabels
+                                centerX={op.drawX + op.drawW / 2}
+                                centerY={op.drawY + op.drawH / 2}
+                                typeName={op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing'}
+                                width={op.width}
+                                height={op.height}
+                            />
                         </g>
                     ))}
 
-                    {/* Dimension Layer - Rendered on TOP of everything */}
-                    {drawOpenings && (
-                        <g className="text-emerald-500 pointer-events-none">
-                            {(() => {
-                                const sorted = [...drawOpenings].sort((a, b) => a.fromLeft - b.fromLeft);
-                                const wallTopY = Math.min(yLeft, yRight, shape === 'gable' ? yPeak : yLeft);
-                                const baselineY = wallTopY - 15;
-                                const levelStep = 10;
 
-                                return sorted.map((op, i) => {
-                                    // Horizontal Dimensions (From Left) - CLOSEST to drawing (below)
-                                    const stackStep = 15;
-                                    const bottomBaseY = Y_BOTTOM + 30; // Start 30px below wall
-                                    const dimY = bottomBaseY + (i * stackStep);
 
-                                    // Vertical Dimensions (From Bottom) - CLOSEST to drawing (left)
-                                    const leftBaseX = WALL_X - 30; // Start 30px left of wall
-                                    const dimX = leftBaseX - (i * stackStep);
-
-                                    return (
-                                        <g key={`dim-${op.id}`}>
-                                            {/* 1. Opening Type Label - Above dimensions */}
-                                            <text
-                                                x={op.drawX + op.drawW / 2}
-                                                y={op.drawY + op.drawH / 2 - 10}
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                className="fill-emerald-400 text-[9px] font-medium select-none pointer-events-none"
-                                                style={{ fontFamily: "'Inter', sans-serif" }}
-                                            >
-                                                {op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing'}
-                                            </text>
-
-                                            {/* 2. Internal Dimensions (Width x Height) - Centered inside */}
-                                            <text
-                                                x={op.drawX + op.drawW / 2}
-                                                y={op.drawY + op.drawH / 2 + 6}
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                className="fill-emerald-500/90 text-[8px] font-mono select-none font-bold pointer-events-none"
-                                            >
-                                                {op.width} x {op.height}
-                                            </text>
-
-                                            {/* 2. Opening Vertical Dimensions - 3 segments */}
-                                            {(() => {
-                                                // Calculate wall top at opening position
-                                                const openingCenterX = op.fromLeft + op.width / 2;
-                                                const wallTopMmAtOpening = (() => {
-                                                    const ratio = openingCenterX / lengteNum;
-                                                    if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
-                                                    if (shape === 'gable') {
-                                                        return ratio <= 0.5
-                                                            ? hLeft + (hPeak - hLeft) * (ratio / 0.5)
-                                                            : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
-                                                    }
-                                                    return hLeft || maxH;
-                                                })();
-                                                const wallTopY = getY(wallTopMmAtOpening);
-                                                const openingTopY = op.drawY;
-                                                const openingBottomY = op.drawY + op.drawH;
-                                                const topSegmentHeight = Math.round(wallTopMmAtOpening - op.fromBottom - op.height);
-
-                                                return (
-                                                    <>
-                                                        {/* Segment 1: Floor to Opening Bottom */}
-                                                        {op.fromBottom > 0 && (
-                                                            <>
-                                                                <line
-                                                                    x1={dimX} y1={Y_BOTTOM}
-                                                                    x2={dimX} y2={openingBottomY}
-                                                                    stroke="#10b981" strokeWidth="0.5"
-                                                                />
-                                                                <circle cx={dimX} cy={Y_BOTTOM} r="1.5" fill="#10b981" />
-                                                                <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />
-                                                                <g transform={`translate(${dimX}, ${(Y_BOTTOM + openingBottomY) / 2}) rotate(-90)`}>
-                                                                    <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
-                                                                    <text
-                                                                        textAnchor="middle"
-                                                                        dominantBaseline="middle"
-                                                                        fill="#10b981"
-                                                                        className="text-[7px] font-mono select-none font-medium"
-                                                                    >
-                                                                        {op.fromBottom}
-                                                                    </text>
-                                                                </g>
-                                                            </>
-                                                        )}
-
-                                                        {/* Segment 2: Opening Height */}
-                                                        <line
-                                                            x1={dimX} y1={openingBottomY}
-                                                            x2={dimX} y2={openingTopY}
-                                                            stroke="#10b981" strokeWidth="0.5"
-                                                        />
-                                                        <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
-                                                        {op.fromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
-                                                        <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
-                                                            <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
-                                                            <text
-                                                                textAnchor="middle"
-                                                                dominantBaseline="middle"
-                                                                fill="#10b981"
-                                                                className="text-[7px] font-mono select-none font-medium"
-                                                            >
-                                                                {op.height}
-                                                            </text>
-                                                        </g>
-
-                                                        {/* Segment 3: Opening Top to Wall Top */}
-                                                        {topSegmentHeight > 0 && (
-                                                            <>
-                                                                <line
-                                                                    x1={dimX} y1={openingTopY}
-                                                                    x2={dimX} y2={wallTopY}
-                                                                    stroke="#10b981" strokeWidth="0.5"
-                                                                />
-                                                                <circle cx={dimX} cy={wallTopY} r="1.5" fill="#10b981" />
-                                                                <g transform={`translate(${dimX}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
-                                                                    <rect x="-10" y="-4" width="20" height="8" fill="#09090b" opacity="1" />
-                                                                    <text
-                                                                        textAnchor="middle"
-                                                                        dominantBaseline="middle"
-                                                                        fill="#10b981"
-                                                                        className="text-[7px] font-mono select-none font-medium"
-                                                                    >
-                                                                        {topSegmentHeight}
-                                                                    </text>
-                                                                </g>
-                                                            </>
-                                                        )}
-
-                                                        {/* Extension lines to wall */}
-                                                        <line x1={dimX} y1={Y_BOTTOM} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
-                                                        <line x1={dimX} y1={openingBottomY} x2={WALL_X} y2={openingBottomY} stroke="#10b981" strokeWidth="0.5" />
-                                                        <line x1={dimX} y1={openingTopY} x2={WALL_X} y2={openingTopY} stroke="#10b981" strokeWidth="0.5" />
-                                                        {topSegmentHeight > 0 && <line x1={dimX} y1={wallTopY} x2={WALL_X} y2={wallTopY} stroke="#10b981" strokeWidth="0.5" />}
-                                                    </>
-                                                );
-                                            })()}
-
-                                            {/* 3. Opening Horizontal Dimensions - 3 segments */}
-                                            {/* Segment 1: Wall Left to Opening Left */}
-                                            <line
-                                                x1={WALL_X} y1={dimY}
-                                                x2={op.drawX} y2={dimY}
-                                                stroke="#10b981" strokeWidth="0.5"
-                                            />
-                                            <circle cx={WALL_X} cy={dimY} r="1.5" fill="#10b981" />
-                                            <circle cx={op.drawX} cy={dimY} r="1.5" fill="#10b981" />
-                                            <rect x={(WALL_X + op.drawX) / 2 - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
-                                            <text
-                                                x={(WALL_X + op.drawX) / 2}
-                                                y={dimY + 0.5}
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                fill="#10b981"
-                                                className="text-[7px] font-mono select-none font-medium"
-                                            >
-                                                {op.fromLeft}
-                                            </text>
-
-                                            {/* Segment 2: Opening Width */}
-                                            <line
-                                                x1={op.drawX} y1={dimY}
-                                                x2={op.drawX + op.drawW} y2={dimY}
-                                                stroke="#10b981" strokeWidth="0.5"
-                                            />
-                                            <circle cx={op.drawX + op.drawW} cy={dimY} r="1.5" fill="#10b981" />
-                                            <rect x={(op.drawX + op.drawX + op.drawW) / 2 - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
-                                            <text
-                                                x={(op.drawX + op.drawX + op.drawW) / 2}
-                                                y={dimY + 0.5}
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                fill="#10b981"
-                                                className="text-[7px] font-mono select-none font-medium"
-                                            >
-                                                {op.width}
-                                            </text>
-
-                                            {/* Segment 3: Opening Right to Wall Right */}
-                                            <line
-                                                x1={op.drawX + op.drawW} y1={dimY}
-                                                x2={WALL_X + WALL_WIDTH} y2={dimY}
-                                                stroke="#10b981" strokeWidth="0.5"
-                                            />
-                                            <circle cx={WALL_X + WALL_WIDTH} cy={dimY} r="1.5" fill="#10b981" />
-                                            {(() => {
-                                                const rightSegmentWidth = lengteNum - op.fromLeft - op.width;
-                                                const midX = (op.drawX + op.drawW + WALL_X + WALL_WIDTH) / 2;
-                                                return (
-                                                    <>
-                                                        <rect x={midX - 10} y={dimY - 4} width="20" height="8" fill="#09090b" opacity="1" />
-                                                        <text
-                                                            x={midX}
-                                                            y={dimY + 0.5}
-                                                            textAnchor="middle"
-                                                            dominantBaseline="middle"
-                                                            fill="#10b981"
-                                                            className="text-[7px] font-mono select-none font-medium"
-                                                        >
-                                                            {Math.round(rightSegmentWidth)}
-                                                        </text>
-                                                    </>
-                                                );
-                                            })()}
-
-                                            {/* Extension lines down to wall */}
-                                            <line x1={WALL_X} y1={dimY} x2={WALL_X} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
-                                            <line x1={op.drawX} y1={dimY} x2={op.drawX} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
-                                            <line x1={op.drawX + op.drawW} y1={dimY} x2={op.drawX + op.drawW} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
-                                            <line x1={WALL_X + WALL_WIDTH} y1={dimY} x2={WALL_X + WALL_WIDTH} y2={Y_BOTTOM} stroke="#10b981" strokeWidth="0.5" />
-                                        </g>
-                                    );
-                                });
-                            })()}
-                        </g>
-                    )}
+                    {/* Opening Measurements - Standardized Universal Component */}
+                    <OpeningMeasurements
+                        openings={openings.map(op => ({
+                            id: op.id,
+                            width: op.width,
+                            height: op.height,
+                            fromLeft: op.fromLeft,
+                            fromBottom: op.fromBottom,
+                            type: op.type
+                        }))}
+                        wallLength={lengteNum}
+                        wallHeight={maxH}
+                        svgBaseX={WALL_X}
+                        svgBaseY={Y_BOTTOM}
+                        pxPerMm={pxPerMm}
+                        getWallTopMm={getWallTopMm}
+                    />
 
 
                     {/* H.O.H Gap Dimensions - Moved to TOP as requested */}
-                    {studData.gaps.map((gap, i) => {
-                        const isFirst2 = i < 2;
-                        const isLast2 = i >= studData.gaps.length - 2;
-                        if (!isFirst2 && !isLast2) return null;
-
-                        const midX = (gap.centerX1 + gap.centerX2) / 2;
-                        // Calculate a safe top Y. For complex shapes, get min Y of surrounding area or global min.
-                        const globalMinY = Math.min(yLeft, yRight, shape === 'gable' ? yPeak : yLeft, shape === 'u-shape' ? yH3 : yLeft);
-                        const dimYTop = globalMinY - 20; // Above wall
-
-                        return (
-                            <g key={`gap-${i}`}>
-                                {/* Vertical Extension Lines (Upwards) */}
-                                <line
-                                    x1={gap.centerX1}
-                                    y1={globalMinY} // Approximate wall top start
-                                    x2={gap.centerX1}
-                                    y2={dimYTop - 2}
-                                    stroke="#14b8a6"
-                                    strokeWidth="0.5"
-                                    strokeDasharray="1,2"
-                                    opacity="0.5"
-                                />
-                                <line
-                                    x1={gap.centerX2}
-                                    y1={globalMinY}
-                                    x2={gap.centerX2}
-                                    y2={dimYTop - 2}
-                                    stroke="#14b8a6"
-                                    strokeWidth="0.5"
-                                    strokeDasharray="1,2"
-                                    opacity="0.5"
-                                />
-
-                                {/* Horizontal Dim Line */}
-                                <line
-                                    x1={gap.centerX1}
-                                    y1={dimYTop}
-                                    x2={gap.centerX2}
-                                    y2={dimYTop}
-                                    stroke="#14b8a6"
-                                    strokeWidth="0.5"
-                                    strokeDasharray="2,2"
-                                />
-
-                                {/* Text Label */}
-                                <text
-                                    x={midX}
-                                    y={dimYTop - 2}
-                                    textAnchor="middle"
-                                    className="fill-teal-500 text-[6px] font-mono select-none"
-                                >
-                                    {Math.round(gap.value)}
-                                </text>
-                            </g>
-                        );
-                    })}
+                    {/* H.O.H Gap Dimensions - Replaced by Shared Component */}
+                    {studData.gaps.length > 0 && (
+                        <GridMeasurements
+                            gaps={studData.gaps.map(g => ({
+                                value: g.value,
+                                c1: g.centerX1,
+                                c2: g.centerX2
+                            }))}
+                            svgBaseYTop={
+                                Math.min(yLeft, yRight, shape === 'gable' ? yPeak : yLeft, shape === 'u-shape' ? yH3 : yLeft)
+                            }
+                        />
+                    )}
 
 
                     {/* Segments Dimensions (L-Shape / U-Shape) - Stacked at Bottom */}
-                    {(shape === 'l-shape' || shape === 'u-shape') && (
+                    {lengteNum > 0 && (shape === 'l-shape' || shape === 'u-shape') && (
                         <g className="text-emerald-500">
                             {(() => {
                                 // Define segments
@@ -1325,154 +1066,158 @@ export function WallDrawing({
                     )}
 
                     {/* Bottom Length Dimension - FURTHEST from drawing */}
-                    <g className="text-emerald-500">
-                        {(() => {
-                            const totalWidthY = Y_BOTTOM + 80; // Place furthest below
-                            return (
-                                <>
-                                    <line x1={WALL_X} y1={totalWidthY} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" />
-                                    {/* Extension Lines - SOLID */}
-                                    <line x1={WALL_X} y1={Y_BOTTOM + 5} x2={WALL_X} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                    <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 5} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                    {/* Dots */}
-                                    <circle cx={WALL_X} cy={totalWidthY} r="1.5" fill="currentColor" />
-                                    <circle cx={WALL_X + WALL_WIDTH} cy={totalWidthY} r="1.5" fill="currentColor" />
-                                    {/* Text label */}
-                                    <rect x={WALL_X + WALL_WIDTH / 2 - 12} y={totalWidthY - 5} width="24" height="10" fill="#09090b" opacity="1" />
-                                    <text
-                                        x={WALL_X + WALL_WIDTH / 2}
-                                        y={totalWidthY + 3}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        className="fill-emerald-400 text-[12px] font-mono font-bold"
-                                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                    >
-                                        {lengteDisplay}
-                                    </text>
-                                </>
-                            );
-                        })()}
-                    </g>
-
-                    {/* Left Height Dimension */}
-                    <g className="text-emerald-500">
-                        {(() => {
-                            // Logic for Split Dimensions on Left Side
-                            // Only if L-shape or U-shape and h1 > h2 (or based on variant?)
-                            // Assuming Standard Top Variant for "Step" visualization logic for now, 
-                            // or generic logic: if adjacent wall is shorter, split the dimension.
-
-                            let showSplit = false;
-                            let splitHeight = 0; // Height of the "short" part (from bottom)
-
-                            if ((shape === 'l-shape' || shape === 'u-shape') && variant !== 'bottom') {
-                                if (h1 > h2) {
-                                    showSplit = true;
-                                    splitHeight = h2;
-                                }
-                            }
-
-                            // If variant is bottom, the logic is inverted? 
-                            // If Left is Tall (H1), Middle is Short (H2).
-                            // Step is at Bottom. 
-                            // Maybe user wants split there too? Let's stick to the Top Variant user case first (Step Down).
-
-                            if (showSplit) {
-                                const ySplit = getY(splitHeight);
-                                const topPartH = h1 - splitHeight;
-
-                                // Layout Constants
-                                const wallBuffer = 2; // Space between wall and start of ticks
-                                const splitLineX = WALL_X - 30; // Position of split dimension line
-                                const totalLineX = WALL_X - 80; // Position of total height dimension line (increased spacing)
-                                const textPad = 10; // Padding for text
-
+                    {lengteNum > 0 && (
+                        <g className="text-emerald-500">
+                            {(() => {
+                                const totalWidthY = Y_BOTTOM + 80; // Place furthest below
                                 return (
                                     <>
-                                        {/* SHARED EXTENSIONS (Connect Dim Lines to Wall) */}
-                                        {/* Top Extension (Total Height) */}
-                                        <line x1={totalLineX} y1={yLeft} x2={WALL_X - wallBuffer} y2={yLeft} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={totalLineX} cy={yLeft} r="1.5" fill="currentColor" />
-
-                                        {/* Bottom Extension (Total Height) */}
-                                        <line x1={totalLineX} y1={Y_BOTTOM} x2={WALL_X - wallBuffer} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={totalLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
-
-                                        {/* Middle Extension (Split Point) */}
-                                        <line x1={splitLineX} y1={ySplit} x2={WALL_X - wallBuffer} y2={ySplit} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={splitLineX} cy={ySplit} r="1.5" fill="currentColor" />
-
-                                        {/* --- TOTAL HEIGHT DIMENSION LINE --- */}
-                                        <line x1={totalLineX} y1={yLeft} x2={totalLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                        <line x1={WALL_X} y1={totalWidthY} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" />
+                                        {/* Extension Lines - SOLID */}
+                                        <line x1={WALL_X} y1={Y_BOTTOM + 5} x2={WALL_X} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
+                                        <line x1={WALL_X + WALL_WIDTH} y1={Y_BOTTOM + 5} x2={WALL_X + WALL_WIDTH} y2={totalWidthY} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
+                                        {/* Dots */}
+                                        <circle cx={WALL_X} cy={totalWidthY} r="1.5" fill="currentColor" />
+                                        <circle cx={WALL_X + WALL_WIDTH} cy={totalWidthY} r="1.5" fill="currentColor" />
+                                        {/* Text label */}
+                                        <rect x={WALL_X + WALL_WIDTH / 2 - 12} y={totalWidthY - 5} width="24" height="10" fill="#09090b" opacity="1" />
                                         <text
-                                            x={totalLineX - textPad}
-                                            y={(yLeft + Y_BOTTOM) / 2 + 3}
-                                            textAnchor="end"
-                                            className="fill-emerald-400 text-[12px] font-mono font-bold"
-                                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                                        >
-                                            {hL_disp}
-                                        </text>
-
-                                        {/* --- SPLIT HEIGHT DIMENSION LINES --- */}
-                                        {/* Lower Segment */}
-                                        <line x1={splitLineX} y1={ySplit} x2={splitLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={splitLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" /> {/* Dot at intersection with bottom ext */}
-
-                                        <text
-                                            x={splitLineX - textPad}
-                                            y={(ySplit + Y_BOTTOM) / 2 + 3}
-                                            textAnchor="end"
-                                            className="fill-emerald-400 text-[10px] font-mono font-medium"
-                                        >
-                                            {Math.round(splitHeight)}
-                                        </text>
-
-                                        {/* Upper Segment */}
-                                        <line x1={splitLineX} y1={yLeft} x2={splitLineX} y2={ySplit} stroke="currentColor" strokeWidth="1" />
-                                        <circle cx={splitLineX} cy={yLeft} r="1.5" fill="currentColor" /> {/* Dot at intersection with top ext */}
-
-                                        <text
-                                            x={splitLineX - textPad}
-                                            y={(yLeft + ySplit) / 2 + 3}
-                                            textAnchor="end"
-                                            className="fill-emerald-400 text-[10px] font-mono font-medium"
-                                        >
-                                            {Math.round(topPartH)}
-                                        </text>
-                                    </>
-                                );
-                            }
-
-                            // Standard Full Height Dim - FURTHEST from drawing
-                            const totalHeightX = WALL_X - 80; // Place furthest left
-                            return (
-                                <>
-                                    {/* Main vertical dimension line */}
-                                    <line x1={totalHeightX} y1={yLeft} x2={totalHeightX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" />
-                                    {/* Extensions - SOLID */}
-                                    <line x1={totalHeightX} y1={yLeft} x2={WALL_X - 5} y2={yLeft} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                    <line x1={totalHeightX} y1={Y_BOTTOM} x2={WALL_X - 5} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
-                                    {/* Dots */}
-                                    <circle cx={totalHeightX} cy={yLeft} r="1.5" fill="currentColor" />
-                                    <circle cx={totalHeightX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
-
-                                    {/* Rotated text label */}
-                                    <g transform={`translate(${totalHeightX}, ${(yLeft + Y_BOTTOM) / 2}) rotate(-90)`}>
-                                        <rect x="-12" y="-5" width="24" height="10" fill="#09090b" opacity="1" />
-                                        <text
+                                            x={WALL_X + WALL_WIDTH / 2}
+                                            y={totalWidthY + 3}
                                             textAnchor="middle"
                                             dominantBaseline="middle"
                                             className="fill-emerald-400 text-[12px] font-mono font-bold"
                                             style={{ fontFamily: "'JetBrains Mono', monospace" }}
                                         >
-                                            {hL_disp}
+                                            {lengteDisplay}
                                         </text>
-                                    </g>
-                                </>
-                            );
-                        })()}
-                    </g>
+                                    </>
+                                );
+                            })()}
+                        </g>
+                    )}
+
+                    {/* Left Height Dimension */}
+                    {lengteNum > 0 && (
+                        <g className="text-emerald-500">
+                            {(() => {
+                                // Logic for Split Dimensions on Left Side
+                                // Only if L-shape or U-shape and h1 > h2 (or based on variant?)
+                                // Assuming Standard Top Variant for "Step" visualization logic for now, 
+                                // or generic logic: if adjacent wall is shorter, split the dimension.
+
+                                let showSplit = false;
+                                let splitHeight = 0; // Height of the "short" part (from bottom)
+
+                                if ((shape === 'l-shape' || shape === 'u-shape') && variant !== 'bottom') {
+                                    if (h1 > h2) {
+                                        showSplit = true;
+                                        splitHeight = h2;
+                                    }
+                                }
+
+                                // If variant is bottom, the logic is inverted? 
+                                // If Left is Tall (H1), Middle is Short (H2).
+                                // Step is at Bottom. 
+                                // Maybe user wants split there too? Let's stick to the Top Variant user case first (Step Down).
+
+                                if (showSplit) {
+                                    const ySplit = getY(splitHeight);
+                                    const topPartH = h1 - splitHeight;
+
+                                    // Layout Constants
+                                    const wallBuffer = 2; // Space between wall and start of ticks
+                                    const splitLineX = WALL_X - 30; // Position of split dimension line
+                                    const totalLineX = WALL_X - 80; // Position of total height dimension line (increased spacing)
+                                    const textPad = 10; // Padding for text
+
+                                    return (
+                                        <>
+                                            {/* SHARED EXTENSIONS (Connect Dim Lines to Wall) */}
+                                            {/* Top Extension (Total Height) */}
+                                            <line x1={totalLineX} y1={yLeft} x2={WALL_X - wallBuffer} y2={yLeft} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={totalLineX} cy={yLeft} r="1.5" fill="currentColor" />
+
+                                            {/* Bottom Extension (Total Height) */}
+                                            <line x1={totalLineX} y1={Y_BOTTOM} x2={WALL_X - wallBuffer} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={totalLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
+
+                                            {/* Middle Extension (Split Point) */}
+                                            <line x1={splitLineX} y1={ySplit} x2={WALL_X - wallBuffer} y2={ySplit} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={splitLineX} cy={ySplit} r="1.5" fill="currentColor" />
+
+                                            {/* --- TOTAL HEIGHT DIMENSION LINE --- */}
+                                            <line x1={totalLineX} y1={yLeft} x2={totalLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                            <text
+                                                x={totalLineX - textPad}
+                                                y={(yLeft + Y_BOTTOM) / 2 + 3}
+                                                textAnchor="end"
+                                                className="fill-emerald-400 text-[12px] font-mono font-bold"
+                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                            >
+                                                {hL_disp}
+                                            </text>
+
+                                            {/* --- SPLIT HEIGHT DIMENSION LINES --- */}
+                                            {/* Lower Segment */}
+                                            <line x1={splitLineX} y1={ySplit} x2={splitLineX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={splitLineX} cy={Y_BOTTOM} r="1.5" fill="currentColor" /> {/* Dot at intersection with bottom ext */}
+
+                                            <text
+                                                x={splitLineX - textPad}
+                                                y={(ySplit + Y_BOTTOM) / 2 + 3}
+                                                textAnchor="end"
+                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
+                                            >
+                                                {Math.round(splitHeight)}
+                                            </text>
+
+                                            {/* Upper Segment */}
+                                            <line x1={splitLineX} y1={yLeft} x2={splitLineX} y2={ySplit} stroke="currentColor" strokeWidth="1" />
+                                            <circle cx={splitLineX} cy={yLeft} r="1.5" fill="currentColor" /> {/* Dot at intersection with top ext */}
+
+                                            <text
+                                                x={splitLineX - textPad}
+                                                y={(yLeft + ySplit) / 2 + 3}
+                                                textAnchor="end"
+                                                className="fill-emerald-400 text-[10px] font-mono font-medium"
+                                            >
+                                                {Math.round(topPartH)}
+                                            </text>
+                                        </>
+                                    );
+                                }
+
+                                // Standard Full Height Dim - FURTHEST from drawing
+                                const totalHeightX = WALL_X - 80; // Place furthest left
+                                return (
+                                    <>
+                                        {/* Main vertical dimension line */}
+                                        <line x1={totalHeightX} y1={yLeft} x2={totalHeightX} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" />
+                                        {/* Extensions - SOLID */}
+                                        <line x1={totalHeightX} y1={yLeft} x2={WALL_X - 5} y2={yLeft} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
+                                        <line x1={totalHeightX} y1={Y_BOTTOM} x2={WALL_X - 5} y2={Y_BOTTOM} stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
+                                        {/* Dots */}
+                                        <circle cx={totalHeightX} cy={yLeft} r="1.5" fill="currentColor" />
+                                        <circle cx={totalHeightX} cy={Y_BOTTOM} r="1.5" fill="currentColor" />
+
+                                        {/* Rotated text label */}
+                                        <g transform={`translate(${totalHeightX}, ${(yLeft + Y_BOTTOM) / 2}) rotate(-90)`}>
+                                            <rect x="-12" y="-5" width="24" height="10" fill="#09090b" opacity="1" />
+                                            <text
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                className="fill-emerald-400 text-[12px] font-mono font-bold"
+                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                            >
+                                                {hL_disp}
+                                            </text>
+                                        </g>
+                                    </>
+                                );
+                            })()}
+                        </g>
+                    )}
 
                     {/* Right Height Dimension */}
                     <g className="text-emerald-500">
@@ -1482,7 +1227,7 @@ export function WallDrawing({
                     </g>
 
                     {/* Ridge */}
-                    {shape === 'gable' && (
+                    {lengteNum > 0 && shape === 'gable' && (
                         <g className="text-emerald-500">
                             <line x1={WALL_X + WALL_WIDTH / 2} y1={yPeak} x2={WALL_X + WALL_WIDTH / 2 + 40} y2={yPeak} stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
                             <text
@@ -1498,7 +1243,7 @@ export function WallDrawing({
                     )}
 
                     {/* Balk Callout - OUTSIDE wall frame, at 30 degree angle */}
-                    {studData.beams.length > 0 && (() => {
+                    {lengteNum > 0 && studData.beams.length > 0 && (() => {
                         // Find a stud near the middle of the wall
                         const studsOnly = studData.beams.filter(b => b.type === 'stud');
                         const middleIndex = Math.floor(studsOnly.length / 2);
@@ -1599,42 +1344,44 @@ export function WallDrawing({
             </svg>
 
             {/* Internal Area Calculation Overlay (Netto/Bruto) */}
-            {(() => {
-                const areaMm2 = (() => {
-                    const L = lengteNum;
-                    const H = maxH; // Approx base height logic
+            {
+                (() => {
+                    const areaMm2 = (() => {
+                        const L = lengteNum;
+                        const H = maxH; // Approx base height logic
 
-                    if (shape === 'rectangle') return L * H;
-                    if (shape === 'slope') return L * ((hLeft + hRight) / 2);
-                    if (shape === 'gable') return L * ((hLeft + hPeak) / 2);
-                    if (shape === 'l-shape') return (l1 * h1) + ((L - l1) * h2);
-                    if (shape === 'u-shape') return (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
-                    return L * H;
-                })();
+                        if (shape === 'rectangle') return L * H;
+                        if (shape === 'slope') return L * ((hLeft + hRight) / 2);
+                        if (shape === 'gable') return L * ((hLeft + hPeak) / 2);
+                        if (shape === 'l-shape') return (l1 * h1) + ((L - l1) * h2);
+                        if (shape === 'u-shape') return (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
+                        return L * H;
+                    })();
 
-                // Openings
-                const openingsAreaMm2 = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
-                const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
+                    // Openings
+                    const openingsAreaMm2 = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
+                    const netAreaMm2 = Math.max(0, areaMm2 - openingsAreaMm2);
 
-                const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const grossStr = (areaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const netStr = (netAreaMm2 / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-                return (
-                    <div className="absolute bottom-4 right-4 z-20 pointer-events-none select-none">
-                        <div className="text-[10px] sm:text-xs font-mono bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-right">
-                            {openingsAreaMm2 > 0 ? (
-                                <div className="flex flex-col items-end leading-tight">
-                                    <span className="text-zinc-500">Bruto: {grossStr} m²</span>
-                                    <span className="text-emerald-400 font-bold">Netto: {netStr} m²</span>
-                                </div>
-                            ) : (
-                                <span className="text-zinc-300">{grossStr} m²</span>
-                            )}
+                    return (
+                        <div className="absolute bottom-0 right-0 m-1 z-20 pointer-events-none select-none">
+                            <div className="text-[10px] sm:text-xs font-mono bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-right">
+                                {openingsAreaMm2 > 0 ? (
+                                    <div className="flex flex-col items-end leading-tight">
+                                        <span className="text-zinc-500">Bruto: {grossStr} m²</span>
+                                        <span className="text-emerald-400 font-bold">Netto: {netStr} m²</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-zinc-300">{grossStr} m²</span>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                );
-            })()}
-        </div>
+                    );
+                })()
+            }
+        </div >
     );
 }
 

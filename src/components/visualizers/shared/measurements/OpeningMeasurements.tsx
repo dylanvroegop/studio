@@ -77,28 +77,7 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
 
                 return (
                     <g key={`dim-${op.id}`}>
-                        {/* 1. Opening Type Label - Above dimensions */}
-                        <text
-                            x={drawX + wPx / 2}
-                            y={drawY + hPx / 2 - 10}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            className="fill-emerald-400 text-[12px] font-medium select-none pointer-events-none"
-                            style={{ fontFamily: "'Inter', sans-serif" }}
-                        >
-                            {op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing'}
-                        </text>
 
-                        {/* 2. Internal Dimensions (Width x Height) - Centered inside */}
-                        <text
-                            x={drawX + wPx / 2}
-                            y={drawY + hPx / 2 + 6}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            className="fill-emerald-500/90 text-[12px] font-mono select-none font-bold pointer-events-none"
-                        >
-                            {op.width} x {op.height}
-                        </text>
 
                         {/* 3. VERTICAL DIMENSIONS - 3 segments */}
                         {/* Segment 1: Floor to Opening Bottom */}

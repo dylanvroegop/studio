@@ -56,6 +56,10 @@ import {
   deleteField,
   serverTimestamp,
   FieldPath,
+  collection,
+  query,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { WizardHeader } from '@/components/WizardHeader';
@@ -82,17 +86,29 @@ function resolvePresetLabelForUI(presetLabel?: string | null) {
 }
 
 function jobIsComplete(job: any): boolean {
+  // Legacy support
   const selections = job?.materialen?.selections;
   const hasSelections =
     selections &&
     typeof selections === 'object' &&
     Object.keys(selections).length > 0;
 
+  // New structure support
+  const materialenLijst = job?.materialen?.materialen_lijst;
+  const hasMaterialenLijst =
+    materialenLijst &&
+    typeof materialenLijst === 'object' &&
+    Object.keys(materialenLijst).length > 0;
+
+  // Check preset usage (legacy label or new ID)
   const presetLabel = job?.werkwijze?.presetLabel;
   const hasWerkwijzePreset =
     !!presetLabel && presetLabel.trim().toLowerCase() !== 'nieuw';
 
-  return hasSelections || hasWerkwijzePreset;
+  const workMethodId = job?.werkwijze?.workMethodId;
+  const hasWorkMethodId = !!workMethodId && workMethodId !== 'default';
+
+  return hasSelections || hasMaterialenLijst || hasWerkwijzePreset || hasWorkMethodId;
 }
 
 /* ---------------------------------------------
@@ -377,6 +393,9 @@ export default function OverzichtPage() {
   const [defaultsConfirmed, setDefaultsConfirmed] = useState(false);
   const [standaardTransport, setStandaardTransport] = useState<StandaardTransport | null>(null);
   const [standaardWinstMarge, setStandaardWinstMarge] = useState<StandaardWinstMarge | null>(null);
+
+  // Preset Names Cache
+  const [presetNames, setPresetNames] = useState<Record<string, string>>({});
 
   // Modals (gescheiden scope)
   const [transportInstellingenOpen, setTransportInstellingenOpen] = useState(false);
@@ -674,6 +693,30 @@ export default function OverzichtPage() {
 
     fetchAlles();
   }, [quoteId, firestore, user, isUserLoading]);
+
+  // Fetch Preset Names
+  useEffect(() => {
+    if (!jobs.length || !firestore || !user) return;
+
+    const fetchPresets = async () => {
+      // Check if we have any workMethodIds that need resolving
+      const needed = jobs.some(j => j.werkwijze?.workMethodId && j.werkwijze.workMethodId !== 'default');
+      if (!needed) return;
+
+      try {
+        const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const map: Record<string, string> = {};
+        snap.forEach(d => {
+          map[d.id] = d.data().name || '(Naamloos)';
+        });
+        setPresetNames(map);
+      } catch (e) {
+        console.error('Error fetching presets:', e);
+      }
+    };
+    fetchPresets();
+  }, [jobs, firestore, user]);
 
   /* ---------------------------------------------
    Validatie
@@ -1845,7 +1888,15 @@ export default function OverzichtPage() {
                 });
 
                 const title = humanizeJobKey(rawKey);
-                const preset = resolvePresetLabelForUI(job?.werkwijze?.presetLabel ?? null);
+                let preset = resolvePresetLabelForUI(job?.werkwijze?.presetLabel ?? null);
+                const workMethodId = job?.werkwijze?.workMethodId;
+
+                if (workMethodId && workMethodId !== 'default') {
+                  if (presetNames[workMethodId]) {
+                    preset = presetNames[workMethodId];
+                  }
+                }
+
                 const isComplete = jobIsComplete(job);
 
                 const type =
@@ -1861,8 +1912,8 @@ export default function OverzichtPage() {
 
                 const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
 
-                // Extract dimensions summary from maatwerk for differentiation
-                const maatwerk = job?.maatwerk;
+                // Extract dimensions summary from maatwerk (dynamic or legacy) for differentiation
+                const maatwerk = job?.[`${slug}_maatwerk`] || job?.maatwerk;
                 const klusinformatie = job?.klusinformatie;
                 let dimensionsSummary = '';
                 let areaSummary = '';

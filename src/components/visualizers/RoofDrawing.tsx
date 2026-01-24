@@ -115,21 +115,23 @@ export function RoofDrawing({
     }
 
     // Determine height labels
+    const isBlank = lengteNum <= 0 || heightNum <= 0;
+
     let hLabelLeft = effectiveHeight > 0 ? `${effectiveHeight}` : '---';
     let hLabelRight: string | undefined = undefined;
 
     if (shape === 'slope') {
-        hLabelLeft = `${hLeft || '---'}`;
-        hLabelRight = `${hRight || '---'}`;
+        hLabelLeft = hLeft > 0 ? `${hLeft}` : '---';
+        hLabelRight = hRight > 0 ? `${hRight}` : '---';
     } else if (shape === 'gable') {
-        hLabelLeft = `${hLeft || '---'}`;
-        hLabelRight = `${hRight || '---'}`;
+        hLabelLeft = hLeft > 0 ? `${hLeft}` : '---';
+        hLabelRight = hRight > 0 ? `${hRight}` : '---';
     } else if (shape === 'l-shape') {
-        hLabelLeft = `${h1 || '---'}`;
-        hLabelRight = `${h2 || '---'}`;
+        hLabelLeft = h1 > 0 ? `${h1}` : '---';
+        hLabelRight = h2 > 0 ? `${h2}` : '---';
     } else if (shape === 'u-shape') {
-        hLabelLeft = `${h1 || '---'}`;
-        hLabelRight = `${h3 || '---'}`;
+        hLabelLeft = h1 > 0 ? `${h1}` : '---';
+        hLabelRight = h3 > 0 ? `${h3}` : '---';
     }
 
     // State for drag
@@ -238,8 +240,8 @@ export function RoofDrawing({
             }));
 
             const elements: React.ReactNode[] = [];
-            const inputW = lengteNum || 2400;
-            const inputH = effectiveHeight || 2400;
+            const inputW = lengteNum || 2000; // Use fallback for internal calc
+            const inputH = effectiveHeight || 2000;
 
             // ============================================================
             // SHAPE OUTLINE PATH

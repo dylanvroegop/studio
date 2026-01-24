@@ -40,6 +40,7 @@ export interface BaseDrawingFrameProps {
     svgDefs?: React.ReactNode;
     svgOverlay?: React.ReactNode;
     contentId?: string;
+    drawingData?: DrawingData;
 }
 
 export interface DrawingContext {
@@ -58,16 +59,16 @@ export interface DrawingContext {
 
 export function calculateDrawingMetrics(width: number, height: number, fitContainer?: boolean) {
     // Increase container width slightly to accommodate right-side dimensions
-    const SVG_WIDTH = fitContainer ? 1200 : 900;
-    const SVG_HEIGHT = fitContainer ? 900 : 675;
+    const SVG_WIDTH = fitContainer ? 1200 : 600;
+    const SVG_HEIGHT = fitContainer ? 800 : 450;
 
     // Margins - Increased to accommodate all dimension lines
-    const marginX = fitContainer ? 120 : 120;
-    const marginY = fitContainer ? 120 : 120;
+    const marginX = fitContainer ? 120 : 80;
+    const marginY = fitContainer ? 60 : 40;
 
     // Available drawing area
     const drawW = SVG_WIDTH - (marginX * 2);
-    const drawH = SVG_HEIGHT - (marginY * 2);
+    const drawH = SVG_HEIGHT - (marginY * 2) - 60; // Reserve buffer for bottom dimensions
 
     let rectW = drawW;
     let rectH = drawH;
@@ -86,7 +87,9 @@ export function calculateDrawingMetrics(width: number, height: number, fitContai
 
     const startX = (SVG_WIDTH - rectW) / 2;
     // Shift slightly down if plenty of space, or center
-    const startY = (SVG_HEIGHT - rectH) / 2 - 10;
+    // WallDrawing uses: (SVG_HEIGHT - drawHeight - 60) / 2
+    // We use similar logic: Shift up to leave room for bottom dimensions
+    const startY = (SVG_HEIGHT - rectH - 60) / 2;
 
     const pxPerMm = rectW / (width || 1);
 
@@ -338,64 +341,69 @@ export function BaseDrawingFrame({
 
                 <g id={contentId} clipPath={`url(#boundary-clip-${patternId})`}>
 
-                    {/* 1. Content Children (The Drawing Itself) */}
-                    {children({
-                        startX, startY, rectW, rectH, pxPerMm, drawW, drawH, width, height, SVG_WIDTH, SVG_HEIGHT
-                    })}
-
-                    {/* 2. New Layered System (If drawingData present) */}
-                    {drawingData && (
+                    {/* Check if we have valid data to draw */}
+                    {(width > 0 && height > 0) && (
                         <>
-                            {/* Openings (If any passed in data) */}
-                            {drawingData.openings && (
-                                <OpeningLayer
-                                    openings={drawingData.openings.map(o => {
-                                        // MAP LOGICAL DATA TO SCREEN COORDS
-                                        const yBot = startY + rectH;
-                                        const drawX = startX + (o.fromLeft * pxPerMm);
-                                        const drawY = yBot - (o.fromBottom * pxPerMm) - (o.height * pxPerMm);
-                                        const drawW = o.width * pxPerMm;
-                                        const drawH = o.height * pxPerMm;
+                            {/* 1. Content Children (The Drawing Itself) */}
+                            {children({
+                                startX, startY, rectW, rectH, pxPerMm, drawW, drawH, width, height, SVG_WIDTH, SVG_HEIGHT
+                            })}
 
-                                        return { ...o, drawX, drawY, drawW, drawH };
-                                    })}
-                                />
+                            {/* 2. New Layered System (If drawingData present) */}
+                            {drawingData && (
+                                <>
+                                    {/* Openings (If any passed in data) */}
+                                    {drawingData.openings && (
+                                        <OpeningLayer
+                                            openings={drawingData.openings.map(o => {
+                                                // MAP LOGICAL DATA TO SCREEN COORDS
+                                                const yBot = startY + rectH;
+                                                const drawX = startX + (o.fromLeft * pxPerMm);
+                                                const drawY = yBot - (o.fromBottom * pxPerMm) - (o.height * pxPerMm);
+                                                const drawW = o.width * pxPerMm;
+                                                const drawH = o.height * pxPerMm;
+
+                                                return { ...o, drawX, drawY, drawW, drawH };
+                                            })}
+                                        />
+                                    )}
+
+                                    {/* Dimensions (Total, Grid, Opening Dims) */}
+                                    {drawingData.dimensions && (
+                                        <DimensionLayer
+                                            dimensions={drawingData.dimensions.map(d => {
+                                                const Y_BOTTOM = startY + rectH;
+                                                const WALL_X = startX;
+
+                                                let p1screen = { x: WALL_X + d.p1.x * pxPerMm, y: Y_BOTTOM - d.p1.y * pxPerMm };
+                                                let p2screen = { x: WALL_X + d.p2.x * pxPerMm, y: Y_BOTTOM - d.p2.y * pxPerMm };
+
+                                                // Special Case: Total Dims need specific screen offsets
+                                                if (d.type === 'total') {
+                                                    const yFixed = Y_BOTTOM + 80;
+                                                    p1screen.y = yFixed;
+                                                    p2screen.y = yFixed;
+                                                }
+
+                                                return {
+                                                    ...d,
+                                                    p1: p1screen,
+                                                    p2: p2screen
+                                                }
+                                            })}
+                                        />
+                                    )}
+                                </>
                             )}
 
-                            {/* Dimensions (Total, Grid, Opening Dims) */}
-                            {drawingData.dimensions && (
-                                <DimensionLayer
-                                    dimensions={drawingData.dimensions.map(d => {
-                                        const Y_BOTTOM = startY + rectH;
-                                        const WALL_X = startX;
+                            {/* 3. Legacy Renderers (Fallbacks) */}
+                            {!suppressTotalDimensions && renderTotalDimensions()}
+                            {renderTopDimensions()}
+                            {renderRightDimensionsLegacy()}
 
-                                        let p1screen = { x: WALL_X + d.p1.x * pxPerMm, y: Y_BOTTOM - d.p1.y * pxPerMm };
-                                        let p2screen = { x: WALL_X + d.p2.x * pxPerMm, y: Y_BOTTOM - d.p2.y * pxPerMm };
-
-                                        // Special Case: Total Dims need specific screen offsets
-                                        if (d.type === 'total') {
-                                            const yFixed = Y_BOTTOM + 80;
-                                            p1screen.y = yFixed;
-                                            p2screen.y = yFixed;
-                                        }
-
-                                        return {
-                                            ...d,
-                                            p1: p1screen,
-                                            p2: p2screen
-                                        }
-                                    })}
-                                />
-                            )}
+                            {gridLabel && renderWatermark()}
                         </>
                     )}
-
-                    {/* 3. Legacy Renderers (Fallbacks) */}
-                    {!suppressTotalDimensions && renderTotalDimensions()}
-                    {renderTopDimensions()}
-                    {renderRightDimensionsLegacy()}
-
-                    {gridLabel && renderWatermark()}
                 </g>
 
                 {svgOverlay}
@@ -403,7 +411,7 @@ export function BaseDrawingFrame({
 
             {/* Area Stats Overlay */}
             {areaStats && (
-                <div className="absolute bottom-4 right-4 z-20 pointer-events-none select-none">
+                <div className="absolute bottom-0 right-0 m-1 z-20 pointer-events-none select-none">
                     <div className="text-[10px] sm:text-xs font-mono bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-right">
                         {(() => {
                             const grossStr = (areaStats.gross / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

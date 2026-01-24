@@ -134,10 +134,7 @@ export type Job = {
 
   // ✅ Optimized Structure
   maatwerk?: any[]; // The array of measurements (segments)
-  materialen?: {
-    selections: Record<string, { id: string; naam: string; prijs: number; eenheid: string }>;
-    custommateriaal: Record<string, any>;
-  };
+  materialen?: any; // Supports both old Record structure and new n8n array items
   kleinMateriaal?: KleinMateriaalConfig;
 
   components?: JobComponent[];

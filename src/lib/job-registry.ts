@@ -183,14 +183,14 @@ export interface CategoryConfig {
 const STANDARD_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 const WALL_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 const CEILLING_FIELDS: MeasurementField[] = [
@@ -198,7 +198,7 @@ const CEILLING_FIELDS: MeasurementField[] = [
   { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 700, group: 'spacing' },
   { key: 'latafstand', label: 'Latafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ]
 
 const ROOF_FIELDS: MeasurementField[] = [
@@ -206,7 +206,7 @@ const ROOF_FIELDS: MeasurementField[] = [
   { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' }, // Using 'hoogte' key but 'Breedte' label for roof width
   { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' }, // Primary (horizontal battens)
   { key: 'latafstand', label: 'Rachelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' }, // Secondary (vertical battens)
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 // EPDM flat roof fields - same as ROOF_FIELDS but without beam spacing (no tengel/rachel)
@@ -242,27 +242,27 @@ const EPDM_FIELDS: MeasurementField[] = [
     options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }],
     defaultValue: 'free'
   },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 const AREA_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 const VLONDER_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 400 },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 const COUNT_FIELDS: MeasurementField[] = [
   { key: 'breedte', label: 'Breedte per stuk', type: 'number', suffix: 'mm', placeholder: 'Bijv. 930' },
   { key: 'hoogte', label: 'Hoogte per stuk', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2315' },
   { key: 'aantal', label: 'Aantal', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 1' },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 const KOOF_FIELDS: MeasurementField[] = [
@@ -270,7 +270,7 @@ const KOOF_FIELDS: MeasurementField[] = [
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300' },
   { key: 'diepte', label: 'Diepte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300' },
   { key: 'aantal', label: 'Aantal', type: 'number', suffix: 'stuks', defaultValue: 1 },
-  { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
+
 ];
 
 // 4. MATERIAL CONFIGURATIONS (Cards)
@@ -539,8 +539,8 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
 
 const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE (FRAMEWERK)
-  { label: 'Randhout', categoryFilter: 'Constructiehout', category: 'hout', key: 'randhout', category_ultra_filter: '' },
-  { label: 'Stelhout', categoryFilter: 'Constructiehout', category: 'hout', key: 'stroken', category_ultra_filter: '' },
+  { label: 'Balklaag', categoryFilter: 'Constructiehout', category: 'hout', key: 'randhout', category_ultra_filter: '' },
+
   { label: 'Rachelwerk', categoryFilter: 'Constructiehout', category: 'hout', key: 'rachels', category_ultra_filter: '' },
 
   // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
@@ -581,7 +581,7 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 9. NADEN & STUCWERK
   { label: 'Voegenmiddel', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
   { label: 'Finish Pasta', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
-  { label: 'Wapeningsband', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'gips_afwerking', key: 'gips_wapening', category_ultra_filter: '' },
+
 ];
 
 

@@ -52,6 +52,7 @@ type Note = {
   id: string;
   userId: string;
   quoteId: string;
+  jobId?: string; // Optional: Link to specific job
   content: string;
   tags?: string[];
   context?: string;
@@ -62,6 +63,7 @@ type Note = {
 
 type PersonalNotesProps = {
   quoteId: string;
+  jobId?: string; // Optional: Link to specific job
   context?: string;
 };
 
@@ -74,7 +76,7 @@ const NOTE_TAGS = [
   { label: 'Beslis nog', icon: '🧠', value: 'decision', color: 'bg-pink-500/15 text-pink-600 border-pink-500/20' },
 ] as const;
 
-export function PersonalNotes({ quoteId, context }: PersonalNotesProps) {
+export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -101,12 +103,31 @@ export function PersonalNotes({ quoteId, context }: PersonalNotesProps) {
       setLoading(true);
       try {
         try {
-          const q = query(
-            collection(firestore, 'notes'),
-            where('userId', '==', user.uid),
-            where('quoteId', '==', quoteId),
-            orderBy('createdAt', 'desc')
-          );
+          // Construct query based on whether jobId is present
+          let q;
+          if (jobId) {
+            q = query(
+              collection(firestore, 'notes'),
+              where('userId', '==', user.uid),
+              where('quoteId', '==', quoteId),
+              where('jobId', '==', jobId), // Filter by job
+              orderBy('createdAt', 'desc')
+            );
+          } else {
+            // Fallback/Legacy: Show notes for quote that DON'T have a specific job? 
+            // OR show all? User likely wants specific context. 
+            // Let's filter by context or show all if no jobId?
+            // Safest: Filter by quoteId. But if we are in a job, we want job notes.
+            // If we are NOT in a job (e.g. quote overview), maybe we want all?
+            // For now, simple logic:
+            q = query(
+              collection(firestore, 'notes'),
+              where('userId', '==', user.uid),
+              where('quoteId', '==', quoteId),
+              orderBy('createdAt', 'desc')
+            );
+          }
+
           const snapshot = await getDocs(q);
           const notesList = snapshot.docs.map(d => ({
             id: d.id,
@@ -114,12 +135,24 @@ export function PersonalNotes({ quoteId, context }: PersonalNotesProps) {
           })) as Note[];
           setNotes(notesList);
         } catch (error) {
-          // If orderBy fails (missing index), try without it
-          const q = query(
-            collection(firestore, 'notes'),
-            where('userId', '==', user.uid),
-            where('quoteId', '==', quoteId)
-          );
+          // Fallback if index missing
+          console.warn("Index missing or query failed, falling back to manual sort", error);
+          let q;
+          if (jobId) {
+            q = query(
+              collection(firestore, 'notes'),
+              where('userId', '==', user.uid),
+              where('quoteId', '==', quoteId),
+              where('jobId', '==', jobId)
+            );
+          } else {
+            q = query(
+              collection(firestore, 'notes'),
+              where('userId', '==', user.uid),
+              where('quoteId', '==', quoteId)
+            );
+          }
+
           const snapshot = await getDocs(q);
           const notesList = snapshot.docs.map(d => ({
             id: d.id,
@@ -146,7 +179,7 @@ export function PersonalNotes({ quoteId, context }: PersonalNotesProps) {
     };
 
     fetchNotes();
-  }, [isOpen, user, firestore, quoteId, toast]);
+  }, [isOpen, user, firestore, quoteId, jobId, toast]);
 
   // Add new note
   const handleAddNote = async () => {
@@ -157,6 +190,7 @@ export function PersonalNotes({ quoteId, context }: PersonalNotesProps) {
       const docRef = await addDoc(collection(firestore, 'notes'), {
         userId: user.uid,
         quoteId,
+        jobId: jobId || null, // Create relationship
         content: newNoteContent.trim(),
         tags: selectedTags,
         context: context || 'Algemeen',
@@ -169,6 +203,7 @@ export function PersonalNotes({ quoteId, context }: PersonalNotesProps) {
         id: docRef.id,
         userId: user.uid,
         quoteId,
+        jobId: jobId || undefined,
         content: newNoteContent.trim(),
         tags: selectedTags,
         context: context || 'Algemeen',

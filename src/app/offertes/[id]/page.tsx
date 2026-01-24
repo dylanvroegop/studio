@@ -19,10 +19,21 @@ import type { Job, Quote, Client as ClientType } from "@/lib/types";
 import { JobPreview } from "@/components/JobPreview";
 import { useUser, useFirestore } from '@/firebase';
 import { WorkStatusBadge } from "@/components/WorkStatusBadge";
-import { doc, getDoc } from 'firebase/firestore';
-import { cn } from "@/lib/utils";
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { cn, parsePriceToNumber } from "@/lib/utils";
+import { fetchMaterialsFromN8nAction, checkCalculationStatusAction } from "@/lib/actions";
+import { supabase } from "@/lib/supabase";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Loader2 } from "lucide-react";
 
-type View = 'drawing' | 'materials' | 'costs' | 'notes';
+type View = 'drawing' | 'materials' | 'costs' | 'notes' | 'testing';
 
 export default function QuoteDetailPage() {
     const params = useParams();
@@ -37,14 +48,33 @@ export default function QuoteDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+
+
     // Layout State
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [activeView, setActiveView] = useState<View>('costs');
 
+    console.log("Render State:", {
+        loading,
+        isUserLoading,
+        hasUser: !!user,
+        hasFirestore: !!firestore,
+        jobsCount: jobs.length,
+        activeJobId
+    });
+
+
+
     // Fetch Data
     useEffect(() => {
         if (isUserLoading) return;
-        if (!user) return;
+
+        if (!user) {
+            setLoading(false);
+            setError("Niet ingelogd");
+            return;
+        }
+
         if (!firestore || !quoteId) return;
 
         const fetchData = async () => {
@@ -97,10 +127,22 @@ export default function QuoteDetailPage() {
                 if (klussenMap && typeof klussenMap === 'object') {
                     Object.keys(klussenMap).forEach(key => {
                         const data = klussenMap[key];
+
+                        // Normalize 'maatwerk' field which has a dynamic key like '{slug}_maatwerk'
+                        let normalizedMaatwerk = data.maatwerk;
+                        if (!normalizedMaatwerk) {
+                            const match = Object.keys(data).find(k => k.endsWith('_maatwerk'));
+                            if (match) {
+                                normalizedMaatwerk = data[match];
+                            }
+                        }
+
                         extractedJobs.push({
                             id: key,
                             quoteId: docSnap.id,
                             ...data,
+                            // Ensure standard field is populated
+                            maatwerk: normalizedMaatwerk || [],
                             meta: data.meta || {},
                             createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
                         } as Job);
@@ -128,6 +170,272 @@ export default function QuoteDetailPage() {
     const maatwerk = activeJob?.maatwerk?.[0] || {};
     const length = maatwerk.lengte || activeJob?.lengteMm || 0;
     const height = maatwerk.hoogte || activeJob?.hoogteMm || 0;
+
+    // Material List State (Derived)
+    const materialList = useMemo(() => {
+        if (activeJob?.materialen && Array.isArray(activeJob.materialen)) {
+            return activeJob.materialen;
+        }
+        return [];
+    }, [activeJob?.materialen]);
+
+    const [isCalculating, setIsCalculating] = useState(false);
+
+    // Fetch Materials via n8n & Supabase Polling
+    const [fetchedJobIds, setFetchedJobIds] = useState<Set<string>>(new Set());
+    const [debugData, setDebugData] = useState<any>(null);
+    const [isTesting, setIsTesting] = useState(false);
+    const [pollingStatus, setPollingStatus] = useState<'idle' | 'polling' | 'completed' | 'error'>('idle');
+    const [polledMaterials, setPolledMaterials] = useState<any[]>([]);
+
+    const handleTestFetch = async () => {
+        if (!activeJob) return;
+        setIsTesting(true);
+        // Reset state so polling starts fresh
+        setPollingStatus('idle');
+        setIsCalculating(true);
+
+        try {
+            await fetchMaterialsFromN8nAction(activeJob);
+            setPollingStatus('polling');
+        } catch (e) {
+            console.error(e);
+            setPollingStatus('error');
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    // Polling Logic
+    useEffect(() => {
+        let intervalId: NodeJS.Timeout;
+
+        if (pollingStatus === 'polling' && activeJob && user) {
+            console.log("Starting polling for job:", activeJob.id);
+
+            intervalId = setInterval(async () => {
+                try {
+                    // Use Server Action to bypass RLS
+                    const result = await checkCalculationStatusAction(activeJob.quoteId, user.uid);
+
+                    if (result.error) {
+                        console.error("Supabase polling error:", result.error);
+                        setDebugData({ error: result.error });
+                        return;
+                    }
+
+                    const data = result.data;
+
+                    if (!data) {
+                        console.log("Polling: No data found matching criteria.");
+                    } else {
+                        console.log("Polled status:", data.status);
+
+                        // Status handling
+                        if (data.status === 'completed' && data.data_json) {
+                            clearInterval(intervalId);
+                            setPollingStatus('completed');
+                            setIsCalculating(false);
+
+                            // Parse Data
+                            let materials = [];
+                            let raw = data.data_json;
+
+                            // 1. Handle double-encoded JSON (string inside JSONB)
+                            // Supabase/Postgres sometimes returns JSONB as a string if stringified before save
+                            if (typeof raw === 'string') {
+                                try {
+                                    raw = JSON.parse(raw);
+                                } catch (e) {
+                                    console.error("Failed to parse inner JSON string:", e);
+                                }
+                            }
+
+                            // 2. Handle various n8n return structures
+                            // Recursive helper to look for 'materialen' array anywhere
+                            const findMaterialen = (obj: any): any[] | null => {
+                                if (!obj || typeof obj !== 'object') return null;
+                                // 1. Check if current object IS the result (contains materialen)
+                                // Handle case { materialen: [...] }
+                                if (Array.isArray(obj.materialen) && obj.materialen.length > 0) return obj.materialen;
+
+                                // 2. Perform deep search
+                                if (Array.isArray(obj)) {
+                                    for (const item of obj) {
+                                        const res = findMaterialen(item);
+                                        if (res) return res;
+                                    }
+                                } else {
+                                    for (const key of Object.keys(obj)) {
+                                        const res = findMaterialen(obj[key]);
+                                        if (res) return res;
+                                    }
+                                }
+                                return null;
+                            };
+
+                            materials = findMaterialen(raw) || [];
+
+                            // Fallback: maybe 'raw' itself is the array of materials, if it lacks 'materialen' wrapper
+                            if (materials.length === 0 && Array.isArray(raw) && raw.length > 0 && raw[0].materiaal) {
+                                materials = raw;
+                            }
+
+                            console.log("Parsed materials count:", materials.length);
+
+                            // Filter for valid items
+                            if (!Array.isArray(materials)) {
+                                console.warn("Materials is not an array, attempting to wrap", materials);
+                                materials = materials ? [materials] : [];
+                            }
+                            materials = materials.filter((m: any) => m && m.materiaal);
+
+                            // Extended Debug Info
+                            setDebugData({
+                                raw_sample: raw && Array.isArray(raw) ? "Array(len=" + raw.length + ")" : typeof raw,
+                                parsed_count: materials.length,
+                                first_item: materials.length > 0 ? materials[0] : "N/A",
+                                raw_full: raw
+                            });
+
+                            setPolledMaterials(materials);
+
+                            // Save to Firestore
+                            if (activeJob.quoteId && activeJob.id && firestore) {
+                                const jobRef = doc(firestore, `quotes/${activeJob.quoteId}/jobs/${activeJob.id}`);
+                                await updateDoc(jobRef, {
+                                    materialen: materials,
+                                    updatedAt: new Date()
+                                });
+                            }
+
+                            // Update Local State
+                            setJobs(currentJobs => currentJobs.map(j => j.id === activeJob.id ? { ...j, materialen: materials } : j));
+                        } else if (data.status === 'error') {
+                            setPollingStatus('error');
+                            clearInterval(intervalId);
+                            setIsCalculating(false);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Polling exception:", err);
+                }
+            }, 10000); // 10 seconds
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [pollingStatus, activeJob, user, firestore]);
+
+    // Initial Check on Load
+    useEffect(() => {
+        if (!activeJob || !user) return;
+
+        const checkStatus = async () => {
+            // Only check if we don't have materials locally
+            if (materialList.length > 0) return;
+
+            try {
+                const result = await checkCalculationStatusAction(activeJob.quoteId, user.uid);
+                if (result.data) {
+                    const data = result.data;
+                    console.log("Initial Check Status:", data.status);
+
+                    if (data.status === 'completed' && data.data_json) {
+                        // REUSE PARSING LOGIC
+                        let raw = data.data_json;
+                        if (typeof raw === 'string') {
+                            try { raw = JSON.parse(raw); } catch (e) { console.error(e); }
+                        }
+
+                        const findMaterialen = (obj: any): any[] | null => {
+                            if (!obj || typeof obj !== 'object') return null;
+                            if (Array.isArray(obj.materialen) && obj.materialen.length > 0) return obj.materialen;
+                            if (Array.isArray(obj)) {
+                                for (const item of obj) {
+                                    const res = findMaterialen(item);
+                                    if (res) return res;
+                                }
+                            } else {
+                                for (const key of Object.keys(obj)) {
+                                    const res = findMaterialen(obj[key]);
+                                    if (res) return res;
+                                }
+                            }
+                            return null;
+                        };
+
+                        let materials = findMaterialen(raw) || [];
+                        if (materials.length === 0 && Array.isArray(raw) && raw.length > 0 && raw[0].materiaal) {
+                            materials = raw;
+                        }
+
+                        if (materials.length > 0) {
+                            setPolledMaterials(materials);
+                            setPollingStatus('completed');
+
+                            // Debug Info
+                            setDebugData({
+                                raw_sample: raw && Array.isArray(raw) ? "Array(len=" + raw.length + ")" : typeof raw,
+                                parsed_count: materials.length,
+                                first_item: materials.length > 0 ? materials[0] : "N/A",
+                                raw_full: raw,
+                                source: 'initial_check'
+                            });
+                        }
+                    } else if (data.status === 'processing' || data.status === 'pending') {
+                        setPollingStatus('polling');
+                        setIsCalculating(true);
+                    }
+                }
+            } catch (e) {
+                console.error("Initial check failed", e);
+            }
+        };
+
+        checkStatus();
+    }, [activeJob?.id, user?.uid]); // Only re-run if job changes
+
+    // Initial Trigger Logic (Existing - kept for fallback triggering)
+    useEffect(() => {
+        if (!activeJob) return;
+
+        // Condition to fetch:
+        // 1. Materials are missing (undefined)
+        // 2. We haven't fetched for this ID yet
+        // 3. We are not currently calculating
+        if (activeJob.materialen === undefined && !fetchedJobIds.has(activeJob.id) && !isCalculating && pollingStatus === 'idle') {
+            const triggerCalculation = async () => {
+                setIsCalculating(true);
+                setFetchedJobIds(prev => new Set(prev).add(activeJob.id));
+                setPollingStatus('polling');
+
+                try {
+                    // Fire and forget trigger
+                    await fetchMaterialsFromN8nAction(activeJob);
+                    console.log("Calculation triggered, polling started...");
+                } catch (err) {
+                    console.error("Trigger error:", err);
+                    setPollingStatus('error');
+                    setIsCalculating(false);
+                }
+            };
+
+            triggerCalculation();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeJob?.id, activeJob?.materialen, firestore, pollingStatus]);
+
+    // Calculate Totals
+    const materialTotal = useMemo(() => {
+        const list = materialList.length > 0 ? materialList : polledMaterials;
+        if (!Array.isArray(list)) return 0;
+        return list.reduce((sum, item) => {
+            const price = parsePriceToNumber(item.totaal_prijs) || 0;
+            return sum + price;
+        }, 0);
+    }, [materialList, polledMaterials]);
 
     if (isUserLoading || loading) return <div className="min-h-screen bg-zinc-950" />;
 
@@ -214,18 +522,74 @@ export default function QuoteDetailPage() {
 
                             {/* View: MATERIALS */}
                             {activeView === 'materials' && (
-                                <div className="w-full max-w-2xl mx-auto py-12">
-                                    <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/30 border border-zinc-800 rounded-2xl p-8 text-center space-y-6 shadow-xl shadow-black/20">
-                                        <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mx-auto border border-zinc-700/30">
-                                            <Package className="w-8 h-8 text-zinc-500" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-medium text-white">Nog geen materialen</h3>
-                                            <p className="text-zinc-500 mt-2 max-w-xs mx-auto">
-                                                De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                <div className="w-full max-w-4xl mx-auto py-12">
+                                    {isCalculating ? (
+                                        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                                            <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                                            <p className="text-zinc-500 text-sm">
+                                                {pollingStatus === 'polling'
+                                                    ? "Ons AI-systeem berekent momenteel de materialen. Dit duurt ongeveer 5-10 minuten..."
+                                                    : "Materialen berekenen..."}
                                             </p>
                                         </div>
-                                    </div>
+                                    ) : (materialList.length > 0 || polledMaterials.length > 0) ? (
+                                        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl overflow-hidden shadow-sm">
+                                            <Table>
+                                                <TableHeader className="bg-zinc-900/80">
+                                                    <TableRow className="border-zinc-800 hover:bg-zinc-900/80">
+                                                        <TableHead className="text-zinc-400 font-medium pl-6">Materiaal</TableHead>
+                                                        <TableHead className="text-zinc-400 font-medium w-[150px]">Aantal</TableHead>
+                                                        <TableHead className="text-zinc-400 font-medium text-right w-[140px]">Prijs p/st</TableHead>
+                                                        <TableHead className="text-zinc-400 font-medium text-right w-[140px] pr-6">Totaal</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {(materialList.length > 0 ? materialList : polledMaterials).map((item, idx) => (
+                                                        <TableRow key={idx} className="border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group">
+                                                            <TableCell className="font-medium text-zinc-200 pl-6 py-4">
+                                                                <div className="flex flex-col">
+                                                                    <span>{item.materiaal}</span>
+                                                                    {/* Optional: Show ID or extra info if available */}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-zinc-400 text-sm">
+                                                                <span className="bg-zinc-800/50 px-2 py-1 rounded border border-zinc-700/50 text-xs font-mono">
+                                                                    {item.aantal}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right text-zinc-400 font-mono text-sm">
+                                                                {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(Number(item.prijs_per_stuk) || 0)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right text-zinc-200 font-mono font-medium pr-6">
+                                                                {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(Number(item.totaal_prijs) || 0)}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {/* Total Row */}
+                                                    <TableRow className="bg-emerald-950/20 border-t border-emerald-900/30 hover:bg-emerald-950/30">
+                                                        <TableCell colSpan={3} className="text-right font-medium text-emerald-400 py-4">Totaal excl. BTW</TableCell>
+                                                        <TableCell className="text-right font-bold text-emerald-400 font-mono text-lg pr-6">
+                                                            {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(
+                                                                (materialList.length > 0 ? materialList : polledMaterials).reduce((acc, item) => acc + (Number(item.totaal_prijs) || 0), 0)
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/30 border border-zinc-800 rounded-2xl p-8 text-center space-y-6 shadow-xl shadow-black/20">
+                                            <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mx-auto border border-zinc-700/30">
+                                                <Package className="w-8 h-8 text-zinc-500" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-medium text-white">Nog geen materialen</h3>
+                                                <p className="text-zinc-500 mt-2 max-w-xs mx-auto">
+                                                    De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -246,7 +610,13 @@ export default function QuoteDetailPage() {
                                             </div>
                                             <div className="flex justify-between items-center text-zinc-400">
                                                 <span>Materialen</span>
-                                                <span className="font-mono text-zinc-200">€ 0,00</span>
+                                                <span className="font-mono text-zinc-200">
+                                                    {isCalculating ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
+                                                    ) : (
+                                                        new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materialTotal)
+                                                    )}
+                                                </span>
                                             </div>
                                             <div className="flex justify-between items-center text-zinc-400">
                                                 <span>Transport</span>
@@ -254,7 +624,13 @@ export default function QuoteDetailPage() {
                                             </div>
                                             <div className="border-t border-zinc-800/50 pt-4 flex justify-between items-center font-bold text-lg text-white">
                                                 <span>Totaal excl. BTW</span>
-                                                <span className="font-mono">€ 0,00</span>
+                                                <span className="font-mono">
+                                                    {isCalculating ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materialTotal) // Assuming other costs are 0 for now as per original code
+                                                    )}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -271,6 +647,47 @@ export default function QuoteDetailPage() {
                                         <div className="text-base text-zinc-300 leading-relaxed whitespace-pre-wrap font-medium">
                                             {activeJob.notities || <span className="text-zinc-600 italic">Geen notities genoteerd tijdens opname.</span>}
                                         </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* View: TESTING */}
+                            {activeView === 'testing' && (
+                                <div className="w-full h-full p-4 overflow-auto flex flex-col gap-4">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h3 className="font-bold text-lg text-white">Webhook Response Test</h3>
+                                            <p className="text-xs text-zinc-500 font-mono mt-1">
+                                                Status: <span className={cn(pollingStatus === 'polling' ? "text-amber-400 animate-pulse" : "text-zinc-300")}>{pollingStatus.toUpperCase()}</span>
+                                            </p>
+                                        </div>
+                                        <Button
+                                            onClick={handleTestFetch}
+                                            disabled={isTesting}
+                                            variant="secondary"
+                                            className="gap-2"
+                                        >
+                                            {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                                            Test & Refresh Data
+                                        </Button>
+                                    </div>
+
+                                    {/* DEBUG PANEL */}
+                                    <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 space-y-2 text-xs font-mono text-zinc-400">
+                                        <div><strong>Query Target:</strong> Table 'quotes collection'</div>
+                                        <div><strong>Quote ID:</strong> {activeJob.quoteId}</div>
+                                        <div><strong>User ID:</strong> {user?.uid}</div>
+                                    </div>
+
+                                    <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 font-mono text-xs text-green-400 whitespace-pre-wrap flex-1 overflow-auto">
+                                        {debugData ? JSON.stringify(debugData, null, 2) : (
+                                            <span className="text-zinc-600">
+                                                Geen data gevonden.<br />
+                                                1. Controleer of rows in Supabase 'quotes collection' bestaan.<br />
+                                                2. Controleer of 'quoteid' en 'gebruikerid' matchen met bovenstaande values.<br />
+                                                3. Controleer of status = 'completed'.
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -319,6 +736,12 @@ export default function QuoteDetailPage() {
                             onClick={() => setActiveView('notes')}
                             icon={<ClipboardList />}
                             label="Notities"
+                        />
+                        <TabButton
+                            active={activeView === 'testing'}
+                            onClick={() => setActiveView('testing')}
+                            icon={<div className="font-mono text-[10px] border border-current rounded px-1">{ }</div>}
+                            label="Testing"
                         />
                     </div>
 

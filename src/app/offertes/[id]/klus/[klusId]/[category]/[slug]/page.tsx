@@ -92,6 +92,7 @@ export default function GenericMeasurementPage() {
   // 3. State: Array of Item Objects
   const [items, setItems] = useState<Record<string, any>[]>([]);
   const [components, setComponents] = useState<JobComponent[]>([]);
+  const [notities, setNotities] = useState(''); // New: Job Notes state
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
 
   // 4. Load Data
@@ -105,7 +106,8 @@ export default function GenericMeasurementPage() {
 
         if (snapshot.exists()) {
           const data = snapshot.data();
-          const savedItems = data.klussen?.[klusId]?.maatwerk;
+          // Try specific slug key first, then fallback to legacy 'maatwerk'
+          const savedItems = data.klussen?.[klusId]?.[`${jobSlug}_maatwerk`] || data.klussen?.[klusId]?.maatwerk;
 
           if (Array.isArray(savedItems) && savedItems.length > 0) {
             setItems(savedItems);
@@ -117,6 +119,11 @@ export default function GenericMeasurementPage() {
           if (Array.isArray(savedComponents)) {
             setComponents(savedComponents);
           }
+
+          const savedNotities = data.klussen?.[klusId]?.notities;
+          if (savedNotities) {
+            setNotities(savedNotities);
+          }
         }
       } catch (error) {
         console.error("Error loading measurements:", error);
@@ -125,7 +132,7 @@ export default function GenericMeasurementPage() {
       }
     }
     loadData();
-  }, [quoteId, klusId, firestore]);
+  }, [quoteId, klusId, firestore, jobSlug]);
 
   const createEmptyItem = () => {
     const newItem: Record<string, any> = {};
@@ -233,8 +240,16 @@ export default function GenericMeasurementPage() {
         const cleanedMeta = cleanData(rawMeta);
 
         const updateData: Record<string, any> = {
-          [`klussen.${klusId}.maatwerk`]: cleanedItems,
+          // Use specific key for this job type/slug to avoid collisions
+          [`klussen.${klusId}.${jobSlug}_maatwerk`]: cleanedItems,
+          // Clear legacy key to avoid confusion (optional, but good for cleanup if we want to migrate fully)
+          // For now, let's keep it or just overwrite the new one. 
+          // Actually, let's explicitely NOT save to 'maatwerk' anymore. 
+          // But if we want to "migrate", we might want to delete the old one?
+          // Let's just write to the new key. 
+
           [`klussen.${klusId}.components`]: cleanedComponents,
+          [`klussen.${klusId}.notities`]: notities, // Save Public Notes
           [`klussen.${klusId}.meta`]: cleanedMeta,
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
         };
@@ -281,73 +296,66 @@ export default function GenericMeasurementPage() {
         backLink={backUrl}
         progress={progressValue}
         quoteId={quoteId}
-        rightContent={<PersonalNotes quoteId={quoteId} context={`Metingen: ${jobConfig.title}`} />}
+        rightContent={<PersonalNotes quoteId={quoteId} jobId={klusId} context={`Metingen: ${jobConfig.title}`} />}
       />
 
       <div className="px-4 py-8 max-w-[1400px] mx-auto pb-32">
         <form>
           <div className="space-y-8">
             {items.map((item, index) => (
-              <div key={index} className="group relative rounded-3xl border border-white/5 bg-card/40 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 overflow-hidden hover:shadow-emerald-900/10 transition-all duration-300">
+              <div key={index} className="flex flex-col lg:flex-row gap-6 items-start">
 
-                {/* Premium Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 border-b border-white/5 bg-white/[0.02]">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 font-bold text-sm ring-1 ring-emerald-500/20">
-                        {index + 1}
+                {/* LEFT SIDEBAR - SETTINGS */}
+                <div className="w-full lg:w-[340px] shrink-0 space-y-6">
+
+                  {/* Item Header Card */}
+                  {/* Item Header Card */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Vorm</Label>
+                        {index > 0 && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => setPendingDeleteIndex(index)} className="h-6 w-6 text-zinc-500 hover:text-red-400 hover:bg-red-500/10" disabled={disabledAll}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
-                      <h3 className="text-xl font-semibold text-zinc-100 tracking-tight">{itemLabel}</h3>
+                      <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-xl border border-white/5">
+                        {[
+                          { id: 'rectangle', icon: Square, label: 'Recht' },
+                          { id: 'slope', icon: Slash, label: 'Schuin' },
+                          { id: 'gable', icon: Triangle, label: 'Punt' },
+                          { id: 'l-shape', icon: null, label: 'L', customIcon: 'L' },
+                          { id: 'u-shape', icon: null, label: 'U', customIcon: 'U' }
+                        ].map((shapeOption) => {
+                          const currentShape = item.shape || 'rectangle';
+                          const isActive = currentShape === shapeOption.id;
+                          const Icon = shapeOption.icon;
+                          const LIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4 L6 18 L20 18" /></svg>;
+                          const UIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4 L4 18 L20 18 L20 4" /></svg>;
+
+                          return (
+                            <button
+                              key={shapeOption.id}
+                              type="button"
+                              onClick={() => handleShapeChange(index, shapeOption.id)}
+                              className={cn(
+                                "flex items-center justify-center h-8 w-full transition-all rounded-lg",
+                                isActive ? "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                              )}
+                              title={shapeOption.label}
+                            >
+                              {shapeOption.customIcon === 'L' ? <LIcon /> : shapeOption.customIcon === 'U' ? <UIcon /> : Icon ? <Icon className={cn("h-4 w-4", shapeOption.id === 'slope' && "-rotate-12")} /> : null}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p className="text-sm text-zinc-400 pl-11">Configureer de afmetingen.</p>
                   </div>
 
-                  <div className="flex items-center gap-3 pl-11 sm:pl-0">
-                    <div className="inline-flex bg-black/20 p-1 rounded-xl border border-white/5 backdrop-blur-md">
-                      {[
-                        { id: 'rectangle', icon: Square, label: 'Recht' },
-                        { id: 'slope', icon: Slash, label: 'Schuin' },
-                        { id: 'gable', icon: Triangle, label: 'Punt' },
-                        { id: 'l-shape', icon: null, label: 'L', customIcon: 'L' },
-                        { id: 'u-shape', icon: null, label: 'U', customIcon: 'U' }
-                      ].map((shapeOption) => {
-                        const currentShape = item.shape || 'rectangle';
-                        const isActive = currentShape === shapeOption.id;
-                        const Icon = shapeOption.icon;
-                        const LIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4 L6 18 L20 18" /></svg>;
-                        const UIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4 L4 18 L20 18 L20 4" /></svg>;
-
-                        return (
-                          <button
-                            key={shapeOption.id}
-                            type="button"
-                            onClick={() => handleShapeChange(index, shapeOption.id)}
-                            className={cn(
-                              "flex items-center justify-center h-8 w-8 sm:w-auto sm:px-3 text-xs font-medium transition-all rounded-lg",
-                              isActive ? "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
-                            )}
-                            title={shapeOption.label}
-                          >
-                            {shapeOption.customIcon === 'L' ? <LIcon /> : shapeOption.customIcon === 'U' ? <UIcon /> : Icon ? <Icon className={cn("h-4 w-4", shapeOption.id === 'slope' && "-rotate-12")} /> : null}
-                            <span className="hidden sm:inline sm:ml-2">{shapeOption.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <UnitToggle />
-                    {index > 0 && (
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setPendingDeleteIndex(index)} className="h-10 w-10 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10" disabled={disabledAll}>
-                        <Trash2 className="h-5 w-5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-
-                <div className="p-6 sm:p-8 space-y-6">
-
-                  {/* 1. Main Dimensions Row - AT THE TOP */}
+                  {/* Dimensions Section */}
                   <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Afmetingen</h4>
                     {(() => {
                       const shape = item.shape || 'rectangle';
 
@@ -359,12 +367,16 @@ export default function GenericMeasurementPage() {
                           setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: numVal + otherVal } : it));
                         };
                         return (
-                          <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                            <div className="space-y-4">
-                              <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
+                          <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                            <div className="space-y-3">
+                              <Label className="text-xs uppercase text-zinc-500">Deel 1</Label>
+                              <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} />
+                              <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
                             </div>
-                            <div className="space-y-4">
-                              <div className="space-y-2"><Label className="text-xs uppercase text-zinc-500">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
+                            <div className="space-y-3 pt-2 border-t border-white/5">
+                              <Label className="text-xs uppercase text-zinc-500">Deel 2</Label>
+                              <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} />
+                              <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
                             </div>
                           </div>
                         );
@@ -380,18 +392,28 @@ export default function GenericMeasurementPage() {
                         };
                         return (
                           <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                            <div className="grid grid-cols-3 gap-2">
-                              <div className="space-y-2"><Label className="text-xs">Deel 1</Label><MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} /><MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} /></div>
-                              <div className="space-y-2"><Label className="text-xs">Deel 2</Label><MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} /><MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} /></div>
-                              <div className="space-y-2"><Label className="text-xs">Deel 3</Label><MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} /><MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} /></div>
+                            <div className="space-y-3">
+                              <Label className="text-xs">Deel 1</Label>
+                              <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
+                              <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                            </div>
+                            <div className="space-y-3 pt-2 border-t border-white/5">
+                              <Label className="text-xs">Deel 2</Label>
+                              <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
+                              <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
+                            </div>
+                            <div className="space-y-3 pt-2 border-t border-white/5">
+                              <Label className="text-xs">Deel 3</Label>
+                              <MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
+                              <MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
                             </div>
                           </div>
                         );
                       }
 
-                      // Default: Rectangle, Slope, Gable - show main dimensions in a row
+                      // Default: Rectangle, Slope, Gable
                       return (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="space-y-4">
                           {fields.find(f => f.key === 'lengte') && (
                             <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                           )}
@@ -415,10 +437,249 @@ export default function GenericMeasurementPage() {
                     })()}
                   </div>
 
-                  {/* 2. FULL-WIDTH DRAWING */}
+
+                  {/* Openings Section */}
+                  {showOpeningsSection && (
+                    <div className="space-y-3 pt-4 border-t border-white/5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Openingen & Sparingen</h4>
+
+                      </div>
+
+                      <div className="space-y-3">
+                        {(item.openings || []).map((op: any, opIdx: number) => (
+                          <div key={op.id || opIdx} className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4 animate-in fade-in slide-in-from-top-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-zinc-300">Opening {opIdx + 1}</span>
+                              <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-zinc-500 hover:text-red-400"
+                                onClick={() => {
+                                  const newOpenings = (item.openings || []).filter((_: any, i: number) => i !== opIdx);
+                                  updateItem(index, 'openings', newOpenings);
+                                }}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="w-full">
+                                <Select
+                                  value={op.type}
+                                  onValueChange={(value) => {
+                                    const newOpenings = [...(item.openings || [])];
+                                    newOpenings[opIdx] = { ...op, type: value };
+                                    updateItem(index, 'openings', newOpenings);
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9 w-full bg-zinc-900/50 border-white/10">
+                                    <SelectValue placeholder="Type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {isWallCategory ? (
+                                      <>
+                                        <SelectItem value="window">Kozijn</SelectItem>
+                                        <SelectItem value="door">Deur</SelectItem>
+                                        <SelectItem value="opening">Sparing</SelectItem>
+                                        <SelectItem value="other">Overig</SelectItem>
+                                      </>
+                                    ) : isCeilingCategory || categorySlug === 'vloeren' ? (
+                                      <>
+                                        <SelectItem value="opening">Sparing</SelectItem>
+                                        <SelectItem value="hatch">Luik</SelectItem>
+                                        <SelectItem value="pillar">Pilaar</SelectItem>
+                                        <SelectItem value="other">Overig</SelectItem>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <SelectItem value="dakraam">Dakraam</SelectItem>
+                                        <SelectItem value="schoorsteen">Schoorsteen</SelectItem>
+                                        <SelectItem value="opening">Sparing</SelectItem>
+                                        <SelectItem value="other">Overig</SelectItem>
+                                      </>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">Breedte</Label><MeasurementInput className="h-8 text-sm" value={op.width} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, width: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">Hoogte</Label><MeasurementInput className="h-8 text-sm" value={op.height} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, height: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">V. Links</Label><MeasurementInput className="h-8 text-sm" value={op.fromLeft} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromLeft: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">V. Onder</Label><MeasurementInput className="h-8 text-sm" value={op.fromBottom} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromBottom: v || 0 }; updateItem(index, 'openings', n); }} /></div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                                <Label className="text-xs text-zinc-400">Raveelwerk</Label>
+                                <Switch checked={op.requires_raveelwerk || false} onCheckedChange={(c) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, requires_raveelwerk: c }; updateItem(index, 'openings', n); }} className="scale-75 origin-right" />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            const newOpening = {
+                              id: crypto.randomUUID(),
+                              type: isWallCategory ? 'window' : 'opening',
+                              width: 600,
+                              height: 600,
+                              fromLeft: 1000,
+                              fromBottom: 1000
+                            };
+                            updateItem(index, 'openings', [...(item.openings || []), newOpening]);
+                          }}
+                          className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-zinc-500 hover:text-emerald-400 transition-all font-medium text-xs"
+                        >
+                          <PlusCircle className="h-4 w-4" />
+                          <span>Opening Toevoegen</span>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Balken Configuration */}
+                  {fields.find(f => f.key === 'balkafstand') && (
+                    <div className="space-y-3 pt-4 border-t border-white/5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Balken Structuur</h4>
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                        <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                        <div className="space-y-3">
+                          <Label className="text-xs">Startpositie</Label>
+                          <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                            <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Links</button>
+                            <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Rechts</button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-xs">Opties</Label>
+                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-white/5">
+                            <div className="flex items-center justify-between text-xs text-zinc-400">
+                              <span>Dubbele Eindbalk</span>
+                              <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-zinc-400">
+                              <span>Kader (Rondom)</span>
+                              <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Latten Configuration */}
+                  {fields.find(f => f.key === 'latafstand') && (
+                    <div className="space-y-3 pt-4 border-t border-white/5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Latten Structuur</h4>
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                        <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                        <div className="space-y-3">
+                          <Label className="text-xs">Startpositie</Label>
+                          <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                            <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Boven</button>
+                            <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Onder</button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-xs">Opties</Label>
+                          <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                            <div className="flex items-center justify-between text-xs text-zinc-400">
+                              <span>Dubbele Eindlat</span>
+                              <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Extra Fields */}
+                  {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).length > 0 && (
+                    <div className="space-y-3 pt-4 border-t border-white/5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                        {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
+                          <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+
+
+                  {/* Text Area (Opmerkingen) */}
+                  {fields.filter(f => f.type === 'textarea').map(f => (
+                    <div key={f.key} className="space-y-3 pt-4 border-t border-white/5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{f.label}</h4>
+                      <DynamicInput field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} className="w-full" />
+                    </div>
+                  ))}
+
+                </div>
+
+                {/* RIGHT/CENTER: DRAWING CANVAS - STICKY */}
+                <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
+                  {/* Toolbar */}
+                  <div className="absolute top-4 left-4 z-20 flex gap-2">
+                    <div className="inline-flex bg-black/50 backdrop-blur-md rounded-lg p-1 border border-white/10 shadow-lg">
+                      <UnitToggle />
+                    </div>
+                  </div>
+                  <div className="absolute top-4 right-4 z-20 flex gap-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-white transition-colors"
+                          title="Vergroten"
+                        >
+                          <Maximize2 className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-[95vw] w-full h-[90vh] flex flex-col p-0 bg-[#09090b] border-white/10 overflow-hidden">
+                        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+                          <DialogTitle className="text-lg font-medium text-zinc-200">
+                            Technische Tekening: {itemLabel} {index + 1}
+                          </DialogTitle>
+                        </div>
+                        <div className="flex-1 w-full h-full relative bg-[#09090b]">
+                          <div
+                            className="absolute inset-0 z-0 opacity-[0.15]"
+                            style={{
+                              backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                              backgroundSize: '32px 32px'
+                            }}
+                          />
+                          <div className="relative z-10 w-full h-full p-8 flex items-center justify-center">
+                            <VisualizerController
+                              category={categorySlug}
+                              slug={jobSlug}
+                              item={item}
+                              fields={fields}
+                              title={`${itemLabel} ${index + 1}`}
+                              isMagnifier={true}
+                              fitContainer={true}
+                              className="w-full h-full"
+                              onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                              onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                            />
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+
+                  {/* Canvas Container */}
                   <div
                     ref={(el) => { visualizerRefs.current[index] = el; }}
-                    className="relative aspect-[4/3] w-full min-h-[350px] rounded-2xl border border-white/10 bg-[#09090b] overflow-hidden shadow-2xl flex items-center justify-center group-hover:border-emerald-500/20 transition-all duration-500"
+                    className="relative w-full flex-1 flex items-center justify-center bg-[#09090b]"
                   >
                     {/* Dot Pattern Background */}
                     <div
@@ -430,7 +691,7 @@ export default function GenericMeasurementPage() {
                     />
 
                     {/* Drawing */}
-                    <div className="relative z-10 w-full h-full flex items-center justify-center">
+                    <div className="relative z-10 w-full h-full flex items-center justify-center p-8 lg:p-12">
                       <VisualizerController
                         category={categorySlug}
                         slug={jobSlug}
@@ -444,220 +705,29 @@ export default function GenericMeasurementPage() {
                         className="w-full h-full"
                       />
                     </div>
-
-                    {/* Magnifier Button */}
-                    <div className="absolute bottom-4 left-4 z-20">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="secondary"
-                            size="icon"
-                            className="h-8 w-8 bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-white transition-colors"
-                            title="Vergroten"
-                          >
-                            <Maximize2 className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-[95vw] w-full h-[90vh] flex flex-col p-0 bg-[#09090b] border-white/10 overflow-hidden">
-                          <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
-                            <DialogTitle className="text-lg font-medium text-zinc-200">
-                              Technische Tekening: {itemLabel} {index + 1}
-                            </DialogTitle>
-                          </div>
-                          <div className="flex-1 w-full h-full relative bg-[#09090b]">
-                            <div
-                              className="absolute inset-0 z-0 opacity-[0.15]"
-                              style={{
-                                backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                                backgroundSize: '32px 32px'
-                              }}
-                            />
-                            <div className="relative z-10 w-full h-full p-8 flex items-center justify-center">
-                              <VisualizerController
-                                category={categorySlug}
-                                slug={jobSlug}
-                                item={item}
-                                fields={fields}
-                                title={`${itemLabel} ${index + 1}`}
-                                isMagnifier={true}
-                                fitContainer={true}
-                                className="w-full h-full"
-                                onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                                onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                              />
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
                   </div>
-
-                  {/* 3. Configuration Sections - BELOW THE DRAWING */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                    {/* Secondary Fields (Material properties etc) */}
-                    {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).length > 0 && (
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra Afmetingen</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
-                            <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Balken Configuration */}
-                    {fields.find(f => f.key === 'balkafstand') && (
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Balken Structuur</h4>
-                        <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Start</Label>
-                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                              <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Links</button>
-                              <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Rechts</button>
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Opties</Label>
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between text-xs text-zinc-400">
-                                <span>Dubbele Eindbalk</span>
-                                <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
-                              </div>
-                              <div className="flex items-center justify-between text-xs text-zinc-400">
-                                <span>Kader (Rondom)</span>
-                                <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Latten Configuration */}
-                    {fields.find(f => f.key === 'latafstand') && (
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Latten Structuur</h4>
-                        <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Start</Label>
-                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                              <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Boven</button>
-                              <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500")}>Onder</button>
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Opties</Label>
-                            <div className="flex items-center justify-between text-xs text-zinc-400 mt-2">
-                              <span>Dubbele Eindlat</span>
-                              <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Openings Section */}
-                    {showOpeningsSection && (
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4 md:col-span-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                            <CornerDownRight className="h-3 w-3" /> Openingen & Sparingen
-                          </h4>
-                        </div>
-
-                        <div className="space-y-3">
-                          {(item.openings || []).map((op: any, opIdx: number) => (
-                            <div key={op.id || opIdx} className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-4 animate-in fade-in slide-in-from-top-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-zinc-300">Opening {opIdx + 1}</span>
-                                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-zinc-500 hover:text-red-400"
-                                  onClick={() => {
-                                    const newOpenings = (item.openings || []).filter((_: any, i: number) => i !== opIdx);
-                                    updateItem(index, 'openings', newOpenings);
-                                  }}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-
-                              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                                <div className="col-span-2 sm:col-span-1">
-                                  <select
-                                    className="flex h-9 w-full rounded-md border border-white/10 bg-zinc-900/50 px-3 py-1 text-sm transition-colors focus:border-emerald-500/50 outline-none"
-                                    value={op.type}
-                                    onChange={(e) => {
-                                      const newOpenings = [...(item.openings || [])];
-                                      newOpenings[opIdx] = { ...op, type: e.target.value };
-                                      updateItem(index, 'openings', newOpenings);
-                                    }}
-                                  >
-                                    {isWallCategory ? (
-                                      <><option value="window">Kozijn</option><option value="door">Deur</option><option value="opening">Sparing</option><option value="other">Overig</option></>
-                                    ) : isCeilingCategory || categorySlug === 'vloeren' ? (
-                                      <><option value="opening">Sparing</option><option value="hatch">Luik</option><option value="pillar">Pilaar</option><option value="other">Overig</option></>
-                                    ) : (
-                                      <><option value="dakraam">Dakraam</option><option value="schoorsteen">Schoorsteen</option><option value="opening">Sparing</option><option value="other">Overig</option></>
-                                    )}
-                                  </select>
-                                </div>
-
-                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Breedte</Label><MeasurementInput value={op.width} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, width: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Hoogte/Lengte</Label><MeasurementInput value={op.height} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, height: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-
-                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Van Links</Label><MeasurementInput value={op.fromLeft} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromLeft: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-                                <div className="space-y-1"><Label className="text-xs text-zinc-500">Van Onder</Label><MeasurementInput value={op.fromBottom} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromBottom: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-                              </div>
-
-                              <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                                <Label className="text-xs text-zinc-400">Raveelwerk Vereist</Label>
-                                <Switch checked={op.requires_raveelwerk || false} onCheckedChange={(c) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, requires_raveelwerk: c }; updateItem(index, 'openings', n); }} className="scale-75" />
-                              </div>
-                            </div>
-                          ))}
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              const newOpening = {
-                                id: crypto.randomUUID(),
-                                type: isWallCategory ? 'window' : 'opening',
-                                width: 600,
-                                height: 600,
-                                fromLeft: 1000,
-                                fromBottom: 1000
-                              };
-                              updateItem(index, 'openings', [...(item.openings || []), newOpening]);
-                            }}
-                            className="w-full border-dashed border-zinc-700 hover:border-emerald-500/50 hover:bg-emerald-500/5 hover:text-emerald-400"
-                          >
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Opening toevoegen
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Text Area (Opmerkingen) */}
-                    {fields.filter(f => f.type === 'textarea').map(f => (
-                      <div key={f.key} className="p-4 rounded-xl bg-white/5 border border-white/5 md:col-span-2">
-                        <DynamicInput field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} className="w-full" />
-                      </div>
-                    ))}
-                  </div>
-
                 </div>
+
               </div>
             ))}
 
-
             {items.length === 0 && <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-3xl bg-card/20"><p className="text-muted-foreground">Geen items.</p></div>}
+
+            {/* Public Job Notes Section */}
+            <div className="space-y-3 pt-6 border-t border-white/5">
+              <div>
+                <h3 className="text-lg font-medium text-foreground">Notities (voor calculatie)</h3>
+                <p className="text-sm text-muted-foreground">Deze opmerkingen worden meegenomen in de calculatie en kunnen (indien gewenst) op de offerte verschijnen.</p>
+              </div>
+              <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
+                <Textarea
+                  value={notities}
+                  onChange={(e) => setNotities(e.target.value)}
+                  placeholder="Bijv: Let op, muur is scheef. Extra gips nodig."
+                  className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
+                />
+              </div>
+            </div>
           </div>
         </form>
       </div>
