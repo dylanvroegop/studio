@@ -198,7 +198,13 @@ const CEILLING_FIELDS: MeasurementField[] = [
   { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 700, group: 'spacing' },
   { key: 'latafstand', label: 'Latafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
+]
 
+const METAL_STUD_CEILING_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' }, // Reduced default for Metal Stud? standard is often 600
+  { key: 'latafstand', label: 'Profielafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
 ]
 
 const ROOF_FIELDS: MeasurementField[] = [
@@ -213,7 +219,8 @@ const ROOF_FIELDS: MeasurementField[] = [
 const EPDM_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' }, // Using 'hoogte' key but 'Breedte' label for roof width (matches RoofDrawing)
-  { key: 'dakrand_breedte', label: 'Dakrand Breedte', type: 'number', suffix: 'mm', defaultValue: 70 },
+  { key: 'dakrand_breedte', label: 'Breedte Dakrand', type: 'number', suffix: 'mm', defaultValue: 50, group: 'dakrand_structuur' },
+  { key: 'dakrand_hoogte', label: 'Hoogte Dakrand', type: 'number', suffix: 'mm', placeholder: 'Bijv. 70', group: 'dakrand_structuur' },
   {
     key: 'edge_top',
     label: 'Rand Boven',
@@ -1518,7 +1525,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Metalen plafondconstructie',
         slug: 'plafond-metalstud',
         measurementLabel: 'Plafond',
-        measurements: CEILLING_FIELDS,
+        measurements: METAL_STUD_CEILING_FIELDS,
         materialSections: PLAFOND_METALSTUD_MATS,
         categoryConfig: {
           metaal: { title: 'Metal Stud Framewerk', order: 1 },
@@ -1883,6 +1890,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'hellend-dak',
         measurementLabel: 'Dakvlak',
         measurements: [
+          { key: 'aantal_pannen_breedte', label: 'Breedte (aantal pannen)', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 25' },
+          { key: 'aantal_pannen_hoogte', label: 'Hoogte (aantal pannen)', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 40' },
           { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
           { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' }, // Using 'hoogte' key but 'Breedte' label
           { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },

@@ -101,8 +101,19 @@ export function GolfplaatDrawing({
     // Use fallback dimensions for rendering if input is empty/zero
     const isBlank = lengteNum <= 0 || heightNum <= 0;
 
+    const areaStats = React.useMemo(() => {
+        const gross = lengteNum * heightNum;
+        const opArea = openings.reduce((acc: any, op: any) => acc + (op.width * op.height), 0);
+        return {
+            gross,
+            net: Math.max(0, gross - opArea),
+            hasOpenings: opArea > 0
+        };
+    }, [lengteNum, heightNum, openings]);
+
     return (
         <BaseDrawingFrame
+            areaStats={areaStats}
             width={lengteNum}
             height={heightNum}
             widthLabel={`${lengteNum}`}
@@ -220,9 +231,9 @@ export function GolfplaatDrawing({
 
                         {/* Custom Title Placement (Bottom Right, above Area) */}
                         <text
-                            x={SVG_WIDTH - 20}
-                            y={SVG_HEIGHT - 35}
-                            textAnchor="end"
+                            x={25}
+                            y={SVG_HEIGHT - 25}
+                            textAnchor="start"
                             fill="rgb(100, 116, 139)"
                             fontSize="14"
                             style={{ fontFamily: 'monospace' }}

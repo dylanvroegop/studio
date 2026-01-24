@@ -55,6 +55,7 @@ export interface WallDrawingProps {
     isMagnifier?: boolean;
     startFromRight?: boolean;
     onDataGenerated?: (data: DrawingData) => void;
+    title?: string;
 }
 
 export function WallDrawing({
@@ -78,7 +79,8 @@ export function WallDrawing({
     fitContainer,
     isMagnifier,
     startFromRight,
-    onDataGenerated
+    onDataGenerated,
+    title
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
@@ -1379,8 +1381,21 @@ export function WallDrawing({
                             </div>
                         </div>
                     );
-                })()
-            }
+                })()}
+
+            {/* Custom Title Placement */}
+            {title && (
+                <text
+                    x={25}
+                    y={SVG_HEIGHT - 25}
+                    textAnchor="start"
+                    fill="rgb(100, 116, 139)"
+                    fontSize="14"
+                    style={{ fontFamily: 'monospace' }}
+                >
+                    {title}
+                </text>
+            )}
         </div >
     );
 }

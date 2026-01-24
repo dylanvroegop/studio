@@ -72,6 +72,7 @@ export function RoofDrawing({
     doubleEndBattens,
     includeOuterBattens
 }: RoofDrawingProps) {
+    const uniqueId = React.useId().replace(/:/g, '');
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
@@ -216,7 +217,7 @@ export function RoofDrawing({
     >
         {(metrics) => {
             metricsRef.current = metrics;
-            const { startX, startY, rectW, rectH, pxPerMm } = metrics;
+            const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT } = metrics;
             // Standardize scale
             const pxPerMmW = pxPerMm;
             const pxPerMmH = pxPerMm;
@@ -488,7 +489,7 @@ export function RoofDrawing({
             // ============================================================
             // CLIP PATH DEFINITION
             // ============================================================
-            const clipId = `roof-clip-${React.useId().replace(/:/g, '')}`;
+            const clipId = `roof-clip-${uniqueId}`;
 
             // ============================================================
             // RENDER BEAMS & RACHELS
@@ -827,6 +828,23 @@ export function RoofDrawing({
                     <g key="interactive-overlays">
                         {interactiveOverlays}
                     </g>
+                );
+            }
+
+            // Custom Title Placement
+            if (title) {
+                elements.push(
+                    <text
+                        key="drawing-title"
+                        x={25}
+                        y={SVG_HEIGHT - 25}
+                        textAnchor="start"
+                        fill="rgb(100, 116, 139)"
+                        fontSize="14"
+                        style={{ fontFamily: 'monospace' }}
+                    >
+                        {title}
+                    </text>
                 );
             }
 

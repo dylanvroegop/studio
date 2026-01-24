@@ -41,7 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { cn } from '@/lib/utils';
 import { MeasurementInput } from '@/components/MeasurementInput';
-import { UnitToggle } from '@/context/MeasurementUnitContext';
+
 import { Switch } from '@/components/ui/switch';
 
 import { useFirestore } from '@/firebase';
@@ -414,6 +414,13 @@ export default function GenericMeasurementPage() {
                       // Default: Rectangle, Slope, Gable
                       return (
                         <div className="space-y-4">
+                          {/* Roof Tile Specific Fields */}
+                          {fields.find(f => f.key === 'aantal_pannen_breedte') && (
+                            <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_breedte')!} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          )}
+                          {fields.find(f => f.key === 'aantal_pannen_hoogte') && (
+                            <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_hoogte')!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          )}
                           {fields.find(f => f.key === 'lengte') && (
                             <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                           )}
@@ -539,6 +546,23 @@ export default function GenericMeasurementPage() {
                     </div>
                   )}
 
+                  {/* Dakrand Configuration */}
+                  {fields.find(f => f.key === 'dakrand_breedte') && (
+                    <div className="space-y-3 pt-4 border-t border-white/5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Dakrand Structuur</h4>
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          {fields.find(f => f.key === 'dakrand_breedte') && (
+                            <DynamicInput field={fields.find(f => f.key === 'dakrand_breedte')!} value={item.dakrand_breedte} onChange={(v) => updateItem(index, 'dakrand_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          )}
+                          {fields.find(f => f.key === 'dakrand_hoogte') && (
+                            <DynamicInput field={fields.find(f => f.key === 'dakrand_hoogte')!} value={item.dakrand_hoogte} onChange={(v) => updateItem(index, 'dakrand_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Balken Configuration */}
                   {fields.find(f => f.key === 'balkafstand') && (
                     <div className="space-y-3 pt-4 border-t border-white/5">
@@ -599,12 +623,12 @@ export default function GenericMeasurementPage() {
                     </div>
                   )}
 
-                  {/* Extra Fields */}
-                  {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).length > 0 && (
+                  {/* Extra Fields - NO SLICE, just filter out known keys */}
+                  {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-white/5">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
                       <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                        {fields.slice(2).filter(f => f.type !== 'textarea' && !['balkafstand', 'latafstand', 'dakrand_breedte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
+                        {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
                           <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                         ))}
                       </div>
@@ -613,68 +637,15 @@ export default function GenericMeasurementPage() {
 
 
 
-                  {/* Text Area (Opmerkingen) */}
-                  {fields.filter(f => f.type === 'textarea').map(f => (
-                    <div key={f.key} className="space-y-3 pt-4 border-t border-white/5">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{f.label}</h4>
-                      <DynamicInput field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} className="w-full" />
-                    </div>
-                  ))}
+
 
                 </div>
 
                 {/* RIGHT/CENTER: DRAWING CANVAS - STICKY */}
                 <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
                   {/* Toolbar */}
-                  <div className="absolute top-4 left-4 z-20 flex gap-2">
-                    <div className="inline-flex bg-black/50 backdrop-blur-md rounded-lg p-1 border border-white/10 shadow-lg">
-                      <UnitToggle />
-                    </div>
-                  </div>
-                  <div className="absolute top-4 right-4 z-20 flex gap-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-8 w-8 bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-white transition-colors"
-                          title="Vergroten"
-                        >
-                          <Maximize2 className="h-4 w-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-[95vw] w-full h-[90vh] flex flex-col p-0 bg-[#09090b] border-white/10 overflow-hidden">
-                        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
-                          <DialogTitle className="text-lg font-medium text-zinc-200">
-                            Technische Tekening: {itemLabel} {index + 1}
-                          </DialogTitle>
-                        </div>
-                        <div className="flex-1 w-full h-full relative bg-[#09090b]">
-                          <div
-                            className="absolute inset-0 z-0 opacity-[0.15]"
-                            style={{
-                              backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                              backgroundSize: '32px 32px'
-                            }}
-                          />
-                          <div className="relative z-10 w-full h-full p-8 flex items-center justify-center">
-                            <VisualizerController
-                              category={categorySlug}
-                              slug={jobSlug}
-                              item={item}
-                              fields={fields}
-                              title={`${itemLabel} ${index + 1}`}
-                              isMagnifier={true}
-                              fitContainer={true}
-                              className="w-full h-full"
-                              onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                              onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                            />
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
+
+
 
                   {/* Canvas Container */}
                   <div
@@ -691,7 +662,7 @@ export default function GenericMeasurementPage() {
                     />
 
                     {/* Drawing */}
-                    <div className="relative z-10 w-full h-full flex items-center justify-center p-8 lg:p-12">
+                    <div className="relative z-10 w-full h-full flex items-center justify-center">
                       <VisualizerController
                         category={categorySlug}
                         slug={jobSlug}

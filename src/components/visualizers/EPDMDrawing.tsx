@@ -112,8 +112,19 @@ export function EPDMDrawing({
     // Use fallback dimensions for rendering if input is empty/zero
     const isBlank = lengteNum <= 0 || heightNum <= 0;
 
+    const areaStats = React.useMemo(() => {
+        const gross = lengteNum * heightNum;
+        const opArea = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
+        return {
+            gross,
+            net: Math.max(0, gross - opArea),
+            hasOpenings: opArea > 0
+        };
+    }, [lengteNum, heightNum, openings]);
+
     return (
         <BaseDrawingFrame
+            areaStats={areaStats}
             width={lengteNum}
             height={heightNum}
             widthLabel={`${lengteNum}`}
@@ -199,76 +210,48 @@ export function EPDMDrawing({
                 }
 
                 // Interaction Zones (Click to toggle)
-                const hitPad = 20;
+                // --- 3. Interaction Zones (Clickable Groups) ---
+                const hitPad = 30; // Increased padding
                 const toggleEdge = (side: 'top' | 'bottom' | 'left' | 'right', isWall: boolean) => {
                     if (onEdgeChange) onEdgeChange(side, isWall ? 'free' : 'wall');
                 };
 
-                // Top Zone
-                segments.push(
-                    <rect
-                        key="hit-top"
-                        x={startX} y={startY} width={rectW} height={drPx + hitPad}
-                        fill="transparent" cursor="pointer"
-                        onClick={(e) => { e.stopPropagation(); toggleEdge('top', topIsWall); }}
-                    >
-                        <title>{topIsWall ? "Wijzig naar Dakrand" : "Wijzig naar Muur"}</title>
-                    </rect>
-                );
-
-                // Bottom Zone
-                segments.push(
-                    <rect
-                        key="hit-bot"
-                        x={startX} y={startY + rectH - (drPx + hitPad)} width={rectW} height={drPx + hitPad}
-                        fill="transparent" cursor="pointer"
-                        onClick={(e) => { e.stopPropagation(); toggleEdge('bottom', bottomIsWall); }}
-                    >
-                        <title>{bottomIsWall ? "Wijzig naar Dakrand" : "Wijzig naar Muur"}</title>
-                    </rect>
-                );
-
-                // Left Zone (Vertical middle)
-                segments.push(
-                    <rect
-                        key="hit-left"
-                        x={startX} y={startY + drPx} width={drPx + hitPad} height={rectH - 2 * drPx}
-                        fill="transparent" cursor="pointer"
-                        onClick={(e) => { e.stopPropagation(); toggleEdge('left', leftIsWall); }}
-                    >
-                        <title>{leftIsWall ? "Wijzig naar Dakrand" : "Wijzig naar Muur"}</title>
-                    </rect>
-                );
-
-                // Right Zone (Vertical middle)
-                segments.push(
-                    <rect
-                        key="hit-right"
-                        x={startX + rectW - (drPx + hitPad)} y={startY + drPx} width={drPx + hitPad} height={rectH - 2 * drPx}
-                        fill="transparent" cursor="pointer"
-                        onClick={(e) => { e.stopPropagation(); toggleEdge('right', rightIsWall); }}
-                    >
-                        <title>{rightIsWall ? "Wijzig naar Dakrand" : "Wijzig naar Muur"}</title>
-                    </rect>
-                );
-
-                // --- 3. Wall Labels ---
-                const labelElements: React.ReactNode[] = [];
                 const labelStyle: React.CSSProperties = {
-                    fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '10px', fontWeight: 600
+                    fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '10px', fontWeight: 600, userSelect: 'none', pointerEvents: 'none'
+                };
+                const inset = 25; // Increased from 15 for more space
+
+                // Combined Render Helper
+                const renderEdgeControl = (
+                    key: string,
+                    x: number, y: number, w: number, h: number,
+                    isWall: boolean, side: 'top' | 'bottom' | 'left' | 'right',
+                    labelX: number, labelY: number, rotate: number
+                ) => {
+                    return (
+                        <g key={key} onClick={(e) => { e.stopPropagation(); toggleEdge(side, isWall); }} cursor="pointer">
+                            <title>{isWall ? "Wijzig naar Dakrand" : "Wijzig naar Muur"}</title>
+                            {/* Hit Rect */}
+                            <rect x={x} y={y} width={w} height={h} fill="transparent" />
+                            {/* Label */}
+                            <text x={labelX} y={labelY} transform={`rotate(${rotate}, ${labelX}, ${labelY})`} textAnchor="middle" fill={labelColor} style={labelStyle} dy="0.3em">
+                                {isWall ? "GEVEL" : "VRIJSTAAND"}
+                            </text>
+                        </g>
+                    );
                 };
 
-                const renderLabel = (text: string, x: number, y: number, rotate: number) => (
-                    <text key={`lbl-${x}-${y}`} x={x} y={y} transform={`rotate(${rotate}, ${x}, ${y})`} textAnchor="middle" fill={labelColor} style={labelStyle} dy="0.3em">
-                        {text}
-                    </text>
-                );
+                // Top Zone
+                segments.push(renderEdgeControl('grp-top', startX, startY, rectW, drPx + hitPad, topIsWall, 'top', startX + rectW / 2, startY + inset, 0));
 
-                const inset = 15;
-                labelElements.push(renderLabel(topIsWall ? "GEVEL" : "VRIJSTAAND", startX + rectW / 2, startY + inset, 0));
-                labelElements.push(renderLabel(bottomIsWall ? "GEVEL" : "VRIJSTAAND", startX + rectW / 2, startY + rectH - inset, 0));
-                labelElements.push(renderLabel(leftIsWall ? "GEVEL" : "VRIJSTAAND", startX + inset, startY + rectH / 2, -90));
-                labelElements.push(renderLabel(rightIsWall ? "GEVEL" : "VRIJSTAAND", startX + rectW - inset, startY + rectH / 2, -90));
+                // Bottom Zone
+                segments.push(renderEdgeControl('grp-bot', startX, startY + rectH - (drPx + hitPad), rectW, drPx + hitPad, bottomIsWall, 'bottom', startX + rectW / 2, startY + rectH - inset, 0));
+
+                // Left Zone
+                segments.push(renderEdgeControl('grp-left', startX, startY, drPx + hitPad, rectH, leftIsWall, 'left', startX + inset, startY + rectH / 2, -90));
+
+                // Right Zone
+                segments.push(renderEdgeControl('grp-right', startX + rectW - (drPx + hitPad), startY, drPx + hitPad, rectH, rightIsWall, 'right', startX + rectW - inset, startY + rectH / 2, -90));
 
                 // --- 4. Openings & Dimensions (Universal) ---
 
@@ -310,7 +293,7 @@ export function EPDMDrawing({
                         <rect x={startX} y={startY} width={rectW} height={rectH} fill="none" stroke="rgb(70, 75, 85)" strokeWidth="0.5" />
                         {surfaceElement}
                         {segments}
-                        {labelElements}
+
                         {openingElements}
 
                         {/* UNIVERSAL MEASUREMENTS */}
@@ -351,14 +334,14 @@ export function EPDMDrawing({
                             pointerEvents="none"
                             style={{ userSelect: 'none' }}
                         >
-                            Tip: Klik op de randen in de tekening om te wijzigen
+                            Tip: Klik op de randen om van vrijstaand naar gevel te gaan
                         </text>
 
                         {/* Custom Title Placement */}
                         <text
-                            x={SVG_WIDTH - 20}
-                            y={SVG_HEIGHT - 35}
-                            textAnchor="end"
+                            x={25}
+                            y={SVG_HEIGHT - 25}
+                            textAnchor="start"
                             fill="rgb(100, 116, 139)"
                             fontSize="14"
                             style={{ fontFamily: 'monospace' }}

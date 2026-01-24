@@ -93,6 +93,7 @@ export interface CeilingDrawingProps {
     startLattenFromBottom?: boolean;
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
     gridLabel?: string;
+    title?: string;
 }
 
 export function CeilingWoodDrawing({
@@ -102,7 +103,8 @@ export function CeilingWoodDrawing({
     fitContainer = false,
     className = "",
     onOpeningsChange,
-    gridLabel
+    gridLabel,
+    title
 }: CeilingDrawingProps) {
     // 1. EXTRACT PROPS
     const shape = item.shape || 'rectangle';
@@ -649,6 +651,20 @@ export function CeilingWoodDrawing({
                             pxPerMm={pxPerMm}
                         />
 
+                        {/* Custom Title Placement */}
+                        {title && (
+                            <text
+                                key="drawing-title"
+                                x={25}
+                                y={SVG_HEIGHT - 25}
+                                textAnchor="start"
+                                fill="rgb(100, 116, 139)"
+                                fontSize="14"
+                                style={{ fontFamily: 'monospace' }}
+                            >
+                                {title}
+                            </text>
+                        )}
                     </>
                 );
             }}

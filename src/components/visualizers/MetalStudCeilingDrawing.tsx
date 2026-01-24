@@ -1,10 +1,11 @@
 import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
-import { DimensionLine, DrawingData, WallOpening } from '@/lib/drawing-types';
+import { DrawingData } from '@/lib/drawing-types';
 import { OverallDimensions, OpeningMeasurements, GridMeasurements } from './shared/measurements';
 import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
 import { OpeningRenderer } from './shared/OpeningRenderer';
+import { calculateRaveelwerk, raveelwerkToSVG } from './shared/raveelwerk-utils';
 
 export interface CeilingOpening {
     id: string;
@@ -21,7 +22,35 @@ export interface CeilingOpening {
     lengte?: number;
     vanafLinks?: number;
     vanafBoven?: number;
+    requires_raveelwerk?: boolean;
 }
+
+// Helper to standardise opening data for overlay/logic
+const mappingOpeningsForOverlay = (raw: CeilingOpening[], effectiveHeight: number) => {
+    return raw.map(op => {
+        const w = op.width ?? (op as any).breedte ?? 0;
+        const h = op.length ?? (op as any).lengte ?? op.height ?? 0;
+        const l = op.fromLeft ?? (op as any).vanafLinks ?? 0;
+
+        let fromBottom: number;
+        if (op.fromBottom !== undefined) {
+            fromBottom = op.fromBottom;
+        } else {
+            const t = op.fromTop ?? (op as any).vanafBoven ?? 0;
+            fromBottom = effectiveHeight - t - h;
+        }
+
+        return {
+            id: op.id,
+            width: w,
+            height: h,
+            fromLeft: l,
+            fromBottom: fromBottom,
+            type: op.type,
+            requires_raveelwerk: op.requires_raveelwerk
+        };
+    });
+};
 
 export interface CeilingDrawingProps {
     item: {
@@ -53,6 +82,7 @@ export interface CeilingDrawingProps {
     startFromRight?: boolean;
     startLattenFromBottom?: boolean;
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
+    title?: string;
 }
 
 export function MetalStudCeilingDrawing({
@@ -61,7 +91,8 @@ export function MetalStudCeilingDrawing({
     startLattenFromBottom,
     fitContainer = false,
     className = "",
-    onOpeningsChange
+    onOpeningsChange,
+    title
 }: CeilingDrawingProps) {
     // 1. EXTRACT PROPS
     const shape = item.shape || 'rectangle';
@@ -69,7 +100,6 @@ export function MetalStudCeilingDrawing({
     const rawOpenings = item.openings || [];
 
     const lengte = parseFloat(String(item.lengte || 0)); // X-axis
-    const width = parseFloat(String((item as any).width || 0)); // Fallback
     const hoogte = parseFloat(String(item.hoogte || item.breedte || 0)); // Y-axis (inputH)
     const balkafstand = parseFloat(String(item.balkafstand || 0));
     const latafstand = parseFloat(String(item.latafstand || 0));
@@ -99,6 +129,13 @@ export function MetalStudCeilingDrawing({
 
     // 2. STATE & INTERACTION (Shared Hook)
     const metricsRef = React.useRef<any>(null);
+    const [pxPerMmState, setPxPerMmState] = React.useState(1);
+
+    React.useLayoutEffect(() => {
+        if (metricsRef.current?.pxPerMm && metricsRef.current.pxPerMm !== pxPerMmState) {
+            setPxPerMmState(metricsRef.current.pxPerMm);
+        }
+    });
 
     // Adapt openings for hook (Convert fromTop to fromBottom for ceiling drawings)
     const draggableOpenings = React.useMemo(() => {
@@ -107,7 +144,10 @@ export function MetalStudCeilingDrawing({
             const t = o.fromTop ?? (o as any).vanafBoven ?? 0;
 
             // Convert fromTop to fromBottom: bottom = totalHeight - top - height
-            const fromBottom = effectiveHeight - t - h;
+            let fromBottom = o.fromBottom;
+            if (fromBottom === undefined) {
+                fromBottom = effectiveHeight - t - h;
+            }
 
             return {
                 ...o,
@@ -139,7 +179,7 @@ export function MetalStudCeilingDrawing({
                 onOpeningsChange(convertedBack);
             }
         },
-        pxPerMm: metricsRef.current?.pxPerMm || 1,
+        pxPerMm: pxPerMmState,
         isMagnifier: false
     });
 
@@ -156,8 +196,42 @@ export function MetalStudCeilingDrawing({
 
     const drawingData = generateDrawingData();
 
+    // 5. CALCULATE AREA (M2)
+    const areaStats = React.useMemo(() => {
+        let areaMm2 = 0;
+        const L = lengte;
+        const H = effectiveHeight;
+
+        if (shape === 'rectangle') areaMm2 = L * H;
+        else if (shape === 'slope') {
+            areaMm2 = L * ((hLeft + hRight) / 2);
+        } else if (shape === 'gable') {
+            areaMm2 = L * ((effectiveHeight + hPeak) / 2); // Approximate standard
+        } else if (shape === 'l-shape') {
+            areaMm2 = (lengte1 * hoogte1) + ((L - lengte1) * hoogte2);
+        } else if (shape === 'u-shape') {
+            areaMm2 = (lengte1 * hoogte1) + (lengte2 * hoogte2) + ((L - lengte1 - lengte2) * hoogte3);
+        } else {
+            areaMm2 = L * H;
+        }
+
+        // Openings
+        const opArea = rawOpenings.reduce((acc, op) => {
+            const w = op.width ?? (op as any).breedte ?? 0;
+            const h = op.length ?? (op as any).lengte ?? op.height ?? 0;
+            return acc + (w * h);
+        }, 0);
+
+        return {
+            gross: areaMm2,
+            net: Math.max(0, areaMm2 - opArea),
+            hasOpenings: opArea > 0
+        };
+    }, [shape, lengte, effectiveHeight, hLeft, hRight, hPeak, lengte1, hoogte1, hoogte2, lengte2, hoogte3, rawOpenings, lengte3]);
+
     return (
         <BaseDrawingFrame
+            areaStats={areaStats}
             width={lengte}
             height={effectiveHeight}
             primarySpacing={balkafstand}
@@ -175,11 +249,12 @@ export function MetalStudCeilingDrawing({
         >
             {(ctx) => {
                 metricsRef.current = ctx;
-                const { startX, startY, rectW, rectH, pxPerMm } = ctx;
+                const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT } = ctx;
                 const pxPerMmW = pxPerMm;
                 const pxPerMmH = pxPerMm;
                 const structureColor = "rgb(70, 75, 85)";
                 const lattenColor = "rgb(70, 75, 85)";
+                const profileColor = "rgb(90, 95, 105)"; // Slightly lighter for metal
 
                 let outlinePath = `M ${startX} ${startY} L ${startX + rectW} ${startY} L ${startX + rectW} ${startY + rectH} L ${startX} ${startY + rectH} Z`;
                 if (shape === 'slope') {
@@ -197,14 +272,33 @@ export function MetalStudCeilingDrawing({
                 }
 
                 const elements: React.ReactNode[] = [];
-                const beamCenters: number[] = [];
 
-                // BEAMS (Vertical)
-                // Universal Gaps (New Logic)
+                // 25mm Beginprofiel (Frame) - Metal Stud Specific
+                const FRAME_WIDTH_MM = 25;
+                const framePx = FRAME_WIDTH_MM * pxPerMm;
+
+                // Draw 25mm frame rect inside the outline
+                // Top
+                elements.push(<line key="ms-frame-top" x1={startX} y1={startY + framePx / 2} x2={startX + rectW} y2={startY + framePx / 2} stroke={profileColor} strokeWidth={framePx} opacity="0.6" />);
+                // Bottom
+                elements.push(<line key="ms-frame-bottom" x1={startX} y1={startY + rectH - framePx / 2} x2={startX + rectW} y2={startY + rectH - framePx / 2} stroke={profileColor} strokeWidth={framePx} opacity="0.6" />);
+                // Left
+                elements.push(<line key="ms-frame-left" x1={startX + framePx / 2} y1={startY} x2={startX + framePx / 2} y2={startY + rectH} stroke={profileColor} strokeWidth={framePx} opacity="0.6" />);
+                // Right
+                elements.push(<line key="ms-frame-right" x1={startX + rectW - framePx / 2} y1={startY} x2={startX + rectW - framePx / 2} y2={startY + rectH} stroke={profileColor} strokeWidth={framePx} opacity="0.6" />);
+
+                // BEAMS (Vertical Profiles)
+                const opsForOverlay = mappingOpeningsForOverlay(rawOpenings, effectiveHeight);
+
+                // Calculate Available Space inside frame for profiles
+                // The profiles start AFTER the 25mm frame usually? Or is spacing from wall edge?
+                // Usually spacing is from wall edge (0). The frame is just visual overlay or structural edge.
+                // We keep grid calculation from 0 to conform to "h.o.h" from wall.
+
                 const framing = calculateGridGaps({
                     wallLength: lengte,
                     spacing: balkafstand,
-                    studWidth: 45, // Metal stud w
+                    studWidth: 45, // Metal stud ~45mm (C-profile)
                     startFromRight
                 });
 
@@ -214,18 +308,92 @@ export function MetalStudCeilingDrawing({
                     c2: startX + g.c2 * pxPerMmW
                 }));
 
-                // Render Beams from framing.beamCenters
+                // Render Profiles
                 if (balkafstand > 0) {
-                    const BEAM_STROKE = Math.max(1, 45 * pxPerMmW);
+                    const PROFILE_WIDTH_MM = 60; // Metal C-profiles often 50-75mm, let's use 60mm for good visibility
+                    const BEAM_STROKE = Math.max(1, PROFILE_WIDTH_MM * pxPerMmW);
+
+                    const vStartY = startY + framePx; // Profiles sit inside top frame
+                    const vEndY = startY + rectH - framePx; // Profiles sit inside bottom frame
+
                     framing.beamCenters.forEach(cx => {
                         const drawX = startX + (cx * pxPerMmW);
-                        // Don't draw if outside
-                        if (drawX < startX || drawX > startX + rectW) return;
+                        // Hide if overlapping with frame (start/end)
+                        if (drawX < startX + framePx || drawX > startX + rectW - framePx) return;
+
+                        // Check Intersections with Openings (Raveelwerk check)
+                        const intersectingOpening = opsForOverlay.find(op => {
+                            const opLeft = op.fromLeft;
+                            const opRight = op.fromLeft + op.width;
+                            const beamLeft = cx - PROFILE_WIDTH_MM / 2;
+                            const beamRight = cx + PROFILE_WIDTH_MM / 2;
+                            return beamRight > opLeft && beamLeft < opRight;
+                        });
+
+                        if (intersectingOpening && intersectingOpening.requires_raveelwerk) {
+                            // Beam intersects an opening with raveelwerk - split it!
+                            const opTopMm = intersectingOpening.fromBottom + intersectingOpening.height;
+                            const opBottomMm = intersectingOpening.fromBottom;
+                            const HEADER_THICKNESS = 60; // Same as profile width
+
+                            const svgOpTop = (startY + rectH) - opTopMm * pxPerMm - HEADER_THICKNESS * pxPerMm;
+                            const svgOpBottom = (startY + rectH) - opBottomMm * pxPerMm + HEADER_THICKNESS * pxPerMm;
+
+                            if (svgOpTop > vStartY) {
+                                elements.push(<line key={`pro-${cx}-top`} x1={drawX} y1={vStartY} x2={drawX} y2={svgOpTop} stroke={profileColor} strokeWidth={BEAM_STROKE} opacity="0.5" />);
+                            }
+                            if (svgOpBottom < vEndY) {
+                                elements.push(<line key={`pro-${cx}-bottom`} x1={drawX} y1={svgOpBottom} x2={drawX} y2={vEndY} stroke={profileColor} strokeWidth={BEAM_STROKE} opacity="0.5" />);
+                            }
+                        } else {
+                            elements.push(<line key={`pro-${cx}`} x1={drawX} y1={vStartY} x2={drawX} y2={vEndY} stroke={profileColor} strokeWidth={BEAM_STROKE} opacity="0.5" />);
+                        }
+                    });
+                }
+
+                // LATTEN (Secondary Structure - Horizontal)
+                if (latafstand > 0) {
+                    const lattenFraming = calculateGridGaps({
+                        wallLength: effectiveHeight,
+                        spacing: latafstand,
+                        studWidth: 50, // Latten 50mm
+                        startFromRight: startLattenFromBottom
+                    });
+
+                    // Draw Latten
+                    lattenFraming.beamCenters.forEach(cy => {
+                        const centerY = startY + (cy * pxPerMmH);
+                        const halfWidth = (50 * pxPerMmH) / 2;
+                        const topY = centerY - halfWidth;
+                        const bottomY = centerY + halfWidth;
+
+                        if (bottomY < startY + framePx || topY > startY + rectH - framePx) return;
 
                         elements.push(
-                            <line key={`beam-${cx}`} x1={drawX} y1={startY} x2={drawX} y2={startY + rectH} stroke={structureColor} strokeWidth={BEAM_STROKE} opacity="0.5" />
+                            <line key={`lat-${cy}-top`} x1={startX} y1={topY} x2={startX + rectW} y2={topY} stroke={lattenColor} strokeWidth={1} strokeDasharray="4,4" opacity="0.8" />
+                        );
+                        elements.push(
+                            <line key={`lat-${cy}-bottom`} x1={startX} y1={bottomY} x2={startX + rectW} y2={bottomY} stroke={lattenColor} strokeWidth={1} strokeDasharray="4,4" opacity="0.8" />
                         );
                     });
+
+                    if (item.doubleEndBattens) {
+                        const LAT_WIDTH = 50;
+                        const extraTop = (LAT_WIDTH / 2) + LAT_WIDTH + FRAME_WIDTH_MM; // Offset from frame
+                        const extraBottom = effectiveHeight - ((LAT_WIDTH / 2) + LAT_WIDTH + FRAME_WIDTH_MM);
+
+                        const drawLat = (cy: number, k: string) => {
+                            const centerY = startY + (cy * pxPerMmH);
+                            const halfWidth = (50 * pxPerMmH) / 2;
+                            const topY = centerY - halfWidth;
+                            const bottomY = centerY + halfWidth;
+                            elements.push(<line key={`${k}-t`} x1={startX} y1={topY} x2={startX + rectW} y2={topY} stroke={lattenColor} strokeWidth={1} strokeDasharray="4,4" />);
+                            elements.push(<line key={`${k}-b`} x1={startX} y1={bottomY} x2={startX + rectW} y2={bottomY} stroke={lattenColor} strokeWidth={1} strokeDasharray="4,4" />);
+                        }
+
+                        if (extraTop < effectiveHeight) drawLat(extraTop, 'lat-dbl-t');
+                        if (extraBottom > 0) drawLat(extraBottom, 'lat-dbl-b');
+                    }
                 }
 
                 const clipId = `ms-ceiling-clip-${shape}`;
@@ -236,6 +404,39 @@ export function MetalStudCeilingDrawing({
                         <g clipPath={`url(#${clipId})`}>
                             {elements}
                         </g>
+
+                        {/* RAVEELWERK Overlays */}
+                        {opsForOverlay.map((op) => {
+                            const isRaveel = (op as any).requires_raveelwerk;
+                            let raveelSVGBeams: any[] = [];
+
+                            if (isRaveel && framing.beamCenters.length > 0) {
+                                const raveelGeometry = calculateRaveelwerk({
+                                    openingFromLeft: op.fromLeft,
+                                    openingWidth: op.width,
+                                    openingHeight: op.height,
+                                    openingFromBottom: op.fromBottom,
+                                    existingBeamCenters: framing.beamCenters,
+                                    beamWidth: 60, // Profile width
+                                    totalHeight: effectiveHeight
+                                });
+                                raveelSVGBeams = raveelwerkToSVG(raveelGeometry, startX, startY, rectH, pxPerMm);
+                            }
+
+                            return (
+                                <g key={`raveel-grp-${op.id}`} className="pointer-events-none">
+                                    {isRaveel && raveelSVGBeams.map((beam, idx) => {
+                                        if (beam.type === 'header') {
+                                            const centerY = beam.svgY + beam.svgHeight / 2;
+                                            return <line key={`r-h-${idx}`} x1={beam.svgX} y1={centerY} x2={beam.svgX + beam.svgWidth} y2={centerY} stroke={profileColor} strokeWidth={beam.svgHeight} opacity="0.5" />;
+                                        } else {
+                                            const centerX = beam.svgX + beam.svgWidth / 2;
+                                            return <line key={`r-v-${idx}`} x1={centerX} y1={beam.svgY} x2={centerX} y2={beam.svgY + beam.svgHeight} stroke={profileColor} strokeWidth={beam.svgWidth} opacity="0.5" />;
+                                        }
+                                    })}
+                                </g>
+                            );
+                        })}
 
                         <OverallDimensions
                             wallLength={lengte}
@@ -273,6 +474,22 @@ export function MetalStudCeilingDrawing({
                             handlePointerUp={handlePointerUp}
                             editable={!!onOpeningsChange}
                         />
+
+
+                        {/* Custom Title Placement */}
+                        {title && (
+                            <text
+                                key="drawing-title"
+                                x={25}
+                                y={SVG_HEIGHT - 25}
+                                textAnchor="start"
+                                fill="rgb(100, 116, 139)"
+                                fontSize="14"
+                                style={{ fontFamily: 'monospace' }}
+                            >
+                                {title}
+                            </text>
+                        )}
                     </>
                 );
             }}

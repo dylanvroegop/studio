@@ -55,6 +55,7 @@ export function VisualizerController({
                     startFromRight={item.startFromRight}
                     startLattenFromBottom={item.startLattenFromBottom}
                     onOpeningsChange={onOpeningsChange}
+                    title={props.title}
                 />
             );
         }
@@ -67,6 +68,7 @@ export function VisualizerController({
                 startLattenFromBottom={item.startLattenFromBottom}
                 onOpeningsChange={onOpeningsChange}
                 gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag') || slug.includes('vliering')) ? 'Vloer Vlak' : undefined)}
+                title={props.title}
             />
         );
     }

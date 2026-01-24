@@ -155,24 +155,28 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
 
                         {/* 4. HORIZONTAL DIMENSIONS - 3 segments */}
                         {/* Segment 1: Wall Left to Opening Left */}
-                        <line
-                            x1={svgBaseX} y1={dimY}
-                            x2={drawX} y2={dimY}
-                            stroke="#10b981" strokeWidth="0.5"
-                        />
-                        <circle cx={svgBaseX} cy={dimY} r="1.5" fill="#10b981" />
-                        <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
-                        <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
-                        <text
-                            x={(svgBaseX + drawX) / 2}
-                            y={dimY + 0.5}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill="#10b981"
-                            className="text-[12px] font-mono select-none font-medium"
-                        >
-                            {op.fromLeft}
-                        </text>
+                        {op.fromLeft > 0 && (
+                            <>
+                                <line
+                                    x1={svgBaseX} y1={dimY}
+                                    x2={drawX} y2={dimY}
+                                    stroke="#10b981" strokeWidth="0.5"
+                                />
+                                <circle cx={svgBaseX} cy={dimY} r="1.5" fill="#10b981" />
+                                <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
+                                <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                <text
+                                    x={(svgBaseX + drawX) / 2}
+                                    y={dimY + 0.5}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    fill="#10b981"
+                                    className="text-[12px] font-mono select-none font-medium"
+                                >
+                                    {op.fromLeft}
+                                </text>
+                            </>
+                        )}
 
                         {/* Segment 2: Opening Width */}
                         <line
@@ -180,6 +184,8 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                             x2={drawX + wPx} y2={dimY}
                             stroke="#10b981" strokeWidth="0.5"
                         />
+                        <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
+                        {op.fromLeft === 0 && <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />}
                         <circle cx={drawX + wPx} cy={dimY} r="1.5" fill="#10b981" />
                         <rect x={(drawX + drawX + wPx) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
                         <text
@@ -194,17 +200,20 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                         </text>
 
                         {/* Segment 3: Opening Right to Wall Right */}
-                        <line
-                            x1={drawX + wPx} y1={dimY}
-                            x2={svgBaseX + wallLength * pxPerMm} y2={dimY}
-                            stroke="#10b981" strokeWidth="0.5"
-                        />
-                        <circle cx={svgBaseX + wallLength * pxPerMm} cy={dimY} r="1.5" fill="#10b981" />
                         {(() => {
                             const rightSegmentWidth = wallLength - op.fromLeft - op.width;
                             const midX = (drawX + wPx + svgBaseX + wallLength * pxPerMm) / 2;
+
+                            if (rightSegmentWidth <= 1) return null; // Hide if 0 (or close to 0 due to rounding)
+
                             return (
                                 <>
+                                    <line
+                                        x1={drawX + wPx} y1={dimY}
+                                        x2={svgBaseX + wallLength * pxPerMm} y2={dimY}
+                                        stroke="#10b981" strokeWidth="0.5"
+                                    />
+                                    <circle cx={svgBaseX + wallLength * pxPerMm} cy={dimY} r="1.5" fill="#10b981" />
                                     <rect x={midX - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
                                     <text
                                         x={midX}
