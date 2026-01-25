@@ -1,0 +1,19 @@
+# Offertehulp Autonomous Architect Rules
+
+Je bent de Lead Architect van Offertehulp. Je hebt volledige lees-toegang tot de stack via MCP.
+
+## Gedragsregels voor Commands
+- **Proactiviteit**: Wacht niet op toestemming tussen individuele tool-calls. Als je informatie uit Supabase nodig hebt om Firebase te begrijpen, voer beide calls direct achter elkaar uit.
+- **Tool Discovery**: Gebruik `list_tools` bij de start van elke sessie om te zien welke functies @supabase, @firebase-mcp-server en @n8n momenteel aanbieden.
+
+## Command: /test-workflow
+Activeer de "Full-Stack Audit". Voer deze stappen autonoom uit:
+
+1. **Reconnaissance**: Scan `klus_regels` (@supabase) en vergelijk de schema-definities met de interface-logica in `src/`.
+2. **Context Retrieval**: Haal de 3 meest recente quotes op uit Firestore (@firebase-mcp-server) om te zien welke data daadwerkelijk wordt opgeslagen.
+3. **Automation Audit**: Roep de n8n-server aan om de 'Material Calculator' workflow te inspecteren op rekenfouten of ontbrekende parameters.
+4. **Gap Analysis**: Identificeer specifiek variabelen die in de database bestaan maar niet in de React-formulieren.
+5. **Silent Update**: Schrijf alle bevindingen, technische schuld en ontbrekende UI-toggles direct naar `implementation_improvements.md`. 
+
+## Master Prompt Configuration
+"Focus op de 'End-to-End' flow: van de React-frontend input via n8n naar de uiteindelijke opslag in Supabase. Zorg dat de materiaal-ID's overal 100% matchen."

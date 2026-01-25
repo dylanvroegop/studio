@@ -324,7 +324,7 @@ export default function Dashboard() {
     setFout(null);
 
     const ref = collection(firestore, 'quotes');
-    const q = query(ref, where('klantinformatie.userId', '==', user.uid));
+    const q = query(ref, where('userId', '==', user.uid));
 
     const unsub = onSnapshot(
       q,

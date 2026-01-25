@@ -105,14 +105,16 @@ export async function POST(req: Request) {
           const { data: materials, error } = await supabase
             .from('materialen')
             .select('*')
-            .in('id', Array.from(materialIdsToBeFetched));
+            .in('row_id', Array.from(materialIdsToBeFetched));
 
           if (!error && materials) {
             materials.forEach((m: any) => {
               // Ensure numeric price
               const pr = typeof m.prijs === 'number' ? m.prijs : Number(m.prijs);
               const prStuk = typeof m.prijs_per_stuk === 'number' ? m.prijs_per_stuk : Number(m.prijs_per_stuk);
-              materialMap.set(m.id, { ...m, prijs: isNaN(pr) ? 0 : pr, prijs_per_stuk: isNaN(prStuk) ? 0 : prStuk });
+              // Use row_id as key since Firestore stores Supabase row_id as 'id'
+              // The materialMap key must match the 'id' from Firestore (which is actually row_id from Supabase)
+              materialMap.set(m.row_id, { ...m, prijs: isNaN(pr) ? 0 : pr, prijs_per_stuk: isNaN(prStuk) ? 0 : prStuk });
             });
           }
         } catch (err) {

@@ -1,6 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
-import 'dotenv/config'; // Added to ensure env vars are loaded when running standalone
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+
+// Load .env first
+dotenv.config();
+
+// Load .env.local if it exists (overriding .env)
+const envLocalPath = path.resolve(process.cwd(), '.env.local');
+if (fs.existsSync(envLocalPath)) {
+    const envConfig = dotenv.parse(fs.readFileSync(envLocalPath));
+    for (const k in envConfig) {
+        process.env[k] = envConfig[k];
+    }
+}
 
 const n8nUrl = process.env.N8N_BASE_URL || 'https://n8n.dylan8n.org/api/v1';
 const n8nKey = process.env.N8N_API_KEY;

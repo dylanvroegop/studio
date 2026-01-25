@@ -19,6 +19,20 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && isOwner(resource.data.userId);
       allow delete: if isSignedIn() && isOwner(resource.data.userId);
+
+      // Subcollection: Quote Notes
+      // We check the PARENT quote's ownership to allow access to these notes.
+      // This allows the existing queries (which don't filter by userId) to work safely.
+      match /quote_notes/{noteId} {
+         allow read, write: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
+      }
+    }
+    
+    // Rules for the 'notes' (Personal Notes) collection
+    match /notes/{noteId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
     
     // Rules for the 'materials' collection
@@ -39,6 +53,24 @@ service cloud.firestore {
         allow read, get, list: if isSignedIn() && resource.data.userId == request.auth.uid;
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
         allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Rules for the 'users' collection (User Settings)
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Rules for the 'counters' collection (Quote Numbers)
+    match /counters/{counterId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    // Rules for the 'clients' collection (Client directory)
+    // Code uses 'clients' collection, NOT 'klanten'
+    match /clients/{clientId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }
