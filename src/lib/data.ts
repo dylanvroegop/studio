@@ -9,7 +9,7 @@ import type { Client, Quote, Job, JobMaterial } from './types';
  Mock data (alleen voor onderdelen die nog niet op Firestore zitten)
 --------------------------------------------- */
 
-let jobs: Job[] = [
+const jobs: Job[] = [
   {
     id: 'job-1',
     quoteId: 'quote-1',
@@ -28,7 +28,7 @@ let jobs: Job[] = [
   },
 ];
 
-let jobMaterials: JobMaterial[] = [
+const jobMaterials: JobMaterial[] = [
   {
     id: 'mat-1',
     jobId: 'job-1',
@@ -60,15 +60,15 @@ export const getQuoteById = async (id: string): Promise<Quote | undefined> => {
 
   if (!docSnap.exists()) return undefined;
 
-  const data: any = docSnap.data();
+  const data = docSnap.data() as Record<string, unknown>;
 
   // Convert Firestore Timestamps to serializable format for client components
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
-    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
-    sentAt: data.sentAt?.toDate ? data.sentAt.toDate() : data.sentAt,
+    createdAt: (data.createdAt as { toDate?: () => Date })?.toDate ? (data.createdAt as { toDate: () => Date }).toDate() : data.createdAt,
+    updatedAt: (data.updatedAt as { toDate?: () => Date })?.toDate ? (data.updatedAt as { toDate: () => Date }).toDate() : data.updatedAt,
+    sentAt: (data.sentAt as { toDate?: () => Date })?.toDate ? (data.sentAt as { toDate: () => Date }).toDate() : data.sentAt,
   } as unknown as Quote;
 };
 
@@ -85,11 +85,11 @@ export const getJobsForQuote = async (quoteId: string): Promise<Job[]> => {
 
   const result: Job[] = [];
   querySnapshot.forEach((d) => {
-    const data: any = d.data();
+    const data = d.data() as Record<string, unknown>;
     result.push({
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+      createdAt: (data.createdAt as { toDate?: () => Date })?.toDate ? (data.createdAt as { toDate: () => Date }).toDate().toISOString() : data.createdAt,
     } as Job);
   });
 
@@ -130,7 +130,7 @@ export const getFullQuoteDetails = async (quoteId: string) => {
   if (!quote) return null;
 
   // ✅ NIEUWE structuur: alles uit quote.klantinformatie
-  const ki: any = (quote as any).klantinformatie;
+  const ki = quote.klantinformatie;
 
   const factuur = ki?.factuuradres;
   const clientNaam =
@@ -140,25 +140,27 @@ export const getFullQuoteDetails = async (quoteId: string) => {
 
   const client: Client = {
     id: 'temp-client-id',
-    userId: (quote as any).userId,
+    userId: quote.userId,
     naam: clientNaam,
     email: ki?.['e-mailadres'] || '',
     telefoon: ki?.telefoonnummer || '',
     adres: `${factuur?.straat || ''} ${factuur?.huisnummer || ''}`.trim(),
     postcode: factuur?.postcode || '',
     plaats: factuur?.plaats || '',
-    createdAt: (quote as any).createdAt?.toISOString
-      ? (quote as any).createdAt.toISOString()
-      : new Date().toISOString(),
+    createdAt: (quote.createdAt as unknown as { toDate: () => Date })?.toDate
+      ? (quote.createdAt as unknown as { toDate: () => Date }).toDate().toISOString()
+      : typeof quote.createdAt === 'string'
+        ? quote.createdAt
+        : new Date().toISOString(),
   };
 
   // ✅ Prioritize 'klussen' map from Quote document (Active Wizard Logic)
   let quoteJobs: Job[] = [];
-  const klussenMap = (quote as any).klussen;
+  const klussenMap = (quote as unknown as { klussen: Record<string, unknown> }).klussen;
 
   if (klussenMap && typeof klussenMap === 'object' && Object.keys(klussenMap).length > 0) {
     quoteJobs = Object.keys(klussenMap).map((key) => {
-      const data = klussenMap[key];
+      const data = klussenMap[key] as Record<string, unknown>;
       // Ensure date fields are Dates/Strings as expected
       return {
         id: key,
@@ -166,8 +168,8 @@ export const getFullQuoteDetails = async (quoteId: string) => {
         ...data,
         // Ensure meta is preserved for visualizer
         meta: data.meta || {},
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
-      } as Job;
+        createdAt: (data.createdAt as { toDate?: () => Date })?.toDate ? (data.createdAt as { toDate: () => Date }).toDate().toISOString() : data.createdAt,
+      } as unknown as Job;
     });
   } else {
     // Fallback: Legacy subcollection
@@ -204,7 +206,7 @@ export const getActiveQuotes = async (limitCount = 50): Promise<Quote[]> => {
   const quotes: Quote[] = [];
 
   querySnapshot.forEach((d) => {
-    const data: any = d.data();
+    const data = d.data() as Record<string, unknown>;
     quotes.push({
       id: d.id,
       ...data,
@@ -213,8 +215,8 @@ export const getActiveQuotes = async (limitCount = 50): Promise<Quote[]> => {
       // The existing pattern uses assertions. I'll stick to returning what looks like a Quote but with Dates if possible,
       // or depend on the caller to serialize if needed.
       // However, for Client components, we usually want ISO strings.
-      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
-      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+      createdAt: (data.createdAt as { toDate?: () => Date })?.toDate ? (data.createdAt as { toDate: () => Date }).toDate() : data.createdAt,
+      updatedAt: (data.updatedAt as { toDate?: () => Date })?.toDate ? (data.updatedAt as { toDate: () => Date }).toDate() : data.updatedAt,
     } as unknown as Quote);
   });
 

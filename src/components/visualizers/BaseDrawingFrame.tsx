@@ -74,7 +74,7 @@ export function calculateDrawingMetrics(width: number, height: number, fitContai
     let rectH = drawH;
 
     if (width > 0 && height > 0) {
-        const ratio = width / height;
+
 
         // Scale to fit within drawW x drawH maintaining aspect ratio
         const scaleX = drawW / width;
@@ -107,7 +107,7 @@ export function BaseDrawingFrame({
     gridLabel,
     className,
     fitContainer,
-    startFromRight,
+    // startFromRight, // Unused
     suppressTotalDimensions,
     drawingData, // Optional for now
     children,
@@ -375,8 +375,8 @@ export function BaseDrawingFrame({
                                                 const Y_BOTTOM = startY + rectH;
                                                 const WALL_X = startX;
 
-                                                let p1screen = { x: WALL_X + d.p1.x * pxPerMm, y: Y_BOTTOM - d.p1.y * pxPerMm };
-                                                let p2screen = { x: WALL_X + d.p2.x * pxPerMm, y: Y_BOTTOM - d.p2.y * pxPerMm };
+                                                const p1screen = { x: WALL_X + d.p1.x * pxPerMm, y: Y_BOTTOM - d.p1.y * pxPerMm };
+                                                const p2screen = { x: WALL_X + d.p2.x * pxPerMm, y: Y_BOTTOM - d.p2.y * pxPerMm };
 
                                                 // Special Case: Total Dims need specific screen offsets
                                                 if (d.type === 'total') {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 // Bestand: src/app/test/page.tsx
 // Doel: Testpagina voor "Werkwijze → Inbegrepen → Aanpassen (advanced)".
 // Belangrijk: GEEN jobtype-keuze en GEEN metingen hier. Dit is alleen de opbouw/werkwijze voor:

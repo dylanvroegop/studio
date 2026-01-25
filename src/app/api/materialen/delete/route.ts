@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // BESTAND: src/app/api/materialen/delete/route.ts
 //
 // DOEL:

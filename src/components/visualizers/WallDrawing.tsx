@@ -1,28 +1,13 @@
 'use client';
 
 import React, { useMemo, useRef } from 'react';
-import { cn } from '@/lib/utils';
-import { WallOpening, DrawingData, Beam as BeamData, DimensionLine as DimensionLineType } from '@/lib/drawing-types';
+import { WallOpening, DrawingData } from '@/lib/drawing-types';
 import { OpeningLabels } from './shared/OpeningLabels';
 import { GridMeasurements, OpeningMeasurements, OverallDimensions, DimensionLine } from './shared/measurements';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 
 // Helper to remove undefined values for Firestore
-const removeUndefined = (obj: any): any => {
-    if (Array.isArray(obj)) {
-        return obj.map(removeUndefined);
-    }
-    if (obj !== null && typeof obj === 'object') {
-        const newObj: any = {};
-        Object.keys(obj).forEach(key => {
-            if (obj[key] !== undefined) {
-                newObj[key] = removeUndefined(obj[key]);
-            }
-        });
-        return newObj;
-    }
-    return obj;
-};
+
 
 export { type WallOpening };
 
@@ -55,6 +40,23 @@ export interface WallDrawingProps {
     title?: string;
 }
 
+type RenderBeam = {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    type: string;
+    xMm?: number;
+    yMm?: number;
+    hMm?: number;
+};
+
+type RenderGap = {
+    value: number;
+    c1: number;
+    c2: number;
+};
+
 export function WallDrawing({
     lengte,
     hoogte,
@@ -75,8 +77,8 @@ export function WallDrawing({
     onOpeningsChange,
     fitContainer,
     isMagnifier,
-    startFromRight,
-    onDataGenerated,
+    // startFromRight, // Unused
+    // onDataGenerated, // Unused
     title
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
@@ -162,7 +164,7 @@ export function WallDrawing({
     const dragStartRef = useRef<{ x: number; y: number; opId: string; origLeft: number; origBottom: number } | null>(null);
 
     // Pointer Handlers
-    const metricsRef = useRef<any>(null);
+    const metricsRef = useRef<{ pxPerMm: number } | null>(null);
 
     const handlePointerDown = (e: React.PointerEvent, op: WallOpening) => {
         if (isMagnifier) return;
@@ -280,8 +282,8 @@ export function WallDrawing({
                 const { beams, gaps } = (() => {
                     if (lengteNum <= 0 || balkafstandNum <= 0) return { beams: [], gaps: [] };
 
-                    const b: any[] = [];
-                    const g: any[] = [];
+                    const b: RenderBeam[] = [];
+                    const g: RenderGap[] = [];
 
                     type Segment = { startX: number; length: number; label: string };
                     const segments: Segment[] = [];
@@ -289,7 +291,7 @@ export function WallDrawing({
                     else if (shape === 'u-shape') { segments.push({ startX: 0, length: l1, label: 'L1' }); segments.push({ startX: l1, length: l2, label: 'L2' }); segments.push({ startX: l1 + l2, length: lengteNum - (l1 + l2), label: 'L3' }); }
                     else { segments.push({ startX: 0, length: lengteNum, label: 'Main' }); }
 
-                    segments.forEach((seg: any) => {
+                    segments.forEach((seg) => {
                         if (seg.length <= 0) return;
                         const segBeams: number[] = [seg.startX]; // Start Stud
                         const endStudX = seg.startX + seg.length - STUD_W;
@@ -380,7 +382,7 @@ export function WallDrawing({
                     <>
                         <polygon points={topPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
                         <polygon points={bottomPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
-                        {beams.map((b: any, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
+                        {beams.map((b, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
 
                         {openings.map((op) => {
                             const wPx = op.width * pxPerMm;

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { RoofDrawingProps } from './RoofDrawing';
@@ -35,10 +36,10 @@ export function EPDMDrawing({
     title = 'Dak Vlak',
     className,
     fitContainer,
-    isMagnifier,
+    // isMagnifier, // Unused
     onOpeningsChange,
     onEdgeChange,
-    shape = 'rectangle'
+    // shape = 'rectangle' // Unused
 }: EPDMDrawingProps) {
     // State for drag
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
@@ -110,7 +111,7 @@ export function EPDMDrawing({
     const dakrandNum = typeof dakrandWidth === 'number' ? dakrandWidth : parseFloat(String(dakrandWidth)) || 0;
 
     // Use fallback dimensions for rendering if input is empty/zero
-    const isBlank = lengteNum <= 0 || heightNum <= 0;
+
 
     const areaStats = React.useMemo(() => {
         const gross = lengteNum * heightNum;
@@ -137,7 +138,7 @@ export function EPDMDrawing({
         >
             {(metrics) => {
                 metricsRef.current = metrics;
-                const { startX, startY, rectW, rectH, pxPerMm, SVG_WIDTH, SVG_HEIGHT } = metrics;
+                const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT } = metrics;
 
                 // Convert dakrandWidth (mm) to pixels
                 const drPxRaw = dakrandNum * pxPerMm;

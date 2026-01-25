@@ -106,8 +106,7 @@ export function calculateRaveelwerk(params: RaveelwerkParams): RaveelwerkGeometr
         openingHeight,
         openingFromBottom,
         existingBeamCenters,
-        beamWidth = 70,
-        totalHeight
+        beamWidth = 70
     } = params;
 
     const beams: RaveelwerkBeam[] = [];

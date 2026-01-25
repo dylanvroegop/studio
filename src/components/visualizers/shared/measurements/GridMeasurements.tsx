@@ -1,5 +1,5 @@
 import React from 'react';
-import { DEFAULT_MEASUREMENT_STYLE } from './types';
+
 
 export interface GridMeasurementsProps {
     gaps: {

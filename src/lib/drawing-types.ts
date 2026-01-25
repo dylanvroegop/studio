@@ -50,5 +50,5 @@ export interface DrawingData {
     dimensions: DimensionLine[];
 
     // Raw inputs
-    params: Record<string, any>;
+    params: Record<string, unknown>;
 }

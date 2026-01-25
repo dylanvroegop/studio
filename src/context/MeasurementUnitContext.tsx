@@ -16,14 +16,14 @@ const MeasurementUnitContext = createContext<MeasurementUnitContextType | undefi
 
 export function MeasurementUnitProvider({ children }: { children: React.ReactNode }) {
     const [unit, setUnitState] = useState<MeasurementUnit>('mm');
-    const [mounted, setMounted] = useState(false);
+
 
     useEffect(() => {
         const saved = localStorage.getItem('measurement-unit') as MeasurementUnit;
         if (saved && ['mm', 'cm', 'm'].includes(saved)) {
             setUnitState(saved);
         }
-        setMounted(true);
+
     }, []);
 
     const setUnit = (newUnit: MeasurementUnit) => {

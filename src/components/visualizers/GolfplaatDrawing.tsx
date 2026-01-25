@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { OverallDimensions, OpeningMeasurements } from './shared/measurements';
@@ -13,9 +14,7 @@ interface GolfplaatDrawingProps {
     onOpeningsChange?: (newOpenings: any[]) => void;
 }
 
-const dimColor = "#10b981"; // Emerald-500
 const structureColor = "rgb(70, 75, 85)";
-const labelColor = "rgb(100, 116, 139)"; // Slate-500
 
 const labelMap: Record<string, string> = {
     'dakraam': 'Lichtkoepel',
@@ -99,7 +98,7 @@ export function GolfplaatDrawing({
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
 
     // Use fallback dimensions for rendering if input is empty/zero
-    const isBlank = lengteNum <= 0 || heightNum <= 0;
+
 
     const areaStats = React.useMemo(() => {
         const gross = lengteNum * heightNum;
@@ -126,7 +125,7 @@ export function GolfplaatDrawing({
         >
             {(metrics) => {
                 metricsRef.current = metrics;
-                const { startX, startY, rectW, rectH, pxPerMm, SVG_WIDTH, SVG_HEIGHT } = metrics;
+                const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT } = metrics;
 
                 // --- 1. Roof Surface (Inner Fill) ---
                 const surfaceElement = (

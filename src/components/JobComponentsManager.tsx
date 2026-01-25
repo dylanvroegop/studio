@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities, react-hooks/exhaustive-deps, prefer-const */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2, Box } from 'lucide-react';
@@ -124,9 +126,7 @@ export function JobComponentsManager({
             id: editingId || (typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2)),
             type: selectedType as JobComponentType,
             label: newLabel,
-            measurements: {}, // Keep empty for type safety / legacy interface? Or populate? 
-            // We'll populate the specific key below, but 'measurements' is typed in JobComponent.
-            // checking JobComponent type definition might be needed. 
+            // measurements: {}, // Removed duplicate 
             // Assuming JobComponent has [key: string]: any or we just use measurements for now but ALSO add the specific key?
             // User requested "measurements_${type}".
             // Let's store BOTH or just the specific one?

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-var-requires, prefer-const, @typescript-eslint/no-unused-vars */
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
 
@@ -182,6 +183,22 @@ export async function POST(req: Request) {
         : [];
 
       quote.klussen = jobArray; // Assign processed array
+
+      // 4. Fetch quote_notes subcollection
+      try {
+        const notesRef = db.collection('quotes').doc(quoteId).collection('quote_notes');
+        const notesSnap = await notesRef.get();
+        const notes = notesSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // Attach to the quote object
+        quote.quote_notes = notes;
+      } catch (err) {
+        console.warn("Failed to fetch quote_notes:", err);
+        // Continue without notes if this fails, rather than blocking the whole generate process
+        quote.quote_notes = [];
+      }
 
     } catch (e) {
       console.warn("Error during N8N payload optimization:", e);

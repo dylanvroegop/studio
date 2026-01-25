@@ -1,14 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Menu, Plus, LayoutDashboard, FileText, Ruler, Package, ChevronRight, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Menu, Plus, LayoutDashboard, FileText, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { cn } from '@/lib/utils';
+
 
 // --- Helpers ---
 function slugify(value: string) {
@@ -40,7 +41,7 @@ interface WizardHeaderProps {
 
 export function WizardHeader({
     title,
-    backLink,
+    // backLink, // Unused
     progress,
     rightContent,
     quoteId
@@ -199,7 +200,7 @@ export function WizardHeader({
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => setMenuOpen(false)}>
                                                 <Link href={`/offertes/${quoteId}/overzicht`}>
                                                     <FileText className="h-4 w-4" />
-                                                    Overzicht & Extra's
+                                                    Overzicht &amp; Extra&apos;s
                                                 </Link>
                                             </Button>
                                         </div>

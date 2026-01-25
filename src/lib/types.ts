@@ -80,7 +80,7 @@ export type Quote = {
       percentage?: number;
       fixedAmount?: number;
     };
-    materieel?: any[]; // Bouwplaatskosten
+    materieel?: Record<string, unknown>[]; // Bouwplaatskosten
   };
 };
 
@@ -128,13 +128,13 @@ export type Job = {
   diepteMm?: number;
   aantal: number;
   notities?: string;
-  measurements?: Record<string, any>;
+  measurements?: Record<string, number | string>;
 
   createdAt: string;
 
   // ✅ Optimized Structure
-  maatwerk?: any[]; // The array of measurements (segments)
-  materialen?: any; // Supports both old Record structure and new n8n array items
+  maatwerk?: Record<string, unknown>[]; // The array of measurements (segments)
+  materialen?: unknown; // Supports both old Record structure and new n8n array items
   kleinMateriaal?: KleinMateriaalConfig;
 
   components?: JobComponent[];
@@ -153,7 +153,7 @@ export interface JobComponent {
   type: JobComponentType;
   label: string; // e.g. "Kozijn 1"
   measurements: Record<string, number | string>; // specific measurements
-  materials?: any[]; // optional internal materials if needed locally
+  materials?: Record<string, unknown>[]; // optional internal materials if needed locally
   slug?: string; // Link to the JOB_REGISTRY item for loading default materials
 }
 
@@ -217,5 +217,5 @@ export type Preset = {
   kleinMateriaalConfig?: KleinMateriaalConfig;
   // ✅ ADD THIS LINE:
   custommateriaal?: Record<string, { id: string; title: string; order?: number }>;
-  createdAt: any;
+  createdAt: string | Timestamp;
 };

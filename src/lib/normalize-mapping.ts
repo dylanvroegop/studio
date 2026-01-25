@@ -1,4 +1,5 @@
 import { JOB_REGISTRY } from './job-registry';
+import * as fs from 'fs';
 
 const normalized: Record<string, Record<string, string>> = {};
 
@@ -23,6 +24,6 @@ for (const [, categoryConfig] of Object.entries(JOB_REGISTRY)) {
   }
 }
 
-require('fs').writeFileSync('ai-agent-normalized.json', JSON.stringify(normalized, null, 2), 'utf-8');
+fs.writeFileSync('ai-agent-normalized.json', JSON.stringify(normalized, null, 2), 'utf-8');
 console.log('✅ Opgeslagen: ai-agent-normalized.json');
 console.log(`📊 ${Object.keys(normalized).length} hoofdcategorieën`);

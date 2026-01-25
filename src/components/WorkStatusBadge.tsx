@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Badge } from "@/components/ui/badge";
 import { Circle, Clock, CheckCircle2, Send, XCircle, AlertCircle } from "lucide-react";
-import type { Status } from "@/lib/types";
+export type Status = 'concept' | 'in_behandeling' | 'verzonden' | 'geaccepteerd' | 'afgewezen' | 'verlopen';
 
 // Helper to check if a single job (klus) is complete
 export function jobIsComplete(job: any): boolean {

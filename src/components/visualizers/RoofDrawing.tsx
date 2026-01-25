@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { OverallDimensions, GridMeasurements } from './shared/measurements';

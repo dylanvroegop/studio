@@ -288,7 +288,7 @@ export async function getJobsForQuoteSelectionAction(quoteId: string) {
  n8n Proxy Actions
 --------------------------------------------- */
 
-export async function calculateMaterialsAction(jobData: any) {
+export async function calculateMaterialsAction(jobData: Record<string, unknown>) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
 
   if (!webhookUrl) {
@@ -310,13 +310,13 @@ export async function calculateMaterialsAction(jobData: any) {
 
     const data = await response.json();
     return { data };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in calculateMaterialsAction:", error);
     return { error: "Fout bij ophalen materialen." };
   }
 }
 
-export async function calculateMaterialsActionWithFirestore(quoteId: string, jobId: string, jobData: any) {
+export async function calculateMaterialsActionWithFirestore(quoteId: string, jobId: string, jobData: Record<string, unknown>) {
   const { firestore } = initializeFirebaseServer();
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
 
@@ -338,7 +338,7 @@ export async function calculateMaterialsActionWithFirestore(quoteId: string, job
     }
 
     const rawData = await response.json();
-    let materials: any[] = [];
+    let materials: unknown[] = [];
 
     // Parse logic
     if (Array.isArray(rawData) && rawData.length === 1 && rawData[0].materialen) {
@@ -366,13 +366,13 @@ export async function calculateMaterialsActionWithFirestore(quoteId: string, job
     }
 
     return { data: materials };
-  } catch (error: any) {
-    console.error("Error in calculateMaterialsAction:", error);
+  } catch (error: unknown) {
+    console.error("Error in calculateMaterialsActionWithFirestore:", error);
     return { error: "Fout bij ophalen materialen." };
   }
 }
 
-export async function fetchMaterialsFromN8nAction(jobData: any) {
+export async function fetchMaterialsFromN8nAction(jobData: Record<string, unknown>) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
 
   if (!webhookUrl) {
@@ -402,9 +402,9 @@ export async function fetchMaterialsFromN8nAction(jobData: any) {
       message: "Calculatie aangevraagd. Polling gestart..."
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in fetchMaterialsFromN8nAction:", error);
-    return { error: "Fout bij ophalen materialen: " + error.message };
+    return { error: "Fout bij ophalen materialen: " + (error instanceof Error ? error.message : String(error)) };
   }
 }
 
@@ -434,7 +434,7 @@ export async function checkCalculationStatusAction(quoteId: string, userId: stri
     }
 
     return { data };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 }

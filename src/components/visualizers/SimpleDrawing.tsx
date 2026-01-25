@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 
 export type DrawingMode = 'surface' | 'roof' | 'linear' | 'object' | 'box';
@@ -74,7 +74,7 @@ export function SimpleDrawing({ item, type = 'box', mode, className, fitContaine
             fitContainer={fitContainer}
             gridLabel={gridLabel}
         >
-            {({ startX, startY, rectW, rectH, drawW, drawH, pxPerMm }) => {
+            {({ startX, startY, rectW, rectH, pxPerMm }) => {
 
                 // --- RENDER HELPERS ---
 

@@ -19,8 +19,8 @@ export const DimensionLayer: React.FC<DimensionLayerProps> = ({ dimensions, clas
                 const isExtension = dim.type === 'extension';
 
                 // Determine Styles based on Type
-                let color = DrawingStyles.colors.DIM_TOTAL;
-                let strokeDash = DrawingStyles.strokes.SOLID;
+                let color: string = DrawingStyles.colors.DIM_TOTAL;
+                let strokeDash: string | undefined = DrawingStyles.strokes.SOLID;
                 let showDots = true;
                 let showLabelBg = true;
                 let labelFontSize = 12;

@@ -11,6 +11,7 @@
  */
 
 import { JOB_REGISTRY } from './job-registry';
+import * as fs from 'fs';
 
 interface MappingRow {
   hoofdtitel: string;
@@ -25,8 +26,8 @@ function generateMapping(): MappingRow[] {
   const rows: MappingRow[] = [];
 
   // Loop door alle categorieën in de registry
-  for (const [categoryKey, categoryConfig] of Object.entries(JOB_REGISTRY)) {
-    
+  for (const [, categoryConfig] of Object.entries(JOB_REGISTRY)) {
+
     // Loop door alle items (jobs) in deze categorie
     for (const item of categoryConfig.items) {
       const { title, slug, materialSections, categoryConfig: itemCategoryConfig } = item;
@@ -103,13 +104,13 @@ function generateLookup(rows: MappingRow[]): Record<string, Record<string, strin
 
   for (const row of rows) {
     const key = row.slug;
-    
+
     if (!lookup[key]) {
       lookup[key] = {};
     }
 
     const categoryKey = row.category_key;
-    
+
     if (!lookup[key][categoryKey]) {
       lookup[key][categoryKey] = [];
     }
@@ -130,17 +131,17 @@ console.log(`✅ Gegenereerd: ${mapping.length} mapping regels\n`);
 
 // Export CSV
 const csv = exportToCSV(mapping);
-require('fs').writeFileSync('ai-agent-mapping.csv', csv, 'utf-8');
+fs.writeFileSync('ai-agent-mapping.csv', csv, 'utf-8');
 console.log('📄 CSV opgeslagen: ai-agent-mapping.csv');
 
 // Export JSON (volledige mapping)
 const json = exportToJSON(mapping);
-require('fs').writeFileSync('ai-agent-mapping.json', json, 'utf-8');
+fs.writeFileSync('ai-agent-mapping.json', json, 'utf-8');
 console.log('📄 JSON opgeslagen: ai-agent-mapping.json');
 
 // Export Lookup (compacte versie voor snelle queries)
 const lookup = generateLookup(mapping);
-require('fs').writeFileSync('ai-agent-lookup.json', JSON.stringify(lookup, null, 2), 'utf-8');
+fs.writeFileSync('ai-agent-lookup.json', JSON.stringify(lookup, null, 2), 'utf-8');
 console.log('📄 Lookup opgeslagen: ai-agent-lookup.json');
 
 // Print voorbeeld

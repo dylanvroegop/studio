@@ -28,8 +28,8 @@ export const DimensionLine: React.FC<DimensionLineProps> = ({
     const len = Math.sqrt(dx * dx + dy * dy);
 
     // Normalized perpendicular vector
-    let nx = -dy / len;
-    let ny = dx / len;
+    const nx = -dy / len;
+    const ny = dx / len;
 
     // Apply offset
     const x1 = p1.x + nx * offset;

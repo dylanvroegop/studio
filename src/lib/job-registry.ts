@@ -148,7 +148,7 @@ export interface MeasurementField {
   suffix?: string;
   placeholder?: string;
   defaultValue?: string | number;
-  group?: string; // For grouping fields in the UI (e.g. side-by-side)
+  group?: string;
   options?: { label: string; value: string }[];
 }
 
@@ -203,22 +203,15 @@ const CEILLING_FIELDS: MeasurementField[] = [
 const METAL_STUD_CEILING_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' }, // Reduced default for Metal Stud? standard is often 600
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
   { key: 'latafstand', label: 'Profielafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
 ]
 
-const ROOF_FIELDS: MeasurementField[] = [
-  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
-  { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' }, // Using 'hoogte' key but 'Breedte' label for roof width
-  { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' }, // Primary (horizontal battens)
-  { key: 'latafstand', label: 'Rachelafstand (h.o.h.)', type: 'number', suffix: 'mm', placeholder: 'Berekend op basis dakpannen', group: 'spacing' }, // Secondary (vertical battens)
 
-];
 
-// EPDM flat roof fields - same as ROOF_FIELDS but without beam spacing (no tengel/rachel)
 const EPDM_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
-  { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' }, // Using 'hoogte' key but 'Breedte' label for roof width (matches RoofDrawing)
+  { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
   { key: 'dakrand_breedte', label: 'Breedte Dakrand', type: 'number', suffix: 'mm', defaultValue: 50, group: 'dakrand_structuur' },
   { key: 'dakrand_hoogte', label: 'Hoogte Dakrand', type: 'number', suffix: 'mm', placeholder: 'Bijv. 70', group: 'dakrand_structuur' },
   {
@@ -767,20 +760,12 @@ const VLIERING_MATS: MaterialSection[] = [
 
 //#region ========================================== MATERIAL SECTIONS - KEUKENS ==========================================
 
-const KEUKEN_MATS: MaterialSection[] = [
 
-];
 
 
 //#region ========================================== MATERIAL SECTIONS - INTERIEUR & AFWERKINGEN ==========================================
 
-const INTERIEUR_MATS: MaterialSection[] = [
-  { label: 'Basismateriaal / Corpus', categoryFilter: 'Constructieplaten', key: 'constructie', category_ultra_filter: '' },
-  { label: 'Fronten & Zichtwerk', categoryFilter: 'Constructieplaten', key: 'fronten', category_ultra_filter: '' },
-  { label: 'Scharnieren & Ladegeleiders', categoryFilter: 'Deurtoebehoren', key: 'beslag', category_ultra_filter: '' },
-  { label: 'Interieurinrichting (roedes/planken)', categoryFilter: 'Overig', key: 'inrichting', category_ultra_filter: '' },
-  { label: 'Afwerking & Lakwerk', categoryFilter: 'Overig', key: 'afwerking', category_ultra_filter: '' },
-];
+
 
 //#region ========================================== MATERIAL SECTIONS - AFWERKINGEN ==========================================
 
@@ -1893,7 +1878,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           { key: 'aantal_pannen_breedte', label: 'Breedte (aantal pannen)', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 25' },
           { key: 'aantal_pannen_hoogte', label: 'Hoogte (aantal pannen)', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 40' },
           { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
-          { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' }, // Using 'hoogte' key but 'Breedte' label
+          { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
           { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
           { key: 'latafstand', label: 'Rachelafstand (h.o.h.)', type: 'number', suffix: 'mm', placeholder: 'Berekend op basis dakpannen', group: 'spacing' },
           { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
