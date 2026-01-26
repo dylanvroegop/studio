@@ -1,0 +1,19 @@
+{
+  "app_ontwikkeling": [
+    {
+      "github_issue_titel": "HSB voorzetwand: openingen (ramen/deuren) als gestructureerde input + automatische aftrek en regelwerk rond sparingen",
+      "feature_request": "Voeg in de maatwerkpagina voor HSB-voorzetwand een sectie 'Openingen' toe met: type (deur/raam), breedte_mm, hoogte_mm, fromBottom_mm. Gebruik dit om netto m2 te berekenen (isolatie/gips), plintlengte te corrigeren en het regelwerk rond openingen te genereren (latei, dorpel, kreupele stijlen) conform klus_regels.",
+      "prioriteit": "hoog"
+    },
+    {
+      "github_issue_titel": "Toggle voor OSB achter gips en dubbelzijdig beplaten bij HSB wanden",
+      "feature_request": "Voeg toggles toe: (1) 'OSB achter gips' met keuze OSB-dikte en plaatmaat, (2) 'Dubbelzijdig beplaten' (gips 2 zijden). Koppel dit direct aan de berekeningen voor beplating_gips, constructieplaat_osb en gipsvuller.",
+      "prioriteit": "hoog"
+    },
+    {
+      "github_issue_titel": "Balkmaat (breedte/diepte) selecteerbaar maken en materialen automatisch filteren op klus_regels",
+      "feature_request": "Maak balkmaat een expliciete keuze (bijv. 44x69, 38x89, 50x75) en filter/waarschuw als gekozen regels/materialen niet matchen met de standaard in klus_regels. Sla balkmaat als numerieke velden op en gebruik ze in alle formules (studlengte, headers).",
+      "prioriteit": "medium"
+    }
+  ]
+}
