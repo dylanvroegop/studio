@@ -14,6 +14,11 @@
       "github_issue_titel": "Balkmaat (breedte/diepte) selecteerbaar maken en materialen automatisch filteren op klus_regels",
       "feature_request": "Maak balkmaat een expliciete keuze (bijv. 44x69, 38x89, 50x75) en filter/waarschuw als gekozen regels/materialen niet matchen met de standaard in klus_regels. Sla balkmaat als numerieke velden op en gebruik ze in alle formules (studlengte, headers).",
       "prioriteit": "medium"
+    },
+    {
+      "github_issue_titel": "Vensterbank overstek instelling toevoegen",
+      "feature_request": "Voeg een input veld toe voor vensterbank overstek (standaard 50mm per zijde). Vensterbank lengte = openingbreedte + (2 * overstek).",
+      "prioriteit": "laag"
     }
   ]
 }
