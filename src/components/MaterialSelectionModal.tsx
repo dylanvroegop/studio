@@ -123,7 +123,7 @@ interface MaterialSelectionModalProps {
   existingMaterials?: ExistingMaterial[];
   onSelectExisting?: (material: ExistingMaterial) => void;
   onMaterialAdded?: (material: any) => void;
-  defaultCategory?: string;
+  defaultCategory?: string | string[];
   onToggleFavorite?: (id: string) => void;
   showFavorites?: boolean;
 }
@@ -145,7 +145,7 @@ export function MaterialSelectionModal({
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string | string[]>('all');
   const [displayLimit, setDisplayLimit] = useState(50);
 
   // Form State
@@ -210,7 +210,11 @@ export function MaterialSelectionModal({
     let result = existingMaterials;
 
     if (categoryFilter !== 'all') {
-      result = result.filter(m => m.subsectie === categoryFilter);
+      if (Array.isArray(categoryFilter)) {
+        result = result.filter(m => categoryFilter.includes(m.subsectie || ''));
+      } else {
+        result = result.filter(m => m.subsectie === categoryFilter);
+      }
     }
 
     if (searchTerm.trim()) {
@@ -369,15 +373,27 @@ export function MaterialSelectionModal({
                   />
                 </div>
 
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <Select
+                  value={Array.isArray(categoryFilter) ? 'custom_filter' : categoryFilter}
+                  onValueChange={setCategoryFilter}
+                >
                   <SelectTrigger className="w-full h-9 text-xs border-muted-foreground/20 bg-transparent">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Filter className="h-3 w-3" />
-                      <span>{categoryFilter === 'all' ? 'Filter op categorie...' : categoryFilter}</span>
+                      <span>
+                        {Array.isArray(categoryFilter)
+                          ? 'Geselecteerde Groep'
+                          : categoryFilter === 'all'
+                            ? 'Filter op categorie...'
+                            : categoryFilter}
+                      </span>
                     </div>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Toon alles</SelectItem>
+                    {Array.isArray(categoryFilter) && (
+                      <SelectItem value="custom_filter" className="hidden">Geselecteerde Groep</SelectItem>
+                    )}
                     {uniqueCategories.map(cat => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}

@@ -16,7 +16,7 @@
         "prijs_incl_21%_btw": "€ 98.05 per stuk"
     },
     {
-        "categorie": "exterieur platen",
+        "categorie": "Exterieur platen",
         "materiaalnaam": "Okoume wit gegrond 80 mu b/bb 122x250x18 mm dik FSC Mix 70%",
         "lengte": "250cm",
         "breedte": "122cm",
@@ -24,7 +24,7 @@
         "prijs_incl_21%_btw": "€ 130.92 per stuk"
     },
     {
-        "categorie": "exterieur platen",
+        "categorie": "Exterieur platen",
         "materiaalnaam": "Agepan DWD 600 damp open houtvezelplaat 4TG 2500x625 mm 16 mm dik",
         "lengte": "2500mm",
         "breedte": "625mm",
@@ -32,7 +32,7 @@
         "prijs_incl_21%_btw": "€ 21.18 per stuk"
     },
     {
-        "categorie": "exterieur platen",
+        "categorie": "Exterieur platen",
         "materiaalnaam": "Okoume blank b/bb 122x250x18 mm FSC Mix 70%",
         "lengte": "250cm",
         "breedte": "122cm",
@@ -40,7 +40,7 @@
         "prijs_incl_21%_btw": "€ 109.44 per stuk"
     },
     {
-        "categorie": "exterieur platen",
+        "categorie": "Exterieur platen",
         "materiaalnaam": "Okoume blank b/bb 122x250x12 mm FSC Mix 70%",
         "lengte": "250cm",
         "breedte": "122cm",
@@ -48,7 +48,7 @@
         "prijs_incl_21%_btw": "€ 76.56 per stuk"
     },
     {
-        "categorie": "exterieur platen",
+        "categorie": "Exterieur platen",
         "materiaalnaam": "Okoume wit gegrond 80 mu b/bb 122x250x10 mm dik FSC Mix 70%",
         "lengte": "250cm",
         "breedte": "122cm",
@@ -56,7 +56,7 @@
         "prijs_incl_21%_btw": "€ 84.09 per stuk"
     },
     {
-        "categorie": "exterieur platen",
+        "categorie": "Exterieur platen",
         "materiaalnaam": "Interform - Betonplex Bruin Berken 120g FSC MP 125x250x12 mm dik FSC Mix 70%",
         "lengte": "250cm",
         "breedte": "125cm",
@@ -64,7 +64,7 @@
         "prijs_incl_21%_btw": "€ 97.33 per stuk"
     },
     {
-        "categorie": "exterieur platen",
+        "categorie": "Exterieur platen",
         "materiaalnaam": "Interform - Betonplex Bruin Berken 120g FSC MP 125x250x15 mm dik FSC Mix 70%",
         "lengte": "250cm",
         "breedte": "125cm",
@@ -2704,7 +2704,7 @@
         "prijs_incl_21%_btw": "€ 34.26 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x69 mm. 300 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "69mm",
@@ -2712,7 +2712,7 @@
         "prijs_incl_21%_btw": "€ 7.01 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x69 mm. lang 270 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "69mm",
@@ -2720,7 +2720,7 @@
         "prijs_incl_21%_btw": "€ 6.30 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Rachel 22x50 mm. 360 cm. (netto maat 21x48) FSC Mix 70%",
         "dikte": "22mm",
         "breedte": "50mm",
@@ -2729,7 +2729,7 @@
         "prijs_incl_21%_btw": "€ 2.64 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Rachel 22x50 mm. 510 cm. (netto maat 21x48) FSC Mix 70%",
         "dikte": "22mm",
         "breedte": "50mm",
@@ -2738,7 +2738,7 @@
         "prijs_incl_21%_btw": "€ 3.73 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Tengel 11x38 mm, 450 cm lang",
         "dikte": "11mm",
         "breedte": "38mm",
@@ -2746,7 +2746,7 @@
         "prijs_incl_21%_btw": "€ 2.21 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Panlat 25x42 mm. ( netto 24,5x38 ) 450 cm.",
         "dikte": "25mm",
         "breedte": "42mm",
@@ -2755,7 +2755,7 @@
         "prijs_incl_21%_btw": "€ 3.79 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Rachel 22x63 mm. 510 cm. (netto maat 21x60) FSC Mix 70%",
         "dikte": "22mm",
         "breedte": "63mm",
@@ -2764,7 +2764,7 @@
         "prijs_incl_21%_btw": "€ 5.11 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x69 mm. 360 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "69mm",
@@ -2772,7 +2772,7 @@
         "prijs_incl_21%_btw": "€ 8.41 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Rachel 22x63 mm. 270 cm. (netto maat 21x60) FSC Mix 70%",
         "dikte": "22mm",
         "breedte": "63mm",
@@ -2781,7 +2781,7 @@
         "prijs_incl_21%_btw": "€ 2.70 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x44 mm. 510 cm.FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "44mm",
@@ -2789,7 +2789,7 @@
         "prijs_incl_21%_btw": "€ 8.49 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x89 mm. 480 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "89mm",
@@ -2797,7 +2797,7 @@
         "prijs_incl_21%_btw": "€ 13.50 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Rachel 22x50 mm. 450 cm. (netto maat 21x48) FSC Mix 70%",
         "dikte": "22mm",
         "breedte": "50mm",
@@ -2806,7 +2806,7 @@
         "prijs_incl_21%_btw": "€ 3.29 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Rachel 22x50 mm. 270 cm. (netto maat 21x48) FSC Mix 70%",
         "dikte": "22mm",
         "breedte": "50mm",
@@ -2815,7 +2815,7 @@
         "prijs_incl_21%_btw": "€ 1.98 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x69 mm. 480 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "69mm",
@@ -2823,7 +2823,7 @@
         "prijs_incl_21%_btw": "€ 11.22 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Rachel 22x50 mm. 300 cm. (netto maat 21x48) FSC Mix 70%",
         "dikte": "22mm",
         "breedte": "50mm",
@@ -2832,7 +2832,7 @@
         "prijs_incl_21%_btw": "€ 2.20 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x89 mm. 450 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "89mm",
@@ -2840,7 +2840,7 @@
         "prijs_incl_21%_btw": "€ 12.66 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x140 mm. 510 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "140mm",
@@ -2848,7 +2848,7 @@
         "prijs_incl_21%_btw": "€ 22.45 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x69 mm. 420 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "69mm",
@@ -2856,7 +2856,7 @@
         "prijs_incl_21%_btw": "€ 9.80 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x120 mm. 300 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "120mm",
@@ -2864,7 +2864,7 @@
         "prijs_incl_21%_btw": "€ 11.33 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x235 mm. 540 cm FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "235mm",
@@ -2872,7 +2872,7 @@
         "prijs_incl_21%_btw": "€ 40.53 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x89 mm. 300 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "89mm",
@@ -2880,7 +2880,7 @@
         "prijs_incl_21%_btw": "€ 8.45 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x140 mm. 540 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "140mm",
@@ -2888,7 +2888,7 @@
         "prijs_incl_21%_btw": "€ 23.76 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x140 mm. 360 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "140mm",
@@ -2896,7 +2896,7 @@
         "prijs_incl_21%_btw": "€ 15.85 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x184 mm. 480 cm.FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "184mm",
@@ -2904,7 +2904,7 @@
         "prijs_incl_21%_btw": "€ 27.78 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x89 mm. 360 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "89mm",
@@ -2912,7 +2912,7 @@
         "prijs_incl_21%_btw": "€ 10.13 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x140 mm. 300 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "140mm",
@@ -2920,7 +2920,7 @@
         "prijs_incl_21%_btw": "€ 13.20 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x184 mm. 300 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "184mm",
@@ -2928,7 +2928,7 @@
         "prijs_incl_21%_btw": "€ 17.36 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x184 mm. 540 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "184mm",
@@ -2936,7 +2936,7 @@
         "prijs_incl_21%_btw": "€ 31.24 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x89 mm. 540 cm FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "89mm",
@@ -2944,7 +2944,7 @@
         "prijs_incl_21%_btw": "€ 15.20 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x235 mm 360 cm FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "235mm",
@@ -2952,7 +2952,7 @@
         "prijs_incl_21%_btw": "€ 27.03 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x184 mm. 360 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "184mm",
@@ -2960,7 +2960,7 @@
         "prijs_incl_21%_btw": "€ 20.84 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x120 mm. 360 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "120mm",
@@ -2968,7 +2968,7 @@
         "prijs_incl_21%_btw": "€ 13.60 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x69 mm. 510 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "69mm",
@@ -2976,7 +2976,7 @@
         "prijs_incl_21%_btw": "€ 11.91 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x120 mm. 540 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "120mm",
@@ -2984,7 +2984,7 @@
         "prijs_incl_21%_btw": "€ 20.40 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x284 mm 450 cm cm FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "284mm",
@@ -2992,7 +2992,7 @@
         "prijs_incl_21%_btw": "€ 43.64 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x140 mm. 450 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "140mm",
@@ -3000,7 +3000,7 @@
         "prijs_incl_21%_btw": "€ 19.81 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Spouwlat ruw 32x50 mm. 450 cm.",
         "dikte": "32mm",
         "breedte": "50mm",
@@ -3008,7 +3008,7 @@
         "prijs_incl_21%_btw": "€ 7.70 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x235 mm 450 cm FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "235mm",
@@ -3016,7 +3016,7 @@
         "prijs_incl_21%_btw": "€ 33.78 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x44 mm. 300 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "44mm",
@@ -3024,7 +3024,7 @@
         "prijs_incl_21%_btw": "€ 5.01 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x235mm. 600cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "235mm",
@@ -3032,7 +3032,7 @@
         "prijs_incl_21%_btw": "€ 46.14 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x235 mm 390 cm FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "235mm",
@@ -3040,7 +3040,7 @@
         "prijs_incl_21%_btw": "€ 29.28 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x284 mm 540 cm FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "284mm",
@@ -3048,7 +3048,7 @@
         "prijs_incl_21%_btw": "€ 52.38 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Sls 38x140 mm. 480 cm. FSC Mix 70%",
         "dikte": "38mm",
         "breedte": "140mm",
@@ -3056,7 +3056,7 @@
         "prijs_incl_21%_btw": "€ 21.11 per stuk"
     },
     {
-        "categorie": "Ribben, sls, rachels etc",
+        "categorie": "Ribben, sls, rachels",
         "materiaalnaam": "Vuren ribben 44x69 mm. 450 cm. FSC Mix 70%",
         "dikte": "44mm",
         "breedte": "69mm",
@@ -13262,5 +13262,185 @@
         "kenmerk": "incl. lans 61 cm",
         "toepassing": "spuitlijm",
         "prijs_incl_21%_btw": "€ 146.31 per stuk"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Ankerhanger HAG7024 170mm",
+        "lengte": "170mm",
+        "type": "HAG7024",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud U75 4000mm horizontaal",
+        "lengte": "4000mm",
+        "breedte": "75mm",
+        "type": "U-profiel",
+        "uitvoering": "horizontaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud C45 2600mm verticaal",
+        "lengte": "2600mm",
+        "breedte": "45mm",
+        "type": "C-profiel",
+        "uitvoering": "verticaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud C45 3000mm verticaal",
+        "lengte": "3000mm",
+        "breedte": "45mm",
+        "type": "C-profiel",
+        "uitvoering": "verticaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud C50 3000mm verticaal",
+        "lengte": "3000mm",
+        "breedte": "50mm",
+        "type": "C-profiel",
+        "uitvoering": "verticaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud C75 2600mm verticaal",
+        "lengte": "2600mm",
+        "breedte": "75mm",
+        "type": "C-profiel",
+        "uitvoering": "verticaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud C75 3000mm verticaal",
+        "lengte": "3000mm",
+        "breedte": "75mm",
+        "type": "C-profiel",
+        "uitvoering": "verticaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud C75 3600mm verticaal",
+        "lengte": "3600mm",
+        "breedte": "75mm",
+        "type": "C-profiel",
+        "uitvoering": "verticaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud C100 4000mm verticaal",
+        "lengte": "4000mm",
+        "breedte": "100mm",
+        "type": "C-profiel",
+        "uitvoering": "verticaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Plafond randprofiel U27 4000mm",
+        "lengte": "4000mm",
+        "breedte": "27mm",
+        "type": "U27",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Plafond profiel C60/27 4000mm",
+        "lengte": "4000mm",
+        "breedte": "60mm",
+        "dikte": "27mm",
+        "type": "C60/27",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Ankerhanger veer HAV7029",
+        "type": "HAV7029",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Afhangdraad haak HAD7253 500mm",
+        "lengte": "500mm",
+        "type": "HAD7253",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Bovenhanger nonius HNB7143 240mm",
+        "lengte": "240mm",
+        "type": "HNB7143",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Bovenhanger nonius HNB7146 540mm",
+        "lengte": "540mm",
+        "type": "HNB7146",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Onderhanger nonius HNH7034 122mm",
+        "lengte": "122mm",
+        "type": "HNH7034",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Direkthanger HDA7182 125mm",
+        "lengte": "125mm",
+        "type": "HDA7182",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Kruisverbinder univ HKV7404",
+        "type": "HKV7404",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Verbindingsstuk HVS7027",
+        "type": "HVS7027",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud U100 4000mm horizontaal",
+        "lengte": "4000mm",
+        "breedte": "100mm",
+        "type": "U-profiel",
+        "uitvoering": "horizontaal",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Borgpen HNP7180 nonius",
+        "type": "HNP7180",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Afhanganker HAS7028 kort 90mm",
+        "lengte": "90mm",
+        "type": "HAS7028",
+        "prijs_incl_21%_btw": "€ 0,00"
+    },
+    {
+        "categorie": "Metalstud profielen",
+        "materiaalnaam": "Metalstud U45 4000mm horizontaal",
+        "lengte": "4000mm",
+        "breedte": "45mm",
+        "type": "U-profiel",
+        "uitvoering": "horizontaal",
+        "prijs_incl_21%_btw": "€ 0,00"
     }
 ]

@@ -97,7 +97,7 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
             { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
             { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
             { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
-            { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
+            { label: 'Isolatie', categoryFilter: ['Glaswol', 'Steenwol', 'Pir', 'Eps', 'Xps'], category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
             { label: 'Hoekprofielen', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'afwerking', key: 'hoekprofielen', category_ultra_filter: '' },
         ]
     },
