@@ -1,0 +1,29 @@
+{
+  "supabase_optimalisaties": [
+    {
+      "fout": "Klus_regels (HSB Voorzetwand) gaan uit van balkmaat 50x75mm, terwijl het gekozen materiaal in de offerte 44x69mm is. Dit geeft afwijkingen in studlengte-formule (hoogte - 2*balk_dikte) en in detailberekeningen bij openingen (header = openingbreedte + 2*balk_dikte).",
+      "verbetering": "Voeg in klus_regels een check toe: gebruik altijd de daadwerkelijk gekozen balkmaat uit materialen_lijst (breedte/dikte en diepte) i.p.v. vaste meta-waarden. Als balkmaat ontbreekt: pas een default toe en geef waarschuwing.",
+      "tabel": "klus_regels + materialen_lijst"
+    },
+    {
+      "fout": "Beplating_gips rekent alleen met (wandlengte / plaatbreedte). Er ontbreekt logica voor: (1) snijverlies/uitval, (2) meerdere rijen bij andere plaatlengtes/hoogtes, (3) plaatnaden/voeglengte t.b.v. vuller en band.",
+      "verbetering": "Pas beplating_gips aan naar area-based: platen = ceil((netto_m2 * (1+snijverlies)) / (plaat_lengte_m*plaat_breedte_m)) en voeg parameter snijverlies_gips (default 8%). Voeg ook 'voeglengte_m' berekening toe voor vuller/band.",
+      "tabel": "klus_regels"
+    },
+    {
+      "fout": "Constructieplaat_osb heeft 'requirement: Always applied...' waardoor OSB impliciet verplicht wordt, terwijl voorzetwanden vaak zonder OSB worden uitgevoerd (tenzij hanglasten gewenst). In deze klus ontbreekt OSB in materialen.",
+      "verbetering": "Maak OSB optioneel via inputveld (toggle 'OSB achter gips: ja/nee' + dikte). Alleen rekenen als toggle aan staat of als notities 'osb' bevatten.",
+      "tabel": "klus_regels + frontend input"
+    },
+    {
+      "fout": "Afwerking_gips_vuller verwijst naar RESEARCH_VERBRUIK_AGENT maar mist vaste parameters voor verpakkingseenheden (5/10/20kg) en mist een factor voor dubbelzijdig voegen, voegband en schroefgaten (afhankelijk van schroefafstand).",
+      "verbetering": "Sla in database per voegenvuller-product het gewicht (kg/zak of emmer) op en voeg in klus_regels parameters toe: 'schroefafstand_mm', 'voegband_ja_nee' en 'zijden' (1 of 2) om verbruik consistenter te maken.",
+      "tabel": "materialen_database + klus_regels"
+    },
+    {
+      "fout": "Afwerking_plinten noemt optimalisatie op 'standaard_handelslengte_mm' maar dit veld is niet beschikbaar/meegegeven per plint-product (nu alleen tekst 'lengte 4900').",
+      "verbetering": "Voeg per materiaal een numeriek veld toe voor handelslengte_mm zodat afronding en optimalisatie automatisch en foutloos kan gebeuren.",
+      "tabel": "materialen_database"
+    }
+  ]
+}
