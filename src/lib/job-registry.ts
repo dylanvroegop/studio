@@ -1364,7 +1364,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     items: [
       {
         title: 'HSB Wand',
-        description: 'Voorzet- of Tussenwand',
+        description: 'Enkelzijdig Bekleed',
         slug: 'hsb-voorzetwand',
         measurementLabel: 'Wand',
         measurements: WALL_FIELDS,
@@ -1385,7 +1385,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
       },
       {
         title: 'Metalstud Wand',
-        description: 'Voorzet- of Tussenwand',
+        description: 'Enkelzijdig Bekleed',
         slug: 'metalstud-voorzetwand',
         measurementLabel: 'Wand',
         measurements: WALL_FIELDS,
