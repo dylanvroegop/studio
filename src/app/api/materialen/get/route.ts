@@ -26,11 +26,9 @@ export async function GET(req: Request) {
 
 
     const { data, error } = await supabaseAdmin
-      .from('materialen')
-      .select('*')
-      .eq('gebruikerid', uid)
-      .range(0, 5000)
-      .order('volgorde', { ascending: true });
+      .from('main_material_list')
+      .select('row_id, materiaalnaam, prijs:prijs_incl_btw, eenheid, subsectie:categorie, leverancier:merk')
+      .range(0, 5000);
 
     if (error) throw error;
 

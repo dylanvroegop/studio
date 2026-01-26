@@ -677,20 +677,39 @@ export default function GenericMaterialsPageRedesigned() {
 
   // Fetch Materials
   const fetchMaterials = useCallback(async () => {
-    if (!user?.uid) return;
+    // Determine token for API call
+    if (!user) return; // Wait for user
     setMaterialenLaden(true);
-    const { data, error } = await supabase.from('materialen').select('*').eq('gebruikerid', user.uid).range(0, 4999);
-    if (error) { setFoutMaterialen('Kon materialen niet laden.'); setMaterialenLaden(false); return; }
-    const materialenData = (data || []).map((m: any) => ({
-      ...m,
-      id: m.row_id ?? m.id,
-      prijs: typeof m.prijs === 'number' ? m.prijs : (parseNLMoneyToNumber(m.prijs) || 0),
-      prijs_per_stuk: typeof m.prijs_per_stuk === 'number' ? m.prijs_per_stuk : (parseNLMoneyToNumber(m.prijs_per_stuk) || 0),
-      categorie: m.subsectie ?? m.categorie ?? null,
-    }));
-    setAlleMaterialen(materialenData);
-    setMaterialenLaden(false);
-  }, [user?.uid]);
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/materialen/get', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || 'Fout bij ophalen');
+      }
+
+      const materialenData = (json.data || []).map((m: any) => ({
+        ...m,
+        id: m.row_id || m.id,
+        prijs: typeof m.prijs === 'number' ? m.prijs : (parseNLMoneyToNumber(m.prijs) || 0),
+        prijs_per_stuk: typeof m.prijs === 'number' ? m.prijs : (parseNLMoneyToNumber(m.prijs) || 0),
+        categorie: m.subsectie || 'Overig',
+        // We keep subsectie/leverancier for filtering, even if user asked to hide them?
+        // If UI hides them, we can modify Modal. sending them is fine.
+      }));
+
+      setAlleMaterialen(materialenData);
+    } catch (err) {
+      console.error("Fetch materials error:", err);
+      setFoutMaterialen('Kon materialen niet laden.');
+    } finally {
+      setMaterialenLaden(false);
+    }
+  }, [user]);
 
   useEffect(() => { fetchMaterials(); }, [fetchMaterials]);
 
@@ -1943,7 +1962,15 @@ export default function GenericMaterialsPageRedesigned() {
         onOpenChange={setIsExtraModalOpen}
         existingMaterials={enrichedMaterials}
         showFavorites={actieveSectie !== 'extra' && !activeGroupId && !activeComponentId}
-        defaultCategory={actieveSectie ? materialSections.find(s => s.key === actieveSectie)?.categoryFilter : undefined} // Note: For components, we might want to pass category too?
+        defaultCategory={(() => {
+          if (!actieveSectie) return undefined;
+          const raw = materialSections.find(s => s.key === actieveSectie)?.categoryFilter;
+          if (!raw) return undefined;
+          if (typeof raw === 'string' && raw.includes(',')) {
+            return raw.split(',').map((s: string) => s.trim());
+          }
+          return raw;
+        })()}
         onToggleFavorite={toggleFavoriet}
         onSelectExisting={(result: any) => {
           const mat = result.data || result;

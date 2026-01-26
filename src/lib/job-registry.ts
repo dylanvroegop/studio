@@ -319,14 +319,15 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 8. KOZIJNEN
   { label: 'Kozijnen', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
-  { label: 'Glas & Roosters', categoryFilter: 'Daktoebehoren, Ubbink', category: 'Kozijnen', key: 'glas_roosters', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'Kozijnen', key: 'glas', category_ultra_filter: '' },
+  { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'Kozijnen', key: 'roosters', category_ultra_filter: '' },
 
   // 9. DEUREN & BESLAG
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
   { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
   { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
   { label: 'Deurbeslag', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
-  { label: 'Deurroosters', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
+  { label: 'Deurroosters', categoryFilter: 'Overig', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
 ];
 
 const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
@@ -372,14 +373,15 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 8. KOZIJNEN
   { label: 'Raamkozijnen', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
   { label: 'Deurkozijnen', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'deur_kozijn', category_ultra_filter: '' },
-  { label: 'Glas & Roosters', categoryFilter: 'Overig', category: 'Kozijnen', key: 'glas_roosters', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'Kozijnen', key: 'glas', category_ultra_filter: '' },
+  { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'Kozijnen', key: 'roosters', category_ultra_filter: '' },
 
   // 9. DEUREN & BESLAG
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
   { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
   { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },
   { label: 'Deurbeslag', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_krukken', category_ultra_filter: '' },
-  { label: 'Deurroosters', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
+  { label: 'Deurroosters', categoryFilter: 'Overig', category: 'Deuren', key: 'deur_rooster', category_ultra_filter: '' },
 ];
 
 
@@ -427,7 +429,8 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
   { label: 'Stelkozijnen', categoryFilter: 'Montage kozijnen, Vuren geschaafd', category: 'Kozijnen', key: 'stelkozijn', category_ultra_filter: '' },
   { label: 'Raamkozijnen', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
   { label: 'Deurkozijnen', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'deur_kozijn', category_ultra_filter: '' },
-  { label: 'Glas & Roosters', categoryFilter: 'Daktoebehoren, Ubbink', category: 'Kozijnen', key: 'glas_roosters', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'Kozijnen', key: 'glas', category_ultra_filter: '' },
+  { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'Kozijnen', key: 'roosters', category_ultra_filter: '' },
 
   // 8. DEUREN & BESLAG
   { label: 'Buitendeuren', categoryFilter: 'Buitendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
@@ -766,8 +769,8 @@ const DAGKANT_MATS: MaterialSection[] = [
 
 const PLINTEN_MATS: MaterialSection[] = [
   { label: 'Plafondplinten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'plinten', category_ultra_filter: '' },
-  { label: 'Koplatten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'latten', category_ultra_filter: '' },
-  { label: 'Vloerplinten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'latten', category_ultra_filter: '' },
+  { label: 'Koplatten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'koplatten', category_ultra_filter: '' },
+  { label: 'Vloerplinten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'vloerplinten', category_ultra_filter: '' },
 ];
 
 const LEIDINGKOOF_MATS: MaterialSection[] = [
@@ -786,7 +789,7 @@ const OMKASTING_MATS: MaterialSection[] = [
 const VENSTERBANK_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Ribben, sls, rachels, Vuren geschaafd', category: 'hout', key: 'frame', category_ultra_filter: '' },
   { label: 'Vensterbank', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '' },
-  { label: 'Ventilatieroosters', categoryFilter: 'Ubbink, Overig', category: 'afwerking', key: 'roosters', category_ultra_filter: '' },
+  { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'afwerking', key: 'roosters', category_ultra_filter: '' },
   { label: 'Olie, Lak of Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'behandeling', category_ultra_filter: '' },
 ];
 
@@ -801,13 +804,13 @@ const DEUR_BINNEN_MATS: MaterialSection[] = [
   { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
   { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
 
-  { label: 'Glas', categoryFilter: 'Daktoebehoren, Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Plinten & koplatten, Hardhout geschaafd', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
 
   { label: 'Tochtvaldorp', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'valdorp', category_ultra_filter: '' },
   { label: 'Tochtstrips', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'tochtstrips', category_ultra_filter: '' },
 
-  { label: 'Deurroosters', categoryFilter: 'Deurbeslag, Ubbink', category: 'ventilatie', key: 'ventilatierooster', category_ultra_filter: '' },
+  { label: 'Deurroosters', categoryFilter: 'Overig', category: 'ventilatie', key: 'ventilatierooster', category_ultra_filter: '' },
 ];
 
 
@@ -821,13 +824,13 @@ const DEUR_BUITEN_MATS: MaterialSection[] = [
   { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
   { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
 
-  { label: 'Glas', categoryFilter: 'Daktoebehoren, Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
 
   { label: 'Tochtvaldorp', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'valdorp', category_ultra_filter: '' },
   { label: 'Tochtstrips', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'tochtstrips', category_ultra_filter: '' },
 
-  { label: 'Deurroosters', categoryFilter: 'Deurbeslag, Ubbink', category: 'ventilatie', key: 'ventilatierooster', category_ultra_filter: '' },
+  { label: 'Deurroosters', categoryFilter: 'Overig', category: 'ventilatie', key: 'ventilatierooster', category_ultra_filter: '' },
 
   // Optional additions for Exterior Doors
   { label: 'Drempel / Dorpel', categoryFilter: 'Hardhout geschaafd, Lood', category: 'afwerking', key: 'drempel', category_ultra_filter: '' },
@@ -934,7 +937,7 @@ const GEVEL_BEKLEDING_MATS: MaterialSection[] = [
   { label: 'Houten Bekleding (Rabat/Zweeds)', categoryFilter: 'Vloer-rabat-vellingdelen, Hardhout geschaafd, Merantie', category: 'gevel_hout', key: 'gevelbekleding_hout', category_ultra_filter: '' },
   { label: 'Houten Hoeklatten', categoryFilter: 'Hardhout geschaafd, Merantie, Plinten & koplatten', category: 'gevel_hout', key: 'hoek_hout', category_ultra_filter: '' },
 
-  { label: 'Kunststof Panelen (Keralit)', categoryFilter: 'Exterieur platen, Rockpanel, Kikern', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: '' },
+  { label: 'Kunststof Panelen (Keralit)', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: '' },
   { label: 'Keralit Profielen (Start/Eind/Hoek)', categoryFilter: 'Daktoebehoren, Overig', category: 'gevel_kunststof', key: 'profiel_keralit', category_ultra_filter: '' },
 
   { label: 'Volkern/HPL Plaat (Trespa)', categoryFilter: 'Kikern, Rockpanel, Exterieur platen', category: 'gevel_plaat', key: 'gevelplaat', category_ultra_filter: '' },
@@ -954,7 +957,7 @@ const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
   { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
   { label: 'Sluitplaat', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluitplaat', category_ultra_filter: '' },
 
-  { label: 'Glas', categoryFilter: 'Daktoebehoren, Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Plinten & koplatten, Hardhout geschaafd', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
 
   { label: 'Koplatten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'koplatten', category_ultra_filter: '' },
@@ -968,7 +971,7 @@ const KOZIJN_BINNEN_STAAL_MATS: MaterialSection[] = [
   { label: 'Paumelles', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'paumelles_staal', category_ultra_filter: '' },
   { label: 'Aanslagrubber', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'aanslagrubber', category_ultra_filter: '' },
 
-  { label: 'Glas', categoryFilter: 'Daktoebehoren, Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Deurbeslag, Montage kozijnen', category: 'glas', key: 'glaslatten_klik', category_ultra_filter: '' },
 ];
 
@@ -1008,9 +1011,9 @@ const KOZIJN_TIMMERWERK_MATS: MaterialSection[] = [
   { label: 'Raamuitzetter', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'raamuitzetter', category_ultra_filter: '' },
   { label: 'Meerpuntsluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
 
-  { label: 'Glas', categoryFilter: 'Daktoebehoren, Overig', category: 'glas', key: 'glas_buiten', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_buiten', category_ultra_filter: '' },
   { label: 'Neuslatten', categoryFilter: 'Hardhout geschaafd, Merantie, Plinten & koplatten', category: 'glas', key: 'neuslatten', category_ultra_filter: '' },
-  { label: 'Ventilatierooster', categoryFilter: 'Ubbink, Deurbeslag', category: 'glas', key: 'ventilatierooster', category_ultra_filter: '' },
+  { label: 'Ventilatierooster', categoryFilter: 'Overig', category: 'glas', key: 'ventilatierooster', category_ultra_filter: '' },
 
   { label: 'Tochtkader', categoryFilter: 'Deurbeslag', category: 'afwerking', key: 'tochtkader', category_ultra_filter: '' },
   { label: 'Lood / DPC', categoryFilter: 'Lood, Loodvervanger, Dpc', category: 'afwerking', key: 'waterkering', category_ultra_filter: '' },
@@ -1077,7 +1080,7 @@ const TRAPRENOVATIE_OVERZETTREDEN_MATS: MaterialSection[] = [
   { label: 'Overzettrede', categoryFilter: 'Vloer-rabat-vellingdelen, Hardhout geschaafd, Interieur Platen', category: 'basis', key: 'treden', category_ultra_filter: '' },
   { label: 'Stootbord', categoryFilter: 'Interieur Platen, Underlayment', category: 'basis', key: 'stootborden', category_ultra_filter: '' },
   { label: 'Trapneusprofiel', categoryFilter: 'Overig', category: 'afwerking', key: 'profiel', category_ultra_filter: '' },
-  { label: 'Antislipstrip', categoryFilter: 'Deurbeslag, Overig', category: 'afwerking', key: 'antislip', category_ultra_filter: '' },
+  { label: 'Antislipstrip', categoryFilter: 'Overig', category: 'afwerking', key: 'antislip', category_ultra_filter: '' },
 ];
 
 const VLIZOTRAP_MATS: MaterialSection[] = [
@@ -1085,7 +1088,7 @@ const VLIZOTRAP_MATS: MaterialSection[] = [
   { label: 'Vlizotrap (Complete set)', categoryFilter: 'Overig', category: 'basis', key: 'trap', category_ultra_filter: '' },
   { label: 'Zolderluik', categoryFilter: 'Overig, Binnendeuren', category: 'basis', key: 'luik', category_ultra_filter: '' },
   { label: 'Veiligheidshek', categoryFilter: 'Ribben, sls, rachels, Hardhout geschaafd', category: 'veiligheid', key: 'traphek', category_ultra_filter: '' },
-  { label: 'Veiligheidspoortje', categoryFilter: 'Deurbeslag', category: 'veiligheid', key: 'poortje', category_ultra_filter: '' },
+  { label: 'Veiligheidspoortje', categoryFilter: 'Overig', category: 'veiligheid', key: 'poortje', category_ultra_filter: '' },
   { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
   { label: 'Grendel / Sluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluiting', category_ultra_filter: '' },
   { label: 'Zelfsluitende veer', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'veer', category_ultra_filter: '' },
@@ -1134,8 +1137,8 @@ const KEUKEN_MONTAGE_MATS: MaterialSection[] = [
 
   // APPARATUUR & SPOELBAK
   { label: 'Inbouwapparaat', categoryFilter: 'Overig', category: 'werkblad', key: 'apparatuur', category_ultra_filter: '' },
-  { label: 'Spoelbak', categoryFilter: 'Overig, Ubbink', category: 'beslag', key: 'spoelbak', category_ultra_filter: '' },
-  { label: 'Keukenkraan', categoryFilter: 'Overig, Ubbink', category: 'beslag', key: 'kraan', category_ultra_filter: '' },
+  { label: 'Spoelbak', categoryFilter: 'Overig', category: 'beslag', key: 'spoelbak', category_ultra_filter: '' },
+  { label: 'Keukenkraan', categoryFilter: 'Overig', category: 'beslag', key: 'kraan', category_ultra_filter: '' },
 
   // DETAILS
   { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
@@ -1154,7 +1157,7 @@ const KEUKEN_RENOVATIE_MATS: MaterialSection[] = [
 
   // UPGRADES
   { label: 'Inbouwapparaat', categoryFilter: 'Overig', category: 'werkblad', key: 'apparatuur', category_ultra_filter: '' },
-  { label: 'Keukenkraan', categoryFilter: 'Overig, Ubbink', category: 'beslag', key: 'kraan', category_ultra_filter: '' },
+  { label: 'Keukenkraan', categoryFilter: 'Overig', category: 'beslag', key: 'kraan', category_ultra_filter: '' },
 ];
 
 //#endregion
@@ -1170,7 +1173,7 @@ const INBOUWKAST_MATS: MaterialSection[] = [
   { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
   { label: 'Meubelgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
   { label: 'Push-to-open systeem', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'snappers', category_ultra_filter: '' },
-  { label: 'Kledingroede', categoryFilter: 'Deurbeslag, Overig', category: 'beslag', key: 'garderobe', category_ultra_filter: '' },
+  { label: 'Kledingroede', categoryFilter: 'Overig', category: 'beslag', key: 'garderobe', category_ultra_filter: '' },
 ];
 
 //#endregion
@@ -1200,8 +1203,8 @@ const DAKKAPEL_RENOVATIE_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - GLAS ZETTEN ==========================================
 
 const ISOLATIEGLAS_MATS: MaterialSection[] = [
-  { label: 'Glas', categoryFilter: 'Daktoebehoren, Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
-  { label: 'Ventilatie roosters', categoryFilter: 'Ubbink, Overig', category: 'glas', key: 'roosters', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
+  { label: 'Ventilatie roosters', categoryFilter: 'Overig', category: 'glas', key: 'roosters', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Hardhout geschaafd, Merantie, Plinten & koplatten', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
 ];
 

@@ -211,9 +211,20 @@ export function MaterialSelectionModal({
 
     if (categoryFilter !== 'all') {
       if (Array.isArray(categoryFilter)) {
-        result = result.filter(m => categoryFilter.includes(m.subsectie || ''));
+        // Case-insensitive check for array
+        const lowerFilters = categoryFilter.map(c => c.toLowerCase().trim());
+        // Also allow matching the full joined string (e.g. if DB has "Ribben, sls, rachels" as one category)
+        const joinedCommaSpace = lowerFilters.join(', ');
+        const joinedComma = lowerFilters.join(',');
+
+        result = result.filter(m => {
+          const sub = (m.subsectie || '').toLowerCase().trim();
+          return lowerFilters.includes(sub) || sub === joinedCommaSpace || sub === joinedComma;
+        });
       } else {
-        result = result.filter(m => m.subsectie === categoryFilter);
+        // Case-insensitive check for string
+        const lowerFilter = categoryFilter.toLowerCase().trim();
+        result = result.filter(m => (m.subsectie || '').toLowerCase().trim() === lowerFilter);
       }
     }
 
@@ -380,9 +391,9 @@ export function MaterialSelectionModal({
                   <SelectTrigger className="w-full h-9 text-xs border-muted-foreground/20 bg-transparent">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Filter className="h-3 w-3" />
-                      <span>
+                      <span className="truncate max-w-[340px]">
                         {Array.isArray(categoryFilter)
-                          ? 'Geselecteerde Groep'
+                          ? categoryFilter.join(', ')
                           : categoryFilter === 'all'
                             ? 'Filter op categorie...'
                             : categoryFilter}
@@ -435,11 +446,11 @@ export function MaterialSelectionModal({
                           <div className="font-medium text-foreground group-hover:text-emerald-600 transition-colors break-words whitespace-normal text-sm">
                             {mat.materiaalnaam}
                           </div>
-                          {(mat.subsectie || mat.leverancier) && (
+                          {/* {(mat.subsectie || mat.leverancier) && (
                             <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
                               {[mat.subsectie, mat.leverancier].filter(Boolean).join(' • ')}
                             </div>
-                          )}
+                          )} */}
                         </div>
 
                         <div className="text-right shrink-0">
