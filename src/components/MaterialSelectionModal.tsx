@@ -213,18 +213,32 @@ export function MaterialSelectionModal({
       if (Array.isArray(categoryFilter)) {
         // Case-insensitive check for array
         const lowerFilters = categoryFilter.map(c => c.toLowerCase().trim());
-        // Also allow matching the full joined string (e.g. if DB has "Ribben, sls, rachels" as one category)
-        const joinedCommaSpace = lowerFilters.join(', ');
-        const joinedComma = lowerFilters.join(',');
 
         result = result.filter(m => {
           const sub = (m.subsectie || '').toLowerCase().trim();
-          return lowerFilters.includes(sub) || sub === joinedCommaSpace || sub === joinedComma;
+          const cat = (m.categorie || '').toLowerCase().trim();
+
+          // Check if ANY of the filter items match the material's subsection OR category
+          // Logic: Material matches if its category CONTAINS the filter item OR filter item CONTAINS category
+          // This handles cases like: Filter="Ribben" vs DB="Ribben, sls" -> Match
+          // And: Filter="Isolatie materialen" vs DB="Isolatie" -> Match
+          return lowerFilters.some(filterItem => {
+            const matchesSub = sub.includes(filterItem) || filterItem.includes(sub);
+            const matchesCat = cat.includes(filterItem) || filterItem.includes(cat);
+            return matchesSub || matchesCat;
+          });
         });
       } else {
         // Case-insensitive check for string
         const lowerFilter = categoryFilter.toLowerCase().trim();
-        result = result.filter(m => (m.subsectie || '').toLowerCase().trim() === lowerFilter);
+        result = result.filter(m => {
+          const sub = (m.subsectie || '').toLowerCase().trim();
+          const cat = (m.categorie || '').toLowerCase().trim();
+
+          const matchesSub = sub.includes(lowerFilter) || lowerFilter.includes(sub);
+          const matchesCat = cat.includes(lowerFilter) || lowerFilter.includes(cat);
+          return matchesSub || matchesCat;
+        });
       }
     }
 

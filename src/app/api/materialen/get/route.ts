@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('main_material_list')
-      .select('row_id, materiaalnaam, prijs:prijs_incl_btw, eenheid, subsectie:categorie, leverancier:merk')
+      .select('*')
       .range(0, 5000);
 
     if (error) throw error;

@@ -693,13 +693,16 @@ export default function GenericMaterialsPageRedesigned() {
       }
 
       const materialenData = (json.data || []).map((m: any) => ({
-        ...m,
+        ...m, // Keep all raw fields
+        _raw: m, // Store exact raw object for pristine saving
         id: m.row_id || m.id,
-        prijs: typeof m.prijs === 'number' ? m.prijs : (parseNLMoneyToNumber(m.prijs) || 0),
-        prijs_per_stuk: typeof m.prijs === 'number' ? m.prijs : (parseNLMoneyToNumber(m.prijs) || 0),
-        categorie: m.subsectie || 'Overig',
-        // We keep subsectie/leverancier for filtering, even if user asked to hide them?
-        // If UI hides them, we can modify Modal. sending them is fine.
+        // Map keys to match UI expectations while keeping originals
+        prijs: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : (parseNLMoneyToNumber(m.prijs || m.prijs_incl_btw) || 0)),
+        prijs_per_stuk: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : (parseNLMoneyToNumber(m.prijs || m.prijs_incl_btw) || 0)),
+        // Map standard keys for UI filtering
+        categorie: m.categorie || m.subsectie || 'Overig',
+        subsectie: m.subsectie || m.categorie || 'Overig',
+        leverancier: m.merk || m.leverancier,
       }));
 
       setAlleMaterialen(materialenData);
@@ -968,6 +971,7 @@ export default function GenericMaterialsPageRedesigned() {
   };
 
   const applyPresetChange = (val: string) => {
+    setIsApplyingPreset(true); // Immediate lock to prevent race conditions
     userHeeftPresetGewijzigdRef.current = true;
     autoApplyDefaultPresetRef.current = false;
     setGekozenPresetId(val);
@@ -1223,18 +1227,32 @@ export default function GenericMaterialsPageRedesigned() {
 
       const materialenLijst: Record<string, any> = {};
 
+      const BLOCKLIST = ['isFavorite', 'sectionKey', 'quantity', '_raw', 'created_at'];
+
       // 1. Standard Selections
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
         if (k.startsWith('component_')) return; // Ignore legacy flat components
         if (v) {
           materialenLijst[k] = {
             sectionKey: k,
-            material: {
-              materiaalnaam: v.materiaalnaam || '',
-              prijs: v.eenheid ? `${typeof v.prijs === 'number' ? v.prijs : 0} ${v.eenheid}` : (typeof v.prijs === 'number' ? v.prijs : 0),
-              prijs_per_stuk: typeof v.prijs_per_stuk === 'number' ? v.prijs_per_stuk : 0,
-              // eenheid: v.eenheid || '' // Removed per request
-            }
+            material: (() => {
+              // Priority: Use raw Supabase data if available to ensure exact DB fidelity
+              const source = v._raw || v;
+              const clean: any = {};
+
+              Object.keys(source).forEach(prop => {
+                if (BLOCKLIST.includes(prop)) return;
+                const val = source[prop];
+                // Skip null/undefined/empty string
+                if (val === null || val === undefined || val === '') return;
+                clean[prop] = val;
+              });
+
+              // Ensure name is set (fallback to UI name if raw name is missing, unlikely)
+              if (!clean.materiaalnaam && v.materiaalnaam) clean.materiaalnaam = v.materiaalnaam;
+
+              return clean;
+            })()
           };
         }
       });
@@ -1245,13 +1263,17 @@ export default function GenericMaterialsPageRedesigned() {
       const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
       Object.entries(customMap).forEach(([gid, cm]: [string, any]) => {
         materialenLijst[gid] = {
-          // No ID
-          materiaalnaam: cm.materiaalnaam || '',
-          prijs: cm.eenheid ? `${typeof cm.prijs === 'number' ? cm.prijs : 0} ${cm.eenheid}` : (typeof cm.prijs === 'number' ? cm.prijs : 0),
-          prijs_per_stuk: typeof cm.prijs_per_stuk === 'number' ? cm.prijs_per_stuk : 0,
-          // eenheid: cm.eenheid || '', // Removed per request
-          title: cm.title, // Keep title for group reconstruction
-          order: cm.order  // Keep order
+          // Flattened save for custom groups
+          ...(() => {
+            const clean: any = {};
+            Object.keys(cm).forEach(prop => {
+              if (BLOCKLIST.includes(prop)) return;
+              const val = cm[prop];
+              if (val !== null && val !== undefined && val !== '') clean[prop] = val;
+            });
+            return clean;
+          })(),
+          title: cm.title // Ensure title works for grouping
         };
       });
 
@@ -1286,6 +1308,7 @@ export default function GenericMaterialsPageRedesigned() {
         [`klussen.${klusId}.materialen.materialen_lijst`]: JSON.parse(JSON.stringify(materialenLijst)),
 
         [`klussen.${klusId}.materialen.savedByUid`]: user.uid,
+        [`klussen.${klusId}.materialen.savedAt`]: serverTimestamp(),
 
         // CLEANUP: Removing old dirty fields
         [`klussen.${klusId}.materialen.selections`]: deleteField(),
@@ -1810,12 +1833,13 @@ export default function GenericMaterialsPageRedesigned() {
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" disabled={isOpslaan} onClick={handleBack}>
+          <Button variant="outline" disabled={isOpslaan || isApplyingPreset} onClick={handleBack}>
             Terug
           </Button>
 
           <Button
             variant="outline"
+            disabled={isApplyingPreset}
             onClick={() => setSavePresetModalOpen(true)}
             className="gap-2"
           >

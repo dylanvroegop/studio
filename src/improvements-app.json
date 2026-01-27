@@ -39,6 +39,11 @@
       "github_issue_titel": "HSB-voorzetwand: instelbare beplating (zijden/lagen) en opening-constructie opties",
       "feature_request": "Voeg in de maatwerk UI toggles/velden toe: (1) aantal beplatingszijden (1 of 2) en aantal lagen per zijde; (2) optie 'dubbele staanders/trimmers bij opening' met standaard aan; (3) toon en bewerk materiaalparameters zoals plaatlengte, plaatbreedte en stuks per pak i.p.v. alleen een naamstring. Hierdoor worden berekeningen reproduceerbaar en onafhankelijk van naam-parsing.",
       "prioriteit": "hoog"
+    },
+    {
+      "github_issue_titel": "add a list of small things that are already inside the app, these must happen in small lines for example 'on measurement extra end beam possible' etc etc.",
+      "feature_request": "add a list of small things that are already inside the app, these must happen in small lines for example 'on measurement extra end beam possible' etc etc.",
+      "prioriteit": "medium"
     }
   ]
 }
