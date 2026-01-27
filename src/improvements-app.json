@@ -1,24 +1,19 @@
 {
   "app_ontwikkeling": [
     {
-      "github_issue_titel": "HSB voorzetwand: openingen (ramen/deuren) als gestructureerde input + automatische aftrek en regelwerk rond sparingen",
-      "feature_request": "Voeg in de maatwerkpagina voor HSB-voorzetwand een sectie 'Openingen' toe met: type (deur/raam), breedte_mm, hoogte_mm, fromBottom_mm. Gebruik dit om netto m2 te berekenen (isolatie/gips), plintlengte te corrigeren en het regelwerk rond openingen te genereren (latei, dorpel, kreupele stijlen) conform klus_regels.",
+      "github_issue_titel": "Maatwerk UI: expliciete keuze voor extra stijlen rondom openingen (king/trimmer/dubbel)",
+      "feature_request": "Voeg in hsb-voorzetwand_maatwerk bij elke opening toggles/velden toe: 'dubbele stijlen links/rechts', 'trimmer aanwezig', en (optioneel) 'header-dikte'. Hiermee kan het regelwerk rond deuren/ramen volgens praktijk worden doorgerekend en verdwijnen aannames.",
       "prioriteit": "hoog"
     },
     {
-      "github_issue_titel": "Toggle voor OSB achter gips en dubbelzijdig beplaten bij HSB wanden",
-      "feature_request": "Voeg toggles toe: (1) 'OSB achter gips' met keuze OSB-dikte en plaatmaat, (2) 'Dubbelzijdig beplaten' (gips 2 zijden). Koppel dit direct aan de berekeningen voor beplating_gips, constructieplaat_osb en gipsvuller.",
+      "github_issue_titel": "Materialen-database: sla lengte/breedte/dikte en verpakkingseenheid gestructureerd op",
+      "feature_request": "Voeg velden toe aan materialen: lengte_mm, breedte_mm, dikte_mm, stuks_per_verpakking. Rekenregels hoeven dan niet te vertrouwen op productnaam-tekst (zoals 2600x1200) en berekeningen worden consistenter.",
       "prioriteit": "hoog"
     },
     {
-      "github_issue_titel": "Balkmaat (breedte/diepte) selecteerbaar maken en materialen automatisch filteren op klus_regels",
-      "feature_request": "Maak balkmaat een expliciete keuze (bijv. 44x69, 38x89, 50x75) en filter/waarschuw als gekozen regels/materialen niet matchen met de standaard in klus_regels. Sla balkmaat als numerieke velden op en gebruik ze in alle formules (studlengte, headers).",
+      "github_issue_titel": "Snijverlies instelling per materiaal/onderdeel",
+      "feature_request": "Maak per sectionKey een instelbaar snijverlies (%), met default vanuit klus_regels. Toon dit in UI bij materiaalkeuze (bijv. plint 10%, platen 5–12%).",
       "prioriteit": "medium"
-    },
-    {
-      "github_issue_titel": "Vensterbank overstek instelling toevoegen",
-      "feature_request": "Voeg een input veld toe voor vensterbank overstek (standaard 50mm per zijde). Vensterbank lengte = openingbreedte + (2 * overstek).",
-      "prioriteit": "laag"
     }
   ]
 }
