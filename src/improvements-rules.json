@@ -72,6 +72,54 @@
           "mogelijke_verbetering": "Maak 'snijverlies plint' instelbaar (0/5/10%) of afhankelijk van aantal hoeken/onderbrekingen."
         }
       ]
+    },
+    {
+      "klus_type": "hsb-voorzetwand",
+      "nauwkeurigheid_score": 82,
+      "score_toelichting": "Berekend op basis van maatwerk 5000x2600mm, h.o.h. 600mm, geen openingen/components. Framewerk is op basis van totale strekkende meters incl. 10% snijverlies; isolatie en platen incl. 10% snijverlies/overlap volgens KLUS_REGELS. Enkele regels zijn ambigu (folie overlap vs waste, isolatie '10 st/pak' niet als veld aanwezig), waardoor kleine afwijkingen mogelijk zijn.",
+      "fouten": [
+        {
+          "fout": "Isolatiemateriaal-regel gebruikt 'material.aantal' (aantal platen per pak), maar dit veld ontbreekt vaak in de materiaaldata; daardoor is de pak-berekening niet eenduidig.",
+          "verbetering": "Voeg in klus_regels een fallback toe: als material.aantal ontbreekt, reken in m2 (ceil((netto_m2*waste)/pak_m2)) óf verplicht 'aantal_per_pak' als veld in materialen.",
+          "tabel": "klus_regels"
+        },
+        {
+          "fout": "Folie-regel bevat zowel 'formula: bruto_m2 * 1.15' als 'waste_factor: 10%', maar de berekening specificeert niet of die 10% bovenop de 1.15 moet of dat 1.15 al overlap+verlies is.",
+          "verbetering": "Maak de folie-formule expliciet: óf 'bruto_m2 * 1.15' (incl. overlap) en verwijder waste_factor, óf 'bruto_m2 * (1+overlap) * (1+waste)'.",
+          "tabel": "klus_regels"
+        },
+        {
+          "fout": "Constructieplaat-regel beschrijft een offcut/rij-methode, maar geeft geen eenvoudige basisformule voor situaties zonder openingen (bruto vlak) waardoor implementatie/invoer snel inconsistent wordt.",
+          "verbetering": "Voeg subregel toe: 'als geen openingen -> platen_nodig = ceil((bruto_m2*(1+waste))/plaat_m2)' en gebruik de offcut-methode alleen bij openingen/sparingen.",
+          "tabel": "klus_regels"
+        }
+      ],
+      "aannames_en_onzekerheden": [
+        {
+          "type": "aanname",
+          "beschrijving": "Geen openingen/sparingen/deuren aanwezig; daarom is overal met bruto oppervlak/lengte gerekend.",
+          "impact": "laag",
+          "mogelijke_verbetering": "UI: expliciete sectie 'openingen: geen/ja' met validatie zodat dit nooit per ongeluk leeg blijft."
+        },
+        {
+          "type": "aanname",
+          "beschrijving": "Framewerk vuren ribben is efficiënt gezaagd uit totale strekkende meters (staanders + 2 liggers) met 10% snijverlies, i.p.v. staanders en liggers strikt als losse aantallen zonder hergebruik van reststukken.",
+          "impact": "medium",
+          "mogelijke_verbetering": "Voeg in klus_regels een instelling toe: 'optimaliseer zaagplan: ja/nee' zodat je óf conservatief telt óf geoptimaliseerd."
+        },
+        {
+          "type": "onzeker",
+          "beschrijving": "Isolatie is omgerekend naar pakken op basis van '10 st/pak' uit de productnaam; dit staat niet als apart materiaalveld vastgelegd.",
+          "impact": "medium",
+          "mogelijke_verbetering": "Voeg aan materiaaldata een verplicht veld 'aantal_per_verpakking' toe en gebruik dat in de formule."
+        },
+        {
+          "type": "misschien",
+          "beschrijving": "Voor vloerplinten is geen waste_factor gespecificeerd in KLUS_REGELS; er is daarom zonder extra snijverlies gerekend (alleen afronden naar hele lengtes).",
+          "impact": "laag",
+          "mogelijke_verbetering": "Zet in klus_regels een standaard waste_factor voor plinten (bijv. 5–10%) of laat gebruiker dit instellen per klus."
+        }
+      ]
     }
   ]
 }
