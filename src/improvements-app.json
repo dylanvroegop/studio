@@ -6,34 +6,14 @@
       "prioriteit": "hoog!!!!!!!!!!!!!!!"
     },
     {
-      "github_issue_titel": "Materialen-database: sla lengte/breedte/dikte en verpakkingseenheid gestructureerd op",
-      "feature_request": "Voeg velden toe aan materialen: lengte_mm, breedte_mm, dikte_mm, stuks_per_verpakking. Rekenregels hoeven dan niet te vertrouwen op productnaam-tekst (zoals 2600x1200) en berekeningen worden consistenter.",
-      "prioriteit": "hoog"
-    },
-    {
       "github_issue_titel": "Snijverlies instelling per materiaal/onderdeel",
       "feature_request": "Maak per sectionKey een instelbaar snijverlies (%), met default vanuit klus_regels. Toon dit in UI bij materiaalkeuze (bijv. plint 10%, platen 5–12%).",
-      "prioriteit": "medium"
-    },
-    {
-      "github_issue_titel": "lol",
-      "feature_request": "lol",
       "prioriteit": "medium"
     },
     {
       "github_issue_titel": "Openingen: keuze voor enkele/dubbele stijlen en automatische positie-stijlen bij deur/raam",
       "feature_request": "Voeg in de maatwerk-invoer per opening opties toe: (1) ‘enkele of dubbele stijl links/rechts’, (2) ‘trimmer/king stijl automatisch toevoegen’, (3) automatische plaatsing van stijlen exact op openingranden i.p.v. alleen op hart-op-hart raster. Gebruik deze opties in de framewerk-berekening zodat houtaantallen bij deuren/ramen eenduidig worden.",
       "prioriteit": "hoog"
-    },
-    {
-      "github_issue_titel": "Materiaalstructuur uitbreiden met dikte/breedte/lengte als numerieke velden",
-      "feature_request": "Breid het materiaalobject uit met verplichte numerieke velden (dikte_mm, breedte_mm, lengte_mm, stuks_per_pak waar relevant). Hierdoor kunnen klus_regels formules (stud_length/opening_header/plaat_m2) altijd betrouwbaar rekenen zonder te ‘raden’ uit de productnaam.",
-      "prioriteit": "hoog"
-    },
-    {
-      "github_issue_titel": "Snijverlies per materiaal instelbaar in UI (default per klus_type)",
-      "feature_request": "Voeg in de interface een instelling toe om per materiaalcategorie (platen, isolatie, hout, plinten) het snijverliespercentage te kiezen (met een standaardwaarde vanuit klus_regels). Toon het effect direct op het aantallenoverzicht.",
-      "prioriteit": "medium"
     },
     {
       "github_issue_titel": "HSB-voorzetwand: instelbare beplating (zijden/lagen) en opening-constructie opties",
