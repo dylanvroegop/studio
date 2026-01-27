@@ -24,6 +24,54 @@
       "fout": "Afwerking_plinten noemt optimalisatie op 'standaard_handelslengte_mm' maar dit veld is niet beschikbaar/meegegeven per plint-product (nu alleen tekst 'lengte 4900').",
       "verbetering": "Voeg per materiaal een numeriek veld toe voor handelslengte_mm zodat afronding en optimalisatie automatisch en foutloos kan gebeuren.",
       "tabel": "materialen_database"
+    },
+    {
+      "klus_type": "hsb-voorzetwand",
+      "nauwkeurigheid_score": 78,
+      "score_toelichting": "Maatvoering en opening zijn duidelijk, en beplating/plint zijn goed te herleiden. Nauwkeurigheid daalt door ontbrekende materiaal-velden (dikte/lengte/breedte/aantal per pak) in de regels en doordat de framewerk-regels geen expliciete (dubbele) staanders rond een deuropening afdwingen.",
+      "fouten": [
+        {
+          "fout": "Framewerk-regel 'staanders_liggers' houdt geen rekening met extra (king/jack) staanders naast deuropeningen; alleen een generieke stud_count + header/cripples. Dit levert in de praktijk te weinig hout op rond de opening.",
+          "verbetering": "Voeg per opening toe: 2x king stud + 2x trimmer (of parameter 'dubbele_staanders_bij_opening' true/false). Neem deze mee in totale meters en in stuksberekening.",
+          "tabel": "klus_regels"
+        },
+        {
+          "fout": "Afwerken.vloerplinten gebruikt 'waste_factor' in de formule maar de waarde is leeg, waardoor uitkomst ongedefinieerd/afhankelijk wordt van de implementatie.",
+          "verbetering": "Zet waste_factor expliciet, bv. 1.10 (10%) of maak het een instelbare parameter per klus_type.",
+          "tabel": "klus_regels"
+        },
+        {
+          "fout": "Isolatie_folies.isolatiemateriaal: formule rekent pak-aantal via platen_nodig/material.aantal, maar waste_factor (10%) wordt niet in de formule toegepast, en material.lengte/breedte/aantal ontbreken als velden.",
+          "verbetering": "Pas formule aan naar: platen_nodig = ceil((netto_m2 * 1.10) / plaat_m2) en daarna pakken = ceil(platen_nodig / materiaal_stuks_per_pak). Leg materiaal_stuks_per_pak, plaat_lengte_mm, plaat_breedte_mm vast in materiaaldata.",
+          "tabel": "klus_regels"
+        }
+      ],
+      "aannames_en_onzekerheden": [
+        {
+          "type": "aanname",
+          "beschrijving": "Gipsbeplating is 1-laags aan 1 zijde van de wand (er is maar één beplatingsmateriaal opgegeven).",
+          "impact": "hoog",
+          "mogelijke_verbetering": "In de app een veld 'aantal zijdes (1/2)' en 'aantal lagen' toevoegen, zodat de berekening per zijde/laag kan opschalen."
+        },
+        {
+          "type": "aanname",
+          "beschrijving": "Voor isolatie zijn de maatvoering en pak-inhoud uit de materiaalnaam gebruikt: 1350x600 mm en 10 stuks per pak; bovendien 10% snijverlies toegepast op netto m².",
+          "impact": "medium",
+          "mogelijke_verbetering": "Sla lengte/breedte en stuks-per-pak als aparte velden op in materialen_lijst zodat parsing uit de naam niet nodig is."
+        },
+        {
+          "type": "onzeker",
+          "beschrijving": "Regel 'stud_length = wandhoogte - (2 * material.dikte)' kan niet exact toegepast worden omdat material.dikte niet als veld is meegegeven; daarom is gerekend met staanders op volle hoogte 2600 mm (praktisch: afkorten uit 3000 mm).",
+          "impact": "medium",
+          "mogelijke_verbetering": "Voeg vaste materiaalvelden toe (dikte/breedte/lengte) of laat de app bij hout automatisch de nominale maat invullen."
+        },
+        {
+          "type": "misschien",
+          "beschrijving": "Plint-snijverlies is aangenomen op 10% omdat de waste_factor in de regels leeg is; bij een rechte wand zonder hoeken kan 0–5% ook volstaan.",
+          "impact": "laag",
+          "mogelijke_verbetering": "Maak 'snijverlies plint' instelbaar (0/5/10%) of afhankelijk van aantal hoeken/onderbrekingen."
+        }
+      ]
     }
   ]
 }
