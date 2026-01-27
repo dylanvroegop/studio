@@ -14,6 +14,11 @@
       "github_issue_titel": "Snijverlies instelling per materiaal/onderdeel",
       "feature_request": "Maak per sectionKey een instelbaar snijverlies (%), met default vanuit klus_regels. Toon dit in UI bij materiaalkeuze (bijv. plint 10%, platen 5–12%).",
       "prioriteit": "medium"
+    },
+    {
+      "github_issue_titel": "lol",
+      "feature_request": "lol",
+      "prioriteit": "medium"
     }
   ]
 }
