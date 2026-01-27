@@ -39,6 +39,21 @@
       "github_issue_titel": "HSB-voorzetwand: instelbare beplating (zijden/lagen) en opening-constructie opties",
       "feature_request": "Voeg in de maatwerk UI toggles/velden toe: (1) aantal beplatingszijden (1 of 2) en aantal lagen per zijde; (2) optie 'dubbele staanders/trimmers bij opening' met standaard aan; (3) toon en bewerk materiaalparameters zoals plaatlengte, plaatbreedte en stuks per pak i.p.v. alleen een naamstring. Hierdoor worden berekeningen reproduceerbaar en onafhankelijk van naam-parsing.",
       "prioriteit": "hoog"
+    },
+    {
+      "github_issue_titel": "Voeg verpakkingsinhoud toe aan materialen (aantal per pak/rol) voor correcte omrekening",
+      "feature_request": "Breid het materialenmodel uit met velden zoals 'aantal_per_verpakking' en/of 'm2_per_verpakking'. Toon dit bij selectie van isolatie/folie en gebruik het direct in de rekenregels, zodat '10 st/pak' niet uit de productnaam hoeft te komen.",
+      "prioriteit": "hoog"
+    },
+    {
+      "github_issue_titel": "Keuze 'conservatief' vs 'geoptimaliseerd zaagplan' voor regelhout",
+      "feature_request": "Voeg in de maatwerk-pagina een toggle toe: (1) Conservatief: staanders en liggers apart afronden + snijverlies per onderdeel, (2) Geoptimaliseerd: totaliseer strekkende meters en reken naar handelslengtes met snijverlies. Dit voorkomt onder/overschatting afhankelijk van werkwijze.",
+      "prioriteit": "medium"
+    },
+    {
+      "github_issue_titel": "Folie overlap/verspillingsfactor instelbaar en transparant in UI",
+      "feature_request": "Maak bij folies een invoerveld of preset voor overlap (%) en snijverlies (%), en toon in de calculatie hoe de factor tot stand komt (bijv. 1.15 overlap x 1.10 waste).",
+      "prioriteit": "medium"
     }
   ]
 }
