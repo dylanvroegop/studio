@@ -237,13 +237,17 @@ export default function GenericMeasurementPage() {
         const cleanData = (data: any) => data === undefined ? null : JSON.parse(JSON.stringify(data));
 
         const cleanedItems = (cleanData(items) || []).map((item: any) => {
-          // Enrich Openings with explicit report keys
+          // Clean Openings: remove duplicate width/height, keep only openingWidth/openingHeight
           if (item.openings && Array.isArray(item.openings)) {
-            item.openings = item.openings.map((op: any) => ({
-              ...op,
-              openingWidth: op.width,
-              openingHeight: op.height
-            }));
+            item.openings = item.openings.map((op: any) => {
+              // Destructure to remove width and height, keep everything else
+              const { width, height, ...rest } = op;
+              return {
+                ...rest,
+                openingWidth: width,
+                openingHeight: height
+              };
+            });
           }
           return item;
         });
