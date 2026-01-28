@@ -6,8 +6,6 @@ Merantie
 
 Kozijnhout
 
-Vloer-rabat-vellingdelen
-
 Constructieplaten
 
 Interieur Platen
@@ -15,6 +13,10 @@ Interieur Platen
 Exterieur platen
 
 Afwerking
+
+Laminaat
+
+Vloer-rabat-vellingdelen
 
 Deurbeslag
 
