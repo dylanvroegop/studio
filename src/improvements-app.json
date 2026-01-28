@@ -54,6 +54,21 @@
       "github_issue_titel": "Folie overlap/verspillingsfactor instelbaar en transparant in UI",
       "feature_request": "Maak bij folies een invoerveld of preset voor overlap (%) en snijverlies (%), en toon in de calculatie hoe de factor tot stand komt (bijv. 1.15 overlap x 1.10 waste).",
       "prioriteit": "medium"
+    },
+    {
+      "github_issue_titel": "Openingen-editor verplicht tonen bij HSB-voorzetwand (ook als leeg)",
+      "feature_request": "Voeg in de maatwerk-pagina voor `hsb-voorzetwand` een vaste sectie ‘Openingen (ramen/deuren/sparingen)’ toe met standaard lege lijst. Toon tevens een samenvatting ‘Netto m²’ en ‘Aftrek openingen m²’ zodat gebruikers expliciet bevestigen dat er géén openingen zijn.",
+      "prioriteit": "hoog"
+    },
+    {
+      "github_issue_titel": "Legplan-optie voor OSB 590x2440 T&G (offcut-hergebruik aan/uit)",
+      "feature_request": "Voeg een toggle toe: ‘Herbruik zaagstukken tussen OSB-rijen’. Als uit: reken per rij `ceil(wandlengte / plaatlengte)` zonder offcut hergebruik. Als aan: gebruik een eenvoudige offcut-allocator of genereer een legplan om het aantal platen consistenter te maken.",
+      "prioriteit": "medium"
+    },
+    {
+      "github_issue_titel": "Duidelijke invoervelden voor beplating-lagen (OSB vs gips)",
+      "feature_request": "Splits `plating_layers` op in aparte velden: `osb_laag_aanwezig` (boolean) en `gips_lagen` (integer). Koppel materiaalkeuze hieraan en geef waarschuwing als materiaalkeuze en maatwerk-instelling conflicteren.",
+      "prioriteit": "medium"
     }
   ]
 }
