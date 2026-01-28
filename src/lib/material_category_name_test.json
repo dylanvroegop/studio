@@ -10133,7 +10133,7 @@
         "prijs_incl_21%_btw": "€ 37.85 per stuk",
         "id": "iROiAK",
         "order_id": 971,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10144,7 +10144,7 @@
         "prijs_incl_21%_btw": "€ 72.20 per stuk",
         "id": "cMbQtv",
         "order_id": 972,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10155,7 +10155,7 @@
         "prijs_incl_21%_btw": "€ 79.13 per stuk",
         "id": "0ub3LD",
         "order_id": 973,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10166,7 +10166,7 @@
         "prijs_incl_21%_btw": "€ 75.67 per stuk",
         "id": "SQ83al",
         "order_id": 974,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10177,7 +10177,7 @@
         "prijs_incl_21%_btw": "€ 56.83 per stuk",
         "id": "2s1H9X",
         "order_id": 975,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10188,7 +10188,7 @@
         "prijs_incl_21%_btw": "€ 63.80 per stuk",
         "id": "QDUOcy",
         "order_id": 976,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10199,7 +10199,7 @@
         "prijs_incl_21%_btw": "€ 45.15 per stuk",
         "id": "jUTgPK",
         "order_id": 977,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10210,7 +10210,7 @@
         "prijs_incl_21%_btw": "€ 77.72 per stuk",
         "id": "OckGMs",
         "order_id": 978,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10221,7 +10221,7 @@
         "prijs_incl_21%_btw": "€ 89.98 per stuk",
         "id": "TMBOsh",
         "order_id": 979,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10232,7 +10232,7 @@
         "prijs_incl_21%_btw": "€ 90.31 per stuk",
         "id": "erVZOq",
         "order_id": 980,
-        "sub_categorie": ""
+        "sub_categorie": "Raamhout"
     },
     {
         "categorie": "Kozijnhout",
@@ -10243,7 +10243,7 @@
         "prijs_incl_21%_btw": "€ 8.91 per stuk",
         "id": "7obxLc",
         "order_id": 981,
-        "sub_categorie": ""
+        "sub_categorie": "Stofdorpel"
     },
     {
         "categorie": "Kozijnhout",
@@ -10254,7 +10254,7 @@
         "prijs_incl_21%_btw": "€ 11.14 per stuk",
         "id": "O4uKhN",
         "order_id": 982,
-        "sub_categorie": ""
+        "sub_categorie": "Stofdorpel"
     },
     {
         "categorie": "Kozijnhout",
@@ -10265,7 +10265,7 @@
         "prijs_incl_21%_btw": "€ 14.71 per stuk",
         "id": "ETjMhY",
         "order_id": 983,
-        "sub_categorie": ""
+        "sub_categorie": "Stofdorpel"
     },
     {
         "categorie": "Kozijnhout",
@@ -10276,7 +10276,7 @@
         "prijs_incl_21%_btw": "€ 17.17 per stuk",
         "id": "IAsvih",
         "order_id": 984,
-        "sub_categorie": ""
+        "sub_categorie": "Stofdorpel"
     },
     {
         "categorie": "Isolatie",
@@ -10525,36 +10525,6 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Deuvelstok 1000x10mm",
-        "diameter": "10mm",
-        "lengte": "100cm",
-        "prijs_incl_21%_btw": "€ 1.17 per Stuk",
-        "id": "ZZVcfW",
-        "order_id": 1008,
-        "sub_categorie": ""
-    },
-    {
-        "categorie": "Afwerking",
-        "materiaalnaam": "Deuvelstok 1000x8mm",
-        "diameter": "8mm",
-        "lengte": "100cm",
-        "prijs_incl_21%_btw": "€ 0.90 per Stuk",
-        "id": "LjAkkN",
-        "order_id": 1009,
-        "sub_categorie": ""
-    },
-    {
-        "categorie": "Afwerking",
-        "materiaalnaam": "Deuvelstok 1000x6mm",
-        "diameter": "6mm",
-        "lengte": "100cm",
-        "prijs_incl_21%_btw": "€ 0.68 per Stuk",
-        "id": "Ku4xm5",
-        "order_id": 1010,
-        "sub_categorie": ""
-    },
-    {
-        "categorie": "Afwerking",
         "materiaalnaam": "Driekantlijst Vuren 14x14mm 2100mm lang",
         "dikte": "14mm",
         "breedte": "14mm",
@@ -10582,7 +10552,7 @@
         "prijs_incl_21%_btw": "€ 28.43 per stuk",
         "id": "hJFCS0",
         "order_id": 1013,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10591,7 +10561,7 @@
         "prijs_incl_21%_btw": "€ 21.76 per stuk",
         "id": "PHVDlg",
         "order_id": 1014,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10600,7 +10570,7 @@
         "prijs_incl_21%_btw": "€ 32.17 per stuk",
         "id": "ZuEZmj",
         "order_id": 1015,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10609,7 +10579,7 @@
         "prijs_incl_21%_btw": "€ 35.68 per stuk",
         "id": "AdvzAQ",
         "order_id": 1016,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10618,7 +10588,7 @@
         "prijs_incl_21%_btw": "€ 42.39 per stuk",
         "id": "Nb6RqB",
         "order_id": 1017,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10629,7 +10599,7 @@
         "prijs_incl_21%_btw": "€ 12.03 per stuk",
         "id": "sX8TZw",
         "order_id": 1018,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10640,7 +10610,7 @@
         "prijs_incl_21%_btw": "€ 9.85 per stuk",
         "id": "qw8nbt",
         "order_id": 1019,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10651,7 +10621,7 @@
         "prijs_incl_21%_btw": "€ 11.30 per stuk",
         "id": "kyOu1d",
         "order_id": 1020,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10662,7 +10632,7 @@
         "prijs_incl_21%_btw": "€ 15.09 per stuk",
         "id": "YgHx0p",
         "order_id": 1021,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10673,7 +10643,7 @@
         "prijs_incl_21%_btw": "€ 15.72 per stuk",
         "id": "rbErUV",
         "order_id": 1022,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10684,7 +10654,7 @@
         "prijs_incl_21%_btw": "€ 10.85 per stuk",
         "id": "dUnY80",
         "order_id": 1023,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10695,7 +10665,7 @@
         "prijs_incl_21%_btw": "€ 10.09 per stuk",
         "id": "26jvC3",
         "order_id": 1024,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10706,7 +10676,7 @@
         "prijs_incl_21%_btw": "€ 12.97 per stuk",
         "id": "eisIRE",
         "order_id": 1025,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10717,7 +10687,7 @@
         "prijs_incl_21%_btw": "€ 20.38 per stuk",
         "id": "evWlAj",
         "order_id": 1026,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10728,7 +10698,7 @@
         "prijs_incl_21%_btw": "€ 21.10 per stuk",
         "id": "uVr6FK",
         "order_id": 1027,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10740,7 +10710,7 @@
         "prijs_incl_21%_btw": "€ 14.31 per stuk",
         "id": "Xy6jDg",
         "order_id": 1028,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10752,7 +10722,7 @@
         "prijs_incl_21%_btw": "€ 10.91 per stuk",
         "id": "ghVOkA",
         "order_id": 1029,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10764,7 +10734,7 @@
         "prijs_incl_21%_btw": "€ 21.33 per stuk",
         "id": "jl6xfi",
         "order_id": 1030,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10775,7 +10745,7 @@
         "prijs_incl_21%_btw": "€ 23.40 per stuk",
         "id": "GS7gut",
         "order_id": 1031,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10787,7 +10757,7 @@
         "prijs_incl_21%_btw": "€ 13.31 per stuk",
         "id": "SSPt80",
         "order_id": 1032,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10799,7 +10769,7 @@
         "prijs_incl_21%_btw": "€ 17.64 per stuk",
         "id": "Qg1jbo",
         "order_id": 1033,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10811,7 +10781,7 @@
         "prijs_incl_21%_btw": "€ 19.55 per stuk",
         "id": "1jKWJC",
         "order_id": 1034,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10823,7 +10793,7 @@
         "prijs_incl_21%_btw": "€ 21.49 per stuk",
         "id": "M8Zhst",
         "order_id": 1035,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10835,7 +10805,7 @@
         "prijs_incl_21%_btw": "€ 27.58 per stuk",
         "id": "JoMBcv",
         "order_id": 1036,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10847,7 +10817,7 @@
         "prijs_incl_21%_btw": "€ 29.50 per stuk",
         "id": "cim12W",
         "order_id": 1037,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10859,7 +10829,7 @@
         "prijs_incl_21%_btw": "€ 24.42 per stuk",
         "id": "oLNn8O",
         "order_id": 1038,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10871,7 +10841,7 @@
         "prijs_incl_21%_btw": "€ 29.49 per stuk",
         "id": "Be2ABY",
         "order_id": 1039,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10882,7 +10852,7 @@
         "prijs_incl_21%_btw": "€ 46.25 per stuk",
         "id": "hj6d2j",
         "order_id": 1040,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10894,7 +10864,7 @@
         "prijs_incl_21%_btw": "€ 23.43 per stuk",
         "id": "Yx1oGh",
         "order_id": 1041,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10905,7 +10875,7 @@
         "prijs_incl_21%_btw": "€ 11.35 per stuk",
         "id": "Lleuhb",
         "order_id": 1042,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10916,7 +10886,7 @@
         "prijs_incl_21%_btw": "€ 16.92 per stuk",
         "id": "ZRELR5",
         "order_id": 1043,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10927,7 +10897,7 @@
         "prijs_incl_21%_btw": "€ 14.76 per stuk",
         "id": "OIOG87",
         "order_id": 1044,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10938,7 +10908,7 @@
         "prijs_incl_21%_btw": "€ 18.11 per stuk",
         "id": "T92yJh",
         "order_id": 1045,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10949,7 +10919,7 @@
         "prijs_incl_21%_btw": "€ 20.64 per stuk",
         "id": "SYI8MU",
         "order_id": 1046,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -10960,7 +10930,7 @@
         "prijs_incl_21%_btw": "€ 25.53 per stuk",
         "id": "x3nE9V",
         "order_id": 1047,
-        "sub_categorie": ""
+        "sub_categorie": "Glaslatten"
     },
     {
         "categorie": "Afwerking",
@@ -11025,7 +10995,7 @@
         "prijs_incl_21%_btw": "€ 38.42 per stuk",
         "id": "iz73lP",
         "order_id": 1053,
-        "sub_categorie": ""
+        "sub_categorie": "Ronde Stokken"
     },
     {
         "categorie": "Afwerking",
@@ -11035,7 +11005,7 @@
         "prijs_incl_21%_btw": "€ 45.54 per lengte",
         "id": "7TeDH3",
         "order_id": 1054,
-        "sub_categorie": ""
+        "sub_categorie": "Ronde Stokken"
     },
     {
         "categorie": "Afwerking",
@@ -11123,24 +11093,13 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Halfronde Lat Grenen 18x7mm 2700mm lang",
-        "dikte": "7mm",
-        "breedte": "18mm",
-        "lengte": "270cm",
-        "prijs_incl_21%_btw": "€ 2.40 per Stuk",
-        "id": "3fm0IU",
-        "order_id": 1063,
-        "sub_categorie": ""
-    },
-    {
-        "categorie": "Afwerking",
         "materiaalnaam": "Hardhout Ronde Stok 37mm 3350mm lang",
         "diameter": "37 mm",
         "lengte": "3350mm",
         "prijs_incl_21%_btw": "€ 44.43 per stuk",
         "id": "O6aQJI",
         "order_id": 1064,
-        "sub_categorie": ""
+        "sub_categorie": "Ronde Stokken"
     },
     {
         "categorie": "Afwerking",
@@ -11150,7 +11109,7 @@
         "prijs_incl_21%_btw": "€ 53.02 per stuk",
         "id": "QkZ1vA",
         "order_id": 1065,
-        "sub_categorie": ""
+        "sub_categorie": "Ronde Stokken"
     },
     {
         "categorie": "Afwerking",
@@ -11160,7 +11119,7 @@
         "prijs_incl_21%_btw": "€ 76.74 per stuk",
         "id": "dj6pHF",
         "order_id": 1066,
-        "sub_categorie": ""
+        "sub_categorie": "Ronde Stokken"
     },
     {
         "categorie": "Afwerking",
@@ -11436,7 +11395,7 @@
         "prijs_incl_21%_btw": "€ 5.55 per stuk",
         "id": "8alwq8",
         "order_id": 1091,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11447,7 +11406,7 @@
         "prijs_incl_21%_btw": "€ 15.84 per Stuk",
         "id": "TzMakr",
         "order_id": 1092,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11458,7 +11417,7 @@
         "prijs_incl_21%_btw": "€ 7.18 per stuk",
         "id": "klIycN",
         "order_id": 1093,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11469,7 +11428,7 @@
         "prijs_incl_21%_btw": "€ 7.13 per stuk",
         "id": "2XZ2aX",
         "order_id": 1094,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11480,7 +11439,7 @@
         "prijs_incl_21%_btw": "€ 8.12 per stuk",
         "id": "BfvHuA",
         "order_id": 1095,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11491,7 +11450,7 @@
         "prijs_incl_21%_btw": "€ 7.41 per stuk",
         "id": "f5fEUo",
         "order_id": 1096,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11502,7 +11461,7 @@
         "prijs_incl_21%_btw": "€ 7.41 per stuk",
         "id": "HLJovy",
         "order_id": 1097,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11513,7 +11472,7 @@
         "prijs_incl_21%_btw": "€ 12.92 per stuk",
         "id": "Lpu9Vd",
         "order_id": 1098,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11524,7 +11483,7 @@
         "prijs_incl_21%_btw": "€ 11.57 per stuk",
         "id": "lIRbSC",
         "order_id": 1099,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
@@ -11535,7 +11494,7 @@
         "prijs_incl_21%_btw": "€ 10.79 per stuk",
         "id": "0IqlAc",
         "order_id": 1100,
-        "sub_categorie": ""
+        "sub_categorie": "Koplat"
     },
     {
         "categorie": "Afwerking",
