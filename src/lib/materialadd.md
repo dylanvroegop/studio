@@ -387,11 +387,18 @@
 - Elliotis Pine Recht 1220x2440mm 12mm dik
 - Elliotis Pine Recht 1220x2440mm 18mm dik
 - Elliotis Pine TG2 1220x2440mm 18mm dik
-- OSB 3 Recht 2697x1197mm 9mm dik
-- OSB 3 Recht 1220x2440mm 9mm dik
-- OSB 3 T&G 590x2440mm 12mm dik
-- OSB 3 T&G 590x2440mm 18mm dik
-- OSB 3 T&G 1220x2440mm 18mm dik
+- OSB3 zero constructieplaat TG4 FSC 2440x590x18mm
+- OSB3 zero constructieplaat TG4 FSC 2440x590x12mm
+- OSB3 zero constructieplaat RK FSC 2440x1220x9mm
+- OSB3 zero constructieplaat TG2 FSC 2440x1220x18mm
+- OSB3 zero constructieplaat RK FSC 2440x1220x12mm
+- OSB3 Zero constructieplaat RK FSC 2440x590x9mm
+- OSB3 zero constructieplaat RK FSC 2440x1220x18mm
+- OSB3 zero constructieplaat RK FSC 2800x1196x9mm
+- OSB3 Constructieplaat Swiss Krono TG2 Ongeschuurd PEFC 2440x1220x18mm
+- ESB eco geschuurd TG4 PEFC 2580x675x18mm
+- ESB eco geschuurd TG4 PEFC 2580x675x12mm
+- OSB3 achterhout met groef FSC 2440x595x18mm
 - Pellos Fins Vuren Underlayment TG4 610x2440mm 18mm dik
 - Pellos Fins Vuren Underlayment TG2 1220x2440mm 18mm dik
 - Pellos Fins Vuren Underlayment TG2 1220x2440mm 21mm dik
