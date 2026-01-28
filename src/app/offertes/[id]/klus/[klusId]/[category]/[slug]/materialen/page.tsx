@@ -2072,7 +2072,7 @@ export default function GenericMaterialsPageRedesigned() {
               const idx = mats.findIndex((m: any) => m.sectionKey === actieveSectie);
               if (idx === -1) return c;
               const newMats = [...mats];
-              newMats[idx] = { ...newMats[idx], material: { ...newMats[idx].material, wastePercentage: newWaste } };
+              newMats[idx] = { ...newMats[idx], material: { ...(newMats[idx].material as any), wastePercentage: newWaste } };
               return { ...c, materials: newMats };
             }));
           } else if (activeGroupId) {
