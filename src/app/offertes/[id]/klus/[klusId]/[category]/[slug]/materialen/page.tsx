@@ -1264,6 +1264,69 @@ export default function GenericMaterialsPageRedesigned() {
     else setIsAutosaving(true);
 
     try {
+      // === UPDATE BEAM DIMENSIONS FROM STAANDERS & LIGGERS MATERIAL ===
+      // Find the selected staanders & liggers material and update calculatedData.beams
+      let updatedMaatwerkData: { key: string; items: any[] } | null = null;
+      const staandersKeys = ['staanders_en_liggers', 'regelwerk_hoofd', 'ms_staanders'];
+      let staandersMaterial: any = null;
+      for (const key of staandersKeys) {
+        if (gekozenMaterialen[key]) {
+          staandersMaterial = gekozenMaterialen[key]._raw || gekozenMaterialen[key];
+          break;
+        }
+      }
+
+      // If we have a staanders material with dimensions, update the beams
+      if (staandersMaterial) {
+        // Parse dimensions from material (dikte = thickness, breedte = width)
+        const parseDimension = (val: any): number | null => {
+          if (typeof val === 'number') return val;
+          if (typeof val === 'string') {
+            const num = parseFloat(val.replace(',', '.'));
+            return isNaN(num) ? null : num;
+          }
+          return null;
+        };
+
+        const dikte = parseDimension(staandersMaterial.dikte);
+        const breedte = parseDimension(staandersMaterial.breedte);
+
+        // If we have valid dimensions, update the beams in Firestore
+        if ((dikte !== null || breedte !== null) && klus) {
+          // Get the maatwerk key for this job
+          const maatwerkKey = `${jobSlug}_maatwerk`;
+          const maatwerkItems = (klus as any)?.[maatwerkKey] || [];
+
+          if (Array.isArray(maatwerkItems) && maatwerkItems.length > 0) {
+            const updatedMaatwerkItems = maatwerkItems.map((item: any) => {
+              if (item.calculatedData?.beams && Array.isArray(item.calculatedData.beams)) {
+                const updatedBeams = item.calculatedData.beams.map((beam: any) => ({
+                  ...beam,
+                  // wMm is width of beam (use breedte), keep original if not set
+                  wMm: breedte ?? beam.wMm,
+                  // Store dikte as reference
+                  dikteMm: dikte ?? beam.dikteMm,
+                  // Also store the material source for AI context
+                  materialSource: staandersMaterial.materiaalnaam || 'selected material'
+                }));
+                return {
+                  ...item,
+                  calculatedData: {
+                    ...item.calculatedData,
+                    beams: updatedBeams
+                  }
+                };
+              }
+              return item;
+            });
+
+            // Store the updated maatwerk items for later use in updatePayload
+            updatedMaatwerkData = { key: maatwerkKey, items: updatedMaatwerkItems };
+          }
+        }
+      }
+      // === END BEAM DIMENSION UPDATE ===
+
       // CLEANER SAVE STRUCTURE as requested:
       // 1. All materials in 'materialen_lijst' including custom ones.
       // 2. No flattening of components (they have their own list).
@@ -1380,6 +1443,11 @@ export default function GenericMaterialsPageRedesigned() {
           cleanKlein.fixedAmount = kleinMateriaalConfig.fixedAmount;
         }
         updatePayload[`klussen.${klusId}.kleinMateriaal`] = cleanKlein;
+      }
+
+      // Add updated maatwerk with beam dimensions if calculated
+      if (typeof updatedMaatwerkData !== 'undefined' && updatedMaatwerkData) {
+        updatePayload[`klussen.${klusId}.${updatedMaatwerkData.key}`] = JSON.parse(JSON.stringify(updatedMaatwerkData.items));
       }
 
       await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
