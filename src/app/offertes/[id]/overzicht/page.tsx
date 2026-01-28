@@ -14,6 +14,7 @@ import {
   Trash2,
   Settings,
   Star,
+  Pencil,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -197,7 +198,7 @@ function EuroInput(props: {
         onBlur={() => setFocused(false)}
         onChange={(e) => onChange(formatEuroNL(e.target.value))}
         placeholder={placeholder}
-        className={cn('pl-7', inputClassName)}
+        className={cn('pl-7 text-right', inputClassName)}
       />
     </div>
   );
@@ -1339,7 +1340,7 @@ export default function OverzichtPage() {
     }
   }
 
-  // ✅ Segmented Toggle Component (matching HSB Voorzetwand 'Vorm' selector)
+  // ✅ Segmented Toggle Component (matching HSB Voorzetwand 'Vorm' selector - slim horizontal control)
   const SegmentedToggle = ({
     options,
     value,
@@ -1351,7 +1352,7 @@ export default function OverzichtPage() {
     onChange: (id: string) => void;
     error?: boolean;
   }) => (
-    <div className="grid gap-1 p-1 bg-muted/50 rounded-lg border border-border/50" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="grid gap-1 p-1 bg-black/20 rounded-xl border border-white/5" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
       {options.map((opt) => {
         const isActive = value === opt.id;
         return (
@@ -1360,14 +1361,13 @@ export default function OverzichtPage() {
             type="button"
             onClick={() => onChange(opt.id)}
             className={cn(
-              "flex flex-col items-center justify-center py-2 px-3 transition-all rounded-md text-center",
+              "flex items-center justify-center py-1.5 px-3 transition-all rounded-lg text-center text-xs font-medium",
               isActive && !error && "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50",
               isActive && error && "bg-red-500/20 text-red-400 shadow-sm ring-1 ring-red-500/50",
               !isActive && "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
             )}
           >
-            <span className="text-xs font-medium">{opt.label}</span>
-            {opt.subtitle && <span className="text-[10px] opacity-60 mt-0.5">{opt.subtitle}</span>}
+            {opt.label}
           </button>
         );
       })}
@@ -1846,9 +1846,9 @@ export default function OverzichtPage() {
 
           {/* Klussen */}
           <section className="space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Huidige Klussen</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground px-1">Huidige Klussen</h2>
 
-            <div className="rounded-xl bg-muted/30 border border-border/50 overflow-hidden">
+            <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
               {jobs.length === 0 && (
                 <p className="text-sm text-muted-foreground italic text-center py-8">
                   Er zijn nog geen klussen toegevoegd.
@@ -1929,7 +1929,7 @@ export default function OverzichtPage() {
                     key={job.id}
                     className={cn(
                       "group flex items-center justify-between py-3 px-4 hover:bg-white/5 transition-colors cursor-pointer",
-                      index > 0 && "border-t border-border/50"
+                      index > 0 && "border-t border-white/5"
                     )}
                     onClick={() => router.push(bewerkenHref)}
                   >
@@ -1979,7 +1979,7 @@ export default function OverzichtPage() {
                         }}
                         aria-label="Bewerken"
                       >
-                        <Settings className="h-3.5 w-3.5" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
 
                       <Button
@@ -2004,7 +2004,7 @@ export default function OverzichtPage() {
               <button
                 type="button"
                 onClick={handleAddJob}
-                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-border/50"
+                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
               >
                 <Plus className="h-4 w-4" />
                 <span>Een klus toevoegen</span>
@@ -2012,10 +2012,130 @@ export default function OverzichtPage() {
             </div>
           </section>
 
+          {/* Bouwplaatskosten */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Bouwplaatskosten</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setBouwplaatsBeheerOpen(true)}
+                aria-label="Bouwplaatskosten pakketten beheren"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
+              {/* Pakket Selector */}
+              <div className="px-4 py-3 border-b border-white/5">
+                <Select
+                  value={geselecteerdPakketId || 'LEEG'}
+                  onValueChange={(v) => {
+                    if (!v || v === 'LEEG') {
+                      setGeselecteerdPakketId('');
+                      setBouwplaatskosten(defaultBouwplaatskosten());
+                      return;
+                    }
+                    handleSelectPakket(v);
+                  }}
+                >
+                  <SelectTrigger className="bg-black/20 border-white/5 rounded-lg">
+                    <SelectValue placeholder="Leeg (handmatig)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
+                    {pakketten.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.naam}
+                        {p.id === standaardPakketId ? ' (standaard)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Items List */}
+              <div className="divide-y divide-white/5">
+                {bouwplaatskosten.map((item) => (
+                  <div key={item.id} className="group flex items-center gap-2 py-3 px-4 hover:bg-white/5 transition-colors">
+                    {/* Name */}
+                    <div className="flex-1 min-w-0">
+                      {item.isVast ? (
+                        <span className="text-sm text-foreground">{item.naam}</span>
+                      ) : (
+                        <Input
+                          value={item.naam}
+                          onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
+                          placeholder="Bijv. Hoogwerker / Gereedschap huur"
+                          className="bg-transparent border-0 px-0 h-7 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                        />
+                      )}
+                    </div>
+
+                    {/* Price */}
+                    <div className="w-24 shrink-0">
+                      <EuroInput
+                        value={item.prijs}
+                        onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
+                        inputClassName="bg-black/20 border-white/5 rounded-lg h-8 text-sm"
+                        placeholder="0,00"
+                      />
+                    </div>
+
+                    {/* Per */}
+                    <div className="w-20 shrink-0">
+                      <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
+                        <SelectTrigger className="bg-black/20 border-white/5 rounded-lg h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dag">dag</SelectItem>
+                          <SelectItem value="week">week</SelectItem>
+                          <SelectItem value="klus">klus</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Delete - aligned with unit dropdown */}
+                    <div className="w-8 shrink-0 flex justify-center">
+                      {!item.isVast ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
+                          onClick={() => handleRemoveBouwplaats(item.id)}
+                          aria-label="Verwijderen"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : (
+                        <div className="w-7 h-7" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Button */}
+              <button
+                type="button"
+                onClick={handleAddExtraBouwplaats}
+                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Toevoegen</span>
+              </button>
+            </div>
+          </section>
+
           {/* Transport */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Transport</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Transport</h2>
               <Button
                 type="button"
                 variant="ghost"
@@ -2028,7 +2148,7 @@ export default function OverzichtPage() {
               </Button>
             </div>
 
-            <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
               <SegmentedToggle
                 options={[
                   { id: 'perKm', label: 'Per km', subtitle: 'Automatisch' },
@@ -2048,7 +2168,7 @@ export default function OverzichtPage() {
                       value={prijsPerKm}
                       onChange={setPrijsPerKm}
                       inputClassName={cn(
-                        "bg-muted border-border rounded-md",
+                        "bg-black/20 border-white/5 rounded-lg",
                         !transportIsValid && "border-red-500 focus-visible:ring-red-500"
                       )}
                       placeholder="0,00"
@@ -2065,7 +2185,7 @@ export default function OverzichtPage() {
                       value={vasteTransportkosten}
                       onChange={setVasteTransportkosten}
                       inputClassName={cn(
-                        "bg-muted border-border rounded-md",
+                        "bg-black/20 border-white/5 rounded-lg",
                         !transportIsValid && "border-red-500 focus-visible:ring-red-500"
                       )}
                       placeholder="0,00"
@@ -2077,128 +2197,10 @@ export default function OverzichtPage() {
             </div>
           </section>
 
-          {/* Bouwplaatskosten */}
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Bouwplaatskosten</h2>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={() => setBouwplaatsBeheerOpen(true)}
-                aria-label="Bouwplaatskosten pakketten beheren"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="rounded-xl bg-muted/30 border border-border/50 overflow-hidden">
-              {/* Pakket Selector */}
-              <div className="px-4 py-3 border-b border-border/50">
-                <Select
-                  value={geselecteerdPakketId || 'LEEG'}
-                  onValueChange={(v) => {
-                    if (!v || v === 'LEEG') {
-                      setGeselecteerdPakketId('');
-                      setBouwplaatskosten(defaultBouwplaatskosten());
-                      return;
-                    }
-                    handleSelectPakket(v);
-                  }}
-                >
-                  <SelectTrigger className="bg-muted border-border rounded-md">
-                    <SelectValue placeholder="Leeg (handmatig)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
-                    {pakketten.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.naam}
-                        {p.id === standaardPakketId ? ' (standaard)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Items List */}
-              <div className="divide-y divide-border/50">
-                {bouwplaatskosten.map((item) => (
-                  <div key={item.id} className="group flex items-center gap-3 py-3 px-4 hover:bg-white/5 transition-colors">
-                    {/* Name */}
-                    <div className="flex-1 min-w-0">
-                      {item.isVast ? (
-                        <span className="text-sm text-foreground">{item.naam}</span>
-                      ) : (
-                        <Input
-                          value={item.naam}
-                          onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
-                          placeholder="Bijv. Hoogwerker / Gereedschap huur"
-                          className="bg-transparent border-0 px-0 h-7 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
-                        />
-                      )}
-                    </div>
-
-                    {/* Price */}
-                    <div className="w-28 shrink-0">
-                      <EuroInput
-                        value={item.prijs}
-                        onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
-                        inputClassName="bg-muted border-border rounded-md h-8 text-sm"
-                        placeholder="0,00"
-                      />
-                    </div>
-
-                    {/* Per */}
-                    <div className="w-20 shrink-0">
-                      <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
-                        <SelectTrigger className="bg-muted border-border rounded-md h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="dag">dag</SelectItem>
-                          <SelectItem value="week">week</SelectItem>
-                          <SelectItem value="klus">klus</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Delete */}
-                    <div className="w-7 shrink-0">
-                      {!item.isVast && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
-                          onClick={() => handleRemoveBouwplaats(item.id)}
-                          aria-label="Verwijderen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add Button */}
-              <button
-                type="button"
-                onClick={handleAddExtraBouwplaats}
-                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-border/50"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Toevoegen</span>
-              </button>
-            </div>
-          </section>
-
           {/* Winstmarge */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Winstmarge</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Winstmarge</h2>
               <Button
                 type="button"
                 variant="ghost"
@@ -2211,7 +2213,7 @@ export default function OverzichtPage() {
               </Button>
             </div>
 
-            <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
               <SegmentedToggle
                 options={[
                   { id: 'percentage', label: 'Percentage', subtitle: '% van totaal' },
@@ -2239,7 +2241,7 @@ export default function OverzichtPage() {
                         step="0.1"
                         placeholder="0"
                         className={cn(
-                          "pr-8 bg-muted border-border rounded-md",
+                          "pr-8 bg-black/20 border-white/5 rounded-lg",
                           !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
                         )}
                         value={winstMarge.percentage ?? ''}
@@ -2271,7 +2273,7 @@ export default function OverzichtPage() {
                         setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
                       }}
                       inputClassName={cn(
-                        "bg-muted border-border rounded-md",
+                        "bg-black/20 border-white/5 rounded-lg",
                         !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
                       )}
                       placeholder="0,00"
@@ -2283,16 +2285,11 @@ export default function OverzichtPage() {
             </div>
           </section>
 
-          {/* Sticky bottom bar */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-sm">
-            <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-4">
-              <Button
-                variant="ghost"
-                asChild
-                className="text-muted-foreground hover:text-foreground"
-              >
+          {/* Sticky bottom bar - matching HSB editor footer */}
+          <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+            <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+              <Button variant="outline" asChild>
                 <Link href={`/offertes/${quoteId}/klus/nieuw`}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
                   Terug
                 </Link>
               </Button>
@@ -2316,12 +2313,8 @@ export default function OverzichtPage() {
                 <Button
                   onClick={handleFinishQuote}
                   disabled={isSubmitting || !stats.isReady}
-                  className={cn(
-                    'gap-2 px-6 rounded-lg font-medium',
-                    stats.isReady
-                      ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/20'
-                      : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                  )}
+                  variant="success"
+                  className="gap-2"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

@@ -138,6 +138,25 @@ export default function QuoteDetailPage() {
                             }
                         }
 
+                        // Normalize openings within maatwerk: restore width/height from openingWidth/openingHeight
+                        if (Array.isArray(normalizedMaatwerk)) {
+                            normalizedMaatwerk = normalizedMaatwerk.map((item: any) => {
+                                if (item.openings && Array.isArray(item.openings)) {
+                                    item.openings = item.openings.map((op: any) => {
+                                        const normalizedOpening = { ...op };
+                                        if (op.openingWidth !== undefined && op.width === undefined) {
+                                            normalizedOpening.width = op.openingWidth;
+                                        }
+                                        if (op.openingHeight !== undefined && op.height === undefined) {
+                                            normalizedOpening.height = op.openingHeight;
+                                        }
+                                        return normalizedOpening;
+                                    });
+                                }
+                                return item;
+                            });
+                        }
+
                         extractedJobs.push({
                             id: key,
                             quoteId: docSnap.id,

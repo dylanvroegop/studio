@@ -112,7 +112,24 @@ export default function GenericMeasurementPage() {
           const savedItems = data.klussen?.[klusId]?.[`${jobSlug}_maatwerk`] || data.klussen?.[klusId]?.maatwerk;
 
           if (Array.isArray(savedItems) && savedItems.length > 0) {
-            setItems(savedItems);
+            // Normalize openings: restore width/height from openingWidth/openingHeight if needed
+            const normalizedItems = savedItems.map((item: any) => {
+              if (item.openings && Array.isArray(item.openings)) {
+                item.openings = item.openings.map((op: any) => {
+                  // If width/height are missing but openingWidth/openingHeight exist, restore them
+                  const normalizedOpening = { ...op };
+                  if (op.openingWidth !== undefined && op.width === undefined) {
+                    normalizedOpening.width = op.openingWidth;
+                  }
+                  if (op.openingHeight !== undefined && op.height === undefined) {
+                    normalizedOpening.height = op.openingHeight;
+                  }
+                  return normalizedOpening;
+                });
+              }
+              return item;
+            });
+            setItems(normalizedItems);
           } else {
             setItems([createEmptyItem()]);
           }

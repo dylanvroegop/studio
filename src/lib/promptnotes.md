@@ -1,22 +1,132 @@
-1. Visual Extraction & Sanitization
-When you upload a screenshot or PDF of a price list, I will:
+get the materials name from this text and give it back in a code block with - infront of each materialname.
+make sure to remove all market items or unneccesary information. 
 
-Merge Parent/Child Rows: Automatically combine headers (e.g., "Monier VH-Variabel") with sub-items (e.g., "gevelpan li") to create a descriptive materiaalnaam.
+make sure to change the name also for measurements only part to; 
 
-Handle Units: Identify if the price is per "Stuk" or "1000" and standardize it.
+- Betonplex Berken Lichtbruin 2500x1250mm 6.5mm dik 
 
-Convert Currency: Change Dutch decimal formatting (comma) to standard numeric dots for your calculations.
+NOT;
 
-2. Schema-Strict Output
-I will deliver the data in the exact format you requested:
+- Grenen betonplex 170/170gr donkerbruin fenolfilm geweven PEFC 3000x1500x15mm
 
-Wrapped in a code block.
 
-JSON object per line.
+then proceed to also make another code block thats separate based on json format (do not include [ ] or a removal of , at the last }) this is because this json will be coppied inside a long json file that contains more than 2000 objects and the json youre sending is not the last, but will be added in the middle somewhere of this json file.
 
-No surrounding [ or ] brackets.
+choose on of these as 'categorie' ;
 
-Trailing }, on every line (including the last one) to allow for immediate appending.
+Vuren hout
 
-3. Deduplication Logic
-Before outputting, I will cross-reference the new list against the materials I’ve already processed for you in this session to ensure you aren't pasting duplicates into your .md or .json files.
+Hardhout geschaafd
+
+Merantie
+
+Kozijnhout
+
+Constructieplaten
+
+Interieur Platen
+
+Exterieur platen
+
+Afwerking
+
+Laminaat
+
+Vloer-rabat-vellingdelen
+
+Deurbeslag
+
+Binnendeuren
+
+Buitendeuren
+
+Metalstud profielen
+
+Gipsplaten
+
+Brandwerende platen
+
+Rockpanel
+
+Trespa
+
+Isolatie
+
+Folieën
+
+Dpc
+
+Lood
+
+Loodvervanger
+
+Epdm
+
+Dakrollen
+
+Asfaltsingels
+
+Dakpannen
+
+Flexim
+
+Golfplaten
+
+Dakramen
+
+Lichtkoepels
+
+Daktoebehoren
+
+Ubbink
+
+Overig
+
+examples; 
+
+    {
+        "categorie": "Exterieur platen",
+        "materiaalnaam": "Betontriplex Chinees Populier 1250x2500mm 18mm dik",
+        "lengte": "250cm",
+        "breedte": "125cm",
+        "dikte": "18 mm",
+        "prijs_incl_21%_btw": "€ 0,00",
+        "id": "KRTDRc",
+        "order_id": 391,
+        "sub_categorie": "Betonplex"
+    },
+
+    or 
+
+     {
+        "categorie": "Interieur Platen",
+        "materiaalnaam": "Vuren Massief Paneel 1000x500mm 18mm dik",
+        "lengte": "100x50cm",
+        "dikte": "18mm",
+        "prijs_incl_21%_btw": "€ 0,00",
+        "id": "dYw4Tj",
+        "order_id": 706,
+        "sub_categorie": "Overig"
+    },
+
+    or 
+
+     {
+        "categorie": "Daktoebehoren",
+        "materiaalnaam": "Kiezelbak Lood 33cm (45gr) 80x60mm",
+        "lengte": "33cm",
+        "hoek": "45gr",
+        "afmeting": "60x80mm",
+        "materiaal": "lood",
+        "prijs_incl_21%_btw": "€ 0,00",
+        "id": "PtG5pR",
+        "order_id": 233,
+        "sub_categorie": ""
+    },
+
+
+    list;
+
+
+
+    
