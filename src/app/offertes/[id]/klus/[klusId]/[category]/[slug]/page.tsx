@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useTransition, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -95,6 +95,7 @@ export default function GenericMeasurementPage() {
   const [components, setComponents] = useState<JobComponent[]>([]);
   const [notities, setNotities] = useState(''); // New: Job Notes state
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // 4. Load Data
   useEffect(() => {
@@ -661,35 +662,68 @@ export default function GenericMeasurementPage() {
 
                   {/* Balken Configuration */}
                   {fields.find(f => f.key === 'balkafstand') && (
-                    <div className="space-y-3 pt-4 border-t border-white/5">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Balken Structuur</h4>
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                        <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-
-                        <div className="space-y-3">
-                          <Label className="text-xs">Startpositie</Label>
-                          <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                            <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Links</button>
-                            <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Rechts</button>
-                          </div>
+                    <div className="mt-6 rounded-xl border border-border/60 bg-card/30 overflow-hidden shadow-sm">
+                      <div
+                        className="px-5 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors group select-none"
+                        onClick={() => setCollapsedSections(prev => ({ ...prev, [`balken-${index}`]: !prev[`balken-${index}`] }))}
+                      >
+                        <div className="flex items-center gap-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-zinc-300 transition-colors">Balken Structuur</h4>
+                          {collapsedSections[`balken-${index}`] && (
+                            <span className={cn(
+                              "text-[10px] px-2 py-0.5 rounded-full font-medium normal-case tracking-normal border animate-in fade-in slide-in-from-left-2",
+                              "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            )}>
+                              Ingesteld: {item.balkafstand}mm h.o.h
+                            </span>
+                          )}
                         </div>
-
-                        <div className="space-y-3">
-                          <Label className="text-xs">Opties</Label>
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-white/5">
-                            <div className="flex items-center justify-between text-xs text-zinc-400">
-                              <span>Dubbele Eindbalk</span>
-                              <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
-                            </div>
-                            {!jobSlug.includes('hellend-dak') && !isWallCategory && (
-                              <div className="flex items-center justify-between text-xs text-zinc-400">
-                                <span>Kader (Rondom)</span>
-                                <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
-                              </div>
-                            )}
-                          </div>
+                        <div className="p-1.5 rounded-md text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                          {collapsedSections[`balken-${index}`] ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
                         </div>
                       </div>
+
+                      {!collapsedSections[`balken-${index}`] && (
+                        <div className="p-5 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                          <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                          <div className="space-y-3">
+                            <Label className="text-xs">Startpositie</Label>
+                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                              <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Links</button>
+                              <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Rechts</button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            <Label className="text-xs">Opties</Label>
+                            <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-white/5">
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>Dubbele Eindbalk</span>
+                                <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>Dubbele Bovenbalk</span>
+                                <Switch checked={item.doubleTopPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleTopPlate', c)} className="scale-75 origin-right" />
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-zinc-400">
+                                <span>Dubbele Onderbalk</span>
+                                <Switch checked={item.doubleBottomPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleBottomPlate', c)} className="scale-75 origin-right" />
+                              </div>
+                              {!jobSlug.includes('hellend-dak') && !isWallCategory && (
+                                <div className="flex items-center justify-between text-xs text-zinc-400">
+                                  <span>Kader (Rondom)</span>
+                                  <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -785,18 +819,14 @@ export default function GenericMeasurementPage() {
             {/* Public Job Notes Section */}
             <div className="space-y-3 pt-6 border-t border-white/5">
               <div>
-                <h3 className="text-lg font-medium text-foreground">Slimme Notities</h3>
-                <p className="text-sm text-muted-foreground">Onze assistent begrijpt vrije tekst. Type simpelweg wat je extra nodig hebt en de geschatte prijs; wij voegen het toe aan de calculatie.</p>
+                <h3 className="text-lg font-medium text-amber-500">Slimme Notities</h3>
+                <p className="text-sm text-muted-foreground">Onze assistent begrijpt bouwinstructies. Type simpelweg afwijkingen of details door; wij verwerken deze direct in de technische uitslag en constructie.</p>
               </div>
               <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
                 <Textarea
                   value={notities}
                   onChange={(e) => setNotities(e.target.value)}
-                  placeholder={`Bijv.
-- Gebruik tellerkoppers 8x140 voor boven wand vast zetten.
-doos 50 st kost 25 euro.
-- Gebruik bij tussenstaanders bathoeken van 45x45 in het midden voor versteviging.
-prijs kost ongeveer 30 cent per stuk.`}
+                  placeholder="Bijv. Extra versteviging inbouwen op 120cm hoogte voor montage van een zware wastafel."
                   className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
                 />
               </div>

@@ -1889,18 +1889,14 @@ export default function GenericMaterialsPageRedesigned() {
         {/* Public Job Notes Section - Matching Measurement Page Style */}
         <div className="space-y-3 pt-6 border-t border-white/5">
           <div>
-            <h3 className="text-lg font-medium text-foreground">Slimme Notities</h3>
+            <h3 className="text-lg font-medium text-amber-500">Slimme Notities</h3>
             <p className="text-sm text-muted-foreground">Onze assistent begrijpt vrije tekst. Type simpelweg wat je extra nodig hebt en de geschatte prijs; wij voegen het toe aan de calculatie.</p>
           </div>
           <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
             <Textarea
               value={notities}
               onChange={(e) => setNotities(e.target.value)}
-              placeholder={`Bijv.
-- Gebruik tellerkoppers 8x140 voor boven wand vast zetten.
-doos 50 st kost 25 euro.
-- Gebruik bij tussenstaanders bathoeken van 45x45 in het midden voor versteviging.
-prijs kost ongeveer 30 cent per stuk.`}
+              placeholder="Bijv: '12 hoekankers voor €1,50 per stuk' of 'extra uurtje werk à €60,-"
               className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
             />
           </div>
