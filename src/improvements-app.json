@@ -3,22 +3,37 @@
     {
       "github_issue_titel": "Maatwerk UI: expliciete keuze voor extra stijlen rondom openingen (king/trimmer/dubbel)",
       "feature_request": "Voeg in hsb-voorzetwand_maatwerk bij elke opening toggles/velden toe: 'dubbele stijlen links/rechts', 'trimmer aanwezig', en (optioneel) 'header-dikte'. Hiermee kan het regelwerk rond deuren/ramen volgens praktijk worden doorgerekend en verdwijnen aannames.",
-      "prioriteit": "hoog!!!!!!!!!!!!!!!"
+      "prioriteit": "hoog"
     },
     {
-      "github_issue_titel": "Snijverlies instelling per materiaal/onderdeel",
-      "feature_request": "Maak per sectionKey een instelbaar snijverlies (%), met default vanuit klus_regels. Toon dit in UI bij materiaalkeuze (bijv. plint 10%, platen 5–12%).",
+      "github_issue_titel": "Voeg verpakkingsinhoud toe aan materialen (aantal per pak/rol) voor correcte omrekening",
+      "feature_request": "Breid het materialenmodel uit met velden zoals 'aantal_per_verpakking' en/of 'm2_per_verpakking'. Toon dit bij selectie van isolatie/folie en gebruik het direct in de rekenregels, zodat '10 st/pak' niet uit de productnaam hoeft te komen.",
+      "prioriteit": "hoog"
+    },
+    {
+      "github_issue_titel": "Keuze 'conservatief' vs 'geoptimaliseerd zaagplan' voor regelhout",
+      "feature_request": "Voeg in de maatwerk-pagina een toggle toe: (1) Conservatief: staanders en liggers apart afronden + snijverlies per onderdeel, (2) Geoptimaliseerd: totaliseer strekkende meters en reken naar handelslengtes met snijverlies. Dit voorkomt onder/overschatting afhankelijk van werkwijze.",
       "prioriteit": "medium"
     },
     {
-      "github_issue_titel": "Openingen: keuze voor enkele/dubbele stijlen en automatische positie-stijlen bij deur/raam",
-      "feature_request": "Voeg in de maatwerk-invoer per opening opties toe: (1) ‘enkele of dubbele stijl links/rechts’, (2) ‘trimmer/king stijl automatisch toevoegen’, (3) automatische plaatsing van stijlen exact op openingranden i.p.v. alleen op hart-op-hart raster. Gebruik deze opties in de framewerk-berekening zodat houtaantallen bij deuren/ramen eenduidig worden.",
+      "github_issue_titel": "Folie overlap/verspillingsfactor instelbaar en transparant in UI",
+      "feature_request": "Maak bij folies een invoerveld of preset voor overlap (%) en snijverlies (%), en toon in de calculatie hoe de factor tot stand komt (bijv. 1.15 overlap x 1.10 waste).",
+      "prioriteit": "medium"
+    },
+    {
+      "github_issue_titel": "Openingen-editor verplicht tonen bij HSB-voorzetwand (ook als leeg)",
+      "feature_request": "Voeg in de maatwerk-pagina voor `hsb-voorzetwand` een vaste sectie ‘Openingen (ramen/deuren/sparingen)’ toe met standaard lege lijst. Toon tevens een samenvatting ‘Netto m²’ en ‘Aftrek openingen m²’ zodat gebruikers expliciet bevestigen dat er géén openingen zijn.",
       "prioriteit": "hoog"
     },
     {
-      "github_issue_titel": "HSB-voorzetwand: instelbare beplating (zijden/lagen) en opening-constructie opties",
-      "feature_request": "Voeg in de maatwerk UI toggles/velden toe: (1) aantal beplatingszijden (1 of 2) en aantal lagen per zijde; (2) optie 'dubbele staanders/trimmers bij opening' met standaard aan; (3) toon en bewerk materiaalparameters zoals plaatlengte, plaatbreedte en stuks per pak i.p.v. alleen een naamstring. Hierdoor worden berekeningen reproduceerbaar en onafhankelijk van naam-parsing.",
-      "prioriteit": "hoog"
+      "github_issue_titel": "Legplan-optie voor OSB 590x2440 T&G (offcut-hergebruik aan/uit)",
+      "feature_request": "Voeg een toggle toe: ‘Herbruik zaagstukken tussen OSB-rijen’. Als uit: reken per rij `ceil(wandlengte / plaatlengte)` zonder offcut hergebruik. Als aan: gebruik een eenvoudige offcut-allocator of genereer een legplan om het aantal platen consistenter te maken.",
+      "prioriteit": "medium"
+    },
+    {
+      "github_issue_titel": "Duidelijke invoervelden voor beplating-lagen (OSB vs gips)",
+      "feature_request": "Splits `plating_layers` op in aparte velden: `osb_laag_aanwezig` (boolean) en `gips_lagen` (integer). Koppel materiaalkeuze hieraan en geef waarschuwing als materiaalkeuze en maatwerk-instelling conflicteren.",
+      "prioriteit": "medium"
     }
   ]
 }

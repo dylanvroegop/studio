@@ -120,6 +120,60 @@
           "mogelijke_verbetering": "Zet in klus_regels een standaard waste_factor voor plinten (bijv. 5–10%) of laat gebruiker dit instellen per klus."
         }
       ]
+    },
+    {
+      "klus_type": "hsb-voorzetwand",
+      "nauwkeurigheid_score": 82,
+      "score_toelichting": "Hoofdmaat (5,0m x 2,6m) zonder openingen is rechttoe-rechtaan en de aantallen voor staanders/liggers, gips en plinten zijn stabiel. Grootste onzekerheid zit in de OSB-indeling (T&G 590x2440 liggend) en hoe het snijverlies exact toegepast hoort te worden in de regels.",
+      "fouten": [
+        {
+          "fout": "Isolatiemateriaal-regel noemt waste_factor 10%, maar verwerkt snijverlies niet in de formule (platen_nodig wordt direct omgerekend naar pakken).",
+          "verbetering": "Pas in `isolatiemateriaal` de formule aan naar: `platen_nodig_met_waste = ceil((netto_m2 / plaat_m2) * 1.10)` en daarna `pakken = ceil(platen_nodig_met_waste / material.aantal)`.",
+          "tabel": "klus_regels"
+        },
+        {
+          "fout": "Folie-regel gebruikt `bruto_m2 * 1.15` en heeft daarnaast `waste_factor: 10%` wat dubbelzinnig is (overlap vs snijverlies door elkaar).",
+          "verbetering": "Splits overlap en waste: `folie_m2 = bruto_m2 * (1 + overlap_pct)` met default overlap_pct=0.10 en daarna `* (1 + waste_pct)` met default waste_pct=0.05, of leg vast dat 1.15 al totaal is en verwijder `waste_factor`.",
+          "tabel": "klus_regels"
+        },
+        {
+          "fout": "Constructieplaat-regel beschrijft een leg-methode met offcuts, maar mist een eenduidige fallback-formule voor wanden zonder openingen (waardoor uitkomsten per implementatie kunnen verschillen).",
+          "verbetering": "Voeg een expliciete no-opening formule toe: `platen = ceil((bruto_m2 / plaat_m2) * 1.10)` wanneer openingenlijst leeg is.",
+          "tabel": "klus_regels"
+        }
+      ],
+      "aannames_en_onzekerheden": [
+        {
+          "type": "aanname",
+          "beschrijving": "Geen openingen/sparingen (ramen/deuren) aanwezig; daarom gerekend met bruto wandoppervlak 5,0 x 2,6 = 13,0 m².",
+          "impact": "laag",
+          "mogelijke_verbetering": "In UI verplicht veld/sectie ‘openingen’ tonen (ook als leeg) zodat duidelijk is dat er bewust geen openingen zijn."
+        },
+        {
+          "type": "onzeker",
+          "beschrijving": "OSB 590x2440 liggend: aangenomen dat zaagstukken/offcuts tussen rijen hergebruikt kunnen worden, waardoor het aantal platen op een areaal-basis + 10% uitkomt (11 stuks). Bij ongunstige zaagvolgorde kan dit hoger uitvallen.",
+          "impact": "medium",
+          "mogelijke_verbetering": "In app keuze ‘OSB legplan: optimaliseren met offcuts (ja/nee)’ of automatisch legplan genereren."
+        },
+        {
+          "type": "aanname",
+          "beschrijving": "Ribben 69x44 3000mm: staanders volgens regel `ceil(lengte/h.o.h)+1` en 10% extra meegenomen; regels (boven+onder) apart omgerekend naar stuks van 3m zonder hergebruik van staander-afkorten voor regels.",
+          "impact": "medium",
+          "mogelijke_verbetering": "Optimalisatie toevoegen die afkortstukken (bijv. 488mm) meeneemt als inzetbaar voor regels/kleine stukken, met een instelbare hergebruik-factor."
+        },
+        {
+          "type": "misschien",
+          "beschrijving": "`plating_layers: 1` geïnterpreteerd als 1 laag afwerking (gips) en niet als ‘alle beplating = 1 laag totaal’; OSB is daarom wel meegerekend omdat het als apart materiaal is gekozen.",
+          "impact": "medium",
+          "mogelijke_verbetering": "In UI expliciet onderscheid maken tussen ‘constructieve beplating (OSB) aanwezig’ en ‘aantal gipslagen’."
+        },
+        {
+          "type": "onzeker",
+          "beschrijving": "Plinten: geen aparte waste_factor in klus_regels; aangenomen dat 2 lengtes van 4880mm nodig zijn voor 5,0m wand (met minimale verspilling).",
+          "impact": "laag",
+          "mogelijke_verbetering": "Voeg in klus_regels of UI een standaard snijverliespercentage voor afwerklatten/plinten toe (bijv. 5–10%)."
+        }
+      ]
     }
   ]
 }
