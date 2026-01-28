@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sync": "python3 sync.py"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "1.2.3",

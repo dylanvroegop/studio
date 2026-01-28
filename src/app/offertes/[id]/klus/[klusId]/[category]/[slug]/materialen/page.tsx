@@ -1416,7 +1416,6 @@ export default function GenericMaterialsPageRedesigned() {
               <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/30" />
             ) : (
               <div className="flex items-center gap-2">
-                {isAutosaving && <span className="text-xs text-muted-foreground animate-pulse">Opslaan...</span>}
                 <PersonalNotes quoteId={quoteId} context={`Materialen: ${JOB_TITEL}`} />
               </div>
             )
@@ -1995,6 +1994,37 @@ export default function GenericMaterialsPageRedesigned() {
           }
           return raw;
         })()}
+
+        // New Props
+        categoryTitle={(() => {
+          if (activeGroupId) return customGroups.find(g => g.id === activeGroupId)?.title || 'Extra materiaal';
+          if (activeComponentId) {
+            const comp = components.find(c => c.id === activeComponentId);
+            if (comp) return `${comp.label} - ${actieveSectie || 'Materiaal'}`;
+            return 'Onderdeel materiaal';
+          }
+          if (actieveSectie) {
+            const s = materialSections.find(sec => sec.key === actieveSectie);
+            return s?.label || actieveSectie;
+          }
+          return 'Kies materiaal';
+        })()}
+        initialWastePercentage={(() => {
+          if (activeGroupId) {
+            const group = customGroups.find(g => g.id === activeGroupId);
+            return group?.materials?.[0]?.wastePercentage || 0;
+          }
+          if (activeComponentId && actieveSectie) {
+            const comp = components.find(c => c.id === activeComponentId);
+            const mat = comp?.materials?.find((m: any) => m.sectionKey === actieveSectie)?.material;
+            return mat?.wastePercentage || 0;
+          }
+          if (actieveSectie) {
+            return (gekozenMaterialen[actieveSectie] as any)?.wastePercentage || 0;
+          }
+          return 0;
+        })()}
+
         onToggleFavorite={toggleFavoriet}
         onSelectExisting={(result: any) => {
           const mat = result.data || result;
@@ -2006,7 +2036,8 @@ export default function GenericMaterialsPageRedesigned() {
             materiaalnaam: mat.materiaalnaam || '',
             eenheid: mat.eenheid || 'stuk',
             sort_order: null,
-            quantity: 1
+            quantity: 1,
+            wastePercentage: result.wastePercentage ?? 0, // Persist waste
           };
 
           if (activeComponentId && actieveSectie) {
@@ -2027,7 +2058,8 @@ export default function GenericMaterialsPageRedesigned() {
             ...newMaterial,
             id: newMaterial.id || newMaterial.row_id,
             prijs: typeof newMaterial.prijs === 'number' ? newMaterial.prijs : (parseNLMoneyToNumber(newMaterial.prijs) || 0),
-            quantity: 1
+            quantity: 1,
+            wastePercentage: newMaterial.wastePercentage ?? 0, // Persist waste
           };
           if (activeComponentId && actieveSectie) {
             handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);

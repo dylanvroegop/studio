@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Package, Search, Filter, ArrowLeft, ChevronDown, Star } from 'lucide-react';
+import { Loader2, Plus, Package, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -114,6 +114,8 @@ export type ExistingMaterial = {
   subsectie?: string | null;
   leverancier?: string | null;
   isFavorite?: boolean;
+  wastePercentage?: number | null;
+  order_id?: number | null;
   [key: string]: any;
 };
 
@@ -126,6 +128,8 @@ interface MaterialSelectionModalProps {
   defaultCategory?: string | string[];
   onToggleFavorite?: (id: string) => void;
   showFavorites?: boolean;
+  categoryTitle?: string;
+  initialWastePercentage?: number;
 }
 
 export function MaterialSelectionModal({
@@ -136,12 +140,18 @@ export function MaterialSelectionModal({
   onMaterialAdded,
   defaultCategory,
   onToggleFavorite,
-  showFavorites = true
+  showFavorites = true,
+  categoryTitle,
+  initialWastePercentage = 0
 }: MaterialSelectionModalProps) {
 
   const [step, setStep] = useState<'search' | 'choice' | 'form'>('search');
   const [savingCustom, setSavingCustom] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Waste Percentage State
+  const [wastePercentage, setWastePercentage] = useState<number>(initialWastePercentage);
+  const [isEditingWaste, setIsEditingWaste] = useState(false);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -175,17 +185,48 @@ export function MaterialSelectionModal({
       setCustomPrijs('');
       setCustomSubsectie('');
       setCustomLeverancier('');
+
+      // 3. Reset Waste
+      setWastePercentage(initialWastePercentage || 0);
+      setIsEditingWaste(false);
     }
-  }, [open, defaultCategory]);
+  }, [open, defaultCategory, initialWastePercentage]);
 
   useEffect(() => {
     setDisplayLimit(50);
   }, [searchTerm, categoryFilter]);
 
   // --- SEARCH LOGIC ---
+
+  // Order defined by src/lib/categorylist.md
+
   const uniqueCategories = useMemo(() => {
+    const CATEGORY_ORDER = [
+      "Vuren ruw", "Vuren geschaafd", "Ribben, sls, rachels", "Plinten & koplatten", "Hardhout geschaafd", "Merantie",
+      "Vloer-rabat-vellingdelen", "Underlayment", "Interieur Platen", "Exterieur platen", "Deurbeslag", "Binnendeuren",
+      "Buitendeuren", "Montage kozijnen", "Metalstud profielen", "Gipsplaten", "Brandwerende platen", "Rockpanel", "Kikern",
+      "Glaswol", "Steenwol", "Pir", "Eps", "Xps", "Folieën", "Dpc", "Lood", "Loodvervanger", "Epdm folie", "Epdm benodigdheden",
+      "Epdm afvoeren", "Dakrollen", "Asfaltsingels", "Betonpannen", "Gebakken pannen", "Flexim", "Bitumen golfplaten",
+      "Polyester golfplaten", "Pvc golfplaten", "Vezelcement golfplaten", "Golfplaat afdichting en bevestiging", "Velux",
+      "Keylite", "Lichtkoepels", "Daktoebehoren", "Ubbink"
+    ];
+
     const cats = new Set(existingMaterials.map(m => m.subsectie).filter(Boolean));
-    return Array.from(cats).sort() as string[];
+    const list = Array.from(cats) as string[];
+
+    return list.sort((a, b) => {
+      const idxA = CATEGORY_ORDER.indexOf(a);
+      const idxB = CATEGORY_ORDER.indexOf(b);
+
+      // Both in list -> sort by index
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      // Only A in list -> A comes first
+      if (idxA !== -1) return -1;
+      // Only B in list -> B comes first
+      if (idxB !== -1) return 1;
+      // Neither in list -> sort alphabetical
+      return a.localeCompare(b);
+    });
   }, [existingMaterials]);
 
   const uniqueLeveranciers = useMemo(() => {
@@ -248,8 +289,14 @@ export function MaterialSelectionModal({
     }
 
     return result.sort((a, b) => {
-      if (a.isFavorite === b.isFavorite) return 0;
-      return a.isFavorite ? -1 : 1;
+      // 1. Favorites first
+      if (a.isFavorite !== b.isFavorite) {
+        return a.isFavorite ? -1 : 1;
+      }
+      // 2. Then by order_id (if available)
+      const orderA = a.order_id ?? 999999;
+      const orderB = b.order_id ?? 999999;
+      return orderA - orderB;
     });
   }, [existingMaterials, searchTerm, categoryFilter]);
 
@@ -304,6 +351,7 @@ export function MaterialSelectionModal({
         prijs_per_stuk: calculatedPiecePrice, // Calculated piece price (same as unit price for simple items)
         categorie: customSubsectie.trim() || 'Overig',
         leverancier: customLeverancier.trim() || null,
+        wastePercentage: wastePercentage || 0,
       };
 
       // 4. API Call
@@ -348,7 +396,10 @@ export function MaterialSelectionModal({
 
   const handleSelectExisting = (m: ExistingMaterial) => {
     if (onSelectExisting) {
-      onSelectExisting(m);
+      onSelectExisting({
+        ...m,
+        wastePercentage: wastePercentage // Pass currently configured waste
+      });
       onOpenChange(false);
     }
   };
@@ -369,7 +420,52 @@ export function MaterialSelectionModal({
           <>
             <div className="p-6 pb-2 shrink-0">
               <div className="flex items-center justify-between mb-4">
-                <DialogTitle className="text-xl font-semibold">Kies materiaal</DialogTitle>
+                <div className="flex flex-col gap-0.5">
+                  <DialogTitle className="text-xl font-semibold">
+                    {categoryTitle || 'Kies materiaal'}
+                  </DialogTitle>
+                  <p className="text-xs text-muted-foreground hidden sm:block">
+                    Selecteer een materiaal voor {categoryTitle ? categoryTitle.toLowerCase() : 'dit onderdeel'}
+                  </p>
+                </div>
+
+                {/* Waste Percentage Inline Edit */}
+                <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-md border border-border/50">
+                  {isEditingWaste ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-muted-foreground pl-1">Afval:</span>
+                      <Input
+                        autoFocus
+                        type="number"
+                        min={0}
+                        max={100}
+                        className="h-6 w-14 text-xs px-1 py-0 bg-transparent border-emerald-500/50 focus-visible:ring-0 text-right font-medium"
+                        value={wastePercentage.toString()}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && val >= 0) setWastePercentage(val);
+                          else if (e.target.value === '') setWastePercentage(0);
+                        }}
+                        onBlur={() => setIsEditingWaste(false)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setIsEditingWaste(false);
+                        }}
+                      />
+                      <span className="text-xs text-muted-foreground pr-1">%</span>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingWaste(true)}
+                      className="h-6 px-2 text-xs font-medium text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 gap-1.5"
+                    >
+                      <span>Afval: {wastePercentage}%</span>
+                      <Pencil className="h-3 w-3 opacity-50" />
+                    </Button>
+                  )}
+                </div>
+
                 <DialogDescription className="sr-only">
                   Zoek en selecteer een materiaal uit de lijst of maak een nieuwe aan.
                 </DialogDescription>

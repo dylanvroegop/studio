@@ -336,21 +336,191 @@ export function WallDrawing({
                         }
                     });
 
-                    // Fixed Openings Frames
+                    // Fixed Openings Frames & HSB Detail
                     openings.forEach(op => {
-                        [op.fromLeft - STUD_W, op.fromLeft + op.width].forEach(kx => {
-                            const center = kx + HALF_STUD;
-                            const wt = getWallTopMm(center); const wb = getWallBottomMm(center);
-                            const kh = (wt - PLATE_HEIGHT_MM) - (wb + PLATE_HEIGHT_MM);
-                            const opY = getY(wt - PLATE_HEIGHT_MM);
-                            const opH = kh * pxPerMm;
-                            if (kh > 0) b.push({ x: WALL_X + kx * pxPerMm, y: opY, w: timberW, h: opH, type: 'king' });
+                        const studW = 50; // Use local var to be sure
+                        const beamW = op.headerDikte || timberW; // Custom header height or standard
+
+                        // Left Side
+                        const leftKingX = op.fromLeft - studW;
+                        const leftInnerX = op.fromLeft; // Where trimmer goes
+
+                        // Right Side
+                        const rightKingX = op.fromLeft + op.width;
+                        const rightInnerX = op.fromLeft + op.width - studW; // Where trimmer goes if we look from inside? No, right side of opening
+                        // Wait, rightKingX is START of king. opening ends at `fromLeft+width`.
+                        // So King is at `rightKingX`.
+                        // Trimmer is at `rightKingX - studW`.
+                        const rightTrimmerX = op.fromLeft + op.width - studW; // Inside the opening? No.
+                        // Standard HSB:
+                        // King is full height.
+                        // Trimmer (Jack) supports header. sits INSIDE king.
+                        // So if opening is X to Y. 
+                        // King Left: X - 50.
+                        // Trimmer Left: X (intrusive? No usually opening size is rough opening)
+                        // Actually, let's assume 'width' is Rough Opening (Sparing).
+                        // So Trimmer sits OUTSIDE R.O. if possible? No.
+                        // Let's stick to standard framing:
+                        // R.O. is the hole.
+                        // Trimmers form the sides of the R.O.
+                        // King studs are next to trimmers.
+                        // SO: Trimmer L is at `op.fromLeft - studW`. King L is at `op.fromLeft - 2*studW`.
+                        // BUT visualizer currently draws King at `op.fromLeft - studW`.
+                        // Let's KEEP King at usual spot and place Triple/Double OUTER.
+
+                        // Revised strategy to match visualizer "hole" logic:
+                        // The 'Hole' Rect is at op.fromLeft.
+                        // So we draw studs AROUND it.
+                        // Current King: `op.fromLeft - STUD_W` and `op.fromLeft + op.width`.
+
+                        // King Left
+                        const klCenter = (op.fromLeft - studW) + HALF_STUD;
+                        const wtL = getWallTopMm(klCenter); const wbL = getWallBottomMm(klCenter);
+                        const khL = (wtL - PLATE_HEIGHT_MM) - (wbL + PLATE_HEIGHT_MM);
+                        b.push({ x: WALL_X + (op.fromLeft - studW) * pxPerMm, y: getY(wtL - PLATE_HEIGHT_MM), w: timberW, h: khL * pxPerMm, type: 'king' });
+
+                        // Double King Left
+                        if (op.dubbeleStijlLinks) {
+                            const dkX = op.fromLeft - (studW * 2);
+                            const dkCenter = dkX + HALF_STUD;
+                            const wt = getWallTopMm(dkCenter); const wb = getWallBottomMm(dkCenter);
+                            const h = (wt - PLATE_HEIGHT_MM) - (wb + PLATE_HEIGHT_MM);
+                            b.push({ x: WALL_X + dkX * pxPerMm, y: getY(wt - PLATE_HEIGHT_MM), w: timberW, h: h * pxPerMm, type: 'king' });
+                        }
+
+                        // Trimmer Left (Under Header) - sits INSIDE King? i.e. between King and Hole?
+                        // If Hole starts at fromLeft, and King is at fromLeft-50.
+                        // Trimmer would be at fromLeft? No that blocks hole.
+                        // Let's assume standard "Sparing" includes the trimmers? 
+                        // No, usually sparing is clear width.
+                        // To avoid visual confusion: We place Trimmer *against* the King, effectively same X? No.
+                        // We place Trimmer *under* header inside the king line.
+                        if (op.trimmer) {
+                            // Jack Stud: same X as King? No.
+                            // Usually: King Outside, Jack Inside. 
+                            // If current 'King' is at -50, and Hole is at 0.
+                            // Then Jack is at... -50? Then where is King? -100.
+                            // Let's simply add a stud under header at King position?
+                            // OR shift King to -100 and put Jack at -50.
+                            // Let's shift King.
+                            // WAIT: If we shift King, we must change the 'king' render above.
+
+                            // Let's keep it additive for now to not break 'Sparing' visuals.
+                            // If Trimmer is active: Draw it *alongside* King (at -50? no).
+                            // Let's draw it at `op.fromLeft`. It will visually "shrink" the hole, which is technically correct if R.O. implies structural frame.
+                            // Actually, let's put it at `op.fromLeft + 5` to hint it?
+                            // Better: Put Trimmer at `op.fromLeft - 50` (Replacing the King space?) NO.
+
+                            // Simple visual approach:
+                            // King is always outermost full height.
+                            // Trimmer is inner, under header.
+                            // We'll put Trimmer at `op.fromLeft`. (Visualizing it eating into the opening slightly? Or just showing it properly).
+                            // Actually, construction-wise, R.O. is measured *inside* trimmers.
+                            // So Trimmers are at `fromLeft - 50`. King is at `fromLeft - 100`.
+                            // This changes the whole grid.
+
+                            // Let's just draw the Trimmer *inside* the existing King slot? No.
+                            // Let's draw it as an extra stud at `op.fromLeft` (visually inside the hole rect).
+                            // User can understand "Sparing" vs "Frame".
+                            const trimH = (op.fromBottom + op.height) - (wbL + PLATE_HEIGHT_MM) + (op.onderdorpel && op.onderdorpelDikte ? op.onderdorpelDikte : 0);
+                            // Wait, header starts at `bottom + height`.
+                            // So Trimmer goes from BottomPlate to Header.
+                            // Height = op.fromBottom + op.height + (header thickness? no, header starts there).
+                            // We use calculated top.
+                            const headerY_mm = op.fromBottom + op.height + op.onderdorpelDikte! || 0; // rough.
+                            // Actually header is at `op.fromBottom + op.height + STUD_W` in current code below.
+                            // Let's respect current visualizer: Header Y is `op.fromBottom + op.height + STUD_W`.
+                            // So opening is clear, then 50mm header frame?
+
+                            // Let's Stick to: Trimmer sits at `op.fromLeft - studW` (Overlapping King? No).
+                            // We will draw Trimmer *Next to* King (Inner side). 
+                            // Since King is at `-50`, Trimmer is at `0`.
+                            // Yes, render at `op.fromLeft`.
+                            if (op.trimmer) {
+                                const tX = op.fromLeft;
+                                const sillH = wbL + PLATE_HEIGHT_MM;
+                                const headH = op.fromBottom + op.height + STUD_W; // Bottom of header
+                                const h = headH - sillH;
+                                // b.push({ x: WALL_X + tX * pxPerMm, y: getY(headH), w: timberW, h: h * pxPerMm, type: 'stud' }); 
+                                // NO, this looks messy.
+                            }
+                        }
+
+                        // King Right
+                        const krCenter = (op.fromLeft + op.width) + HALF_STUD;
+                        const wtR = getWallTopMm(krCenter); const wbR = getWallBottomMm(krCenter);
+                        const khR = (wtR - PLATE_HEIGHT_MM) - (wbR + PLATE_HEIGHT_MM);
+                        b.push({ x: WALL_X + (op.fromLeft + op.width) * pxPerMm, y: getY(wtR - PLATE_HEIGHT_MM), w: timberW, h: khR * pxPerMm, type: 'king' });
+
+                        // Double King Right
+                        if (op.dubbeleStijlRechts) {
+                            const dkX = op.fromLeft + op.width + studW;
+                            const dkCenter = dkX + HALF_STUD;
+                            const wt = getWallTopMm(dkCenter); const wb = getWallBottomMm(dkCenter);
+                            const h = (wt - PLATE_HEIGHT_MM) - (wb + PLATE_HEIGHT_MM);
+                            b.push({ x: WALL_X + dkX * pxPerMm, y: getY(wt - PLATE_HEIGHT_MM), w: timberW, h: h * pxPerMm, type: 'king' });
+                        }
+
+                        // Header
+                        const headerY = op.fromBottom + op.height + STUD_W;
+                        const headerH = op.headerDikte ? op.headerDikte * pxPerMm : timberW;
+                        // Center header slightly if thick? No, flush bottom.
+                        // Standard Beam: y is Top-Left coordinate in SVG.
+                        // getY(mm) returns Y from bottom.
+                        // We want bottom of header at `headerY`.
+                        // So opY should be `getY(headerY + height)`.
+
+                        // Current logic: `y: getY(op.fromBottom + op.height + STUD_W)`.
+                        // This implies `getY` converts a 'bottom' MM to SVG Y.
+                        // If header is 200mm high.
+                        // Top is at `headerY + 200`.
+                        // SVG Y is `getY(headerY + 200)`.
+
+                        const hMmVal = op.headerDikte || STUD_W;
+                        const headerBottomMm = op.fromBottom + op.height;
+                        const headerTopMm = headerBottomMm + hMmVal;
+
+                        b.push({
+                            x: WALL_X + op.fromLeft * pxPerMm,
+                            y: getY(headerTopMm), // Top of rect 
+                            w: op.width * pxPerMm,
+                            h: hMmVal * pxPerMm,
+                            type: 'header'
                         });
-                        b.push({ x: WALL_X + op.fromLeft * pxPerMm, y: getY(op.fromBottom + op.height + STUD_W), w: op.width * pxPerMm, h: timberW, type: 'header' });
+
+                        // Trimmer (Jack) Support Logic (Visualized INSIDE King)
+                        // Uses the space usually reserved for King if enabled?
+                        // No, let's keep it simple: separate rendering pass for functionality, but visually just show extra studs.
+                        // If trimmer is true, we assume it's under the header. 
+                        // We'll draw it inward from the King studs (eating into opening width visually)
+                        if (op.trimmer) {
+                            const trimL_X = op.fromLeft;
+                            const trimR_X = op.fromLeft + op.width - studW;
+
+                            // Left Jack
+                            const jlBot = getWallBottomMm(trimL_X + HALF_STUD) + PLATE_HEIGHT_MM;
+                            const jackTopMm = op.fromBottom; // Stop at sill
+                            const jlHeight = jackTopMm - jlBot;
+                            if (jlHeight > 10) {
+                                b.push({ x: WALL_X + trimL_X * pxPerMm, y: getY(jackTopMm), w: timberW, h: jlHeight * pxPerMm, type: 'stud' });
+                            }
+
+                            // Right Jack
+                            const jrBot = getWallBottomMm(trimR_X + HALF_STUD) + PLATE_HEIGHT_MM;
+                            const jrHeight = jackTopMm - jrBot;
+                            if (jrHeight > 10) {
+                                b.push({ x: WALL_X + trimR_X * pxPerMm, y: getY(jackTopMm), w: timberW, h: jrHeight * pxPerMm, type: 'stud' });
+                            }
+                        }
 
                         // Standard Sill (Windows/Openings) - Sits BELOW the opening
                         if (op.type !== 'door' && op.type !== 'door-frame') {
-                            b.push({ x: WALL_X + op.fromLeft * pxPerMm, y: getY(op.fromBottom), w: op.width * pxPerMm, h: timberW, type: 'sill' });
+                            const sillH = op.onderdorpelDikte ? op.onderdorpelDikte : STUD_W;
+                            const sillTop = op.fromBottom;
+                            // Rect draws from Top Down.
+                            // Bottom of sill is `sillTop - sillH`.
+                            // So Y is `getY(sillTop)`.
+                            b.push({ x: WALL_X + op.fromLeft * pxPerMm, y: getY(op.fromBottom), w: op.width * pxPerMm, h: sillH * pxPerMm, type: 'sill' });
                         }
                     });
 

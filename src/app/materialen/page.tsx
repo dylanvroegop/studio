@@ -46,6 +46,7 @@ type Material = {
   leverancier: string | null;
   gebruikerid: string;
   volgorde: number | null;
+  order_id?: number | null;
 };
 
 function calculatePiecePrice(price: number, unit: string, L: string, B: string, maatUnit: string): number | null {

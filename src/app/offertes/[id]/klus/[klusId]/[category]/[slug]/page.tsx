@@ -527,6 +527,64 @@ export default function GenericMeasurementPage() {
                                 <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">V. Onder</Label><MeasurementInput className="h-8 text-sm" value={op.fromBottom} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromBottom: v || 0 }; updateItem(index, 'openings', n); }} /></div>
                               </div>
 
+                              {/* HSB Construction Logic */}
+                              {isWallCategory && (
+                                <div className="space-y-3 pt-2 border-t border-white/5">
+                                  <Label className="text-[10px] uppercase text-zinc-500 font-bold">Constructie</Label>
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Stijl (L)</Label>
+                                      <Switch
+                                        checked={op.dubbeleStijlLinks || false}
+                                        onCheckedChange={(c) => {
+                                          const n = [...(item.openings || [])];
+                                          n[opIdx] = { ...op, dubbeleStijlLinks: c };
+                                          updateItem(index, 'openings', n);
+                                        }}
+                                        className="scale-75 origin-right"
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Stijl (R)</Label>
+                                      <Switch
+                                        checked={op.dubbeleStijlRechts || false}
+                                        onCheckedChange={(c) => {
+                                          const n = [...(item.openings || [])];
+                                          n[opIdx] = { ...op, dubbeleStijlRechts: c };
+                                          updateItem(index, 'openings', n);
+                                        }}
+                                        className="scale-75 origin-right"
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Trimmer</Label>
+                                      <Switch
+                                        checked={op.trimmer || false}
+                                        onCheckedChange={(c) => {
+                                          const n = [...(item.openings || [])];
+                                          n[opIdx] = { ...op, trimmer: c };
+                                          updateItem(index, 'openings', n);
+                                        }}
+                                        className="scale-75 origin-right"
+                                      />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <Label className="text-[10px] text-zinc-400">Header (mm)</Label>
+                                      <MeasurementInput
+                                        className="h-6 text-xs"
+                                        value={op.headerDikte}
+                                        placeholder="Standaard"
+                                        onChange={(v) => {
+                                          const n = [...(item.openings || [])];
+                                          n[opIdx] = { ...op, headerDikte: v || 0 };
+                                          updateItem(index, 'openings', n);
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Onderdorpel Logic for Doors */}
                               {(op.type === 'door' || op.type === 'door-frame') && (
                                 <div className="space-y-3 pt-2 border-t border-white/5">

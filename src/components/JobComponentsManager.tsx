@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -363,6 +364,17 @@ export function JobComponentsManager({
                                                         onChange={(e) => setTempMeasurements(prev => ({ ...prev, [field.key]: e.target.value }))}
                                                         className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
                                                     />
+                                                </div>
+                                            ) : field.type === 'boolean' ? (
+                                                <div className="col-span-3 flex items-center space-x-2">
+                                                    <Switch
+                                                        id={field.key}
+                                                        checked={!!tempMeasurements[field.key]}
+                                                        onCheckedChange={(checked) => setTempMeasurements(prev => ({ ...prev, [field.key]: checked }))}
+                                                    />
+                                                    <Label htmlFor={field.key} className="font-normal text-muted-foreground">
+                                                        {field.placeholder || 'Inschakelen'}
+                                                    </Label>
                                                 </div>
                                             ) : (
                                                 <div className="col-span-3 relative">

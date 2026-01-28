@@ -144,7 +144,7 @@ export const GARDEN_CONFIG = {
 export interface MeasurementField {
   key: string;
   label: string;
-  type: 'number' | 'text' | 'textarea' | 'select';
+  type: 'number' | 'text' | 'textarea' | 'select' | 'boolean';
   suffix?: string;
   placeholder?: string;
   defaultValue?: string | number;
@@ -281,48 +281,40 @@ const KOOF_FIELDS: MeasurementField[] = [
 
 const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
-  { label: 'Staanders & Liggers', categoryFilter: 'Ribben, sls, rachels', category: 'hout', key: 'staanders_en_liggers', category_ultra_filter: '' },
-  { label: 'Tengelwerk / Rachels', categoryFilter: 'Ribben, sls, rachels', category: 'hout', key: 'ventilatie_latten', category_ultra_filter: '' },
+  { label: 'Staanders & Liggers', categoryFilter: 'Vuren hout', category: 'hout', key: 'staanders_en_liggers', category_ultra_filter: '' },
+  { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'ventilatie_latten', category_ultra_filter: '' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
-  { label: 'Isolatiemateriaal', categoryFilter: 'Glaswol, Steenwol, Pir, Eps, Xps', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
+  { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 3. BEPLATING
-  { label: 'Constructieplaat (Zijde 1)', categoryFilter: 'Underlayment', category: 'beplating', key: 'constructieplaat_1', category_ultra_filter: '' },
-  { label: 'Constructieplaat (Zijde 2)', categoryFilter: 'Underlayment', category: 'beplating', key: 'constructieplaat_2', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_1', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_2', category_ultra_filter: '' },
+  { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
 
   // 4. LEIDINGKOOF
-  { label: 'Regelwerk', categoryFilter: 'Ribben, sls, rachels', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
+  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
-  { label: 'Isolatie', categoryFilter: 'Glaswol, Steenwol', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
+  { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
   { label: 'Dagkanten', categoryFilter: 'Interieur Platen', category: 'Dagkant', key: 'dagkanten', category_ultra_filter: '' },
   { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
-  { label: 'Vloerplinten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'plinten_vloer', category_ultra_filter: '' },
-  { label: 'Plafondplinten', categoryFilter: 'Plinten & koplatten', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
+  { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_vloer', category_ultra_filter: '' },
+  { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
-  // 6. INSTALLATIE
-  { label: 'Elektra Buizen / Flex', categoryFilter: 'Overig', category: 'Installatie', key: 'kabelkanaal', category_ultra_filter: '' },
-  { label: 'Hollewanddozen', categoryFilter: 'Overig', category: 'Installatie', key: 'hollewanddozen', category_ultra_filter: '' },
-  { label: 'Installatiekabel', categoryFilter: 'Overig', category: 'Installatie', key: 'elektrakabel', category_ultra_filter: '' },
-  { label: 'Stopcontacten & Schakelaars', categoryFilter: 'Overig', category: 'Installatie', key: 'schakelmateriaal_basis', category_ultra_filter: '' },
-
-  // 7. AFWERKEN (GIPS & WAND)
+  // 6. AFWERKEN (GIPS & WAND)
   { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
   { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
   { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
-  // 8. KOZIJNEN
-  { label: 'Kozijnen', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
+  // 7. KOZIJNEN
+  { label: 'Kozijnen', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
   { label: 'Glas', categoryFilter: 'Overig', category: 'Kozijnen', key: 'glas', category_ultra_filter: '' },
   { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'Kozijnen', key: 'roosters', category_ultra_filter: '' },
 
-  // 9. DEUREN & BESLAG
+  // 8. DEUREN & BE SLAG
   { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deur_blad', category_ultra_filter: '' },
   { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_scharnieren', category_ultra_filter: '' },
   { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'Deuren', key: 'deur_sloten', category_ultra_filter: '' },

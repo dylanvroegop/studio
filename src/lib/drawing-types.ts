@@ -8,6 +8,11 @@ export interface WallOpening {
     requires_raveelwerk?: boolean;
     onderdorpel?: boolean;
     onderdorpelDikte?: number;
+    // HSB Additions
+    dubbeleStijlLinks?: boolean;
+    dubbeleStijlRechts?: boolean;
+    trimmer?: boolean;
+    headerDikte?: number;
 }
 
 export interface Beam {

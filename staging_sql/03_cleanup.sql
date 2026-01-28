@@ -1,0 +1,1 @@
+DROP TABLE staging_ids_recovery;

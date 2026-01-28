@@ -21,6 +21,7 @@ type Body = {
   // Frontend stuurt soms beide mee; in jouw DB bestaat alleen row_id
   row_id?: unknown;
   id?: unknown;
+  wastePercentage?: unknown;
 };
 
 function isNonEmptyString(v: unknown): v is string {
@@ -75,6 +76,12 @@ export async function POST(req: Request) {
     const eenheid = normalizeString(body.eenheid);
     const prijsNum = parsePriceToNumber(body.prijs);
 
+    // NEW: Handle Waste Percentage (allow decimals)
+    const wastePercentage = typeof body.wastePercentage === 'number'
+      ? body.wastePercentage
+      : (typeof body.wastePercentage === 'string' ? parseFloat(body.wastePercentage) : 0);
+    const validWaste = isNaN(wastePercentage) ? 0 : wastePercentage;
+
     const subsectie =
       normalizeString(body.subsectie) ??
       normalizeString(body.categorie) ??
@@ -104,6 +111,7 @@ export async function POST(req: Request) {
       subsectie,
       leverancier,
       volgorde,
+      waste_percentage: validWaste, // Save to DB
     };
 
     let data: any = null;
@@ -116,7 +124,7 @@ export async function POST(req: Request) {
         .update(payload)
         .eq('row_id', incomingRowId)
         .eq('gebruikerid', uid)
-        .select('row_id,materiaalnaam,eenheid,prijs,subsectie,leverancier,volgorde')
+        .select('row_id,materiaalnaam,eenheid,prijs,subsectie,leverancier,volgorde,waste_percentage')
         .single();
 
       if (upd.error) return jsonFail(upd.error.message || 'Update failed', 500);
@@ -129,7 +137,7 @@ export async function POST(req: Request) {
       const ins = await supabaseAdmin
         .from('materialen')
         .insert(payload)
-        .select('row_id,materiaalnaam,eenheid,prijs,subsectie,leverancier,volgorde')
+        .select('row_id,materiaalnaam,eenheid,prijs,subsectie,leverancier,volgorde,waste_percentage')
         .single();
 
       if (ins.error) return jsonFail(ins.error.message || 'Insert failed', 500);

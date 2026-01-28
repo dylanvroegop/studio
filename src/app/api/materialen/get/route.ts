@@ -28,6 +28,7 @@ export async function GET(req: Request) {
     const { data, error } = await supabaseAdmin
       .from('main_material_list')
       .select('*')
+      .order('order_id', { ascending: true })
       .range(0, 5000);
 
     if (error) throw error;

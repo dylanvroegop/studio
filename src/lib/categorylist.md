@@ -1,37 +1,26 @@
-choose any category that makes sense based on the code, you may add multiple categories if needed. then proceed to rewrite the entire code i send you with the correct categories. 
-
-
-categorylist to choose from;
-
-
-
-Vuren ruw
-
-Vuren geschaafd
-
-Ribben, sls, rachels
-
-Plinten & koplatten
+Vuren hout
 
 Hardhout geschaafd
 
 Merantie
 
+Kozijnhout
+
 Vloer-rabat-vellingdelen
 
-Underlayment
+Constructieplaten
 
 Interieur Platen
 
 Exterieur platen
+
+Afwerking
 
 Deurbeslag
 
 Binnendeuren
 
 Buitendeuren
-
-Montage kozijnen
 
 Metalstud profielen
 
@@ -41,17 +30,9 @@ Brandwerende platen
 
 Rockpanel
 
-Kikern
+Trespa
 
-Glaswol
-
-Steenwol
-
-Pir
-
-Eps
-
-Xps
+Isolatie
 
 Folieën
 
@@ -61,35 +42,19 @@ Lood
 
 Loodvervanger
 
-Epdm folie
-
-Epdm benodigdheden
-
-Epdm afvoeren
+Epdm
 
 Dakrollen
 
 Asfaltsingels
 
-Betonpannen
-
-Gebakken pannen
+Dakpannen
 
 Flexim
 
-Bitumen golfplaten
+Golfplaten
 
-Polyester golfplaten
-
-Pvc golfplaten
-
-Vezelcement golfplaten
-
-Golfplaat afdichting en bevestiging
-
-Velux
-
-Keylite
+Dakramen
 
 Lichtkoepels
 
@@ -97,4 +62,4 @@ Daktoebehoren
 
 Ubbink
 
-Overig < pick if a material really does not exist.>
+Overig
