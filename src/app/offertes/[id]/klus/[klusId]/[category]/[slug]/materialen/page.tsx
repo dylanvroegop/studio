@@ -1025,7 +1025,7 @@ export default function GenericMaterialsPageRedesigned() {
                     ? "bg-muted text-muted-foreground border-border"
                     : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                 )}>
-                  {summaryText}
+                  Ingesteld: {summaryText}
                 </span>
               )}
             </h2>
