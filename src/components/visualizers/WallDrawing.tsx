@@ -40,6 +40,7 @@ export interface WallDrawingProps {
     title?: string;
     doubleTopPlate?: boolean;
     doubleBottomPlate?: boolean;
+    doubleEndBeams?: boolean;
 }
 
 type RenderBeam = {
@@ -83,7 +84,8 @@ export function WallDrawing({
     // onDataGenerated, // Unused
     title,
     doubleTopPlate = false,
-    doubleBottomPlate = false
+    doubleBottomPlate = false,
+    doubleEndBeams = false
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
@@ -298,8 +300,13 @@ export function WallDrawing({
                     segments.forEach((seg) => {
                         if (seg.length <= 0) return;
                         const segBeams: number[] = [seg.startX]; // Start Stud
+                        if (doubleEndBeams) segBeams.push(seg.startX + STUD_W); // Double Start
+
                         const endStudX = seg.startX + seg.length - STUD_W;
-                        if (endStudX > seg.startX + 1) segBeams.push(endStudX); // End Stud
+                        if (endStudX > seg.startX + 1) {
+                            segBeams.push(endStudX); // End Stud
+                            if (doubleEndBeams) segBeams.push(endStudX - STUD_W); // Double End
+                        }
 
                         const numIntervals = Math.floor(seg.length / balkafstandNum);
                         for (let i = 1; i <= numIntervals; i++) {
