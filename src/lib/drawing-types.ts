@@ -15,6 +15,10 @@ export interface WallOpening {
     headerDikte?: number;
     dubbeleBovendorpel?: boolean;
     dubbeleOnderdorpel?: boolean;
+
+    // Explicit Dimensions for Reporting
+    openingWidth?: number;
+    openingHeight?: number;
 }
 
 export interface Beam {
@@ -53,7 +57,7 @@ export interface DrawingData {
         shape: string;
     }[];
     beams: Beam[];
-    openings: WallOpening[];
+    openings?: WallOpening[];
     dimensions: DimensionLine[];
 
     // Raw inputs

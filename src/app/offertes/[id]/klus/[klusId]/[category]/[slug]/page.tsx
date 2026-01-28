@@ -236,7 +236,17 @@ export default function GenericMeasurementPage() {
         const quoteRef = doc(firestore, 'quotes', quoteId);
         const cleanData = (data: any) => data === undefined ? null : JSON.parse(JSON.stringify(data));
 
-        const cleanedItems = cleanData(items) || [];
+        const cleanedItems = (cleanData(items) || []).map((item: any) => {
+          // Enrich Openings with explicit report keys
+          if (item.openings && Array.isArray(item.openings)) {
+            item.openings = item.openings.map((op: any) => ({
+              ...op,
+              openingWidth: op.width,
+              openingHeight: op.height
+            }));
+          }
+          return item;
+        });
         const cleanedComponents = cleanData(components) || [];
         const rawMeta = { title: jobConfig.title, type: categorySlug, slug: jobSlug, description: jobConfig.description || '' };
         const cleanedMeta = cleanData(rawMeta);
@@ -829,6 +839,7 @@ export default function GenericMeasurementPage() {
                         fitContainer={true}
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                        onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
                         className="w-full h-full"
                       />
                     </div>
