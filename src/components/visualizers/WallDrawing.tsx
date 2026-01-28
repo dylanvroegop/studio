@@ -334,13 +334,21 @@ export function WallDrawing({
 
                             const op = openings.find(o => (xMm + STUD_W > o.fromLeft && xMm < o.fromLeft + o.width));
                             if (op) {
-                                const headerY = op.fromBottom + op.height + STUD_W;
-                                const topCripH = studTopMm - headerY;
+                                // Header Height Calculation including Double
+                                const headerThick = op.headerDikte || STUD_W;
+                                const headerBaseY = op.fromBottom + op.height;
+                                const headerTopY = headerBaseY + headerThick + (op.dubbeleBovendorpel ? headerThick : 0);
+
+                                const topCripH = studTopMm - headerTopY; // Start from top of (double) header
                                 if (topCripH > 10) b.push({ ...fullBeam, y: getY(studTopMm), h: topCripH * pxPerMm, type: 'cripple-top' });
 
-                                const sillY = op.fromBottom;
-                                const botCripH = sillY - studBottomMm;
-                                if (botCripH > 10) b.push({ ...fullBeam, y: getY(sillY), h: botCripH * pxPerMm, type: 'cripple-bottom' });
+                                // Sill Height Calculation including Double
+                                const sillThick = op.onderdorpelDikte || STUD_W;
+                                const sillTopY = op.fromBottom;
+                                const sillBottomY = sillTopY - sillThick - (op.dubbeleOnderdorpel ? sillThick : 0);
+
+                                const botCripH = sillBottomY - studBottomMm;
+                                if (botCripH > 10) b.push({ ...fullBeam, y: getY(sillBottomY), h: botCripH * pxPerMm, type: 'cripple-bottom' });
                             } else {
                                 b.push(fullBeam);
                             }
@@ -507,6 +515,18 @@ export function WallDrawing({
                             type: 'header'
                         });
 
+                        // Double Header
+                        if (op.dubbeleBovendorpel) {
+                            const h2Top = headerTopMm + hMmVal;
+                            b.push({
+                                x: WALL_X + op.fromLeft * pxPerMm,
+                                y: getY(h2Top),
+                                w: op.width * pxPerMm,
+                                h: hMmVal * pxPerMm,
+                                type: 'header'
+                            });
+                        }
+
                         // Trimmer (Jack) Support Logic (Visualized INSIDE King)
                         // Uses the space usually reserved for King if enabled?
                         // No, let's keep it simple: separate rendering pass for functionality, but visually just show extra studs.
@@ -540,6 +560,13 @@ export function WallDrawing({
                             // Bottom of sill is `sillTop - sillH`.
                             // So Y is `getY(sillTop)`.
                             b.push({ x: WALL_X + op.fromLeft * pxPerMm, y: getY(op.fromBottom), w: op.width * pxPerMm, h: sillH * pxPerMm, type: 'sill' });
+
+                            // Double Sill
+                            if (op.dubbeleOnderdorpel) {
+                                // Sits below first sill
+                                // Top at `sillTop - sillH`
+                                b.push({ x: WALL_X + op.fromLeft * pxPerMm, y: getY(op.fromBottom - sillH), w: op.width * pxPerMm, h: sillH * pxPerMm, type: 'sill' });
+                            }
                         }
                     });
 

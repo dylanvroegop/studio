@@ -13,6 +13,8 @@ export interface WallOpening {
     dubbeleStijlRechts?: boolean;
     trimmer?: boolean;
     headerDikte?: number;
+    dubbeleBovendorpel?: boolean;
+    dubbeleOnderdorpel?: boolean;
 }
 
 export interface Beam {

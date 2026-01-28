@@ -582,6 +582,30 @@ export default function GenericMeasurementPage() {
                                         }}
                                       />
                                     </div>
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Bovendorpel</Label>
+                                      <Switch
+                                        checked={op.dubbeleBovendorpel || false}
+                                        onCheckedChange={(c) => {
+                                          const n = [...(item.openings || [])];
+                                          n[opIdx] = { ...op, dubbeleBovendorpel: c };
+                                          updateItem(index, 'openings', n);
+                                        }}
+                                        className="scale-75 origin-right"
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Onderdorpel</Label>
+                                      <Switch
+                                        checked={op.dubbeleOnderdorpel || false}
+                                        onCheckedChange={(c) => {
+                                          const n = [...(item.openings || [])];
+                                          n[opIdx] = { ...op, dubbeleOnderdorpel: c };
+                                          updateItem(index, 'openings', n);
+                                        }}
+                                        className="scale-75 origin-right"
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               )}
