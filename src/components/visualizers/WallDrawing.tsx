@@ -38,6 +38,8 @@ export interface WallDrawingProps {
     startFromRight?: boolean;
     onDataGenerated?: (data: DrawingData) => void;
     title?: string;
+    doubleTopPlate?: boolean;
+    doubleBottomPlate?: boolean;
 }
 
 type RenderBeam = {
@@ -79,7 +81,9 @@ export function WallDrawing({
     isMagnifier,
     // startFromRight, // Unused
     // onDataGenerated, // Unused
-    title
+    title,
+    doubleTopPlate = false,
+    doubleBottomPlate = false
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
@@ -310,17 +314,25 @@ export function WallDrawing({
                             const center = xMm + HALF_STUD;
                             const wt = getWallTopMm(center);
                             const wb = getWallBottomMm(center);
-                            const hMm = (wt - PLATE_HEIGHT_MM) - (wb + PLATE_HEIGHT_MM);
-                            const fullBeam = { x: WALL_X + xMm * pxPerMm, y: getY(wt - PLATE_HEIGHT_MM), w: timberW, h: hMm * pxPerMm, type: 'stud', xMm, yMm: wb + PLATE_HEIGHT_MM, hMm };
+
+                            const topPlatesCount = doubleTopPlate ? 2 : 1;
+                            const bottomPlatesCount = doubleBottomPlate ? 2 : 1;
+
+                            // Adjust stud height for double plates
+                            const studTopMm = wt - (PLATE_HEIGHT_MM * topPlatesCount);
+                            const studBottomMm = wb + (PLATE_HEIGHT_MM * bottomPlatesCount);
+                            const hMm = studTopMm - studBottomMm;
+
+                            const fullBeam = { x: WALL_X + xMm * pxPerMm, y: getY(studTopMm), w: timberW, h: hMm * pxPerMm, type: 'stud', xMm, yMm: studBottomMm, hMm };
 
                             const op = openings.find(o => (xMm + STUD_W > o.fromLeft && xMm < o.fromLeft + o.width));
                             if (op) {
                                 const headerY = op.fromBottom + op.height + STUD_W;
-                                const topCripH = (wt - PLATE_HEIGHT_MM) - headerY;
-                                if (topCripH > 10) b.push({ ...fullBeam, y: getY(wt - PLATE_HEIGHT_MM), h: topCripH * pxPerMm, type: 'cripple-top' });
+                                const topCripH = studTopMm - headerY;
+                                if (topCripH > 10) b.push({ ...fullBeam, y: getY(studTopMm), h: topCripH * pxPerMm, type: 'cripple-top' });
 
                                 const sillY = op.fromBottom;
-                                const botCripH = sillY - (wb + PLATE_HEIGHT_MM);
+                                const botCripH = sillY - studBottomMm;
                                 if (botCripH > 10) b.push({ ...fullBeam, y: getY(sillY), h: botCripH * pxPerMm, type: 'cripple-bottom' });
                             } else {
                                 b.push(fullBeam);
@@ -528,20 +540,27 @@ export function WallDrawing({
                 })();
 
                 // Plate Paths Generation
-                let topPlatePath = '';
-                if (shape === 'slope') {
-                    topPlatePath = `${WALL_X},${getY(hLeft)} ${WALL_X + WALL_WIDTH},${getY(hRight)} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT}`;
-                } else if (shape === 'gable') {
-                    const midX = WALL_X + WALL_WIDTH / 2;
-                    const peakY = getY(hPeak);
-                    topPlatePath = `${WALL_X},${getY(hLeft)} ${midX},${peakY} ${WALL_X + WALL_WIDTH},${getY(hRight)} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT} ${midX},${peakY + PLATE_HEIGHT} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT}`;
-                } else {
-                    topPlatePath = `${WALL_X},${getY(hLeft)} ${WALL_X + WALL_WIDTH},${getY(hRight)} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT}`;
-                }
+                const generateTopPlatePath = (offsetLevel: number) => {
+                    const extraY = offsetLevel * PLATE_HEIGHT;
+                    if (shape === 'slope') {
+                        return `${WALL_X},${getY(hLeft) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
+                    } else if (shape === 'gable') {
+                        const midX = WALL_X + WALL_WIDTH / 2;
+                        const peakY = getY(hPeak);
+                        return `${WALL_X},${getY(hLeft) + extraY} ${midX},${peakY + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${midX},${peakY + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
+                    } else {
+                        return `${WALL_X},${getY(hLeft) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
+                    }
+                };
 
-                let bottomPlatePath = '';
+                const topPlatePath = generateTopPlatePath(0);
+                const topPlate2Path = doubleTopPlate ? generateTopPlatePath(1) : null;
+
                 const yBot = getY(0);
-                bottomPlatePath = `${WALL_X},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot} ${WALL_X},${yBot}`;
+                // Bottom plate 1 (Lowest)
+                const bottomPlatePath = `${WALL_X},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot} ${WALL_X},${yBot}`;
+                // Bottom plate 2 (On top of lowest)
+                const bottomPlate2Path = doubleBottomPlate ? `${WALL_X},${yBot - (PLATE_HEIGHT * 2)} ${WALL_X + WALL_WIDTH},${yBot - (PLATE_HEIGHT * 2)} ${WALL_X + WALL_WIDTH},${yBot - PLATE_HEIGHT} ${WALL_X},${yBot - PLATE_HEIGHT}` : null;
 
                 // Calculate Segments for Dimensions
                 const segments: { len: number }[] = [];
@@ -551,7 +570,10 @@ export function WallDrawing({
                 return (
                     <>
                         <polygon points={topPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        {topPlate2Path && <polygon points={topPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
+
                         <polygon points={bottomPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
                         {beams.map((b, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
 
                         {openings.map((op) => {
