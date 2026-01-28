@@ -112,5 +112,17 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
             { label: 'Installatiekabel', categoryFilter: 'Overig', category: 'Installatie', key: 'elektrakabel', category_ultra_filter: '' },
             { label: 'Stopcontacten & Schakelaars', categoryFilter: 'Overig', category: 'Schakelmateriaal', key: 'schakelmateriaal_basis', category_ultra_filter: '' },
         ]
+    },
+    // 8. Naden & Stucwerk (Gips Afwerking)
+    gips: {
+        title: 'Naden & Stucwerk',
+        description: 'Afwerking van naden en stucwerk',
+        measurements: [], // No measurements needed for now
+        defaultMaterials: [
+            { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+            { label: 'Wapeningsband', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'gips_wapening', category_ultra_filter: '' },
+            { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+            { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'gips_finish', category_ultra_filter: '' },
+        ]
     }
 };

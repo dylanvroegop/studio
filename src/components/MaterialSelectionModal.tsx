@@ -130,6 +130,7 @@ interface MaterialSelectionModalProps {
   showFavorites?: boolean;
   categoryTitle?: string;
   initialWastePercentage?: number;
+  onUpdateWaste?: (percentage: number) => void;
 }
 
 export function MaterialSelectionModal({
@@ -142,7 +143,8 @@ export function MaterialSelectionModal({
   onToggleFavorite,
   showFavorites = true,
   categoryTitle,
-  initialWastePercentage = 0
+  initialWastePercentage = 0,
+  onUpdateWaste
 }: MaterialSelectionModalProps) {
 
   const [step, setStep] = useState<'search' | 'choice' | 'form'>('search');
@@ -150,7 +152,7 @@ export function MaterialSelectionModal({
   const [error, setError] = useState<string | null>(null);
 
   // Waste Percentage State
-  const [wastePercentage, setWastePercentage] = useState<number>(initialWastePercentage);
+  const [wastePercentage, setWastePercentage] = useState<number>(initialWastePercentage || 0);
   const [isEditingWaste, setIsEditingWaste] = useState(false);
 
   // Search & Filter State
@@ -404,8 +406,15 @@ export function MaterialSelectionModal({
     }
   };
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen && onUpdateWaste) {
+      onUpdateWaste(wastePercentage);
+    }
+    onOpenChange(isOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
           "sm:max-w-[640px] w-full p-0 transition-all duration-200",
@@ -446,9 +455,15 @@ export function MaterialSelectionModal({
                           if (!isNaN(val) && val >= 0) setWastePercentage(val);
                           else if (e.target.value === '') setWastePercentage(0);
                         }}
-                        onBlur={() => setIsEditingWaste(false)}
+                        onBlur={() => {
+                          setIsEditingWaste(false);
+                          if (onUpdateWaste) onUpdateWaste(wastePercentage);
+                        }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') setIsEditingWaste(false);
+                          if (e.key === 'Enter') {
+                            setIsEditingWaste(false);
+                            if (onUpdateWaste) onUpdateWaste(wastePercentage);
+                          }
                         }}
                       />
                       <span className="text-xs text-muted-foreground pr-1">%</span>
@@ -814,10 +829,9 @@ export function MaterialSelectionModal({
               </Button>
             </DialogFooter>
           </div>
-        )
-        }
-      </DialogContent >
-    </Dialog >
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

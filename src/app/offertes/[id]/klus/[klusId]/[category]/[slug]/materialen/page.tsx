@@ -281,7 +281,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
       <div
         onClick={onClick}
         className={cn(
-          "group relative flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 rounded-lg border transition-all gap-1 sm:gap-4 cursor-pointer",
+          "group relative flex flex-col sm:flex-row sm:items-center justify-between py-1.5 px-4 rounded-lg border transition-all gap-1 sm:gap-4 cursor-pointer",
           selected ? "border-emerald-500/20 bg-emerald-500/5" : "border-border hover:bg-accent/40"
         )}
       >
@@ -300,7 +300,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
           <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial sm:justify-end">
             {selected ? (
               <>
-                <span className="text-xs font-medium text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-md break-words text-left sm:text-right leading-tight">
+                <span className="text-xs font-medium text-emerald-500 break-words text-left sm:text-right leading-tight">
                   {selected.materiaalnaam}
                 </span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
@@ -622,6 +622,8 @@ export default function GenericMaterialsPageRedesigned() {
         if (k === 'Toegang' || k === 'Vliering_Toegang' || lower.includes('vlizotrap') || lower.includes('toegang')) type = 'vlizotrap';
         else if (k === 'Koof') type = 'leidingkoof';
       }
+
+      if (k === 'gips_afwerking' || lower.includes('gips')) type = 'gips';
 
       if (type) types.add(type);
     });
@@ -1468,7 +1470,7 @@ export default function GenericMaterialsPageRedesigned() {
                   (keyA === 'boeiboord' || (keyA as string).toLowerCase() === 'boeiboorden') ||
                   keyA === 'Installatie' || keyA === 'Schakelmateriaal' ||
                   keyA === 'Dagkant' || keyA === 'Vensterbank'
-                )) || (isCeilingJob && (isVlizotrapSectionA || keyA === 'Koof' || keyA === 'Installatie' || keyA === 'Schakelmateriaal'));
+                )) || (isCeilingJob && (isVlizotrapSectionA || keyA === 'Koof' || keyA === 'Installatie' || keyA === 'Schakelmateriaal')) || (keyA === 'gips_afwerking');
 
                 const isBComponentSection = (isComplexJob && (
                   keyB === 'Kozijnen' || (keyB as string).toLowerCase() === 'kozijnen' ||
@@ -1477,7 +1479,7 @@ export default function GenericMaterialsPageRedesigned() {
                   (keyB === 'boeiboord' || (keyB as string).toLowerCase() === 'boeiboorden') ||
                   keyB === 'Installatie' || keyB === 'Schakelmateriaal' ||
                   keyB === 'Dagkant' || keyB === 'Vensterbank'
-                )) || (isCeilingJob && (isVlizotrapSectionB || keyB === 'Koof' || keyB === 'Installatie' || keyB === 'Schakelmateriaal'));
+                )) || (isCeilingJob && (isVlizotrapSectionB || keyB === 'Koof' || keyB === 'Installatie' || keyB === 'Schakelmateriaal')) || (keyB === 'gips_afwerking');
 
                 // Push component sections to the end
                 if (isAComponentSection && !isBComponentSection) return 1;
@@ -1501,6 +1503,7 @@ export default function GenericMaterialsPageRedesigned() {
                 const isInstallatieSection = categoryKey === 'Installatie' || categoryKey === 'Schakelmateriaal';
                 const isDagkantSection = categoryKey === 'Dagkant';
                 const isVensterbankSection = categoryKey === 'Vensterbank';
+                const isGipsSection = categoryKey === 'gips_afwerking';
 
                 let targetComponentType: JobComponentType | null = null;
                 if (isComplexJob) {
@@ -1517,6 +1520,8 @@ export default function GenericMaterialsPageRedesigned() {
                   if (isVlizotrapSection) targetComponentType = 'vlizotrap';
                   else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
                 }
+
+                if (isGipsSection) targetComponentType = 'gips';
 
                 return (
                   <div key={categoryKey} className="space-y-2">
@@ -1544,6 +1549,15 @@ export default function GenericMaterialsPageRedesigned() {
                               materiaalKeuzes: {}
                             };
                             setComponents(prev => [...prev, newInstallatie]);
+                          } else if (targetComponentType === 'gips') {
+                            const newGips = {
+                              id: `gips-${Date.now()}`,
+                              type: 'gips' as const,
+                              label: 'Naden & Stucwerk',
+                              measurements: {},
+                              materiaalKeuzes: {}
+                            };
+                            setComponents(prev => [...prev, newGips]);
                           } else {
                             setActiveComponentType(targetComponentType);
                             setKozijnenModalOpen(true);
@@ -1565,7 +1579,8 @@ export default function GenericMaterialsPageRedesigned() {
                                     (targetComponentType === 'installatie' ? 'Installatie' :
                                       (targetComponentType === 'dagkant' ? 'Dagkant' :
                                         (targetComponentType === 'vensterbank' ? 'Vensterbank' :
-                                          'Boeiboord'))))))
+                                          (targetComponentType === 'gips' ? 'Naden & Stucwerk' :
+                                            'Boeiboord')))))))
                           } toevoegen</span>
                         </div>
                       ) : (
@@ -1835,14 +1850,18 @@ export default function GenericMaterialsPageRedesigned() {
         {/* Public Job Notes Section - Matching Measurement Page Style */}
         <div className="space-y-3 pt-6 border-t border-white/5">
           <div>
-            <h3 className="text-lg font-medium text-foreground">Notities (voor calculatie)</h3>
-            <p className="text-sm text-muted-foreground">Deze opmerkingen worden meegenomen in de calculatie en kunnen (indien gewenst) op de offerte verschijnen.</p>
+            <h3 className="text-lg font-medium text-foreground">Slimme Notities</h3>
+            <p className="text-sm text-muted-foreground">Onze assistent begrijpt vrije tekst. Type simpelweg wat je extra nodig hebt en de geschatte prijs; wij voegen het toe aan de calculatie.</p>
           </div>
           <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
             <Textarea
               value={notities}
               onChange={(e) => setNotities(e.target.value)}
-              placeholder="Bijv: Let op, muur is scheef. Extra gips nodig."
+              placeholder={`Bijv.
+- Gebruik tellerkoppers 8x140 voor boven wand vast zetten.
+doos 50 st kost 25 euro.
+- Gebruik bij tussenstaanders bathoeken van 45x45 in het midden voor versteviging.
+prijs kost ongeveer 30 cent per stuk.`}
               className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
             />
           </div>
@@ -2002,7 +2021,42 @@ export default function GenericMaterialsPageRedesigned() {
 
       <MaterialSelectionModal
         open={isExtraModalOpen}
-        onOpenChange={setIsExtraModalOpen}
+        onOpenChange={(open) => {
+          setIsExtraModalOpen(open);
+          if (!open) {
+            setActiveComponentId(null);
+            setActieveSectie(null);
+            setActiveGroupId(null);
+          }
+        }}
+        onUpdateWaste={(newWaste) => {
+          if (activeComponentId && actieveSectie) {
+            setComponents(prev => prev.map(c => {
+              if (c.id !== activeComponentId) return c;
+              const mats = c.materials || [];
+              const idx = mats.findIndex((m: any) => m.sectionKey === actieveSectie);
+              if (idx === -1) return c;
+              const newMats = [...mats];
+              newMats[idx] = { ...newMats[idx], material: { ...newMats[idx].material, wastePercentage: newWaste } };
+              return { ...c, materials: newMats };
+            }));
+          } else if (activeGroupId) {
+            setCustomGroups(prev => prev.map(g => {
+              if (g.id !== activeGroupId) return g;
+              const mats = g.materials || [];
+              if (mats.length === 0) return g;
+              const newMats = [...mats];
+              newMats[0] = { ...newMats[0], wastePercentage: newWaste };
+              return { ...g, materials: newMats };
+            }));
+          } else if (actieveSectie) {
+            setGekozenMaterialen(prev => {
+              const current = prev[actieveSectie] || {};
+              // Ensure we preserve existing properties or create new object if empty
+              return { ...prev, [actieveSectie]: { ...current, wastePercentage: newWaste, quantity: (current as any).quantity || 1 } };
+            });
+          }
+        }}
         existingMaterials={enrichedMaterials}
         showFavorites={actieveSectie !== 'extra' && !activeGroupId && !activeComponentId}
         defaultCategory={(() => {
@@ -2037,7 +2091,7 @@ export default function GenericMaterialsPageRedesigned() {
           if (activeComponentId && actieveSectie) {
             const comp = components.find(c => c.id === activeComponentId);
             const mat = comp?.materials?.find((m: any) => m.sectionKey === actieveSectie)?.material;
-            return mat?.wastePercentage || 0;
+            return (mat as any)?.wastePercentage || 0;
           }
           if (actieveSectie) {
             return (gekozenMaterialen[actieveSectie] as any)?.wastePercentage || 0;

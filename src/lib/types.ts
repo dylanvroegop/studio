@@ -146,7 +146,7 @@ export type Job = {
   };
 };
 
-export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank' | 'vlizotrap' | 'leidingkoof' | 'installatie' | 'dagkant';
+export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank' | 'vlizotrap' | 'leidingkoof' | 'installatie' | 'dagkant' | 'gips';
 
 export interface JobComponent {
   id: string; // Unique ID (child ID)

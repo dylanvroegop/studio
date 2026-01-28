@@ -1355,7 +1355,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek wandtype...',
     items: [
       {
-        title: 'HSB Wand',
+        title: 'HSB Voorzetwand',
         description: 'Enkelzijdig Bekleed',
         slug: 'hsb-voorzetwand',
         measurementLabel: 'Wand',

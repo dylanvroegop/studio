@@ -785,14 +785,18 @@ export default function GenericMeasurementPage() {
             {/* Public Job Notes Section */}
             <div className="space-y-3 pt-6 border-t border-white/5">
               <div>
-                <h3 className="text-lg font-medium text-foreground">Notities (voor calculatie)</h3>
-                <p className="text-sm text-muted-foreground">Deze opmerkingen worden meegenomen in de calculatie en kunnen (indien gewenst) op de offerte verschijnen.</p>
+                <h3 className="text-lg font-medium text-foreground">Slimme Notities</h3>
+                <p className="text-sm text-muted-foreground">Onze assistent begrijpt vrije tekst. Type simpelweg wat je extra nodig hebt en de geschatte prijs; wij voegen het toe aan de calculatie.</p>
               </div>
               <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
                 <Textarea
                   value={notities}
                   onChange={(e) => setNotities(e.target.value)}
-                  placeholder="Bijv: Let op, muur is scheef. Extra gips nodig."
+                  placeholder={`Bijv.
+- Gebruik tellerkoppers 8x140 voor boven wand vast zetten.
+doos 50 st kost 25 euro.
+- Gebruik bij tussenstaanders bathoeken van 45x45 in het midden voor versteviging.
+prijs kost ongeveer 30 cent per stuk.`}
                   className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
                 />
               </div>
