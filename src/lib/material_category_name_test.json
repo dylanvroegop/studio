@@ -471,7 +471,7 @@
     },
     {
         "categorie": "Agnes platen",
-        "materiaalnaam": "Agnes Plafondlijst Wit Linnen 44x8mm 2600mm lang",
+        "materiaalnaam": "Agnes Plafondlijst Wit Linnen 8x44mm 2600mm lang",
         "dikte": "8mm",
         "breedte": "44mm",
         "lengte": "260cm",
@@ -483,7 +483,7 @@
     },
     {
         "categorie": "Agnes platen",
-        "materiaalnaam": "Agnes Plafondlijst Wit Structuur 44x8mm 2600mm lang",
+        "materiaalnaam": "Agnes Plafondlijst Wit Structuur 8x44mm 2600mm lang",
         "dikte": "8mm",
         "breedte": "44mm",
         "lengte": "260cm",
@@ -495,7 +495,7 @@
     },
     {
         "categorie": "Agnes platen",
-        "materiaalnaam": "Agnes Plafondlijst Wit Stucco 2600x44x8mm 2600mm lang",
+        "materiaalnaam": "Agnes Plafondlijst Wit Stucco 2600x8x44mm 2600mm lang",
         "dikte": "8mm",
         "breedte": "44mm",
         "lengte": "260cm",
@@ -2162,7 +2162,7 @@
     },
     {
         "categorie": "Buitendeuren",
-        "materiaalnaam": "Weldorpel Merbau 65x34mm 1060mm lang",
+        "materiaalnaam": "Weldorpel Merbau 34x65mm 1060mm lang",
         "dikte": "34 mm",
         "breedte": "65 mm",
         "lengte": "1060 mm",
@@ -2173,7 +2173,7 @@
     },
     {
         "categorie": "Buitendeuren",
-        "materiaalnaam": "Weldorpel Merbau 65x34mm 1200mm lang",
+        "materiaalnaam": "Weldorpel Merbau 34x65mm 1200mm lang",
         "dikte": "34 mm",
         "breedte": "65 mm",
         "lengte": "1200 mm",
@@ -2184,7 +2184,7 @@
     },
     {
         "categorie": "Buitendeuren",
-        "materiaalnaam": "Weldorpel Merbau 65x34mm 4250mm lang",
+        "materiaalnaam": "Weldorpel Merbau 34x65mm 4250mm lang",
         "dikte": "34 mm",
         "breedte": "65 mm",
         "lengte": "4250 mm",
@@ -6074,7 +6074,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Gibolat Meranti Wit Gegrond 96x26mm 3050mm lang",
+        "materiaalnaam": "Gibolat Meranti Wit Gegrond 26x96mm 3050mm lang",
         "dikte": "26mm",
         "breedte": "96 mm",
         "lengte": "3050 mm",
@@ -6085,7 +6085,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Geschaafd 90x12mm 2750mm lang",
+        "materiaalnaam": "Hardhout Geschaafd 12x90mm 2750mm lang",
         "dikte": "12mm",
         "breedte": "90mm",
         "lengte": "275 cm",
@@ -6096,7 +6096,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Geschaafd 45x19mm 2450mm lang",
+        "materiaalnaam": "Hardhout Geschaafd 19x45mm 2450mm lang",
         "dikte": "19mm",
         "breedte": "45mm",
         "lengte": "245 cm",
@@ -6107,7 +6107,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 45x19mm 3650mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 19x45mm 3650mm lang",
         "dikte": "19mm",
         "breedte": "45mm",
         "lengte": "365cm",
@@ -6118,7 +6118,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 45x19mm 2750mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 19x45mm 2750mm lang",
         "dikte": "19mm",
         "breedte": "45mm",
         "lengte": "2750 mm",
@@ -6129,7 +6129,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 68x19mm 2750mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 19x68mm 2750mm lang",
         "dikte": "19mm",
         "breedte": "68mm",
         "lengte": "2750 mm",
@@ -6140,7 +6140,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 90x19mm 2750mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 19x90mm 2750mm lang",
         "dikte": "19mm",
         "breedte": "90mm",
         "lengte": "2750 mm",
@@ -6151,7 +6151,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Geschaafd 120x19mm 2750mm lang",
+        "materiaalnaam": "Hardhout Geschaafd 19x120mm 2750mm lang",
         "dikte": "19mm",
         "breedte": "120 mm",
         "lengte": "275 cm",
@@ -6162,7 +6162,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 190x19mm 2450mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 19x190mm 2450mm lang",
         "dikte": "19mm",
         "breedte": "190mm",
         "lengte": "2450 mm",
@@ -6173,7 +6173,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Geschaafd 45x28mm 2750mm lang",
+        "materiaalnaam": "Hardhout Geschaafd 28x45mm 2750mm lang",
         "dikte": "28mm",
         "breedte": "45mm",
         "lengte": "275 cm",
@@ -6184,7 +6184,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 120x28mm 2750mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 28x120mm 2750mm lang",
         "dikte": "28mm",
         "breedte": "120mm",
         "lengte": "2750 mm",
@@ -6195,7 +6195,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 120x28mm 3050mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 28x120mm 3050mm lang",
         "dikte": "28mm",
         "breedte": "120mm",
         "lengte": "3050 mm",
@@ -6206,7 +6206,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Mahonie Geschaafd 130x80mm 3250mm lang",
+        "materiaalnaam": "Mahonie Geschaafd 80x130mm 3250mm lang",
         "dikte": "80mm",
         "breedte": "130mm",
         "lengte": "325 cm",
@@ -6217,7 +6217,7 @@
     },
     {
         "categorie": "Hardhout geschaafd",
-        "materiaalnaam": "Mahonie Geschaafd 130x80mm 3450mm lang",
+        "materiaalnaam": "Mahonie Geschaafd 80x130mm 3450mm lang",
         "dikte": "80mm",
         "breedte": "130mm",
         "lengte": "345 cm",
@@ -8826,7 +8826,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "DR Meranti KD 310x26mm 5200mm lang",
+        "materiaalnaam": "DR Meranti KD 26x310mm 5200mm lang",
         "dikte": "26mm",
         "breedte": "310mm",
         "lengte": "520 cm",
@@ -8837,7 +8837,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "DR Meranti KD 310x46mm 3350mm lang",
+        "materiaalnaam": "DR Meranti KD 46x310mm 3350mm lang",
         "dikte": "46mm",
         "breedte": "310mm",
         "lengte": "335 cm",
@@ -8848,7 +8848,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "DR Meranti KD 90x65mm 2750mm lang",
+        "materiaalnaam": "DR Meranti KD 65x90mm 2750mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "275 cm",
@@ -8859,7 +8859,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "DR Meranti KD 180x105mm 2750mm lang",
+        "materiaalnaam": "DR Meranti KD 105x180mm 2750mm lang",
         "dikte": "105mm",
         "breedte": "180mm",
         "lengte": "275 cm",
@@ -8870,7 +8870,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "DR Meranti KD 180x105mm 5500mm lang",
+        "materiaalnaam": "DR Meranti KD 105x180mm 5500mm lang",
         "dikte": "105mm",
         "breedte": "180mm",
         "lengte": "550 cm",
@@ -8881,7 +8881,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 255x46mm 2750mm lang",
+        "materiaalnaam": "Meranti Ruw 46x255mm 2750mm lang",
         "dikte": "26mm",
         "breedte": "255mm",
         "lengte": "275 cm",
@@ -8892,7 +8892,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 310x26mm 2450mm lang",
+        "materiaalnaam": "Meranti Ruw 26x310mm 2450mm lang",
         "dikte": "26mm",
         "breedte": "310mm",
         "lengte": "245 cm",
@@ -8903,7 +8903,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 310x65mm 2750mm lang",
+        "materiaalnaam": "Meranti Ruw 65x310mm 2750mm lang",
         "dikte": "26mm",
         "breedte": "310mm",
         "lengte": "275 cm",
@@ -8914,7 +8914,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 310x26mm 3050mm lang",
+        "materiaalnaam": "Meranti Ruw 26x310mm 3050mm lang",
         "dikte": "26mm",
         "breedte": "310mm",
         "lengte": "305 cm",
@@ -8925,7 +8925,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 310x26mm 5200mm lang",
+        "materiaalnaam": "Meranti Ruw 26x310mm 5200mm lang",
         "dikte": "26mm",
         "breedte": "310mm",
         "lengte": "520 cm",
@@ -8936,7 +8936,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 255x46mm 2750mm lang",
+        "materiaalnaam": "Meranti Ruw 46x255mm 2750mm lang",
         "dikte": "46mm",
         "breedte": "255mm",
         "lengte": "275 cm",
@@ -8947,7 +8947,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 255x46mm 4300mm lang",
+        "materiaalnaam": "Meranti Ruw 46x255mm 4300mm lang",
         "dikte": "46mm",
         "breedte": "255mm",
         "lengte": "430 cm",
@@ -8958,7 +8958,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 255x46mm 4600mm lang",
+        "materiaalnaam": "Meranti Ruw 46x255mm 4600mm lang",
         "dikte": "46mm",
         "breedte": "255mm",
         "lengte": "460 cm",
@@ -8969,7 +8969,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 255x46mm 4900mm lang",
+        "materiaalnaam": "Meranti Ruw 46x255mm 4900mm lang",
         "dikte": "46mm",
         "breedte": "255mm",
         "lengte": "490 cm",
@@ -8980,7 +8980,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 255x46mm 5200mm lang",
+        "materiaalnaam": "Meranti Ruw 46x255mm 5200mm lang",
         "dikte": "46mm",
         "breedte": "255mm",
         "lengte": "520 cm",
@@ -8991,7 +8991,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 255x46mm 5500mm lang",
+        "materiaalnaam": "Meranti Ruw 46x255mm 5500mm lang",
         "dikte": "46mm",
         "breedte": "255mm",
         "lengte": "550 cm",
@@ -9002,7 +9002,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 310x46mm 3050mm lang",
+        "materiaalnaam": "Meranti Ruw 46x310mm 3050mm lang",
         "dikte": "46mm",
         "breedte": "310mm",
         "lengte": "305 cm",
@@ -9013,7 +9013,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 90x65mm 3050mm lang",
+        "materiaalnaam": "Meranti Ruw 65x90mm 3050mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "305 cm",
@@ -9024,7 +9024,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 90x65mm 3650mm lang",
+        "materiaalnaam": "Meranti Ruw 65x90mm 3650mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "365 cm",
@@ -9035,7 +9035,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 90x65mm 4300mm lang",
+        "materiaalnaam": "Meranti Ruw 65x90mm 4300mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "430 cm",
@@ -9046,7 +9046,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 90x65mm 4600mm lang",
+        "materiaalnaam": "Meranti Ruw 65x90mm 4600mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "460 cm",
@@ -9057,7 +9057,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 90x65mm 4900mm lang",
+        "materiaalnaam": "Meranti Ruw 65x90mm 4900mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "490 cm",
@@ -9068,7 +9068,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 90x65mm 5500mm lang",
+        "materiaalnaam": "Meranti Ruw 65x90mm 5500mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "550 cm",
@@ -9079,7 +9079,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 90x65mm 5800mm lang",
+        "materiaalnaam": "Meranti Ruw 65x90mm 5800mm lang",
         "dikte": "65mm",
         "breedte": "90mm",
         "lengte": "580 cm",
@@ -9090,7 +9090,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 130x80mm 2450mm lang",
+        "materiaalnaam": "Meranti Ruw 80x130mm 2450mm lang",
         "dikte": "80mm",
         "breedte": "130mm",
         "lengte": "245 cm",
@@ -9101,7 +9101,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 130x80mm 2750mm lang",
+        "materiaalnaam": "Meranti Ruw 80x130mm 2750mm lang",
         "dikte": "80mm",
         "breedte": "130mm",
         "lengte": "275 cm",
@@ -9112,7 +9112,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 130x80mm 4000mm lang",
+        "materiaalnaam": "Meranti Ruw 80x130mm 4000mm lang",
         "dikte": "80mm",
         "breedte": "130mm",
         "lengte": "400 cm",
@@ -9123,7 +9123,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 130x105mm 5500mm lang",
+        "materiaalnaam": "Meranti Ruw 105x130mm 5500mm lang",
         "dikte": "105mm",
         "breedte": "130mm",
         "lengte": "550 cm",
@@ -9134,7 +9134,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 130x105mm 5800mm lang",
+        "materiaalnaam": "Meranti Ruw 105x130mm 5800mm lang",
         "dikte": "105mm",
         "breedte": "130mm",
         "lengte": "580 cm",
@@ -9145,7 +9145,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 130x105mm 6100mm lang",
+        "materiaalnaam": "Meranti Ruw 105x130mm 6100mm lang",
         "dikte": "105mm",
         "breedte": "130mm",
         "lengte": "610 cm",
@@ -9156,7 +9156,7 @@
     },
     {
         "categorie": "Merantie",
-        "materiaalnaam": "Meranti Ruw 180x105mm 5200mm lang",
+        "materiaalnaam": "Meranti Ruw 105x180mm 5200mm lang",
         "dikte": "105mm",
         "breedte": "180mm",
         "lengte": "520 cm",
@@ -9464,7 +9464,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 110x67mm 1200mm lang",
+        "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 67x110mm 1200mm lang",
         "dikte": "67mm",
         "breedte": "110mm",
         "lengte": "120 cm",
@@ -9490,7 +9490,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 110x67mm 2400mm lang",
+        "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 67x110mm 2400mm lang",
         "dikte": "67mm",
         "breedte": "110mm",
         "lengte": "240 cm",
@@ -9516,7 +9516,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 110x67mm 6000mm lang",
+        "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 67x110mm 6000mm lang",
         "dikte": "67mm",
         "breedte": "110mm",
         "lengte": "600 cm",
@@ -9529,7 +9529,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "KH Onderdorpel 110x66mm 3650mm lang",
+        "materiaalnaam": "KH Onderdorpel 66x110mm 3650mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "365 cm",
@@ -9540,7 +9540,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "KH Stijl 110x66mm 4600mm lang",
+        "materiaalnaam": "KH Stijl 66x110mm 4600mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "460 cm",
@@ -9551,7 +9551,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 1150mm lang (Profiel A+)",
+        "materiaalnaam": "Kozijnhout Bovendorpel Wit 66x110mm 1150mm lang (Profiel A+)",
         "dikte": "66X110",
         "lengte": "115 cm",
         "kleur": "WIT",
@@ -9562,7 +9562,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 2950mm lang (Profiel A+)",
+        "materiaalnaam": "Kozijnhout Bovendorpel Wit 66x110mm 2950mm lang (Profiel A+)",
         "dikte": "66X110",
         "lengte": "295 cm",
         "kleur": "WIT",
@@ -9573,7 +9573,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 5900mm lang (Profiel C)",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 5900mm lang (Profiel C)",
         "dikte": "66X110",
         "lengte": "590 cm",
         "kleur": "WIT",
@@ -9584,7 +9584,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 1150mm lang",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 1150mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "115 cm",
@@ -9596,7 +9596,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 1150mm lang",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 1150mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "115 cm",
@@ -9608,7 +9608,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Stijl Wit 110x66mm 1150mm lang",
+        "materiaalnaam": "Kozijnhout Stijl Wit 66x110mm 1150mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "115 cm",
@@ -9620,7 +9620,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 1150mm lang",
+        "materiaalnaam": "Kozijnhout Tussenstijl Wit 66x110mm 1150mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "115 cm",
@@ -9632,7 +9632,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 2350mm lang (Profiel A+)",
+        "materiaalnaam": "Kozijnhout Bovendorpel Wit 66x110mm 2350mm lang (Profiel A+)",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "235 cm",
@@ -9644,7 +9644,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2350mm lang",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 2350mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "235 cm",
@@ -9656,7 +9656,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2350mm lang",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 2350mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "235 cm",
@@ -9668,7 +9668,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Stijl Wit Hardhout 110x66mm 2350mm lang",
+        "materiaalnaam": "Kozijnhout Stijl Wit Hardhout 66x110mm 2350mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "235 cm",
@@ -9680,7 +9680,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 2350mm lang",
+        "materiaalnaam": "Kozijnhout Tussenstijl Wit 66x110mm 2350mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "235 cm",
@@ -9692,7 +9692,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2950mm lang",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 2950mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "295 cm",
@@ -9704,7 +9704,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2950mm lang",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 2950mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "295 cm",
@@ -9716,7 +9716,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Stijl Wit 110x66mm 2950mm lang",
+        "materiaalnaam": "Kozijnhout Stijl Wit 66x110mm 2950mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "295 cm",
@@ -9728,7 +9728,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 2950mm lang",
+        "materiaalnaam": "Kozijnhout Tussenstijl Wit 66x110mm 2950mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "295 cm",
@@ -9740,7 +9740,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Stijl Blank Hardhout 110x66mm 3650mm lang",
+        "materiaalnaam": "Kozijnhout Stijl Blank Hardhout 66x110mm 3650mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "365 cm",
@@ -9752,7 +9752,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Blank 110x66mm 4000mm lang",
+        "materiaalnaam": "Kozijnhout Onderdorpel Blank 66x110mm 4000mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "400 cm",
@@ -9764,7 +9764,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Stijl Blank 110x66mm 4000mm lang",
+        "materiaalnaam": "Kozijnhout Stijl Blank 66x110mm 4000mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "400 cm",
@@ -9776,7 +9776,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Tussenstijl Blank 110x66mm 4000mm lang",
+        "materiaalnaam": "Kozijnhout Tussenstijl Blank 66x110mm 4000mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "400 cm",
@@ -9788,7 +9788,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 5900mm lang (Profiel A+)",
+        "materiaalnaam": "Kozijnhout Bovendorpel Wit 66x110mm 5900mm lang (Profiel A+)",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "590 cm",
@@ -9800,7 +9800,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 5900mm lang (Profiel D)",
+        "materiaalnaam": "Kozijnhout Onderdorpel Wit 66x110mm 5900mm lang (Profiel D)",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "590 cm",
@@ -9812,7 +9812,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Stijl Wit 110x66mm 5900mm lang (Profiel A)",
+        "materiaalnaam": "Kozijnhout Stijl Wit 66x110mm 5900mm lang (Profiel A)",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "590 cm",
@@ -9824,7 +9824,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 5900mm lang (Profiel B)",
+        "materiaalnaam": "Kozijnhout Tussenstijl Wit 66x110mm 5900mm lang (Profiel B)",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "590 cm",
@@ -9836,7 +9836,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Kozijnhout Stijl A-Profiel Hardhout 110x66mm 5900mm lang",
+        "materiaalnaam": "Kozijnhout Stijl A-Profiel Hardhout 66x110mm 5900mm lang",
         "dikte": "66mm",
         "breedte": "110mm",
         "lengte": "5900 mm",
@@ -9847,7 +9847,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Meranti Boven- Zij Dorpel 67x54mm 2450mm lang",
+        "materiaalnaam": "Meranti Boven- Zij Dorpel 54x67mm 2450mm lang",
         "dikte": "54mm",
         "breedte": "67mm",
         "lengte": "2450 mm",
@@ -9894,7 +9894,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Montagekozijn Stomp Hardhout Gegrond 115x56mm 2315mm lang",
+        "materiaalnaam": "Montagekozijn Stomp Hardhout Gegrond 56x115mm 2315mm lang",
         "dikte": "56mm",
         "breedte": "90mm",
         "hoogte": "231,5",
@@ -9954,7 +9954,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Montagekozijn Stomp Hardhout Gegrond 115x56mm 2315mm lang",
+        "materiaalnaam": "Montagekozijn Stomp Hardhout Gegrond 56x115mm 2315mm lang",
         "dikte": "56mm",
         "breedte": "115mm",
         "hoogte": "231,5 cm",
@@ -10038,7 +10038,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 67x40mm 2950mm lang",
+        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 40x67mm 2950mm lang",
         "dikte": "40mm",
         "breedte": "67mm",
         "lengte": "295 cm",
@@ -10049,7 +10049,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Enkel Glas Stijl 67x40mm 4600mm lang",
+        "materiaalnaam": "Raamhout Meranti Enkel Glas Stijl 40x67mm 4600mm lang",
         "dikte": "40mm",
         "breedte": "67mm",
         "lengte": "460cm",
@@ -10060,7 +10060,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 67x40mm 5900mm lang",
+        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 40x67mm 5900mm lang",
         "dikte": "40mm",
         "breedte": "67mm",
         "lengte": "590 cm",
@@ -10071,7 +10071,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Enkel Glas Onderdorpel 90x40mm 2450mm lang",
+        "materiaalnaam": "Raamhout Meranti Enkel Glas Onderdorpel 40x90mm 2450mm lang",
         "dikte": "40mm",
         "breedte": "90mm",
         "lengte": "245cm",
@@ -10082,7 +10082,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 90x40mm 2950mm lang",
+        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 40x90mm 2950mm lang",
         "dikte": "40mm",
         "breedte": "90mm",
         "lengte": "295 cm",
@@ -10093,7 +10093,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Enkel Glas Onderdorpel 90x40mm 3350mm lang",
+        "materiaalnaam": "Raamhout Meranti Enkel Glas Onderdorpel 40x90mm 3350mm lang",
         "dikte": "40mm",
         "breedte": "90mm",
         "lengte": "335cm",
@@ -10104,7 +10104,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 90x40mm 5900mm lang",
+        "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 40x90mm 5900mm lang",
         "dikte": "40mm",
         "breedte": "90mm",
         "lengte": "590 cm",
@@ -10115,7 +10115,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 67x54mm 2750mm lang",
+        "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 54x67mm 2750mm lang",
         "dikte": "54mm",
         "breedte": "67mm",
         "lengte": "275cm",
@@ -10126,7 +10126,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 67x54mm 2950mm lang",
+        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 54x67mm 2950mm lang",
         "dikte": "54mm",
         "breedte": "67mm",
         "lengte": "295 cm",
@@ -10137,7 +10137,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 67x54mm 3650mm lang",
+        "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 54x67mm 3650mm lang",
         "dikte": "54mm",
         "breedte": "67mm",
         "lengte": "365cm",
@@ -10148,7 +10148,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 67x54mm 4000mm lang",
+        "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 54x67mm 4000mm lang",
         "dikte": "54mm",
         "breedte": "67mm",
         "lengte": "400 cm",
@@ -10159,7 +10159,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 67x54mm 5900mm lang",
+        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 54x67mm 5900mm lang",
         "dikte": "54mm",
         "breedte": "67mm",
         "lengte": "590 cm",
@@ -10170,7 +10170,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 2450mm lang",
+        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 54x80mm 2450mm lang",
         "dikte": "54mm",
         "breedte": "80mm",
         "lengte": "245cm",
@@ -10181,7 +10181,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 2750mm lang",
+        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 54x80mm 2750mm lang",
         "dikte": "54mm",
         "breedte": "80mm",
         "lengte": "275cm",
@@ -10192,7 +10192,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 80x54mm 2950mm lang",
+        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 54x80mm 2950mm lang",
         "dikte": "54mm",
         "breedte": "80mm",
         "lengte": "295 cm",
@@ -10203,7 +10203,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 3350mm lang",
+        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 54x80mm 3350mm lang",
         "dikte": "54mm",
         "breedte": "80mm",
         "lengte": "335cm",
@@ -10214,7 +10214,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 4000mm lang",
+        "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 54x80mm 4000mm lang",
         "dikte": "54mm",
         "breedte": "80mm",
         "lengte": "400 cm",
@@ -10225,7 +10225,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 80x54mm 5900mm lang",
+        "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 54x80mm 5900mm lang",
         "dikte": "54mm",
         "breedte": "80mm",
         "lengte": "590 cm",
@@ -10236,7 +10236,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Stofdorpel Beuken 70x22mm 950mm lang",
+        "materiaalnaam": "Stofdorpel Beuken 22x70mm 950mm lang",
         "dikte": "22mm",
         "breedte": "70 mm",
         "lengte": "950 mm",
@@ -10247,7 +10247,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Stofdorpel Beuken 90x22mm 950mm lang",
+        "materiaalnaam": "Stofdorpel Beuken 22x90mm 950mm lang",
         "dikte": "22mm",
         "breedte": "90 mm",
         "lengte": "950 mm",
@@ -10258,7 +10258,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Stofdorpel Beuken 115x22mm 950mm lang",
+        "materiaalnaam": "Stofdorpel Beuken 22x115mm 950mm lang",
         "dikte": "22mm",
         "breedte": "115 mm",
         "lengte": "950 mm",
@@ -10269,7 +10269,7 @@
     },
     {
         "categorie": "Kozijnhout",
-        "materiaalnaam": "Stofdorpel Beuken 135x22mm 950mm lang",
+        "materiaalnaam": "Stofdorpel Beuken 22x135mm 950mm lang",
         "dikte": "22mm",
         "breedte": "135 mm",
         "lengte": "950 mm",
@@ -10470,7 +10470,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Afdeklijst Grenen 22x4mm 2700mm lang",
+        "materiaalnaam": "Afdeklijst Grenen 4x22mm 2700mm lang",
         "dikte": "4mm",
         "breedte": "22mm",
         "lengte": "270cm",
@@ -10481,7 +10481,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Afdeklijst Grenen Wit Gegrond 30x4mm 2100mm lang",
+        "materiaalnaam": "Afdeklijst Grenen Wit Gegrond 4x30mm 2100mm lang",
         "dikte": "4mm",
         "breedte": "30mm",
         "lengte": "210cm",
@@ -10492,7 +10492,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Afdeklijst 30x4mm 2700mm lang",
+        "materiaalnaam": "Afdeklijst 4x30mm 2700mm lang",
         "dikte": "4mm",
         "breedte": "30mm",
         "lengte": "270cm",
@@ -10503,7 +10503,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Decorlijst Grenen Gegrond 46x8mm 2700mm lang",
+        "materiaalnaam": "Decorlijst Grenen Gegrond 8x46mm 2700mm lang",
         "dikte": "8mm",
         "breedte": "46mm",
         "lengte": "270cm",
@@ -10514,7 +10514,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Decorlijst Grenen 32x16mm 2100mm lang",
+        "materiaalnaam": "Decorlijst Grenen 16x32mm 2100mm lang",
         "dikte": "16mm",
         "breedte": "32mm",
         "lengte": "210cm",
@@ -10556,7 +10556,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I45 Meranti Gegrond 59x18mm 2450mm lang",
+        "materiaalnaam": "Glaslat I45 Meranti Gegrond 18x59mm 2450mm lang",
         "lengte": "245cm",
         "prijs_incl_21%_btw": "€ 21.76 per stuk",
         "id": "PHVDlg",
@@ -10592,7 +10592,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat G1 Meranti Gegrond 32x9mm 4600mm lang",
+        "materiaalnaam": "Glaslat G1 Meranti Gegrond 9x32mm 4600mm lang",
         "dikte": "9mm",
         "breedte": "32mm",
         "lengte": "4600mm",
@@ -10603,7 +10603,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat H2 Meranti Blank 32x12mm 3050mm lang",
+        "materiaalnaam": "Glaslat H2 Meranti Blank 12x32mm 3050mm lang",
         "dikte": "12mm",
         "breedte": "32mm",
         "lengte": "3050mm",
@@ -10636,7 +10636,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat G2 Meranti Gegrond 32x12mm 4600mm lang",
+        "materiaalnaam": "Glaslat G2 Meranti Gegrond 12x32mm 4600mm lang",
         "dikte": "12mm",
         "breedte": "32mm",
         "lengte": "4600mm",
@@ -10658,7 +10658,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat C1 Meranti Gegrond 19x17mm 3350mm lang",
+        "materiaalnaam": "Glaslat C1 Meranti Gegrond 17x19mm 3350mm lang",
         "dikte": "17mm",
         "breedte": "19mm",
         "lengte": "3350mm",
@@ -10669,7 +10669,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat C1 Meranti Gegrond 19x17mm 4600mm lang",
+        "materiaalnaam": "Glaslat C1 Meranti Gegrond 17x19mm 4600mm lang",
         "dikte": "17mm",
         "breedte": "19mm",
         "lengte": "4600mm",
@@ -10680,7 +10680,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat FR3 Meranti Gegrond 28x17mm 4600mm lang",
+        "materiaalnaam": "Glaslat FR3 Meranti Gegrond 17x28mm 4600mm lang",
         "dikte": "17mm",
         "breedte": "28mm",
         "lengte": "4600mm",
@@ -10702,7 +10702,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I20 Meranti Gegrond 34x18mm 2450mm lang (Sponning 20)",
+        "materiaalnaam": "Glaslat I20 Meranti Gegrond 18x34mm 2450mm lang (Sponning 20)",
         "dikte": "18mm",
         "breedte": "34mm",
         "sponning": "20",
@@ -10738,7 +10738,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I25 Meranti Gegrond 39x18mm 3650mm lang",
+        "materiaalnaam": "Glaslat I25 Meranti Gegrond 18x39mm 3650mm lang",
         "dikte": "18mm",
         "breedte": "39mm",
         "lengte": "365cm",
@@ -10749,7 +10749,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I25 Meranti Gegrond 39x18mm 2450mm lang (Sponning 25)",
+        "materiaalnaam": "Glaslat I25 Meranti Gegrond 18x39mm 2450mm lang (Sponning 25)",
         "dikte": "18mm",
         "breedte": "39mm",
         "sponning": "25",
@@ -10761,7 +10761,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I25 Meranti Gegrond 39x18mm 2750mm lang (Sponning 25)",
+        "materiaalnaam": "Glaslat I25 Meranti Gegrond 18x39mm 2750mm lang (Sponning 25)",
         "dikte": "18mm",
         "breedte": "39mm",
         "sponning": "25",
@@ -10773,7 +10773,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I25 Meranti Gegrond 39x18mm 3050mm lang (Sponning 25)",
+        "materiaalnaam": "Glaslat I25 Meranti Gegrond 18x39mm 3050mm lang (Sponning 25)",
         "dikte": "18mm",
         "breedte": "39mm",
         "sponning": "25",
@@ -10785,7 +10785,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I25 Meranti Gegrond 39x18mm 3350mm lang (Sponning 25)",
+        "materiaalnaam": "Glaslat I25 Meranti Gegrond 18x39mm 3350mm lang (Sponning 25)",
         "dikte": "18mm",
         "breedte": "39mm",
         "sponning": "25",
@@ -10797,7 +10797,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I25 Meranti Gegrond 39x18mm 4300mm lang (Sponning 25)",
+        "materiaalnaam": "Glaslat I25 Meranti Gegrond 18x39mm 4300mm lang (Sponning 25)",
         "dikte": "18mm",
         "breedte": "39mm",
         "sponning": "25",
@@ -10809,7 +10809,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I25 Meranti Gegrond 39x18mm 4600mm lang (Sponning 25)",
+        "materiaalnaam": "Glaslat I25 Meranti Gegrond 18x39mm 4600mm lang (Sponning 25)",
         "dikte": "18mm",
         "breedte": "39mm",
         "lengte": "4600mm",
@@ -10821,7 +10821,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I45 Meranti Gegrond 59x18mm 2750mm lang (Sponning 45)",
+        "materiaalnaam": "Glaslat I45 Meranti Gegrond 18x59mm 2750mm lang (Sponning 45)",
         "dikte": "18mm",
         "breedte": "59mm",
         "sponning": "45",
@@ -10833,7 +10833,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I45 Meranti Gegrond 59x18mm 3350mm lang (Sponning 45)",
+        "materiaalnaam": "Glaslat I45 Meranti Gegrond 18x59mm 3350mm lang (Sponning 45)",
         "dikte": "18mm",
         "breedte": "59mm",
         "sponning": "45",
@@ -10856,7 +10856,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat I60 Meranti Gegrond 74x18mm 3350mm lang (Sponning 60)",
+        "materiaalnaam": "Glaslat I60 Meranti Gegrond 18x74mm 3350mm lang (Sponning 60)",
         "dikte": "18mm",
         "breedte": "74mm",
         "sponning": "60",
@@ -10901,7 +10901,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat Ventilatie E2 Meranti 25x20mm 4300mm lang",
+        "materiaalnaam": "Glaslat Ventilatie E2 Meranti 20x25mm 4300mm lang",
         "dikte": "20mm",
         "breedte": "25mm",
         "lengte": "4300mm",
@@ -10912,7 +10912,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat Ventilatie E2 Meranti 25x20mm 4900mm lang",
+        "materiaalnaam": "Glaslat Ventilatie E2 Meranti 20x25mm 4900mm lang",
         "dikte": "20mm",
         "breedte": "25mm",
         "lengte": "4900mm",
@@ -10923,7 +10923,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Glaslat L3 Meranti Gegrond 30x21mm 4600mm lang",
+        "materiaalnaam": "Glaslat L3 Meranti Gegrond 21x30mm 4600mm lang",
         "dikte": "21mm",
         "breedte": "30mm",
         "lengte": "4600mm",
@@ -10945,7 +10945,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Gootlijst Meranti Wit Gegrond 120x28mm 4900mm lang",
+        "materiaalnaam": "Gootlijst Meranti Wit Gegrond 28x120mm 4900mm lang",
         "dikte": "28mm",
         "breedte": "120mm",
         "lengte": "4900 mm",
@@ -11009,7 +11009,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 18x7mm 2700mm lang",
+        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 7x18mm 2700mm lang",
         "dikte": "7mm",
         "breedte": "18mm",
         "lengte": "270cm",
@@ -11031,7 +11031,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 18x12mm 2700mm lang",
+        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 12x18mm 2700mm lang",
         "dikte": "12mm",
         "breedte": "18mm",
         "lengte": "270cm",
@@ -11042,7 +11042,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 27x12mm 2700mm lang",
+        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 12x27mm 2700mm lang",
         "dikte": "12mm",
         "breedte": "27mm",
         "lengte": "270cm",
@@ -11053,7 +11053,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 55x12mm 2700mm lang",
+        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 12x55mm 2700mm lang",
         "dikte": "12mm",
         "breedte": "55mm",
         "lengte": "270cm",
@@ -11064,7 +11064,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 69x12mm 2700mm lang",
+        "materiaalnaam": "Grenen Geschaafd Wit Gegrond 12x69mm 2700mm lang",
         "dikte": "12mm",
         "breedte": "69mm",
         "lengte": "270cm",
@@ -11123,7 +11123,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Hardhout Rondom Geschaafd 190x28mm 2750mm lang",
+        "materiaalnaam": "Hardhout Rondom Geschaafd 28x190mm 2750mm lang",
         "dikte": "28mm",
         "breedte": "190mm",
         "lengte": "2750mm",
@@ -11200,7 +11200,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Hoeklat Grenen Wit Gegrond 32x12mm 2700mm lang",
+        "materiaalnaam": "Hoeklat Grenen Wit Gegrond 12x32mm 2700mm lang",
         "dikte": "12mm",
         "breedte": "32mm",
         "lengte": "270cm",
@@ -11357,7 +11357,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Hollat Grenen 33x22mm 2700mm lang",
+        "materiaalnaam": "Hollat Grenen 22x33mm 2700mm lang",
         "dikte": "22mm",
         "breedte": "33mm",
         "lengte": "270cm",
@@ -11388,7 +11388,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Half MDF Wit Gegrond 20x12mm 4500mm lang",
+        "materiaalnaam": "Koplat Half MDF Wit Gegrond 12x20mm 4500mm lang",
         "dikte": "12mm",
         "breedte": "20mm",
         "lengte": "4500mm",
@@ -11399,7 +11399,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Schuin Hardhout 37x12mm 2700mm lang",
+        "materiaalnaam": "Koplat Schuin Hardhout 12x37mm 2700mm lang",
         "dikte": "12mm",
         "breedte": "37mm",
         "lengte": "270cm",
@@ -11410,7 +11410,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat MDF Recht V313 Gegrond 45x12mm 4880mm lang",
+        "materiaalnaam": "Koplat MDF Recht V313 Gegrond 12x45mm 4880mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "488cm",
@@ -11421,7 +11421,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat MDF Schuin Gegrond 45x12mm 4880mm lang",
+        "materiaalnaam": "Koplat MDF Schuin Gegrond 12x45mm 4880mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "488cm",
@@ -11432,7 +11432,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Schuin Hardhout Wit Gegrond 45x12mm 4900mm lang",
+        "materiaalnaam": "Koplat Schuin Hardhout Wit Gegrond 12x45mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "490cm",
@@ -11443,7 +11443,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Recht Primewood Gegrond 45x12mm 4900mm lang",
+        "materiaalnaam": "Koplat Recht Primewood Gegrond 12x45mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "4900mm",
@@ -11454,7 +11454,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Schuin Vuren/Grenen Gegrond 45x12mm 4900mm lang",
+        "materiaalnaam": "Koplat Schuin Vuren/Grenen Gegrond 12x45mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "4900mm",
@@ -11465,7 +11465,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Recht Hardhout Gegrond 68x12mm 4900mm lang",
+        "materiaalnaam": "Koplat Recht Hardhout Gegrond 12x68mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "68mm",
         "lengte": "4900mm",
@@ -11476,7 +11476,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Recht Hardhout Gegrond 45x16mm 4900mm lang",
+        "materiaalnaam": "Koplat Recht Hardhout Gegrond 16x45mm 4900mm lang",
         "dikte": "16mm",
         "breedte": "45mm",
         "lengte": "4900mm",
@@ -11487,7 +11487,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Koplat Recht Primewood Gegrond 45x16mm 4900mm lang",
+        "materiaalnaam": "Koplat Recht Primewood Gegrond 16x45mm 4900mm lang",
         "dikte": "16mm",
         "breedte": "45mm",
         "lengte": "4900mm",
@@ -11509,7 +11509,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Kraalplint MDF V313 Gegrond 120x18mm 4880mm lang",
+        "materiaalnaam": "Kraalplint MDF V313 Gegrond 18x120mm 4880mm lang",
         "dikte": "18mm",
         "breedte": "120mm",
         "lengte": "4880mm",
@@ -11647,7 +11647,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Kunststof Plat Profiel Wit 30x2mm 2600mm lang",
+        "materiaalnaam": "Kunststof Plat Profiel Wit 2x30mm 2600mm lang",
         "breedte": "30mm",
         "dikte": "2mm",
         "lengte": "260cm",
@@ -11725,7 +11725,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Neuslat NL20 Meranti 35x16mm 3650mm lang (Sponning 20)",
+        "materiaalnaam": "Neuslat NL20 Meranti 16x35mm 3650mm lang (Sponning 20)",
         "dikte": "16mm",
         "breedte": "35mm",
         "sponning": "20mm",
@@ -11793,7 +11793,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint Hardhout Wit Gegrond 45x9mm 4900mm lang",
+        "materiaalnaam": "Plint Hardhout Wit Gegrond 9x45mm 4900mm lang",
         "dikte": "9mm",
         "breedte": "45mm",
         "lengte": "490cm",
@@ -11804,7 +11804,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint MDF Wit Gegrond 45x9mm 4880mm lang",
+        "materiaalnaam": "Plint MDF Wit Gegrond 9x45mm 4880mm lang",
         "dikte": "9mm",
         "breedte": "45mm",
         "lengte": "4880mm",
@@ -11815,7 +11815,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint MDF Wit Gegrond 45x12mm 4880mm lang",
+        "materiaalnaam": "Plint MDF Wit Gegrond 12x45mm 4880mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "4880mm",
@@ -11826,7 +11826,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint Vuren/Grenen Rondom Gegrond 45x12mm 4900mm lang",
+        "materiaalnaam": "Plint Vuren/Grenen Rondom Gegrond 12x45mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "4900mm",
@@ -11837,7 +11837,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint MDF Gegrond 55x12mm 4880mm lang",
+        "materiaalnaam": "Plint MDF Gegrond 12x55mm 4880mm lang",
         "dikte": "12mm",
         "breedte": "55mm",
         "lengte": "488cm",
@@ -11848,7 +11848,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint Hardhout Wit Gegrond 55x12mm 4900mm lang",
+        "materiaalnaam": "Plint Hardhout Wit Gegrond 12x55mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "55mm",
         "lengte": "490cm",
@@ -11859,7 +11859,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint Primewood Gegrond 55x12mm 4900mm lang",
+        "materiaalnaam": "Plint Primewood Gegrond 12x55mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "55mm",
         "lengte": "4900mm",
@@ -11870,7 +11870,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint MDF Gegrond 68x12mm 4880mm lang",
+        "materiaalnaam": "Plint MDF Gegrond 12x68mm 4880mm lang",
         "dikte": "12mm",
         "breedte": "68mm",
         "lengte": "488cm",
@@ -11881,7 +11881,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint Hardhout Wit Gegrond 68x12mm 4900mm lang",
+        "materiaalnaam": "Plint Hardhout Wit Gegrond 12x68mm 4900mm lang",
         "dikte": "12mm",
         "breedte": "68mm",
         "lengte": "490cm",
@@ -11892,7 +11892,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint MDF Gegrond 90x12mm 4880mm lang",
+        "materiaalnaam": "Plint MDF Gegrond 12x90mm 4880mm lang",
         "dikte": "12mm",
         "breedte": "90mm",
         "lengte": "488cm",
@@ -11903,7 +11903,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Plint MDF Gegrond 120x12mm 4880mm lang",
+        "materiaalnaam": "Plint MDF Gegrond 12x120mm 4880mm lang",
         "dikte": "12mm",
         "breedte": "120mm",
         "lengte": "488cm",
@@ -11986,7 +11986,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Schaaflat Grenen Gegrond 27x18mm 2700mm lang",
+        "materiaalnaam": "Schaaflat Grenen Gegrond 18x27mm 2700mm lang",
         "dikte": "18mm",
         "breedte": "27mm",
         "lengte": "2700mm",
@@ -11997,7 +11997,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Schaaflat Grenen Gegrond 44x18mm 2700mm lang",
+        "materiaalnaam": "Schaaflat Grenen Gegrond 18x44mm 2700mm lang",
         "dikte": "18mm",
         "breedte": "44mm",
         "lengte": "2700 mm",
@@ -12008,7 +12008,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Schaaflat Vuren 44x27mm 2700mm lang",
+        "materiaalnaam": "Schaaflat Vuren 27x44mm 2700mm lang",
         "dikte": "27mm",
         "breedte": "44mm",
         "lengte": "2700mm",
@@ -12196,7 +12196,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Tussenprofiel Kunststof Wit 25x21mm 2600mm lang",
+        "materiaalnaam": "Tussenprofiel Kunststof Wit 21x25mm 2600mm lang",
         "breedte": "21mm",
         "hoogte": "25mm",
         "lengte": "2600mm",
@@ -12207,7 +12207,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Vuren Rondom Geschaafd 45x12mm 2700mm lang",
+        "materiaalnaam": "Vuren Rondom Geschaafd 12x45mm 2700mm lang",
         "dikte": "12mm",
         "breedte": "45mm",
         "lengte": "2700 mm",
@@ -12240,7 +12240,7 @@
     },
     {
         "categorie": "Afwerking",
-        "materiaalnaam": "Weldorpel Merbau 65x34mm 1000mm lang",
+        "materiaalnaam": "Weldorpel Merbau 34x65mm 1000mm lang",
         "dikte": "34mm",
         "breedte": "65mm",
         "lengte": "1000mm",
@@ -12657,7 +12657,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 50x22mm 2700mm lang (Netto 21x48)",
+        "materiaalnaam": "Rachel 22x50mm 2700mm lang (Netto 21x48)",
         "dikte": "22mm",
         "breedte": "50mm",
         "lengte": "270cm",
@@ -12669,7 +12669,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 50x22mm 3000mm lang (Netto 21x48)",
+        "materiaalnaam": "Rachel 22x50mm 3000mm lang (Netto 21x48)",
         "dikte": "22mm",
         "breedte": "50mm",
         "lengte": "300cm",
@@ -12681,7 +12681,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 50x22mm 3600mm lang (Netto 21x48)",
+        "materiaalnaam": "Rachel 22x50mm 3600mm lang (Netto 21x48)",
         "dikte": "22mm",
         "breedte": "50mm",
         "lengte": "360cm",
@@ -12693,7 +12693,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 50x22mm 4500mm lang (Netto 21x48)",
+        "materiaalnaam": "Rachel 22x50mm 4500mm lang (Netto 21x48)",
         "dikte": "22mm",
         "breedte": "50mm",
         "lengte": "450cm",
@@ -12705,7 +12705,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 50x22mm 5100mm lang (Netto 21x48)",
+        "materiaalnaam": "Rachel 22x50mm 5100mm lang (Netto 21x48)",
         "dikte": "22mm",
         "breedte": "50mm",
         "lengte": "510cm",
@@ -12717,7 +12717,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 63x22mm 2700mm lang (Netto 21x60)",
+        "materiaalnaam": "Rachel 22x63mm 2700mm lang (Netto 21x60)",
         "dikte": "22mm",
         "breedte": "63mm",
         "lengte": "270cm",
@@ -12729,7 +12729,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 63x22mm 5100mm lang (Netto 21x60)",
+        "materiaalnaam": "Rachel 22x63mm 5100mm lang (Netto 21x60)",
         "dikte": "22mm",
         "breedte": "63mm",
         "lengte": "510cm",
@@ -12741,7 +12741,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 89x38mm 3000mm lang",
+        "materiaalnaam": "SLS 38x89mm 3000mm lang",
         "dikte": "38mm",
         "breedte": "89mm",
         "lengte": "300cm",
@@ -12752,7 +12752,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 89x38mm 3600mm lang",
+        "materiaalnaam": "SLS 38x89mm 3600mm lang",
         "dikte": "38mm",
         "breedte": "89mm",
         "lengte": "360cm",
@@ -12763,7 +12763,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 89x38mm 4500mm lang",
+        "materiaalnaam": "SLS 38x89mm 4500mm lang",
         "dikte": "38mm",
         "breedte": "89mm",
         "lengte": "450cm",
@@ -12774,7 +12774,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 89x38mm 4800mm lang",
+        "materiaalnaam": "SLS 38x89mm 4800mm lang",
         "dikte": "38mm",
         "breedte": "89mm",
         "lengte": "480cm",
@@ -12785,7 +12785,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 89x38mm 5400mm lang",
+        "materiaalnaam": "SLS 38x89mm 5400mm lang",
         "dikte": "38mm",
         "breedte": "89mm",
         "lengte": "540cm",
@@ -12796,7 +12796,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 120x38mm 3000mm lang",
+        "materiaalnaam": "SLS 38x120mm 3000mm lang",
         "dikte": "38mm",
         "breedte": "120mm",
         "lengte": "300cm",
@@ -12807,7 +12807,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 120x38mm 3600mm lang",
+        "materiaalnaam": "SLS 38x120mm 3600mm lang",
         "dikte": "38mm",
         "breedte": "120mm",
         "lengte": "360cm",
@@ -12818,7 +12818,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 120x38mm 5400mm lang",
+        "materiaalnaam": "SLS 38x120mm 5400mm lang",
         "dikte": "38mm",
         "breedte": "120mm",
         "lengte": "540cm",
@@ -12829,7 +12829,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 140x38mm 3000mm lang",
+        "materiaalnaam": "SLS 38x140mm 3000mm lang",
         "dikte": "38mm",
         "breedte": "140mm",
         "lengte": "300cm",
@@ -12840,7 +12840,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 140x38mm 3600mm lang",
+        "materiaalnaam": "SLS 38x140mm 3600mm lang",
         "dikte": "38mm",
         "breedte": "140mm",
         "lengte": "360cm",
@@ -12851,7 +12851,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 140x38mm 4500mm lang",
+        "materiaalnaam": "SLS 38x140mm 4500mm lang",
         "dikte": "38mm",
         "breedte": "140mm",
         "lengte": "450cm",
@@ -12862,7 +12862,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 140x38mm 4800mm lang",
+        "materiaalnaam": "SLS 38x140mm 4800mm lang",
         "dikte": "38mm",
         "breedte": "140mm",
         "lengte": "480cm",
@@ -12873,7 +12873,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 140x38mm 5100mm lang",
+        "materiaalnaam": "SLS 38x140mm 5100mm lang",
         "dikte": "38mm",
         "breedte": "140mm",
         "lengte": "510cm",
@@ -12884,7 +12884,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 140x38mm 5400mm lang",
+        "materiaalnaam": "SLS 38x140mm 5400mm lang",
         "dikte": "38mm",
         "breedte": "140mm",
         "lengte": "540cm",
@@ -12895,7 +12895,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 184x38mm 3000mm lang",
+        "materiaalnaam": "SLS 38x184mm 3000mm lang",
         "dikte": "38mm",
         "breedte": "184mm",
         "lengte": "300cm",
@@ -12906,7 +12906,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 184x38mm 3600mm lang",
+        "materiaalnaam": "SLS 38x184mm 3600mm lang",
         "dikte": "38mm",
         "breedte": "184mm",
         "lengte": "360cm",
@@ -12917,7 +12917,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 184x38mm 4800mm lang",
+        "materiaalnaam": "SLS 38x184mm 4800mm lang",
         "dikte": "38mm",
         "breedte": "184mm",
         "lengte": "480cm",
@@ -12928,7 +12928,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 184x38mm 5400mm lang",
+        "materiaalnaam": "SLS 38x184mm 5400mm lang",
         "dikte": "38mm",
         "breedte": "184mm",
         "lengte": "540cm",
@@ -12939,7 +12939,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 235x38mm 3600mm lang",
+        "materiaalnaam": "SLS 38x235mm 3600mm lang",
         "dikte": "38mm",
         "breedte": "235mm",
         "lengte": "360cm",
@@ -12950,7 +12950,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 3900x235x38mm 3900mm lang",
+        "materiaalnaam": "SLS 3900x38x235mm 3900mm lang",
         "dikte": "38mm",
         "breedte": "235mm",
         "lengte": "390cm",
@@ -12961,7 +12961,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 235x38mm 4500mm lang",
+        "materiaalnaam": "SLS 38x235mm 4500mm lang",
         "dikte": "38mm",
         "breedte": "235mm",
         "lengte": "450cm",
@@ -12972,7 +12972,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 235x38mm 5400mm lang",
+        "materiaalnaam": "SLS 38x235mm 5400mm lang",
         "dikte": "38mm",
         "breedte": "235mm",
         "lengte": "540cm",
@@ -12983,7 +12983,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 235x38mm 6000mm lang",
+        "materiaalnaam": "SLS 38x235mm 6000mm lang",
         "dikte": "38mm",
         "breedte": "235mm",
         "lengte": "600cm",
@@ -12994,7 +12994,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 284x38mm 4500mm lang",
+        "materiaalnaam": "SLS 38x284mm 4500mm lang",
         "dikte": "38mm",
         "breedte": "284mm",
         "lengte": "450cm",
@@ -13005,7 +13005,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "SLS 284x38mm 5400mm lang",
+        "materiaalnaam": "SLS 38x284mm 5400mm lang",
         "dikte": "38mm",
         "breedte": "284mm",
         "lengte": "540cm",
@@ -13016,7 +13016,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Spouwlat Ruw 50x32mm 4500mm lang",
+        "materiaalnaam": "Spouwlat Ruw 32x50mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "50mm",
         "lengte": "450cm",
@@ -13027,7 +13027,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Tengel 38x11mm 4500mm lang",
+        "materiaalnaam": "Tengel 11x38mm 4500mm lang",
         "dikte": "11mm",
         "breedte": "38mm",
         "lengte": "450cm",
@@ -13060,7 +13060,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ribben 69x44mm 2700mm lang",
+        "materiaalnaam": "Vuren Ribben 44x69mm 2700mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "270cm",
@@ -13071,7 +13071,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ribben 69x44mm 3000mm lang",
+        "materiaalnaam": "Vuren Ribben 44x69mm 3000mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "300cm",
@@ -13082,7 +13082,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ribben 69x44mm 3600mm lang",
+        "materiaalnaam": "Vuren Ribben 44x69mm 3600mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "360cm",
@@ -13093,7 +13093,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ribben 69x44mm 4200mm lang",
+        "materiaalnaam": "Vuren Ribben 44x69mm 4200mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "420cm",
@@ -13104,7 +13104,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ribben 69x44mm 4500mm lang",
+        "materiaalnaam": "Vuren Ribben 44x69mm 4500mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "450cm",
@@ -13115,7 +13115,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ribben 69x44mm 4800mm lang",
+        "materiaalnaam": "Vuren Ribben 44x69mm 4800mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "480cm",
@@ -13126,7 +13126,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ribben 69x44mm 5100mm lang",
+        "materiaalnaam": "Vuren Ribben 44x69mm 5100mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "510cm",
@@ -15869,7 +15869,7 @@
     },
     {
         "categorie": "Afwerkingen",
-        "materiaalnaam": "Prodec Koplat Wit 55x12mm 4880mm lang",
+        "materiaalnaam": "Prodec Koplat Wit 12x55mm 4880mm lang",
         "breedte": "55mm",
         "dikte": "12mm",
         "lengte": "488 cm",
@@ -15881,7 +15881,7 @@
     },
     {
         "categorie": "Afwerkingen",
-        "materiaalnaam": "Prodec Koplat Wit 95x12mm 4880mm lang",
+        "materiaalnaam": "Prodec Koplat Wit 12x95mm 4880mm lang",
         "breedte": "95mm",
         "dikte": "12mm",
         "lengte": "488 cm",
@@ -16152,7 +16152,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Laminaat Natuur Grijs 192x8mm 1285mm lang",
+        "materiaalnaam": "Laminaat Natuur Grijs 8x192mm 1285mm lang",
         "lengte": "1285mm",
         "breedte": "192mm",
         "dikte": "8mm",
@@ -16164,7 +16164,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Laminaat Modern Grijs 42x8mm 1285mm lang",
+        "materiaalnaam": "Laminaat Modern Grijs 8x42mm 1285mm lang",
         "lengte": "1285mm",
         "breedte": "242mm",
         "dikte": "8mm",
@@ -16176,7 +16176,7 @@
     },
     {
         "categorie": "Laminaat",
-        "materiaalnaam": "Laminaat Naturel Eiken 242x8mm 1285mm lang",
+        "materiaalnaam": "Laminaat Naturel Eiken 8x242mm 1285mm lang",
         "lengte": "1285mm",
         "breedte": "242mm",
         "dikte": "8mm",
@@ -16200,7 +16200,7 @@
     },
     {
         "categorie": "Laminaat",
-        "materiaalnaam": "Laminaat Zwarte Tegel 327x8mm 1285mm lang",
+        "materiaalnaam": "Laminaat Zwarte Tegel 8x327mm 1285mm lang",
         "lengte": "1285mm",
         "breedte": "327mm",
         "dikte": "8mm",
@@ -16211,7 +16211,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "MDF Schroot 84x10mm 3660mm lang",
+        "materiaalnaam": "MDF Schroot 10x84mm 3660mm lang",
         "dikte": "10mm",
         "breedte": "84mm",
         "lengte": "366cm",
@@ -16222,7 +16222,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Visbekdeel VVO Meranti Wit Gegrond 135x18mm 2450mm lang",
+        "materiaalnaam": "Visbekdeel VVO Meranti Wit Gegrond 18x135mm 2450mm lang",
         "dikte": "18mm",
         "breedte": "135mm",
         "lengte": "2450mm",
@@ -16233,7 +16233,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Visbekdeel VVO Meranti Wit Gegrond 135x18mm 2750mm lang",
+        "materiaalnaam": "Visbekdeel VVO Meranti Wit Gegrond 18x135mm 2750mm lang",
         "dikte": "18mm",
         "breedte": "135mm",
         "lengte": "2750mm",
@@ -16244,7 +16244,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Kraaldeel 125x22mm 3600mm lang (Netto 18x115)",
+        "materiaalnaam": "Vuren Kraaldeel 22x125mm 3600mm lang (Netto 18x115)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "360cm",
@@ -16256,7 +16256,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Vellingdeel 125x22mm 3600mm lang (Netto 18x115)",
+        "materiaalnaam": "Vuren Vellingdeel 22x125mm 3600mm lang (Netto 18x115)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "360cm",
@@ -16268,7 +16268,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Vloerdeel GxG 125x22mm 3600mm lang (Netto 18x115)",
+        "materiaalnaam": "Vuren Vloerdeel GxG 22x125mm 3600mm lang (Netto 18x115)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "360cm",
@@ -16280,7 +16280,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Vloerdeel GxG 125x22mm 4800mm lang (Netto 18x115)",
+        "materiaalnaam": "Vuren Vloerdeel GxG 22x125mm 4800mm lang (Netto 18x115)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "480cm",
@@ -16292,7 +16292,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Kraaldeel 125x22mm 5100mm lang",
+        "materiaalnaam": "Vuren Kraaldeel 22x125mm 5100mm lang",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "510cm",
@@ -16303,7 +16303,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Vellingdeel 125x22mm 5100mm lang (Netto 18x115)",
+        "materiaalnaam": "Vuren Vellingdeel 22x125mm 5100mm lang (Netto 18x115)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "510cm",
@@ -16315,7 +16315,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Vloerdeel GxG 125x22mm 5100mm lang (Netto 18x115)",
+        "materiaalnaam": "Vuren Vloerdeel GxG 22x125mm 5100mm lang (Netto 18x115)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "510cm",
@@ -16327,7 +16327,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Rabatdeel 150x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Rabatdeel 22x150mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "150mm",
         "lengte": "360cm",
@@ -16338,7 +16338,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Rabatdeel 150x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Rabatdeel 22x150mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "150mm",
         "lengte": "450cm",
@@ -16349,7 +16349,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "Vuren Vellingdeel 175x22mm 4800mm lang",
+        "materiaalnaam": "Vuren Vellingdeel 22x175mm 4800mm lang",
         "dikte": "22mm",
         "breedte": "175mm",
         "lengte": "480cm",
@@ -16360,7 +16360,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "WRC Schroot VD 83x12mm 3050mm lang",
+        "materiaalnaam": "WRC Schroot VD 12x83mm 3050mm lang",
         "dikte": "12mm",
         "breedte": "83mm",
         "lengte": "305cm",
@@ -16371,7 +16371,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "WRC Schroot VD 83x12mm 2750mm lang",
+        "materiaalnaam": "WRC Schroot VD 12x83mm 2750mm lang",
         "dikte": "12mm",
         "breedte": "83mm",
         "lengte": "2750mm",
@@ -16382,7 +16382,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "WRC Halfhoutsrabat 130x18mm 3050mm lang",
+        "materiaalnaam": "WRC Halfhoutsrabat 18x130mm 3050mm lang",
         "dikte": "18mm",
         "breedte": "130mm",
         "lengte": "305cm",
@@ -16393,7 +16393,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "WRC Channelsiding 142x18mm 3050mm lang (Werkend 116)",
+        "materiaalnaam": "WRC Channelsiding 18x142mm 3050mm lang (Werkend 116)",
         "dikte": "18mm",
         "breedte": "142mm",
         "werkend": "116mm",
@@ -16405,7 +16405,7 @@
     },
     {
         "categorie": "Vloer-rabat-vellingdelen",
-        "materiaalnaam": "WRC Channelsiding 142x18mm 3650mm lang (Werkend 116)",
+        "materiaalnaam": "WRC Channelsiding 18x142mm 3650mm lang (Werkend 116)",
         "dikte": "18mm",
         "breedte": "142mm",
         "werkend": "116mm",
@@ -16461,7 +16461,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ventilatielat Wolma 50x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ventilatielat Wolma 22x50mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "50mm",
         "lengte": "450cm",
@@ -16472,7 +16472,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 75x22mm 3600mm lang (Netto 18x71)",
+        "materiaalnaam": "Vuren Geschaafd 22x75mm 3600mm lang (Netto 18x71)",
         "dikte": "22mm",
         "breedte": "75mm",
         "lengte": "360cm",
@@ -16484,7 +16484,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 75x22mm 4500mm lang (Netto 18x71)",
+        "materiaalnaam": "Vuren Geschaafd 22x75mm 4500mm lang (Netto 18x71)",
         "dikte": "22mm",
         "breedte": "75mm",
         "lengte": "450cm",
@@ -16496,7 +16496,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x22mm 3600mm lang (Netto 18x96)",
+        "materiaalnaam": "Vuren Geschaafd 22x100mm 3600mm lang (Netto 18x96)",
         "dikte": "22mm",
         "breedte": "100mm",
         "lengte": "360cm",
@@ -16508,7 +16508,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x22mm 4500mm lang (Netto 18x96)",
+        "materiaalnaam": "Vuren Geschaafd 22x100mm 4500mm lang (Netto 18x96)",
         "dikte": "22mm",
         "breedte": "100mm",
         "lengte": "450cm",
@@ -16520,7 +16520,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x22mm 4800mm lang (Netto 18x96)",
+        "materiaalnaam": "Vuren Geschaafd 22x100mm 4800mm lang (Netto 18x96)",
         "dikte": "22mm",
         "breedte": "100mm",
         "lengte": "480cm",
@@ -16532,7 +16532,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 125x22mm 3600mm lang (Netto 18x120)",
+        "materiaalnaam": "Vuren Geschaafd 22x125mm 3600mm lang (Netto 18x120)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "360cm",
@@ -16544,7 +16544,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 125x22mm 4500mm lang (Netto 18x120)",
+        "materiaalnaam": "Vuren Geschaafd 22x125mm 4500mm lang (Netto 18x120)",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "450cm",
@@ -16556,7 +16556,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x22mm 3600mm lang (Netto 18x146)",
+        "materiaalnaam": "Vuren Geschaafd 22x150mm 3600mm lang (Netto 18x146)",
         "dikte": "22mm",
         "breedte": "150mm",
         "lengte": "360cm",
@@ -16568,7 +16568,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x22mm 4500mm lang (Netto 18x146)",
+        "materiaalnaam": "Vuren Geschaafd 22x150mm 4500mm lang (Netto 18x146)",
         "dikte": "22mm",
         "breedte": "150mm",
         "lengte": "450cm",
@@ -16580,7 +16580,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x22mm 3600mm lang (Netto 18x171)",
+        "materiaalnaam": "Vuren Geschaafd 22x175mm 3600mm lang (Netto 18x171)",
         "dikte": "22mm",
         "breedte": "175mm",
         "lengte": "360cm",
@@ -16592,7 +16592,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x22mm 4500mm lang (Netto 18x171)",
+        "materiaalnaam": "Vuren Geschaafd 22x175mm 4500mm lang (Netto 18x171)",
         "dikte": "22mm",
         "breedte": "175mm",
         "lengte": "450cm",
@@ -16604,7 +16604,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x22mm 3600mm lang (Netto 18x196)",
+        "materiaalnaam": "Vuren Geschaafd 22x200mm 3600mm lang (Netto 18x196)",
         "dikte": "22mm",
         "breedte": "200mm",
         "lengte": "360cm",
@@ -16616,7 +16616,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x22mm 4500mm lang (Netto 18x196)",
+        "materiaalnaam": "Vuren Geschaafd 22x200mm 4500mm lang (Netto 18x196)",
         "dikte": "22mm",
         "breedte": "200mm",
         "lengte": "450cm",
@@ -16628,7 +16628,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 50x32mm 4500mm lang (Netto 28x46)",
+        "materiaalnaam": "Vuren Geschaafd 32x50mm 4500mm lang (Netto 28x46)",
         "dikte": "32mm",
         "breedte": "50mm",
         "lengte": "450cm",
@@ -16640,7 +16640,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ventilatielat Wolma 50x32mm 4500mm lang",
+        "materiaalnaam": "Vuren Ventilatielat Wolma 32x50mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "50mm",
         "lengte": "450cm",
@@ -16651,7 +16651,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x32mm 4500mm lang (Netto 28x96)",
+        "materiaalnaam": "Vuren Geschaafd 32x100mm 4500mm lang (Netto 28x96)",
         "dikte": "32mm",
         "breedte": "100mm",
         "lengte": "450cm",
@@ -16663,7 +16663,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x32mm 4500mm lang (Netto 28x96)",
+        "materiaalnaam": "Vuren Geschaafd 32x100mm 4500mm lang (Netto 28x96)",
         "dikte": "32mm",
         "breedte": "100mm",
         "lengte": "450cm",
@@ -16675,7 +16675,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 125x32mm 4500mm lang (Netto 28x120)",
+        "materiaalnaam": "Vuren Geschaafd 32x125mm 4500mm lang (Netto 28x120)",
         "dikte": "32mm",
         "breedte": "125mm",
         "lengte": "450cm",
@@ -16687,7 +16687,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x32mm 4500mm lang (Netto 28x146)",
+        "materiaalnaam": "Vuren Geschaafd 32x150mm 4500mm lang (Netto 28x146)",
         "dikte": "32mm",
         "breedte": "150mm",
         "lengte": "450cm",
@@ -16699,7 +16699,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x32mm 4500mm lang (Netto 28x171)",
+        "materiaalnaam": "Vuren Geschaafd 32x175mm 4500mm lang (Netto 28x171)",
         "dikte": "32mm",
         "breedte": "175mm",
         "lengte": "450cm",
@@ -16711,7 +16711,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x32mm 4500mm lang (Netto 28x196)",
+        "materiaalnaam": "Vuren Geschaafd 32x200mm 4500mm lang (Netto 28x196)",
         "dikte": "32mm",
         "breedte": "200mm",
         "lengte": "450cm",
@@ -16723,7 +16723,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Piket Gepunt 69x44mm 1000mm lang",
+        "materiaalnaam": "Vuren Piket Gepunt 44x69mm 1000mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "100cm",
@@ -16734,7 +16734,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Piket Gepunt 69x44mm 1500mm lang",
+        "materiaalnaam": "Vuren Piket Gepunt 44x69mm 1500mm lang",
         "dikte": "44mm",
         "breedte": "69mm",
         "lengte": "150cm",
@@ -16745,7 +16745,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x50mm 3000mm lang (Netto 44x96)",
+        "materiaalnaam": "Vuren Geschaafd 50x100mm 3000mm lang (Netto 44x96)",
         "dikte": "50mm",
         "breedte": "100mm",
         "lengte": "300cm",
@@ -16757,7 +16757,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x50mm 3600mm lang (Netto 44x96)",
+        "materiaalnaam": "Vuren Geschaafd 50x100mm 3600mm lang (Netto 44x96)",
         "dikte": "50mm",
         "breedte": "100mm",
         "lengte": "360cm",
@@ -16769,7 +16769,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x50mm 4200mm lang (Netto 44x96)",
+        "materiaalnaam": "Vuren Geschaafd 50x100mm 4200mm lang (Netto 44x96)",
         "dikte": "50mm",
         "breedte": "100mm",
         "lengte": "420cm",
@@ -16781,7 +16781,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x50mm 4500mm lang (Netto 44x96)",
+        "materiaalnaam": "Vuren Geschaafd 50x100mm 4500mm lang (Netto 44x96)",
         "dikte": "50mm",
         "breedte": "100mm",
         "lengte": "450cm",
@@ -16793,7 +16793,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 100x50mm 5100mm lang (Netto 44x96)",
+        "materiaalnaam": "Vuren Geschaafd 50x100mm 5100mm lang (Netto 44x96)",
         "dikte": "50mm",
         "breedte": "100mm",
         "lengte": "510cm",
@@ -16805,7 +16805,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x50mm 3000mm lang (Netto 44x146)",
+        "materiaalnaam": "Vuren Geschaafd 50x150mm 3000mm lang (Netto 44x146)",
         "dikte": "50mm",
         "breedte": "150mm",
         "lengte": "300cm",
@@ -16817,7 +16817,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x50mm 3600mm lang (Netto 44x146)",
+        "materiaalnaam": "Vuren Geschaafd 50x150mm 3600mm lang (Netto 44x146)",
         "dikte": "50mm",
         "breedte": "150mm",
         "lengte": "360cm",
@@ -16829,7 +16829,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x50mm 4200mm lang (Netto 44x146)",
+        "materiaalnaam": "Vuren Geschaafd 50x150mm 4200mm lang (Netto 44x146)",
         "dikte": "50mm",
         "breedte": "150mm",
         "lengte": "420cm",
@@ -16841,7 +16841,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x50mm 4500mm lang (Netto 44x146)",
+        "materiaalnaam": "Vuren Geschaafd 50x150mm 4500mm lang (Netto 44x146)",
         "dikte": "50mm",
         "breedte": "150mm",
         "lengte": "450cm",
@@ -16853,7 +16853,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 150x50mm 5100mm lang (Netto 44x146)",
+        "materiaalnaam": "Vuren Geschaafd 50x150mm 5100mm lang (Netto 44x146)",
         "dikte": "50mm",
         "breedte": "150mm",
         "lengte": "510cm",
@@ -16865,7 +16865,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 160x63mm 3000mm lang (Netto 59x156)",
+        "materiaalnaam": "Vuren Geschaafd 63x160mm 3000mm lang (Netto 59x156)",
         "dikte": "63mm",
         "breedte": "160mm",
         "lengte": "300cm",
@@ -16877,7 +16877,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 160x63mm 3600mm lang (Netto 59x156)",
+        "materiaalnaam": "Vuren Geschaafd 63x160mm 3600mm lang (Netto 59x156)",
         "dikte": "63mm",
         "breedte": "160mm",
         "lengte": "360cm",
@@ -16889,7 +16889,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 160x63mm 4200mm lang (Netto 59x156)",
+        "materiaalnaam": "Vuren Geschaafd 63x160mm 4200mm lang (Netto 59x156)",
         "dikte": "63mm",
         "breedte": "160mm",
         "lengte": "420cm",
@@ -16901,7 +16901,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 160x63mm 4500mm lang (Netto 59x156)",
+        "materiaalnaam": "Vuren Geschaafd 63x160mm 4500mm lang (Netto 59x156)",
         "dikte": "63mm",
         "breedte": "160mm",
         "lengte": "450cm",
@@ -16913,7 +16913,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 160x63mm 4800mm lang (Netto 59x156)",
+        "materiaalnaam": "Vuren Geschaafd 63x160mm 4800mm lang (Netto 59x156)",
         "dikte": "63mm",
         "breedte": "160mm",
         "lengte": "480cm",
@@ -16925,7 +16925,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 160x63mm 5100mm lang (Netto 59x156)",
+        "materiaalnaam": "Vuren Geschaafd 63x160mm 5100mm lang (Netto 59x156)",
         "dikte": "63mm",
         "breedte": "160mm",
         "lengte": "510cm",
@@ -16937,7 +16937,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 160x63mm 5400mm lang (Netto 59x156)",
+        "materiaalnaam": "Vuren Geschaafd 63x160mm 5400mm lang (Netto 59x156)",
         "dikte": "63mm",
         "breedte": "160mm",
         "lengte": "540cm",
@@ -16973,7 +16973,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 3000mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 3000mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "300cm",
@@ -16985,7 +16985,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 3600mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 3600mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "360cm",
@@ -16997,7 +16997,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 4200mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 4200mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "420cm",
@@ -17009,7 +17009,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 4500mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 4500mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "450cm",
@@ -17021,7 +17021,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 4800mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 4800mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "480cm",
@@ -17033,7 +17033,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 5100mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 5100mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "510cm",
@@ -17045,7 +17045,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 5400mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 5400mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "540cm",
@@ -17057,7 +17057,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 175x75mm 6000mm lang (Netto 71x171)",
+        "materiaalnaam": "Vuren Geschaafd 75x175mm 6000mm lang (Netto 71x171)",
         "dikte": "75mm",
         "breedte": "175mm",
         "lengte": "600cm",
@@ -17069,7 +17069,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 3000mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 3000mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "300cm",
@@ -17081,7 +17081,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 3600mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 3600mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "360cm",
@@ -17093,7 +17093,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 4200mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 4200mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "420cm",
@@ -17105,7 +17105,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 4500mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 4500mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "450cm",
@@ -17117,7 +17117,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 4800mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 4800mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "480cm",
@@ -17129,7 +17129,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 5100mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 5100mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "510cm",
@@ -17141,7 +17141,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 5400mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 5400mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "540cm",
@@ -17153,7 +17153,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 200x75mm 6000mm lang (Netto 71x196)",
+        "materiaalnaam": "Vuren Geschaafd 75x200mm 6000mm lang (Netto 71x196)",
         "dikte": "75mm",
         "breedte": "200mm",
         "lengte": "600cm",
@@ -17165,7 +17165,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x75mm 3000mm lang (Netto 71x221)",
+        "materiaalnaam": "Vuren Geschaafd 75x225mm 3000mm lang (Netto 71x221)",
         "dikte": "75mm",
         "breedte": "225mm",
         "lengte": "300cm",
@@ -17177,7 +17177,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x75mm 3600mm lang (Netto 71x221)",
+        "materiaalnaam": "Vuren Geschaafd 75x225mm 3600mm lang (Netto 71x221)",
         "dikte": "75mm",
         "breedte": "225mm",
         "lengte": "360cm",
@@ -17189,7 +17189,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x75mm 4200mm lang (Netto 71x221)",
+        "materiaalnaam": "Vuren Geschaafd 75x225mm 4200mm lang (Netto 71x221)",
         "dikte": "75mm",
         "breedte": "225mm",
         "lengte": "420cm",
@@ -17201,7 +17201,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x75mm 4500mm lang (Netto 71x221)",
+        "materiaalnaam": "Vuren Geschaafd 75x225mm 4500mm lang (Netto 71x221)",
         "dikte": "75mm",
         "breedte": "225mm",
         "lengte": "450cm",
@@ -17213,7 +17213,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x75mm 4800mm lang (Netto 71x221)",
+        "materiaalnaam": "Vuren Geschaafd 75x225mm 4800mm lang (Netto 71x221)",
         "dikte": "75mm",
         "breedte": "225mm",
         "lengte": "480cm",
@@ -17225,7 +17225,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x75mm 5100mm lang (Netto 71x221)",
+        "materiaalnaam": "Vuren Geschaafd 75x225mm 5100mm lang (Netto 71x221)",
         "dikte": "75mm",
         "breedte": "225mm",
         "lengte": "510cm",
@@ -17237,7 +17237,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x75mm 5400mm lang (Netto 71x221)",
+        "materiaalnaam": "Vuren Geschaafd 75x225mm 5400mm lang (Netto 71x221)",
         "dikte": "75mm",
         "breedte": "225mm",
         "lengte": "540cm",
@@ -17249,7 +17249,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 250x75mm 4500mm lang (Netto 71x246)",
+        "materiaalnaam": "Vuren Geschaafd 75x250mm 4500mm lang (Netto 71x246)",
         "dikte": "75mm",
         "breedte": "250mm",
         "lengte": "450cm",
@@ -17261,7 +17261,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 250x75mm 5100mm lang (Netto 71x246)",
+        "materiaalnaam": "Vuren Geschaafd 75x250mm 5100mm lang (Netto 71x246)",
         "dikte": "75mm",
         "breedte": "250mm",
         "lengte": "510cm",
@@ -17273,7 +17273,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 250x75mm 5400mm lang (Netto 71x246)",
+        "materiaalnaam": "Vuren Geschaafd 75x250mm 5400mm lang (Netto 71x246)",
         "dikte": "75mm",
         "breedte": "250mm",
         "lengte": "540cm",
@@ -17285,7 +17285,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x100mm 3600mm lang",
+        "materiaalnaam": "Vuren Geschaafd 100x225mm 3600mm lang",
         "dikte": "100mm",
         "breedte": "225mm",
         "lengte": "360cm",
@@ -17296,7 +17296,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 225x100mm 5100mm lang",
+        "materiaalnaam": "Vuren Geschaafd 100x225mm 5100mm lang",
         "dikte": "100mm",
         "breedte": "225mm",
         "lengte": "510cm",
@@ -17307,7 +17307,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 250x100mm 3900mm lang",
+        "materiaalnaam": "Vuren Geschaafd 100x250mm 3900mm lang",
         "dikte": "100mm",
         "breedte": "250mm",
         "lengte": "390cm",
@@ -17329,7 +17329,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Mastiekschroot 100x22mm 4500mm lang",
+        "materiaalnaam": "Mastiekschroot 22x100mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "100mm",
         "lengte": "450cm",
@@ -17340,7 +17340,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 75x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 22x75mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "75mm",
         "lengte": "360cm",
@@ -17351,7 +17351,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 75x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x75mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "75mm",
         "lengte": "450cm",
@@ -17362,7 +17362,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 100x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 22x100mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "100mm",
         "lengte": "360cm",
@@ -17373,7 +17373,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 100x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x100mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "100mm",
         "lengte": "450cm",
@@ -17384,7 +17384,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 125x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 22x125mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "360cm",
@@ -17395,7 +17395,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 125x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x125mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "125mm",
         "lengte": "450cm",
@@ -17406,7 +17406,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 150x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 22x150mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "150mm",
         "lengte": "360cm",
@@ -17417,7 +17417,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 150x22mm 3900mm lang",
+        "materiaalnaam": "Vuren Ruw 22x150mm 3900mm lang",
         "dikte": "22mm",
         "breedte": "150mm",
         "lengte": "390cm",
@@ -17428,7 +17428,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 150x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x150mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "150mm",
         "lengte": "450cm",
@@ -17439,7 +17439,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 175x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 22x175mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "175mm",
         "lengte": "360cm",
@@ -17450,7 +17450,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 175x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x175mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "175mm",
         "lengte": "450cm",
@@ -17461,7 +17461,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 175x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x175mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "175mm",
         "lengte": "450cm",
@@ -17472,7 +17472,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 200x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 22x200mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "200mm",
         "lengte": "360cm",
@@ -17483,7 +17483,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 200x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x200mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "200mm",
         "lengte": "450cm",
@@ -17494,7 +17494,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 200x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x200mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "200mm",
         "lengte": "450cm",
@@ -17505,7 +17505,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 225x22mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 22x225mm 3600mm lang",
         "dikte": "22mm",
         "breedte": "225mm",
         "lengte": "360cm",
@@ -17516,7 +17516,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 225x22mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 22x225mm 4500mm lang",
         "dikte": "22mm",
         "breedte": "225mm",
         "lengte": "450cm",
@@ -17527,7 +17527,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 100x32mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 32x100mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "100mm",
         "lengte": "450cm",
@@ -17538,7 +17538,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 125x32mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 32x125mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "125mm",
         "lengte": "450cm",
@@ -17549,7 +17549,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 150x32mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 32x150mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "150mm",
         "lengte": "450cm",
@@ -17560,7 +17560,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 175x32mm 3600mm lang",
+        "materiaalnaam": "Vuren Ruw 32x175mm 3600mm lang",
         "dikte": "32mm",
         "breedte": "175mm",
         "lengte": "360cm",
@@ -17571,7 +17571,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 175x32mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 32x175mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "175mm",
         "lengte": "450cm",
@@ -17582,7 +17582,7 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Ruw 200x32mm 4500mm lang",
+        "materiaalnaam": "Vuren Ruw 32x200mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "200mm",
         "lengte": "450cm",

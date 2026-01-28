@@ -9,8 +9,8 @@ import Link from 'next/link';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { DynamicMaterialGroup } from '@/components/DynamicMaterialGroup';
 import { PersonalNotes } from '@/components/PersonalNotes';
-import { QuoteNotes } from '@/components/QuoteNotes';
 import { WizardHeader } from '@/components/WizardHeader';
+import { Textarea } from '@/components/ui/textarea';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
 import { JobComponent, JobComponentType, Job } from '@/lib/types';
 
@@ -635,7 +635,9 @@ export default function GenericMaterialsPageRedesigned() {
   const [activeComponentType, setActiveComponentType] = useState<string | null>(null);
   const [activeComponentId, setActiveComponentId] = useState<string | null>(null);
   const [editingComponentId, setEditingComponentId] = useState<string | null>(null); // For JobComponentsManager control
+
   const [klus, setKlus] = useState<Job | null>(null);
+  const [notities, setNotities] = useState('');
 
   const handleComponentMaterialSelect = (compId: string, sectionKey: string, material: any) => {
     setComponents(prev => prev.map(comp => {
@@ -845,6 +847,7 @@ export default function GenericMaterialsPageRedesigned() {
         if (klusNode?.kleinMateriaal) setKleinMateriaalConfig(klusNode.kleinMateriaal);
         if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections);
         if (klusNode?.uiState?.hiddenCategories) setHiddenCategories(klusNode.uiState.hiddenCategories);
+        if (klusNode?.notities) setNotities(klusNode.notities);
         isHydratingRef.current = false;
       } catch (e) { console.error(e); }
       finally { setPaginaLaden(false); }
@@ -1322,6 +1325,7 @@ export default function GenericMaterialsPageRedesigned() {
         })),
         [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
         [`klussen.${klusId}.uiState.hiddenCategories`]: hiddenCategories,
+        [`klussen.${klusId}.notities`]: notities,
         [`klussen.${klusId}.updatedAt`]: serverTimestamp()
       };
 
@@ -1369,7 +1373,9 @@ export default function GenericMaterialsPageRedesigned() {
     kleinMateriaalConfig,
     collapsedSections,
     hiddenCategories,
-    gekozenPresetId
+
+    gekozenPresetId,
+    notities
   ]);
 
   const handleNext = (e: React.MouseEvent) => {
@@ -1423,7 +1429,7 @@ export default function GenericMaterialsPageRedesigned() {
         />
 
         {/* CONTENT */}
-        <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
+        <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-6 space-y-6">
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
           {/* Helper: Main Job Measurements - REMOVED per user request */}
@@ -1817,7 +1823,7 @@ export default function GenericMaterialsPageRedesigned() {
           {/* (Legacy Helper Removed) */}
 
           {/* Klein Material - Card style */}
-          <div className="pb-8">
+          <div>
             {renderKleinMateriaalSectie()}
           </div>
         </div>
@@ -1826,7 +1832,21 @@ export default function GenericMaterialsPageRedesigned() {
       {/* Quote Notes Section - Persistent at bottom */}
       {/* Quote Notes Section - Persistent at bottom */}
       <div className="max-w-5xl mx-auto px-4 pb-24">
-        <QuoteNotes quoteId={quoteId} />
+        {/* Public Job Notes Section - Matching Measurement Page Style */}
+        <div className="space-y-3 pt-6 border-t border-white/5">
+          <div>
+            <h3 className="text-lg font-medium text-foreground">Notities (voor calculatie)</h3>
+            <p className="text-sm text-muted-foreground">Deze opmerkingen worden meegenomen in de calculatie en kunnen (indien gewenst) op de offerte verschijnen.</p>
+          </div>
+          <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
+            <Textarea
+              value={notities}
+              onChange={(e) => setNotities(e.target.value)}
+              placeholder="Bijv: Let op, muur is scheef. Extra gips nodig."
+              className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Sticky Footer */}
