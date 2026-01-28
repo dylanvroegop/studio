@@ -6,20 +6,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
-  PlusCircle,
   Send,
   Loader2,
-  Percent,
-  Euro,
   CheckCircle2,
   AlertTriangle,
-  ClipboardList,
-  Truck,
   Plus,
   Trash2,
   Settings,
   Star,
-  Save,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -1345,31 +1339,38 @@ export default function OverzichtPage() {
     }
   }
 
-  // ✅ New Selection Tile Component (copied from materialen/page.tsx style)
-  const SelectionTile = ({
-    active,
-    error,
-    title,
-    subtitle,
-    onClick
+  // ✅ Segmented Toggle Component (matching HSB Voorzetwand 'Vorm' selector)
+  const SegmentedToggle = ({
+    options,
+    value,
+    onChange,
+    error
   }: {
-    active: boolean;
+    options: { id: string; label: string; subtitle?: string }[];
+    value: string;
+    onChange: (id: string) => void;
     error?: boolean;
-    title: string;
-    subtitle?: string;
-    onClick: () => void
   }) => (
-    <div
-      onClick={onClick}
-      className={cn(
-        'flex flex-col items-center justify-center p-3 rounded-md border cursor-pointer transition-all text-center h-full min-h-[80px]',
-        active && !error && 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100',
-        active && error && 'border-red-500/50 bg-red-500/10 text-red-100',
-        !active && 'hover:bg-muted/20 hover:border-muted-foreground/30 text-muted-foreground hover:text-foreground'
-      )}
-    >
-      <span className="font-semibold text-sm">{title}</span>
-      {subtitle && <span className="text-[10px] opacity-70 mt-0.5">{subtitle}</span>}
+    <div className="grid gap-1 p-1 bg-muted/50 rounded-lg border border-border/50" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+      {options.map((opt) => {
+        const isActive = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            className={cn(
+              "flex flex-col items-center justify-center py-2 px-3 transition-all rounded-md text-center",
+              isActive && !error && "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50",
+              isActive && error && "bg-red-500/20 text-red-400 shadow-sm ring-1 ring-red-500/50",
+              !isActive && "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+            )}
+          >
+            <span className="text-xs font-medium">{opt.label}</span>
+            {opt.subtitle && <span className="text-[10px] opacity-60 mt-0.5">{opt.subtitle}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 
@@ -1839,54 +1840,28 @@ export default function OverzichtPage() {
         }
       />
 
+
       <div className="flex-1 px-4 py-6 md:py-10 pb-32">
-        <div className="mx-auto max-w-5xl space-y-6">
-          {statusVariant !== 'success' && (
-            <div
-              className={cn(
-                'rounded-lg border px-4 py-3 text-sm',
-                statusVariant === 'warn' && 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-                statusVariant === 'error' && 'border-red-500/30 bg-red-500/10 text-red-200'
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <ClipboardList className="mt-0.5 h-4 w-4 opacity-80" />
-                <div>
-                  <div className="font-medium">Status</div>
-                  <div className="text-xs opacity-90">{primaryHint}</div>
-                </div>
-              </div>
-            </div>
-          )}
+        <div className="mx-auto max-w-5xl space-y-8">
 
           {/* Klussen */}
-          <Card className="border-muted/60">
-            <CardHeader className="pb-3">
-              <CardTitle>Huidige klussen</CardTitle>
-            </CardHeader>
+          <section className="space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Huidige Klussen</h2>
 
-            <CardContent className="space-y-3">
+            <div className="rounded-xl bg-muted/30 border border-border/50 overflow-hidden">
               {jobs.length === 0 && (
-                <p className="text-sm text-muted-foreground italic text-center py-6">
+                <p className="text-sm text-muted-foreground italic text-center py-8">
                   Er zijn nog geen klussen toegevoegd.
                 </p>
               )}
 
-              {jobs.map((job: any) => {
+              {jobs.map((job: any, index: number) => {
                 const rawKey =
                   job?.klusinformatie?.title?.trim?.() ||
                   job?.meta?.title?.trim?.() ||
                   job?.materialen?.jobKey?.trim?.() ||
                   job?.jobKey ||
                   '';
-
-                // DEBUG: Log key fields to see what's available
-                console.log('JOB DEBUG:', {
-                  id: job.id,
-                  maatwerk: job.maatwerk,
-                  klusinfo: job.klusinformatie,
-                  hasMaatwerk: Array.isArray(job.maatwerk) && job.maatwerk.length > 0
-                });
 
                 const title = humanizeJobKey(rawKey);
                 let preset = resolvePresetLabelForUI(job?.werkwijze?.presetLabel ?? null);
@@ -1913,26 +1888,19 @@ export default function OverzichtPage() {
 
                 const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
 
-                // Extract dimensions summary from maatwerk (dynamic or legacy) for differentiation
+                // Extract dimensions summary
                 const maatwerk = job?.[`${slug}_maatwerk`] || job?.maatwerk;
                 const klusinformatie = job?.klusinformatie;
                 let dimensionsSummary = '';
                 let areaSummary = '';
-                let itemCount = 0;
-                let extraInfo: string[] = [];
 
                 if (Array.isArray(maatwerk) && maatwerk.length > 0) {
-                  itemCount = maatwerk.length;
-
-                  // Get first item's dimensions
                   const firstItem = maatwerk[0];
-                  // Try various keys for length and height
                   const l = parseFloat(firstItem?.lengte) || parseFloat(firstItem?.width) || parseFloat(firstItem?.lengte1) || 0;
                   const h = parseFloat(firstItem?.hoogte) || parseFloat(firstItem?.breedte) || parseFloat(firstItem?.height) || parseFloat(firstItem?.hoogte1) || 0;
 
                   if (l > 0 && h > 0) {
                     dimensionsSummary = `${l} × ${h} mm`;
-                    // Calculate total area across ALL items
                     let totalAreaM2 = 0;
                     maatwerk.forEach((item: any) => {
                       const itemL = parseFloat(item?.lengte) || parseFloat(item?.width) || parseFloat(item?.lengte1) || 0;
@@ -1944,22 +1912,8 @@ export default function OverzichtPage() {
                     if (totalAreaM2 > 0) {
                       areaSummary = `${totalAreaM2.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`;
                     }
-                  } else if (l > 0) {
-                    dimensionsSummary = `${l} mm`;
-                  }
-
-                  // Count openings across all items
-                  let totalOpenings = 0;
-                  maatwerk.forEach((item: any) => {
-                    if (Array.isArray(item?.openings)) {
-                      totalOpenings += item.openings.length;
-                    }
-                  });
-                  if (totalOpenings > 0) {
-                    extraInfo.push(`${totalOpenings} ${totalOpenings === 1 ? 'opening' : 'openingen'}`);
                   }
                 } else if (klusinformatie) {
-                  // Fallback: try to get dimensions from klusinformatie
                   const l = parseFloat(klusinformatie?.lengte) || parseFloat(klusinformatie?.width) || 0;
                   const h = parseFloat(klusinformatie?.hoogte) || parseFloat(klusinformatie?.breedte) || parseFloat(klusinformatie?.height) || 0;
 
@@ -1967,241 +1921,195 @@ export default function OverzichtPage() {
                     dimensionsSummary = `${l} × ${h} mm`;
                     const areaM2 = (l * h) / 1_000_000;
                     areaSummary = `${areaM2.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m²`;
-                  } else if (l > 0) {
-                    dimensionsSummary = `${l} mm`;
                   }
-                }
-
-                // Add balkafstand if present
-                const balkafstand = maatwerk?.[0]?.balkafstand || klusinformatie?.balkafstand;
-                if (balkafstand && parseFloat(balkafstand) > 0) {
-                  extraInfo.push(`H.O.H. ${balkafstand}`);
-                }
-
-                // Add shape if non-standard
-                const shape = maatwerk?.[0]?.shape || klusinformatie?.shape;
-                if (shape && shape !== 'rectangle') {
-                  const shapeLabel = shape === 'slope' ? 'schuin' : shape === 'gable' ? 'nok' : shape === 'l-shape' ? 'L-vorm' : shape === 'u-shape' ? 'U-vorm' : shape;
-                  extraInfo.push(shapeLabel);
                 }
 
                 return (
                   <div
                     key={job.id}
-                    className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                    className={cn(
+                      "group flex items-center justify-between py-3 px-4 hover:bg-white/5 transition-colors cursor-pointer",
+                      index > 0 && "border-t border-border/50"
+                    )}
+                    onClick={() => router.push(bewerkenHref)}
                   >
-                    <div className="min-w-0 space-y-1">
-                      <p className="font-medium truncate">{title}</p>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                        <span>
-                          Werkwijze:{' '}
-                          <span className={cn(!preset && 'opacity-60')}>
-                            {preset ?? '—'}
-                          </span>
-                        </span>
-                        {dimensionsSummary && (
-                          <>
-                            <span className="text-muted-foreground/40">•</span>
-                            <span className="font-mono text-xs">{dimensionsSummary}</span>
-                          </>
-                        )}
-                        {areaSummary && (
-                          <>
-                            <span className="text-muted-foreground/40">•</span>
-                            <span className="font-mono text-xs">{areaSummary}</span>
-                          </>
-                        )}
-                        {itemCount > 1 && (
-                          <>
-                            <span className="text-muted-foreground/40">•</span>
-                            <span className="text-xs">{itemCount} {itemCount === 1 ? 'vlak' : 'vlakken'}</span>
-                          </>
-                        )}
-                        {extraInfo.map((info, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="text-muted-foreground/40">•</span>
-                            <span className="text-xs font-medium">{info}</span>
-                          </div>
-                        ))}
+                    {/* Left: Title & Info */}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm text-foreground truncate">{title}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                          {dimensionsSummary && <span className="font-mono">{dimensionsSummary}</span>}
+                          {areaSummary && (
+                            <>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span className="font-mono">{areaSummary}</span>
+                            </>
+                          )}
+                          {preset && (
+                            <>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span>{preset}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {/* Right: Status Pill + Actions */}
+                    <div className="flex items-center gap-2 shrink-0 ml-3">
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full border px-2.5 py-1 text-xs',
+                          'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
                           isComplete
-                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                            : 'border-red-500/30 bg-red-500/10 text-red-300'
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : 'bg-red-500/15 text-red-400'
                         )}
                       >
-                        {isComplete ? (
-                          <>
-                            <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                            Ingesteld
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle className="mr-1 h-3.5 w-3.5" />
-                            Onvolledig
-                          </>
-                        )}
+                        {isComplete ? 'Ingesteld' : 'Onvolledig'}
                       </span>
-
-                      <Link href={bewerkenHref} prefetch={false}>
-                        <Button variant="outline" size="sm">Bewerken</Button>
-                      </Link>
 
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="text-muted-foreground hover:text-foreground"
-                        onClick={() => openDeleteDialogForJob(job)}
+                        className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(bewerkenHref);
+                        }}
+                        aria-label="Bewerken"
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteDialogForJob(job);
+                        }}
                         aria-label="Klus verwijderen"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
                 );
               })}
 
-              <Button
-                variant="successGhost"
+              {/* Add Klus Link */}
+              <button
+                type="button"
                 onClick={handleAddJob}
-                className="w-full transition-colors duration-150 ease-out"
+                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-border/50"
               >
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Nog een klus toevoegen
-              </Button>
-
-            </CardContent>
-          </Card>
+                <Plus className="h-4 w-4" />
+                <span>Een klus toevoegen</span>
+              </button>
+            </div>
+          </section>
 
           {/* Transport */}
-          <Card className="border-muted/60">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>Transport</CardTitle>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setTransportInstellingenOpen(true)}
-                  aria-label="Transport instellingen"
-                >
-                  <Settings className="h-5 w-5" />
-                </Button>
-              </div>
-            </CardHeader>
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Transport</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setTransportInstellingenOpen(true)}
+                aria-label="Transport instellingen"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
 
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <SelectionTile
-                  active={transportMode === 'perKm'}
-                  error={!transportIsValid && transportMode === 'perKm'}
-                  title="Prijs per km"
-                  subtitle="Afstand automatisch berekend"
-                  onClick={() => setTransportMode('perKm')}
-                />
+            <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
+              <SegmentedToggle
+                options={[
+                  { id: 'perKm', label: 'Per km', subtitle: 'Automatisch' },
+                  { id: 'fixed', label: 'Vast bedrag' },
+                  { id: 'none', label: 'Geen' }
+                ]}
+                value={transportMode}
+                onChange={(id) => setTransportMode(id as TransportMode)}
+                error={!transportIsValid}
+              />
 
-                <SelectionTile
-                  active={transportMode === 'fixed'}
-                  error={!transportIsValid && transportMode === 'fixed'}
-                  title="Vast bedrag"
-                  subtitle="Eén bedrag voor transport"
-                  onClick={() => setTransportMode('fixed')}
-                />
-
-                <SelectionTile
-                  active={transportMode === 'none'}
-                  title="Geen"
-                  subtitle="Geen transportkosten"
-                  onClick={() => setTransportMode('none')}
-                />
-              </div>
-
-              {/* DYNAMIC INPUTS ROW (Shows only when needed) */}
+              {/* DYNAMIC INPUTS ROW */}
               {transportMode === 'perKm' && (
-                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
-                  <div className="flex items-center gap-3 max-w-xs">
-                    <div className="relative w-full">
-                      <EuroInput
-                        value={prijsPerKm}
-                        onChange={setPrijsPerKm}
-                        inputClassName={cn(
-                          !transportIsValid && "border-red-500 focus-visible:ring-red-500"
-                        )}
-                        placeholder="0,00"
-                      />
-                    </div>
+                <div className="animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center gap-3">
+                    <EuroInput
+                      value={prijsPerKm}
+                      onChange={setPrijsPerKm}
+                      inputClassName={cn(
+                        "bg-muted border-border rounded-md",
+                        !transportIsValid && "border-red-500 focus-visible:ring-red-500"
+                      )}
+                      placeholder="0,00"
+                    />
                     <span className="text-xs text-muted-foreground whitespace-nowrap">per km</span>
                   </div>
                 </div>
               )}
 
               {transportMode === 'fixed' && (
-                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
-                  <div className="flex items-center gap-3 max-w-xs">
-                    <div className="relative w-full">
-                      <EuroInput
-                        value={vasteTransportkosten}
-                        onChange={setVasteTransportkosten}
-                        inputClassName={cn(
-                          !transportIsValid && "border-red-500 focus-visible:ring-red-500"
-                        )}
-                        placeholder="0,00"
-                      />
-                    </div>
+                <div className="animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center gap-3">
+                    <EuroInput
+                      value={vasteTransportkosten}
+                      onChange={setVasteTransportkosten}
+                      inputClassName={cn(
+                        "bg-muted border-border rounded-md",
+                        !transportIsValid && "border-red-500 focus-visible:ring-red-500"
+                      )}
+                      placeholder="0,00"
+                    />
                     <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* Bouwplaatskosten */}
-          <Card className="border-muted/60">
-            <CardHeader className="pb-3 relative overflow-hidden">
-              {/* ROW 1: Title (Left) + Settings Icon (Right) */}
-              <div className="flex items-start justify-between">
-                <div className="flex flex-col gap-1 min-w-0">
-                  <CardTitle>Bouwplaatskosten</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                  </p>
-                </div>
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Bouwplaatskosten</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setBouwplaatsBeheerOpen(true)}
+                aria-label="Bouwplaatskosten pakketten beheren"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground shrink-0 -mr-2 -mt-2"
-                  onClick={() => setBouwplaatsBeheerOpen(true)}
-                  aria-label="Bouwplaatskosten pakketten beheren"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* ROW 2: Dropdown (Now Full Width) */}
-              <div className="mt-4">
+            <div className="rounded-xl bg-muted/30 border border-border/50 overflow-hidden">
+              {/* Pakket Selector */}
+              <div className="px-4 py-3 border-b border-border/50">
                 <Select
                   value={geselecteerdPakketId || 'LEEG'}
                   onValueChange={(v) => {
                     if (!v || v === 'LEEG') {
                       setGeselecteerdPakketId('');
-                      setBouwplaatskosten(defaultBouwplaatskosten()); // ✅ Loads defaults
+                      setBouwplaatskosten(defaultBouwplaatskosten());
                       return;
                     }
                     handleSelectPakket(v);
                   }}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="bg-muted border-border rounded-md">
                     <SelectValue placeholder="Leeg (handmatig)" />
                   </SelectTrigger>
-
                   <SelectContent>
                     <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
                     {pakketten.map((p) => (
@@ -2213,129 +2121,125 @@ export default function OverzichtPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </CardHeader>
 
+              {/* Items List */}
+              <div className="divide-y divide-border/50">
+                {bouwplaatskosten.map((item) => (
+                  <div key={item.id} className="group flex items-center gap-3 py-3 px-4 hover:bg-white/5 transition-colors">
+                    {/* Name */}
+                    <div className="flex-1 min-w-0">
+                      {item.isVast ? (
+                        <span className="text-sm text-foreground">{item.naam}</span>
+                      ) : (
+                        <Input
+                          value={item.naam}
+                          onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
+                          placeholder="Bijv. Hoogwerker / Gereedschap huur"
+                          className="bg-transparent border-0 px-0 h-7 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                        />
+                      )}
+                    </div>
 
-
-            <CardContent className="space-y-4">
-              {bouwplaatskosten.map((item) => (
-                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                  <div className="sm:col-span-4">
-                    <Label className="text-xs sm:sr-only">Naam</Label>
-                    {item.isVast ? (
-                      <span className="text-sm">{item.naam}</span>
-                    ) : (
-                      <Input
-                        value={item.naam}
-                        onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
-                        placeholder="Bijv. Hoogwerker / Gereedschap huur"
+                    {/* Price */}
+                    <div className="w-28 shrink-0">
+                      <EuroInput
+                        value={item.prijs}
+                        onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
+                        inputClassName="bg-muted border-border rounded-md h-8 text-sm"
+                        placeholder="0,00"
                       />
-                    )}
+                    </div>
+
+                    {/* Per */}
+                    <div className="w-20 shrink-0">
+                      <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
+                        <SelectTrigger className="bg-muted border-border rounded-md h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dag">dag</SelectItem>
+                          <SelectItem value="week">week</SelectItem>
+                          <SelectItem value="klus">klus</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Delete */}
+                    <div className="w-7 shrink-0">
+                      {!item.isVast && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
+                          onClick={() => handleRemoveBouwplaats(item.id)}
+                          aria-label="Verwijderen"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
+                ))}
+              </div>
 
-                  <EuroInput
-                    value={item.prijs}
-                    onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
-                    className="sm:col-span-5"
-                    placeholder="0,00"
-                  />
+              {/* Add Button */}
+              <button
+                type="button"
+                onClick={handleAddExtraBouwplaats}
+                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-border/50"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Toevoegen</span>
+              </button>
+            </div>
+          </section>
 
-                  <div className="sm:col-span-2">
-                    <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="dag">dag</SelectItem>
-                        <SelectItem value="week">week</SelectItem>
-                        <SelectItem value="klus">klus</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="sm:col-span-1 flex sm:justify-end">
-                    {!item.isVast && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-foreground"
-                        onClick={() => handleRemoveBouwplaats(item.id)}
-                        aria-label="Verwijderen"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {/* ✅ ADD BUTTON: Placed at the bottom, full width */}
+          {/* Winstmarge */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Winstmarge</h2>
               <Button
                 type="button"
                 variant="ghost"
-                onClick={handleAddExtraBouwplaats}
-                className="w-full gap-2 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 font-medium border border-dashed border-emerald-500/20"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setWinstInstellingenOpen(true)}
+                aria-label="Winstmarge instellingen"
               >
-                <Plus className="h-4 w-4" />
-                Toevoegen
+                <Settings className="h-4 w-4" />
               </Button>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Winstmarge */}
-          <Card className="border-muted/60">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>Winstmarge</CardTitle>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setWinstInstellingenOpen(true)}
-                  aria-label="Winstmarge instellingen"
-                >
-                  <Settings className="h-5 w-5" />
-                </Button>
-              </div>
-            </CardHeader>
+            <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
+              <SegmentedToggle
+                options={[
+                  { id: 'percentage', label: 'Percentage', subtitle: '% van totaal' },
+                  { id: 'fixed', label: 'Vast bedrag' },
+                  { id: 'none', label: 'Geen' }
+                ]}
+                value={winstMode}
+                onChange={(id) => {
+                  if (id === 'none') {
+                    setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null });
+                  } else {
+                    setWinstMarge((p) => ({ ...p, mode: id as WinstMargeMode }));
+                  }
+                }}
+                error={!winstMargeIsValid}
+              />
 
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <SelectionTile
-                  active={winstMode === 'percentage'}
-                  error={!winstMargeIsValid && winstMode === 'percentage'}
-                  title="Percentage"
-                  subtitle="% van totaal"
-                  onClick={() => setWinstMarge((p) => ({ ...p, mode: 'percentage' }))}
-                />
-
-                <SelectionTile
-                  active={winstMode === 'fixed'}
-                  error={!winstMargeIsValid && winstMode === 'fixed'}
-                  title="Vast bedrag"
-                  subtitle="Vaste toeslag"
-                  onClick={() => setWinstMarge((p) => ({ ...p, mode: 'fixed' }))}
-                />
-
-                <SelectionTile
-                  active={winstMode === 'none'}
-                  title="Geen"
-                  subtitle="Geen winstmarge"
-                  onClick={() => setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null })}
-                />
-              </div>
-
-              {/* DYNAMIC INPUTS ROW (Shows only when needed) */}
+              {/* DYNAMIC INPUTS ROW */}
               {winstMode === 'percentage' && (
-                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
-                  <div className="flex items-center gap-3 max-w-xs">
-                    <div className="relative w-full">
+                <div className="animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
                       <Input
                         type="number"
                         step="0.1"
                         placeholder="0"
                         className={cn(
-                          "pr-8",
+                          "pr-8 bg-muted border-border rounded-md",
                           !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
                         )}
                         value={winstMarge.percentage ?? ''}
@@ -2358,74 +2262,81 @@ export default function OverzichtPage() {
               )}
 
               {winstMode === 'fixed' && (
-                <div className="animate-in fade-in slide-in-from-top-1 pt-4">
-                  <div className="flex items-center gap-3 max-w-xs">
-                    <div className="relative w-full">
-                      <EuroInput
-                        value={numberToEuroInputString(winstMarge.fixedAmount)}
-                        onChange={(v) => {
-                          const n = euroNLToNumberOrNull(v);
-                          setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
-                        }}
-                        inputClassName={cn(
-                          !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
-                        )}
-                        placeholder="0,00"
-                      />
-                    </div>
+                <div className="animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center gap-3">
+                    <EuroInput
+                      value={numberToEuroInputString(winstMarge.fixedAmount)}
+                      onChange={(v) => {
+                        const n = euroNLToNumberOrNull(v);
+                        setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
+                      }}
+                      inputClassName={cn(
+                        "bg-muted border-border rounded-md",
+                        !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
+                      )}
+                      placeholder="0,00"
+                    />
                     <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          {/* Sticky bottom bar (geen globale settings knop meer) */}
-          {/* Sticky bottom bar (geen globale settings knop meer) */}
+          {/* Sticky bottom bar */}
           <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-sm">
-            <div className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-4">
               <Button
-                variant="outline"
+                variant="ghost"
                 asChild
-                className="shrink-0 w-full sm:w-auto"
+                className="text-muted-foreground hover:text-foreground"
               >
-                <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
+                <Link href={`/offertes/${quoteId}/klus/nieuw`}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Terug
+                </Link>
               </Button>
 
-              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                <div className="text-sm text-left sm:text-right hidden sm:block">
-                  <div className="font-medium">
-                    Na indienen wordt de offerte berekend
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Verwachte tijd: 30–60 min • Verstuurd via e-mail of WhatsApp
-                  </div>
+              <div className="flex items-center gap-4">
+                {/* Status indicator */}
+                <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                  {stats.isReady ? (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>Klaar om te verzenden</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                      <span className="max-w-48 truncate">{primaryHint}</span>
+                    </>
+                  )}
                 </div>
 
                 <Button
                   onClick={handleFinishQuote}
                   disabled={isSubmitting || !stats.isReady}
                   className={cn(
-                    'w-full sm:w-auto',
-                    'bg-emerald-600 text-white hover:bg-emerald-700',
-                    (!stats.isReady || isSubmitting) && 'opacity-60'
+                    'gap-2 px-6 rounded-lg font-medium',
+                    stats.isReady
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/20'
+                      : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                   )}
                 >
                   {isSubmitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Send className="mr-2 h-4 w-4" />
+                    <Send className="h-4 w-4" />
                   )}
                   {isSubmitting ? 'Indienen…' : 'Offerte indienen'}
                 </Button>
               </div>
             </div>
-
           </div>
 
-          <div className="h-6" />
+          <div className="h-20" />
         </div>
       </div>
-    </main >
+    </main>
   );
 }
