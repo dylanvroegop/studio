@@ -995,157 +995,196 @@ export default function GenericMaterialsPageRedesigned() {
   const renderKleinMateriaalSectie = () => {
     const { mode, percentage, fixedAmount } = kleinMateriaalConfig;
 
+    const isHidden = hiddenCategories['klein_materiaal'];
+
+    // Calculate Summary Text
+    let summaryText = null;
+    if (mode === 'inschatting') summaryText = "Automatische Inschatting";
+    else if (mode === 'percentage') summaryText = `Percentage: ${percentage ?? 0}%`;
+    else if (mode === 'fixed') summaryText = `Vast bedrag: ${formatNlMoneyFromNumber(fixedAmount)}`;
+    else if (mode === 'none') summaryText = "Geen klein materiaal";
+
     return (
       <div className="mt-8 rounded-xl border border-border/60 bg-card/30 overflow-hidden shadow-sm">
-        {/* Header Section */}
-        <div className="px-5 py-4 border-b border-border/50 bg-muted/20">
-          <h2 className="text-sm font-bold text-foreground flex items-center gap-2 uppercase tracking-wide">
-            <Calculator className="h-4 w-4 text-emerald-500" />
-            Automatische Klein Materiaal Berekening
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">
-            Dit dekt schroeven, pluggen, tape en ander klein bevestigingsmateriaal dat u niet individueel hoeft te specificeren.
-          </p>
-        </div>
-
-        {/* Content Section */}
-        <div className="p-5 space-y-6">
-
-          {/* Recommended Option */}
-          <div className="space-y-2">
-            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest pl-1">Aanbevolen</label>
-            <div
-              onClick={() => {
-                setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
-                setKleinVastBedragStr('');
-              }}
-              className={cn(
-                "relative flex items-start gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer group",
-                mode === 'inschatting'
-                  ? "border-emerald-500/50 bg-emerald-500/5 shadow-sm"
-                  : "border-border/60 hover:border-emerald-500/30 hover:bg-accent/40 bg-background/50"
-              )}
-            >
-              <div className={cn(
-                "mt-0.5 p-2 rounded-lg transition-colors",
-                mode === 'inschatting' ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground group-hover:text-emerald-500"
-              )}>
-                <Sparkles className="h-4.5 w-4.5" />
-              </div>
-              <div className="space-y-1 flex-1">
-                <div className="font-semibold text-sm flex items-center gap-2">
-                  Automatische Inschatting
-                  {mode === 'inschatting' && <CheckCircle2 className="h-4 w-4 text-emerald-600 animate-in zoom-in-50 duration-200" />}
-                </div>
-
-                {/* Trust explanation - ONLY visible when selected */}
-                {mode === 'inschatting' ? (
-                  <p className="text-xs text-muted-foreground/90 leading-relaxed animate-in fade-in slide-in-from-top-1">
-                    Klein materiaal automatisch meeberekenen op basis van klusomvang.
-                    <br /><span className="opacity-75">Zorgt voor een correcte dekking van kleinverbruik.</span>
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground group-hover:text-muted-foreground/80">
-                    Automatisch klein materiaal en verbruiksartikelen meenemen.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Alternatives */}
-          <div className="space-y-3">
-            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest pl-1">Handmatige Alternatieven</label>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'percentage' }))}
-                className={cn(
-                  'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
-                  mode === 'percentage'
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
-                    : "border-border/60 bg-background/50 hover:bg-accent/50 text-muted-foreground"
-                )}
-              >
-                Percentage
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'fixed' }))}
-                className={cn(
-                  'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
-                  mode === 'fixed'
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
-                    : "border-border/60 bg-background/50 hover:bg-accent/50 text-muted-foreground"
-                )}
-              >
-                Vast bedrag
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null });
-                  setKleinVastBedragStr('');
-                }}
-                className={cn(
-                  'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+        {/* Header Section - Now Clickable/Toggleable */}
+        <div
+          onClick={() => toggleCategoryVisibility('klein_materiaal')}
+          className="px-5 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors group select-none"
+        >
+          <div className="flex-1">
+            <h2 className={cn(
+              "text-sm font-bold flex items-center gap-2 uppercase tracking-wide transition-colors",
+              isHidden ? "text-muted-foreground" : "text-foreground"
+            )}>
+              <Calculator className={cn("h-4 w-4", isHidden ? "text-muted-foreground" : "text-emerald-500")} />
+              Automatische Klein Materiaal Berekening
+              {isHidden && summaryText && (
+                <span className={cn(
+                  "ml-3 text-[10px] px-2 py-0.5 rounded-full font-medium normal-case tracking-normal border animate-in fade-in slide-in-from-left-2",
                   mode === 'none'
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
-                    : "border-transparent bg-transparent text-muted-foreground/70 hover:text-foreground hover:bg-secondary/50"
-                )}
-              >
-                Geen
-              </button>
-
-              {/* Inline Inputs - Conditional Rendering */}
-              {mode === 'percentage' && (
-                <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2 duration-200">
-                  <div className="w-px h-6 bg-border mx-1" />
-                  <div className="relative w-24">
-                    <Input
-                      type="number"
-                      step="0.1"
-                      placeholder="0"
-                      className="pr-7 h-9 text-sm"
-                      value={percentage ?? ''}
-                      onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground text-xs pointer-events-none">%</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">van materiaalkosten</span>
-                </div>
+                    ? "bg-muted text-muted-foreground border-border"
+                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                )}>
+                  {summaryText}
+                </span>
               )}
-
-              {mode === 'fixed' && (
-                <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2 duration-200">
-                  <div className="w-px h-6 bg-border mx-1" />
-                  <div className="w-32">
-                    <EuroInput
-                      id="km-fixed-input"
-                      value={kleinVastBedragStr}
-                      placeholder="0,00"
-                      // autoFocus // Can be annoying if switching quickly, but helpful for immediate entry
-                      onChange={(v: string) => {
-                        setKleinVastBedragStr(v);
-                        setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) });
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Percentage Clarification Text */}
-            {mode === 'percentage' && (
-              <p className="text-xs text-muted-foreground/80 leading-relaxed pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                Dit percentage wordt berekend over de <strong>totale materiaalkosten</strong> van deze klus (excl. arbeid & transport).
+            </h2>
+            {!isHidden && (
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-2xl leading-relaxed animate-in fade-in slide-in-from-top-1">
+                Dit dekt schroeven, pluggen, tape en ander klein bevestigingsmateriaal dat u niet individueel hoeft te specificeren.
               </p>
             )}
           </div>
 
+          <div
+            className="p-1.5 rounded-md text-muted-foreground group-hover:text-foreground transition-colors ml-4"
+            title={isHidden ? "Toon sectie" : "Verberg sectie"}
+          >
+            {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </div>
         </div>
+
+        {/* Content Section - Conditionally Rendered */}
+        {!isHidden && (
+          <div className="p-5 space-y-6 animate-in slide-in-from-top-2 duration-200">
+
+            {/* Recommended Option */}
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest pl-1">Aanbevolen</label>
+              <div
+                onClick={() => {
+                  setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
+                  setKleinVastBedragStr('');
+                }}
+                className={cn(
+                  "relative flex items-start gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer group",
+                  mode === 'inschatting'
+                    ? "border-emerald-500/50 bg-emerald-500/5 shadow-sm"
+                    : "border-border/60 hover:border-emerald-500/30 hover:bg-accent/40 bg-background/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 p-2 rounded-lg transition-colors",
+                  mode === 'inschatting' ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground group-hover:text-emerald-500"
+                )}>
+                  <Sparkles className="h-4.5 w-4.5" />
+                </div>
+                <div className="space-y-1 flex-1">
+                  <div className="font-semibold text-sm flex items-center gap-2">
+                    Automatische Inschatting
+                    {mode === 'inschatting' && <CheckCircle2 className="h-4 w-4 text-emerald-600 animate-in zoom-in-50 duration-200" />}
+                  </div>
+
+                  {/* Trust explanation - ONLY visible when selected */}
+                  {mode === 'inschatting' ? (
+                    <p className="text-xs text-muted-foreground/90 leading-relaxed animate-in fade-in slide-in-from-top-1">
+                      Klein materiaal automatisch meeberekenen op basis van klusomvang.
+                      <br /><span className="opacity-75">Zorgt voor een correcte dekking van kleinverbruik.</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground group-hover:text-muted-foreground/80">
+                      Automatisch klein materiaal en verbruiksartikelen meenemen.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Alternatives */}
+            <div className="space-y-3">
+              <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest pl-1">Handmatige Alternatieven</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'percentage' }))}
+                  className={cn(
+                    'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+                    mode === 'percentage'
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
+                      : "border-border/60 bg-background/50 hover:bg-accent/50 text-muted-foreground"
+                  )}
+                >
+                  Percentage
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setKleinMateriaalConfig((p: any) => ({ ...p, mode: 'fixed' }))}
+                  className={cn(
+                    'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+                    mode === 'fixed'
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
+                      : "border-border/60 bg-background/50 hover:bg-accent/50 text-muted-foreground"
+                  )}
+                >
+                  Vast bedrag
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKleinMateriaalConfig({ mode: 'none', percentage: null, fixedAmount: null });
+                    setKleinVastBedragStr('');
+                  }}
+                  className={cn(
+                    'px-3.5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+                    mode === 'none'
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 ring-1 ring-emerald-500/20"
+                      : "border-transparent bg-transparent text-muted-foreground/70 hover:text-foreground hover:bg-secondary/50"
+                  )}
+                >
+                  Geen
+                </button>
+
+
+                {/* Inline Inputs - Conditional Rendering */}
+                {mode === 'percentage' && (
+                  <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                    <div className="w-px h-6 bg-border mx-1" />
+                    <div className="relative w-24">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        placeholder="0"
+                        className="pr-7 h-9 text-sm"
+                        value={percentage ?? ''}
+                        onChange={(e) => setKleinMateriaalConfig({ ...kleinMateriaalConfig, percentage: e.target.value ? Number(e.target.value) : null })}
+                      />
+                      <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground text-xs pointer-events-none">%</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">van materiaalkosten</span>
+                  </div>
+                )}
+
+                {mode === 'fixed' && (
+                  <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                    <div className="w-px h-6 bg-border mx-1" />
+                    <div className="w-32">
+                      <EuroInput
+                        id="km-fixed-input"
+                        value={kleinVastBedragStr}
+                        placeholder="0,00"
+                        // autoFocus // Can be annoying if switching quickly, but helpful for immediate entry
+                        onChange={(v: string) => {
+                          setKleinVastBedragStr(v);
+                          setKleinMateriaalConfig({ ...kleinMateriaalConfig, fixedAmount: parseNLMoneyToNumber(v) });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Percentage Clarification Text */}
+              {mode === 'percentage' && (
+                <p className="text-xs text-muted-foreground/80 leading-relaxed pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  Dit percentage wordt berekend over de <strong>totale materiaalkosten</strong> van deze klus (excl. arbeid & transport).
+                </p>
+              )}
+            </div>
+
+          </div>
+        )}
       </div>
     );
   };
