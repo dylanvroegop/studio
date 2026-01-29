@@ -418,12 +418,15 @@ export default function Dashboard() {
               <div className="text-3xl font-light tracking-tight">{begroeting}</div>
             </div>
 
-            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-zinc-900/90 via-zinc-900/80 to-emerald-900/20 shadow-2xl shadow-black/50 ring-1 ring-white/10 group">
+            <Card
+              className="relative overflow-hidden border-0 bg-gradient-to-br from-zinc-900/90 via-zinc-900/80 to-emerald-900/20 shadow-2xl shadow-black/50 ring-1 ring-white/10 group cursor-pointer transition-transform duration-200 active:scale-[0.99]"
+              onClick={handleNewQuote}
+            >
               <div className="absolute -right-6 -top-6 text-emerald-500/5 rotate-12 transition-transform duration-700 group-hover:rotate-6 group-hover:scale-110">
                 <FilePlus className="h-64 w-64" />
               </div>
 
-              <CardContent className="relative p-8 md:p-10">
+              <CardContent className="relative p-8 md:p-10 pointer-events-none">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
                   <div className="min-w-0 max-w-lg relative z-10 space-y-2">
 
@@ -436,8 +439,13 @@ export default function Dashboard() {
                     <Button
                       variant="success"
                       size="lg"
-                      className="gap-3 h-14 px-8 text-base shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 hover:shadow-emerald-500/40 font-semibold"
-                      onClick={handleNewQuote}
+                      className="gap-3 h-14 px-8 text-base shadow-xl shadow-emerald-500/20 transition-all group-hover:scale-105 hover:shadow-emerald-500/40 font-semibold pointer-events-auto"
+                      onClick={(e) => {
+                        // Allow this internal button to still work independently if needed, though parent click handles it too.
+                        // But stopping propagation here prevents double-firing if both have handlers.
+                        e.stopPropagation();
+                        handleNewQuote();
+                      }}
                       disabled={isCreating}
                     >
                       {isCreating ? (
@@ -445,7 +453,7 @@ export default function Dashboard() {
                       ) : (
                         <Plus className="h-5 w-5" />
                       )}
-                      {isCreating ? 'Mee bezig...' : 'Nieuwe offerte'}
+                      {isCreating ? 'Mee bezig...' : 'Nieuwe klus'}
                     </Button>
                   </div>
                 </div>

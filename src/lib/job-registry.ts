@@ -1506,14 +1506,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           gips_afwerking: { title: 'Naden & Stucwerk', order: 10 },
         }
       },
-      {
-        title: 'Overig Plafonds',
-        description: 'Niet-standaard plafondoplossingen',
-        slug: 'overig-plafonds',
-        measurementLabel: 'Plafond',
-        measurements: CEILLING_FIELDS,
-        materialSections: []
-      },
+
     ],
   },
 
