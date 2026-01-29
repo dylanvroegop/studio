@@ -150,6 +150,7 @@ export interface MeasurementField {
   defaultValue?: string | number;
   group?: string;
   options?: { label: string; value: string }[];
+  optional?: boolean;
 }
 
 export interface MaterialSection {
@@ -213,7 +214,7 @@ const EPDM_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
   { key: 'dakrand_breedte', label: 'Breedte Dakrand', type: 'number', suffix: 'mm', defaultValue: 50, group: 'dakrand_structuur' },
-  { key: 'dakrand_hoogte', label: 'Hoogte Dakrand', type: 'number', suffix: 'mm', placeholder: 'Bijv. 70', group: 'dakrand_structuur' },
+  { key: 'dakrand_hoogte', label: 'Hoogte Dakrand', type: 'number', suffix: 'mm', placeholder: 'Bijv. 70', group: 'dakrand_structuur', optional: true },
   {
     key: 'edge_top',
     label: 'Rand Boven',
@@ -2005,14 +2006,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }
       },
 
-      {
-        title: 'Overig Kozijnen',
-        description: 'Renovatie of reparatie',
-        slug: 'overig-kozijnen',
-        measurementLabel: 'Kozijn',
-        measurements: [],
-        materialSections: []
-      },
+
       {
         title: 'Waterslagen / Dorpels',
         description: 'Vervangen van waterslagen of raamdorpels',

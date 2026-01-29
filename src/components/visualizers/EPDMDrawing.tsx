@@ -324,11 +324,26 @@ export function EPDMDrawing({
                     const dx = p2.x - p1.x;
                     const dy = p2.y - p1.y;
                     const len = Math.sqrt(dx * dx + dy * dy);
-                    const angleRad = Math.atan2(dy, dx);
-                    const angleDeg = angleRad * (180 / Math.PI);
+                    let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
 
                     const midX = (p1.x + p2.x) / 2;
                     const midY = (p1.y + p2.y) / 2;
+
+                    // Calculate Inside Normal (Clockwise winding -> 90deg right is inside)
+                    // Normal = (-dy, dx) normalized
+                    const nx = -dy / len;
+                    const ny = dx / len;
+
+                    // Label Position (Inside)
+                    const textDist = 25;
+                    const labelX = midX + (nx * textDist);
+                    const labelY = midY + (ny * textDist);
+
+                    // Normalize Angle for Readability (Keep between 0 and 180, preferring 90)
+                    // This aligns verticals to read Down (90) per user request
+                    // Normalize Angle for Readability (Keep between -90 and 90)
+                    while (angleDeg > 90) angleDeg -= 180;
+                    while (angleDeg <= -90) angleDeg += 180;
 
                     // Toggle Handler
                     const toggle = (e: React.MouseEvent) => {
@@ -342,29 +357,6 @@ export function EPDMDrawing({
 
                     // Interaction Zone (Invisible but clickable)
                     const hitThickness = 40;
-
-                    // Label
-                    const labelDist = 25;
-                    let labelOffsetX = 0;
-                    let labelOffsetY = 0;
-
-                    // Simple offset based on side for rectangles, 
-                    // for slanted we might need rotation logic adjustment.
-                    if (side === 'top') labelOffsetY = -labelDist;
-                    if (side === 'bottom') labelOffsetY = labelDist;
-                    if (side === 'left') labelOffsetX = -labelDist;
-                    if (side === 'right') labelOffsetX = labelDist;
-
-                    // Specific fix for Slope Top Edge Label alignment relative to rotation
-                    // If rotated, coordinate system rotates too? No, transform rotates.
-                    // If we rotate around midX, midY.
-                    // The label needs to be "outside".
-                    // For Top Edge (L->R), Outside is Up (-Y in local coords before rotation).
-                    // Wait, angle calculation: 
-                    // TL -> TR. dx > 0. dy (SVG) depends on slope.
-                    // If flat, dy=0. angle=0. LabelOffset (0, -25). Correct (Up).
-                    // If sloping up (hRight > hLeft): TR is higher (lower SVG Y). dy < 0. angle < 0.
-                    // Local "Up" (-Y) rotated by angle < 0 points Top-Left-ish (Perpendicular). Correct.
 
                     return (
                         <g key={key} onClick={toggle} cursor="pointer">
@@ -389,17 +381,16 @@ export function EPDMDrawing({
                             />
 
                             {/* Label */}
-                            <g transform={`translate(${midX}, ${midY}) rotate(${angleDeg})`}>
-                                <text
-                                    x={labelOffsetX} y={labelOffsetY}
-                                    textAnchor="middle"
-                                    dy="0.3em"
-                                    fill="rgb(100, 116, 139)"
-                                    style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace', userSelect: 'none' }}
-                                >
-                                    {isWall ? "GEVEL" : "VRIJSTAAND"}
-                                </text>
-                            </g>
+                            <text
+                                x={labelX} y={labelY}
+                                transform={`rotate(${angleDeg}, ${labelX}, ${labelY})`}
+                                textAnchor="middle"
+                                dy="0.3em"
+                                fill="rgb(100, 116, 139)"
+                                style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace', userSelect: 'none' }}
+                            >
+                                {isWall ? "GEVEL" : "VRIJSTAAND"}
+                            </text>
                         </g>
                     );
                 };
@@ -484,8 +475,8 @@ export function EPDMDrawing({
                                 />
                                 {/* Right Height */}
                                 <DimensionLine
-                                    p1={edges.find(e => e.side === 'right')!.p1} // Top Right
-                                    p2={edges.find(e => e.side === 'right')!.p2} // Bottom Right
+                                    p1={edges.find(e => e.side === 'right')!.p2} // Bottom Right
+                                    p2={edges.find(e => e.side === 'right')!.p1} // Top Right
                                     label={hRight}
                                     offset={50}
                                     orientation="vertical"

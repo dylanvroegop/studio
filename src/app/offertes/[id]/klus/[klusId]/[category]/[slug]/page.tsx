@@ -95,6 +95,7 @@ export default function GenericMeasurementPage() {
   const [components, setComponents] = useState<JobComponent[]>([]);
   const [notities, setNotities] = useState(''); // New: Job Notes state
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
+  const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // 4. Load Data
@@ -214,7 +215,7 @@ export default function GenericMeasurementPage() {
     if (!firestore || !jobConfig) return;
 
     const hasEmptyFields = items.some(item =>
-      fields.some(f => f.type === 'number' && !item[f.key])
+      fields.some(f => f.type === 'number' && !f.optional && !item[f.key])
     );
 
     if (hasEmptyFields) {
@@ -490,20 +491,21 @@ export default function GenericMeasurementPage() {
                         {(item.openings || []).map((op: any, opIdx: number) => (
                           <div key={op.id || opIdx} className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4 animate-in fade-in slide-in-from-top-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-medium text-zinc-300">Opening {opIdx + 1}</span>
-                              <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-zinc-500 hover:text-red-400"
-                                onClick={() => {
-                                  const newOpenings = (item.openings || []).filter((_: any, i: number) => i !== opIdx);
-                                  updateItem(index, 'openings', newOpenings);
-                                }}>
-                                <Trash2 className="h-3 w-3" />
+                              <span className="text-sm font-medium text-zinc-300">Opening {opIdx + 1}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                                onClick={() => setPendingDeleteOpening({ itemIndex: index, openingIndex: opIdx })}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
 
                             <div className="space-y-3">
                               <div className="w-full">
                                 <Select
-                                  value={op.type}
                                   onValueChange={(value) => {
                                     const newOpenings = [...(item.openings || [])];
                                     let w = op.width;
@@ -701,85 +703,98 @@ export default function GenericMeasurementPage() {
 
                   {/* Dakrand Configuration */}
                   {fields.find(f => f.key === 'dakrand_breedte') && (
-                    <div className="space-y-3 pt-4 border-t border-white/5">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Dakrand Structuur</h4>
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                          {fields.find(f => f.key === 'dakrand_breedte') && (
-                            <DynamicInput field={fields.find(f => f.key === 'dakrand_breedte')!} value={item.dakrand_breedte} onChange={(v) => updateItem(index, 'dakrand_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                          )}
-                          {fields.find(f => f.key === 'dakrand_hoogte') && (
-                            <DynamicInput field={fields.find(f => f.key === 'dakrand_hoogte')!} value={item.dakrand_hoogte} onChange={(v) => updateItem(index, 'dakrand_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                      <div
+                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                        onClick={() => setCollapsedSections(prev => ({ ...prev, [`dakrand-${index}`]: !prev[`dakrand-${index}`] }))}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-zinc-200">Dakrand</span>
+                          {collapsedSections[`dakrand-${index}`] && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              {item.dakrand_breedte ? `${item.dakrand_breedte}mm` : 'Ingesteld'}
+                            </span>
                           )}
                         </div>
+                        <div className="text-zinc-500">
+                          {collapsedSections[`dakrand-${index}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </div>
                       </div>
+
+                      {!collapsedSections[`dakrand-${index}`] && (
+                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                            {fields.find(f => f.key === 'dakrand_breedte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'dakrand_breedte')!} value={item.dakrand_breedte} onChange={(v) => updateItem(index, 'dakrand_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                            {fields.find(f => f.key === 'dakrand_hoogte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'dakrand_hoogte')!} value={item.dakrand_hoogte} onChange={(v) => updateItem(index, 'dakrand_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Balken Configuration */}
                   {fields.find(f => f.key === 'balkafstand') && (
-                    <div className="mt-6 rounded-xl border border-border/60 bg-card/30 overflow-hidden shadow-sm">
+                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                       <div
-                        className="px-5 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors group select-none"
+                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
                         onClick={() => setCollapsedSections(prev => ({ ...prev, [`balken-${index}`]: !prev[`balken-${index}`] }))}
                       >
                         <div className="flex items-center gap-3">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-zinc-300 transition-colors">Balken Structuur</h4>
+                          <span className="text-sm font-medium text-zinc-200">Balken</span>
                           {collapsedSections[`balken-${index}`] && (
-                            <span className={cn(
-                              "text-[10px] px-2 py-0.5 rounded-full font-medium normal-case tracking-normal border animate-in fade-in slide-in-from-left-2",
-                              "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                            )}>
-                              Ingesteld: {item.balkafstand}mm h.o.h
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              {item.balkafstand}mm h.o.h
                             </span>
                           )}
                         </div>
-                        <div className="p-1.5 rounded-md text-zinc-500 group-hover:text-zinc-300 transition-colors">
-                          {collapsedSections[`balken-${index}`] ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
+                        <div className="text-zinc-500">
+                          {collapsedSections[`balken-${index}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </div>
                       </div>
 
                       {!collapsedSections[`balken-${index}`] && (
-                        <div className="p-5 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                          <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                          <div className="pt-2 border-t border-white/5 space-y-4">
+                            <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
 
-                          <div className="space-y-3">
-                            <Label className="text-xs">Startpositie</Label>
-                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                              <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Links</button>
-                              <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Rechts</button>
+                            <div className="space-y-3">
+                              <Label className="text-xs">Startpositie</Label>
+                              <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Links</button>
+                                <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Rechts</button>
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="space-y-3">
-                            <Label className="text-xs">Opties</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                              {isWallCategory && (
-                                <>
+                            <div className="space-y-3">
+                              <Label className="text-xs">Opties</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {isWallCategory && (
+                                  <>
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Eindbalk</Label>
+                                      <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
+                                    </div>
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Bovenbalk</Label>
+                                      <Switch checked={item.doubleTopPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleTopPlate', c)} className="scale-75 origin-right" />
+                                    </div>
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Onderbalk</Label>
+                                      <Switch checked={item.doubleBottomPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleBottomPlate', c)} className="scale-75 origin-right" />
+                                    </div>
+                                  </>
+                                )}
+                                {!jobSlug.includes('hellend-dak') && !isWallCategory && (
                                   <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dbl. Eindbalk</Label>
-                                    <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
+                                    <Label className="text-[10px] text-zinc-400">Kader (Rondom)</Label>
+                                    <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
                                   </div>
-                                  <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dbl. Bovenbalk</Label>
-                                    <Switch checked={item.doubleTopPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleTopPlate', c)} className="scale-75 origin-right" />
-                                  </div>
-                                  <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dbl. Onderbalk</Label>
-                                    <Switch checked={item.doubleBottomPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleBottomPlate', c)} className="scale-75 origin-right" />
-                                  </div>
-                                </>
-                              )}
-                              {!jobSlug.includes('hellend-dak') && !isWallCategory && (
-                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                  <Label className="text-[10px] text-zinc-400">Kader (Rondom)</Label>
-                                  <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -789,59 +804,54 @@ export default function GenericMeasurementPage() {
 
                   {/* Latten Configuration */}
                   {fields.find(f => f.key === 'latafstand') && (
-                    <div className="mt-6 rounded-xl border border-border/60 bg-card/30 overflow-hidden shadow-sm">
+                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                       <div
-                        className="px-5 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors group select-none"
+                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
                         onClick={() => setCollapsedSections(prev => ({ ...prev, [`latten-${index}`]: !prev[`latten-${index}`] }))}
                       >
                         <div className="flex items-center gap-3">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-zinc-300 transition-colors">Latten Structuur</h4>
+                          <span className="text-sm font-medium text-zinc-200">Latten</span>
                           {collapsedSections[`latten-${index}`] && (
-                            <span className={cn(
-                              "text-[10px] px-2 py-0.5 rounded-full font-medium normal-case tracking-normal border animate-in fade-in slide-in-from-left-2",
-                              "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                            )}>
-                              Ingesteld: {item.latafstand}mm h.o.h
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              {item.latafstand}mm h.o.h
                             </span>
                           )}
                         </div>
-                        <div className="p-1.5 rounded-md text-zinc-500 group-hover:text-zinc-300 transition-colors">
-                          {collapsedSections[`latten-${index}`] ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
+                        <div className="text-zinc-500">
+                          {collapsedSections[`latten-${index}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </div>
                       </div>
 
                       {!collapsedSections[`latten-${index}`] && (
-                        <div className="p-5 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                          <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                          <div className="pt-2 border-t border-white/5 space-y-4">
+                            <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
 
-                          <div className="space-y-3">
-                            <Label className="text-xs">Startpositie</Label>
-                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                              <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                {isRoofCategory ? 'Links' : 'Boven'}
-                              </button>
-                              <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                {isRoofCategory ? 'Rechts' : 'Onder'}
-                              </button>
+                            <div className="space-y-3">
+                              <Label className="text-xs">Startpositie</Label>
+                              <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                  {isRoofCategory ? 'Links' : 'Boven'}
+                                </button>
+                                <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                  {isRoofCategory ? 'Rechts' : 'Onder'}
+                                </button>
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="space-y-3">
-                            <Label className="text-xs">Opties</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                              {isRoofCategory && (
+                            <div className="space-y-3">
+                              <Label className="text-xs">Opties</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {isRoofCategory && (
+                                  <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                    <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
+                                    <Switch checked={item.doubleStartBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleStartBattens', c)} className="scale-75 origin-right" />
+                                  </div>
+                                )}
                                 <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                  <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
-                                  <Switch checked={item.doubleStartBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleStartBattens', c)} className="scale-75 origin-right" />
+                                  <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
+                                  <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
                                 </div>
-                              )}
-                              <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
-                                <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
                               </div>
                             </div>
                           </div>
@@ -940,14 +950,46 @@ export default function GenericMeasurementPage() {
       </div>
 
       <AlertDialog open={pendingDeleteIndex !== null} onOpenChange={(open) => !open && setPendingDeleteIndex(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>{itemLabel} verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>Weet je zeker dat je <strong>{itemLabel} {pendingDeleteIndex !== null ? pendingDeleteIndex + 1 : ''}</strong> wilt verwijderen?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel asChild onClick={() => setPendingDeleteIndex(null)}><Button variant="ghost">Annuleren</Button></AlertDialogCancel>
+            <AlertDialogCancel asChild onClick={() => setPendingDeleteIndex(null)} className="rounded-xl"><Button variant="ghost">Annuleren</Button></AlertDialogCancel>
             <AlertDialogAction onClick={() => { if (pendingDeleteIndex !== null) { removeItem(pendingDeleteIndex); setPendingDeleteIndex(null); } }} asChild><Button variant="destructiveSoft">Verwijderen</Button></AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Opening Delete Confirmation Dialog */}
+      <AlertDialog open={pendingDeleteOpening !== null} onOpenChange={(open) => !open && setPendingDeleteOpening(null)}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Opening verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>Opening {pendingDeleteOpening ? pendingDeleteOpening.openingIndex + 1 : ''}</strong> van {itemLabel} {pendingDeleteOpening ? pendingDeleteOpening.itemIndex + 1 : ''} wilt verwijderen? Dit kan niet ongedaan gemaakt worden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl" onClick={() => setPendingDeleteOpening(null)}>
+              Annuleren
+            </AlertDialogCancel>
+            <Button
+              variant="destructiveSoft"
+              onClick={() => {
+                if (pendingDeleteOpening) {
+                  const { itemIndex, openingIndex } = pendingDeleteOpening;
+                  const currentItems = [...items];
+                  const currentOpenings = [...(currentItems[itemIndex].openings || [])];
+                  currentOpenings.splice(openingIndex, 1);
+                  updateItem(itemIndex, 'openings', currentOpenings);
+                  setPendingDeleteOpening(null);
+                }
+              }}
+            >
+              Verwijderen
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -974,7 +1016,7 @@ function DynamicInput({
     <div className={cn("space-y-2", className)}>
       <Label htmlFor={field.key}>
         {field.label}
-        {field.type === 'number' && ' *'}
+        {field.type === 'number' && !field.optional && ' *'}
       </Label>
 
       {field.type === 'textarea' ? (
