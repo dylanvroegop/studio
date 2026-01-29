@@ -152,7 +152,7 @@ export interface JobComponent {
   id: string; // Unique ID (child ID)
   type: JobComponentType;
   label: string; // e.g. "Kozijn 1"
-  measurements: Record<string, number | string>; // specific measurements
+  measurements: Record<string, number | string | Array<{ breedte: number; lengte: number; label: string }>>; // specific measurements, including dagkant stroken
   materials?: Record<string, unknown>[]; // optional internal materials if needed locally
   slug?: string; // Link to the JOB_REGISTRY item for loading default materials
   meta?: any; // Extra metadata for tracking source, dimensions, etc.

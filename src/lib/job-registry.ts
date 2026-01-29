@@ -311,7 +311,8 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 7. KOZIJNEN
-  { label: 'Kozijnen', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
+  { label: 'Kozijnen (Complete Set)', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'kozijn_compleet', category_ultra_filter: '' },
+  { label: 'Kozijnhout (Zelfbouw)', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
   { label: 'Glas', categoryFilter: 'Overig', category: 'Kozijnen', key: 'glas', category_ultra_filter: '' },
   { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'Kozijnen', key: 'roosters', category_ultra_filter: '' },
 
@@ -942,7 +943,8 @@ const GEVEL_BEKLEDING_MATS: MaterialSection[] = [
 
 // 1. BINNEN KOZIJNEN (HOUT)
 const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
-  { label: 'Kozijnhout', categoryFilter: 'Montage kozijnen, Hardhout geschaafd', category: 'hout', key: 'kozijnhout', category_ultra_filter: '' },
+  { label: 'Kozijn (Complete Set)', categoryFilter: 'Montage kozijnen', category: 'hout', key: 'kozijn_compleet', category_ultra_filter: '' },
+  { label: 'Kozijnhout (Zelfbouw)', categoryFilter: 'Hardhout geschaafd', category: 'hout', key: 'kozijnhout', category_ultra_filter: '' },
   { label: 'Binnendorpel', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'binnendorpel', category_ultra_filter: '' },
 
   { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
@@ -992,7 +994,8 @@ const KOZIJN_BUITEN_KUNSTSTOF_MATS: MaterialSection[] = [
 ];
 // 5. AMBACHTELIJK TIMMERWERK (CUSTOM / RENOVATIE)
 const KOZIJN_TIMMERWERK_MATS: MaterialSection[] = [
-  { label: 'Kozijnhout', categoryFilter: 'Hardhout geschaafd, Merantie, Montage kozijnen', category: 'hout', key: 'kozijnhout_buiten', category_ultra_filter: '' },
+  { label: 'Kozijn (Complete Set)', categoryFilter: 'Montage kozijnen', category: 'hout', key: 'kozijn_compleet', category_ultra_filter: '' },
+  { label: 'Kozijnhout (Zelfbouw)', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'kozijnhout_buiten', category_ultra_filter: '' },
   { label: 'Onderdorpel', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'onderdorpel', category_ultra_filter: '' },
 
   { label: 'Raamhout', categoryFilter: 'Hardhout geschaafd, Merantie, Vuren geschaafd', category: 'raam', key: 'raamhout', category_ultra_filter: '' },

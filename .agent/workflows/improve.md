@@ -43,22 +43,46 @@ Request: [feature_request]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️ This is an AI suggestion - may be invalid
 
-Commands: go | wait | skip | invalid
+Commands: go | wait | skip | invalid | rules [msg] | split [msg]
 ```
 
-Then STOP and WAIT for user input. Do not proceed until user responds.
+Then STOP and WAIT for user input.
 
 ## Step 3: Handle user response
 
-**"go"** → Research the codebase, make a plan, and implement. After done: `UPDATE app_ontwikkeling SET status = 'completed' WHERE id = [id]`
+**"go"** → Research the codebase, implement. Then go to Step 4.
 
-**"wait"** → Run: `UPDATE app_ontwikkeling SET status = 'wait' WHERE id = [id]` → Respond "Moved to waitlist." → Go to Step 1
+**"wait"** → `UPDATE app_ontwikkeling SET status = 'wait' WHERE id = [id]` → Go to Step 1
 
-**"skip"** → Run: `UPDATE app_ontwikkeling SET status = 'skipped' WHERE id = [id]` → Go to Step 1
+**"skip"** → `UPDATE app_ontwikkeling SET status = 'skipped' WHERE id = [id]` → Go to Step 1
 
-**"invalid"** → Run: `UPDATE app_ontwikkeling SET status = 'invalid' WHERE id = [id]` → Go to Step 1
+**"invalid"** → `UPDATE app_ontwikkeling SET status = 'invalid' WHERE id = [id]` → Go to Step 1
 
-## Step 4: After implementation
+**"rules [message]"** → Insert into supabase_optimalisaties, `UPDATE app_ontwikkeling SET status = 'forwarded_to_rules' WHERE id = [id]` → Go to Step 1
 
-Ask: "Done. Next? (yes/no)"
-If yes → Go to Step 1
+**"split [message]"** → Insert into supabase_optimalisaties, then implement app part. Go to Step 4.
+
+## Step 4: MANDATORY USER CONFIRMATION
+
+After implementing code changes:
+
+```
+🔨 Implementation complete. Code changes made.
+
+⏸️ WAITING FOR YOU TO TEST IN THE APP
+
+Reply:
+  confirm → Working, mark as completed
+  retry   → Not working, try again
+  revert  → Undo changes, skip this
+```
+
+**CRITICAL: DO NOT verify the implementation yourself. DO NOT check if it works. DO NOT update Supabase status. DO NOT fetch the next item. ONLY the user can confirm.**
+
+**You MUST stop here and wait for the user to type "confirm", "retry", or "revert".**
+
+**"confirm"** → `UPDATE app_ontwikkeling SET status = 'completed' WHERE id = [id]` → Ask "Next? (yes/no)"
+
+**"retry"** → User will explain what's wrong. Try a different approach. Return to Step 4.
+
+**"revert"** → Undo changes, `UPDATE app_ontwikkeling SET status = 'skipped' WHERE id = [id]` → Go to Step 1

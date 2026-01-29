@@ -32,6 +32,7 @@ import {
   Sparkles,
   Edit2,
   Box,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -248,6 +249,35 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
     };
   });
   return out;
+}
+
+/**
+ * Builds explicit strip array (stroken) for dagkant materials based on opening type.
+ * - raamkozijn (window) = 4 stroken: 2x L-zijde (vertical), 2x B-zijde (horizontal)
+ * - deurkozijn (door) = 3 stroken: 2x L-zijde (vertical), 1x B-zijde (top only, no bottom)
+ * 
+ * @param openingType - The type of opening ('window', 'raamkozijn', 'door', 'door-frame', etc.)
+ * @param width - The width of the opening in mm (becomes length for B-sides)
+ * @param height - The height of the opening in mm (becomes length for L-sides)
+ * @param diepte - The depth of the dagkant in mm (becomes width for all strips)
+ */
+function buildDagkantStroken(openingType: string, width: number, height: number, diepte: number): Array<{ breedte: number; lengte: number; label: string }> {
+  const stroken: Array<{ breedte: number; lengte: number; label: string }> = [];
+
+  // Left side (L) - vertical
+  stroken.push({ breedte: diepte, lengte: height, label: "L" });
+  // Right side (L) - vertical
+  stroken.push({ breedte: diepte, lengte: height, label: "L" });
+  // Top side (B) - horizontal
+  stroken.push({ breedte: diepte, lengte: width, label: "B" });
+
+  // Bottom side (B) - only for windows, not for doors (doors have no bottom frame piece)
+  const isWindow = openingType === 'window' || openingType === 'raamkozijn';
+  if (isWindow) {
+    stroken.push({ breedte: diepte, lengte: width, label: "B" });
+  }
+
+  return stroken;
 }
 
 // ==================================
@@ -641,6 +671,91 @@ export default function GenericMaterialsPageRedesigned() {
   const [klus, setKlus] = useState<Job | null>(null);
   const [notities, setNotities] = useState('');
 
+  // === BEAM HEIGHT WARNING ===
+  // Calculate warning when selected beam length is too close to wall height
+  const beamHeightWarning = useMemo(() => {
+    // Only relevant for wall jobs
+    if (!jobSlug.includes('wand') && !jobSlug.includes('hsb') && !jobSlug.includes('metalstud')) {
+      return null;
+    }
+
+    // Get wall height from maatwerk data
+    const maatwerkKey = `${jobSlug}_maatwerk`;
+    const maatwerkItems = (klus as any)?.[maatwerkKey] || [];
+    if (!Array.isArray(maatwerkItems) || maatwerkItems.length === 0) return null;
+
+    const wallHeight = maatwerkItems[0]?.hoogte;
+    if (!wallHeight || typeof wallHeight !== 'number') return null;
+
+    // Get selected beam material
+    const staandersKeys = ['staanders_en_liggers', 'regelwerk_hoofd', 'ms_staanders'];
+    let beamMaterial: any = null;
+    for (const key of staandersKeys) {
+      if (gekozenMaterialen[key]) {
+        beamMaterial = gekozenMaterialen[key]._raw || gekozenMaterialen[key];
+        break;
+      }
+    }
+    if (!beamMaterial) return null;
+
+    // Parse beam length from material
+    const beamLength = (() => {
+      const val = beamMaterial.lengte;
+
+      // Try direct number (already in mm)
+      if (typeof val === 'number') return val;
+
+      // Try string with unit (e.g., "300cm" or "3000mm")
+      if (typeof val === 'string') {
+        const cleaned = val.replace(',', '.').toLowerCase().trim();
+
+        // Check for cm suffix - convert to mm
+        if (cleaned.endsWith('cm')) {
+          const num = parseFloat(cleaned.replace('cm', ''));
+          if (!isNaN(num)) return num * 10; // cm to mm
+        }
+
+        // Check for mm suffix
+        if (cleaned.endsWith('mm')) {
+          const num = parseFloat(cleaned.replace('mm', ''));
+          if (!isNaN(num)) return num;
+        }
+
+        // Try plain number (assume mm if large, cm if small)
+        const num = parseFloat(cleaned);
+        if (!isNaN(num)) {
+          return num < 100 ? num * 10 : num; // Assume cm if < 100
+        }
+      }
+
+      // Fallback: parse from material name (e.g., "44x69mm 3000mm lang")
+      const name = beamMaterial.materiaalnaam || '';
+      const mmMatch = name.match(/(\d{3,4})mm\s*lang/i);
+      if (mmMatch) {
+        return parseInt(mmMatch[1], 10);
+      }
+
+      return null;
+    })();
+    if (!beamLength) return null;
+
+    // Calculate remaining space
+    // Warn ONLY if beam is shorter than wall (too short)
+    if (beamLength < wallHeight) {
+      const missingLength = wallHeight - beamLength;
+      return {
+        wallHeight,
+        beamLength,
+        missingLength,
+        isMsg: true,
+        isTooShort: true,
+        materialName: beamMaterial.materiaalnaam || 'Gekozen balk'
+      };
+    }
+
+    return null;
+  }, [jobSlug, klus, gekozenMaterialen]);
+
   const handleComponentMaterialSelect = (compId: string, sectionKey: string, material: any) => {
     setComponents(prev => prev.map(comp => {
       if (comp.id !== compId) return comp;
@@ -867,12 +982,18 @@ export default function GenericMaterialsPageRedesigned() {
 
               if (op.dagkanten) {
                 // Should have a dagkant component
+                const diepte = op.dagkantenDiepte || op.dagkantDiepte || 0;
+                const stroken = buildDagkantStroken(op.type, w, h, diepte);
+
                 if (dagkantIdx === -1) {
                   newComponents.push({
                     id: dagkantId,
                     type: 'dagkant',
                     label: `Dagkant ${labelPrefix} - ${dimensionLabel}`,
-                    measurements: { diepte: op.dagkantenDiepte || op.dagkantDiepte || 0, lengte: w, hoogte: h },
+                    measurements: {
+                      diepte,
+                      stroken
+                    },
                     slug: 'dagkanten',
                     meta: {
                       source: 'opening_dagkant',
@@ -883,13 +1004,20 @@ export default function GenericMaterialsPageRedesigned() {
                   });
                   hasChanges = true;
                 } else {
-                  // Update existing dagkant label if needed
+                  // Update existing dagkant - always sync measurements and stroken
                   const existing = newComponents[dagkantIdx];
-                  if (existing.label !== `Dagkant ${labelPrefix} - ${dimensionLabel}`) {
+                  const labelChanged = existing.label !== `Dagkant ${labelPrefix} - ${dimensionLabel}`;
+                  const diepteChanged = existing.measurements?.diepte !== diepte;
+
+                  if (labelChanged || diepteChanged) {
                     newComponents[dagkantIdx] = {
                       ...existing,
                       label: `Dagkant ${labelPrefix} - ${dimensionLabel}`,
-                      meta: { ...existing.meta, dimensions: dimensionLabel }
+                      measurements: {
+                        diepte,
+                        stroken
+                      },
+                      meta: { ...existing.meta, dimensions: dimensionLabel, openingType: op.type }
                     };
                     hasChanges = true;
                   }
@@ -1065,6 +1193,7 @@ export default function GenericMaterialsPageRedesigned() {
         setFirestoreCustommateriaal(null);
         setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
         setComponents([]);
+        setIsApplyingPreset(false); // Reset loading state
       }
       return;
     }
@@ -1122,7 +1251,8 @@ export default function GenericMaterialsPageRedesigned() {
       autoApplyDefaultPresetRef.current = false; // Reset trigger
     }, 100);
 
-  }, [gekozenPresetId, presets, alleMaterialen, components]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gekozenPresetId, presets, alleMaterialen]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
 
   // Fail-safe: Ensure categories with components are always visible
   // This overrides any preset trying to hide them
@@ -1152,7 +1282,8 @@ export default function GenericMaterialsPageRedesigned() {
 
       return changed ? next : prev;
     });
-  }, [components, hiddenCategories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [components]); // intentionally exclude hiddenCategories to prevent infinite loop
 
   // Handlers
   const onPresetChange = (val: string) => {
@@ -2058,15 +2189,39 @@ export default function GenericMaterialsPageRedesigned() {
 
                           </div>
                         ) : (
-                          sections.map(section => (
-                            <MaterialRow
-                              key={section.key}
-                              label={section.label}
-                              selected={gekozenMaterialen[section.key]}
-                              onClick={() => openMateriaalKiezer(section.key)}
-                              onRemove={() => handleMateriaalVerwijderen(section.key)}
-                            />
-                          ))
+                          <>
+                            {sections.map(section => (
+                              <React.Fragment key={section.key}>
+                                <MaterialRow
+                                  label={section.label}
+                                  selected={gekozenMaterialen[section.key]}
+                                  onClick={() => openMateriaalKiezer(section.key)}
+                                  onRemove={() => handleMateriaalVerwijderen(section.key)}
+                                />
+                                {/* Beam Height Warning - shows after staanders selection */}
+                                {['staanders_en_liggers', 'regelwerk_hoofd', 'ms_staanders'].includes(section.key) && beamHeightWarning && (
+                                  <div className="mx-1 mb-2 p-3 rounded-lg border bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700/50 animate-in fade-in slide-in-from-top-1 duration-200">
+                                    <div className="flex items-start gap-2.5">
+                                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                                          {beamHeightWarning.isTooShort ? 'Balk te kort' : 'Controleer balkhoogte'}
+                                        </p>
+                                        <p className="text-xs text-amber-700/80 dark:text-amber-500/70 mt-0.5 leading-relaxed">
+                                          De wandhoogte is <strong>{beamHeightWarning.wallHeight}mm</strong> en de gekozen balken zijn{' '}
+                                          <strong>{beamHeightWarning.beamLength}mm</strong>.
+                                          {beamHeightWarning.isTooShort && (
+                                            <> Dit is <strong className="text-red-600">{beamHeightWarning.missingLength}mm te kort</strong>.</>
+                                          )}
+                                          {' '}Is dit correct?
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </>
                         )}
                       </div>
                     )}
