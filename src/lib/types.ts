@@ -155,6 +155,7 @@ export interface JobComponent {
   measurements: Record<string, number | string>; // specific measurements
   materials?: Record<string, unknown>[]; // optional internal materials if needed locally
   slug?: string; // Link to the JOB_REGISTRY item for loading default materials
+  meta?: any; // Extra metadata for tracking source, dimensions, etc.
 }
 
 export type MaterialCategory = "hout" | "isolatie" | "plaat" | "gips" | "bevestiging" | "afwerking" | "extra";

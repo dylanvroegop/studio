@@ -51,6 +51,10 @@ import { WizardHeader } from '@/components/WizardHeader';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
 import { JobComponent } from '@/lib/types';
 import { VisualizerController } from '@/components/visualizers/VisualizerController';
+import { OpeningenSection } from '@/components/openingen/OpeningenSection';
+import { BalkenSection } from '@/components/balken/BalkenSection';
+import { getJobConfig } from '@/config/jobTypes/index';
+import { DynamicInput } from '@/components/DynamicInput';
 
 export default function GenericMeasurementPage() {
   const params = useParams();
@@ -62,6 +66,7 @@ export default function GenericMeasurementPage() {
   const klusId = params.klusId as string;
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
+  const specificJobConfig = getJobConfig(jobSlug);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,8 +89,8 @@ export default function GenericMeasurementPage() {
   const fields = jobConfig?.measurements || [];
 
   // Logic to determine if "Openings" section is relevant
-  const isWallCategory = categorySlug === 'wanden' || (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand')));
-  const isCeilingCategory = categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond'));
+  const isWallCategory = Boolean(categorySlug === 'wanden' || (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand'))));
+  const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
   const showOpeningsSection = isWallCategory || hasWallFields || isCeilingCategory || isRoofCategory;
@@ -479,226 +484,16 @@ export default function GenericMeasurementPage() {
                   </div>
 
 
-                  {/* Openings Section */}
+                  {/* Openingen Section */}
                   {showOpeningsSection && (
-                    <div className="space-y-3 pt-4 border-t border-white/5">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Openingen & Sparingen</h4>
-
-                      </div>
-
-                      <div className="space-y-3">
-                        {(item.openings || []).map((op: any, opIdx: number) => (
-                          <div key={op.id || opIdx} className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4 animate-in fade-in slide-in-from-top-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-zinc-300">Opening {opIdx + 1}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
-                                onClick={() => setPendingDeleteOpening({ itemIndex: index, openingIndex: opIdx })}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-
-                            <div className="space-y-3">
-                              <div className="w-full">
-                                <Select
-                                  onValueChange={(value) => {
-                                    const newOpenings = [...(item.openings || [])];
-                                    let w = op.width;
-                                    let h = op.height;
-
-                                    // Apply sizing defaults when type changes
-                                    if (value === 'window') { w = 1000; h = 1000; }
-                                    else if (value === 'door-frame') { w = 918; h = 2059; }
-                                    else if (value === 'door') { w = 830; h = 2015; }
-                                    else if (value === 'opening') { w = 1000; h = 1000; }
-
-                                    newOpenings[opIdx] = { ...op, type: value, width: w, height: h };
-                                    updateItem(index, 'openings', newOpenings);
-                                  }}
-                                >
-                                  <SelectTrigger className="h-9 w-full bg-zinc-900/50 border-white/10">
-                                    <SelectValue placeholder="Type" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {isWallCategory ? (
-                                      <>
-                                        <SelectItem value="window">Raamkozijn</SelectItem>
-                                        <SelectItem value="door-frame">Deurkozijn</SelectItem>
-                                        <SelectItem value="door">Deur</SelectItem>
-                                        <SelectItem value="opening">Sparing</SelectItem>
-                                        <SelectItem value="other">Overig</SelectItem>
-                                      </>
-                                    ) : isCeilingCategory || categorySlug === 'vloeren' ? (
-                                      <>
-                                        <SelectItem value="opening">Sparing</SelectItem>
-                                        <SelectItem value="hatch">Luik</SelectItem>
-                                        <SelectItem value="pillar">Pilaar</SelectItem>
-                                        <SelectItem value="other">Overig</SelectItem>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <SelectItem value="dakraam">Dakraam</SelectItem>
-                                        <SelectItem value="lichtkoepel">Lichtkoepel</SelectItem>
-                                        <SelectItem value="schoorsteen">Schoorsteen</SelectItem>
-                                        <SelectItem value="opening">Sparing</SelectItem>
-                                        <SelectItem value="other">Overig</SelectItem>
-                                      </>
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">Breedte</Label><MeasurementInput className="h-8 text-sm" value={op.width} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, width: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">Hoogte</Label><MeasurementInput className="h-8 text-sm" value={op.height} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, height: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">V. Links</Label><MeasurementInput className="h-8 text-sm" value={op.fromLeft} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromLeft: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-                                <div className="space-y-1"><Label className="text-[10px] uppercase text-zinc-500">V. Onder</Label><MeasurementInput className="h-8 text-sm" value={op.fromBottom} onChange={(v) => { const n = [...(item.openings || [])]; n[opIdx] = { ...op, fromBottom: v || 0 }; updateItem(index, 'openings', n); }} /></div>
-                              </div>
-
-                              {/* HSB Construction Logic */}
-                              {isWallCategory && (
-                                <div className="space-y-3 pt-2 border-t border-white/5">
-                                  <Label className="text-[10px] uppercase text-zinc-500 font-bold">Constructie</Label>
-                                  <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Stijl (L)</Label>
-                                      <Switch
-                                        checked={op.dubbeleStijlLinks || false}
-                                        onCheckedChange={(c) => {
-                                          const n = [...(item.openings || [])];
-                                          n[opIdx] = { ...op, dubbeleStijlLinks: c };
-                                          updateItem(index, 'openings', n);
-                                        }}
-                                        className="scale-75 origin-right"
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Stijl (R)</Label>
-                                      <Switch
-                                        checked={op.dubbeleStijlRechts || false}
-                                        onCheckedChange={(c) => {
-                                          const n = [...(item.openings || [])];
-                                          n[opIdx] = { ...op, dubbeleStijlRechts: c };
-                                          updateItem(index, 'openings', n);
-                                        }}
-                                        className="scale-75 origin-right"
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Trimmer</Label>
-                                      <Switch
-                                        checked={op.trimmer || false}
-                                        onCheckedChange={(c) => {
-                                          const n = [...(item.openings || [])];
-                                          n[opIdx] = { ...op, trimmer: c };
-                                          updateItem(index, 'openings', n);
-                                        }}
-                                        className="scale-75 origin-right"
-                                      />
-                                    </div>
-                                    <div className="space-y-0.5">
-                                      <Label className="text-[10px] text-zinc-400">Header (mm)</Label>
-                                      <MeasurementInput
-                                        className="h-6 text-xs"
-                                        value={op.headerDikte}
-                                        placeholder="Standaard"
-                                        onChange={(v) => {
-                                          const n = [...(item.openings || [])];
-                                          n[opIdx] = { ...op, headerDikte: v || 0 };
-                                          updateItem(index, 'openings', n);
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Bovendorpel</Label>
-                                      <Switch
-                                        checked={op.dubbeleBovendorpel || false}
-                                        onCheckedChange={(c) => {
-                                          const n = [...(item.openings || [])];
-                                          n[opIdx] = { ...op, dubbeleBovendorpel: c };
-                                          updateItem(index, 'openings', n);
-                                        }}
-                                        className="scale-75 origin-right"
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Onderdorpel</Label>
-                                      <Switch
-                                        checked={op.dubbeleOnderdorpel || false}
-                                        onCheckedChange={(c) => {
-                                          const n = [...(item.openings || [])];
-                                          n[opIdx] = { ...op, dubbeleOnderdorpel: c };
-                                          updateItem(index, 'openings', n);
-                                        }}
-                                        className="scale-75 origin-right"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Onderdorpel Logic for Doors */}
-                              {(op.type === 'door' || op.type === 'door-frame') && (
-                                <div className="space-y-3 pt-2 border-t border-white/5">
-                                  <div className="flex items-center justify-between">
-                                    <Label className="text-xs text-zinc-400">Onderdorpel</Label>
-                                    <Switch
-                                      checked={op.onderdorpel || false}
-                                      onCheckedChange={(c) => {
-                                        const n = [...(item.openings || [])];
-                                        n[opIdx] = { ...op, onderdorpel: c, onderdorpelDikte: c ? 20 : 0 }; // Default 20mm
-                                        updateItem(index, 'openings', n);
-                                      }}
-                                      className="scale-75 origin-right"
-                                    />
-                                  </div>
-                                  {op.onderdorpel && (
-                                    <div className="space-y-1 animation-in slide-in-from-top-1 fade-in duration-200">
-                                      <Label className="text-[10px] uppercase text-zinc-500">Dikte (mm)</Label>
-                                      <MeasurementInput
-                                        className="h-8 text-sm"
-                                        value={op.onderdorpelDikte}
-                                        onChange={(v) => {
-                                          const n = [...(item.openings || [])];
-                                          n[opIdx] = { ...op, onderdorpelDikte: v || 0 };
-                                          updateItem(index, 'openings', n);
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            const newOpening = {
-                              id: crypto.randomUUID(),
-                              type: isWallCategory ? 'window' : 'opening',
-                              width: isWallCategory ? 1000 : 600,
-                              height: isWallCategory ? 1000 : 600,
-                              fromLeft: 1000,
-                              fromBottom: 1000
-                            };
-                            updateItem(index, 'openings', [...(item.openings || []), newOpening]);
-                          }}
-                          className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-zinc-500 hover:text-emerald-400 transition-all font-medium text-xs"
-                        >
-                          <PlusCircle className="h-4 w-4" />
-                          <span>Opening Toevoegen</span>
-                        </Button>
-                      </div>
-                    </div>
+                    <OpeningenSection
+                      openings={item.openings || []}
+                      onChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
+                      constructionOptions={specificJobConfig.openingConfig.constructionOptions}
+                      isWallCategory={isWallCategory}
+                      isCeilingCategory={isCeilingCategory}
+                      categorySlug={categorySlug}
+                    />
                   )}
 
                   {/* Dakrand Configuration */}
@@ -738,68 +533,18 @@ export default function GenericMeasurementPage() {
 
                   {/* Balken Configuration */}
                   {fields.find(f => f.key === 'balkafstand') && (
-                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                      <div
-                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                        onClick={() => setCollapsedSections(prev => ({ ...prev, [`balken-${index}`]: !prev[`balken-${index}`] }))}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-zinc-200">Balken</span>
-                          {collapsedSections[`balken-${index}`] && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                              {item.balkafstand}mm h.o.h
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-zinc-500">
-                          {collapsedSections[`balken-${index}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </div>
-                      </div>
-
-                      {!collapsedSections[`balken-${index}`] && (
-                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                          <div className="pt-2 border-t border-white/5 space-y-4">
-                            <DynamicInput field={fields.find(f => f.key === 'balkafstand')!} value={item.balkafstand} onChange={v => updateItem(index, 'balkafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-
-                            <div className="space-y-3">
-                              <Label className="text-xs">Startpositie</Label>
-                              <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                <button type="button" onClick={() => updateItem(index, 'startFromRight', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Links</button>
-                                <button type="button" onClick={() => updateItem(index, 'startFromRight', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startFromRight ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>Rechts</button>
-                              </div>
-                            </div>
-
-                            <div className="space-y-3">
-                              <Label className="text-xs">Opties</Label>
-                              <div className="grid grid-cols-2 gap-2">
-                                {isWallCategory && (
-                                  <>
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Eindbalk</Label>
-                                      <Switch checked={item.doubleEndBeams || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBeams', c)} className="scale-75 origin-right" />
-                                    </div>
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Bovenbalk</Label>
-                                      <Switch checked={item.doubleTopPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleTopPlate', c)} className="scale-75 origin-right" />
-                                    </div>
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Onderbalk</Label>
-                                      <Switch checked={item.doubleBottomPlate || false} onCheckedChange={(c) => updateItem(index, 'doubleBottomPlate', c)} className="scale-75 origin-right" />
-                                    </div>
-                                  </>
-                                )}
-                                {!jobSlug.includes('hellend-dak') && !isWallCategory && (
-                                  <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Kader (Rondom)</Label>
-                                    <Switch checked={item.surroundingBeams || false} onCheckedChange={(c) => updateItem(index, 'surroundingBeams', c)} className="scale-75 origin-right" />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <BalkenSection
+                      balkafstand={item.balkafstand}
+                      startFromRight={item.startFromRight}
+                      doubleEndBeams={item.doubleEndBeams}
+                      doubleTopPlate={item.doubleTopPlate}
+                      doubleBottomPlate={item.doubleBottomPlate}
+                      surroundingBeams={item.surroundingBeams}
+                      optionsConfig={specificJobConfig.balkenConfig.options}
+                      onUpdate={(key, val) => updateItem(index, key, val)}
+                      isWallCategory={isWallCategory}
+                      jobSlug={jobSlug}
+                    />
                   )}
 
                   {/* Latten Configuration */}
@@ -994,46 +739,5 @@ export default function GenericMeasurementPage() {
         </AlertDialogContent>
       </AlertDialog>
     </main>
-  );
-}
-
-function DynamicInput({
-  field,
-  value,
-  onChange,
-  onKeyDown,
-  disabled,
-  className
-}: {
-  field: MeasurementField;
-  value: any;
-  onChange: (val: any) => void;
-  onKeyDown: any;
-  disabled: boolean;
-  className?: string;
-}) {
-  return (
-    <div className={cn("space-y-2", className)}>
-      <Label htmlFor={field.key}>
-        {field.label}
-        {field.type === 'number' && !field.optional && ' *'}
-      </Label>
-
-      {field.type === 'textarea' ? (
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">Optioneel. Alleen invullen bij bijzonderheden.</p>
-          <Textarea id={field.key} placeholder={field.placeholder} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="resize-none" rows={3} />
-        </div>
-      ) : field.type === 'select' ? (
-        <Select value={value} onValueChange={onChange} disabled={disabled}>
-          <SelectTrigger id={field.key}><SelectValue placeholder={field.placeholder || "Selecteer..."} /></SelectTrigger>
-          <SelectContent>
-            {field.options?.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      ) : (
-        <MeasurementInput id={field.key} placeholder={field.placeholder} value={value} onChange={(val: string | number) => onChange(val)} onKeyDown={onKeyDown} disabled={disabled} className={field.suffix ? 'pr-10' : ''} />
-      )}
-    </div>
   );
 }

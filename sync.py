@@ -141,7 +141,8 @@ def sync():
         print(f"🧹 Found {len(cleanup_delete_ids)} duplicate rows for {ids_with_duplicates} IDs. Marking for deletion.")
 
     # 5. Calculate Delta (Upsert vs Delete)
-    to_upsert = []
+    to_insert = []
+    to_update = []
     to_delete = list(cleanup_delete_ids) # Start with duplicates
 
     # Check Local items against Unique Remote
@@ -158,13 +159,13 @@ def sync():
                 row_pk = remote_row.get('row_id')
                 if row_pk:
                     clean_item['row_id'] = row_pk
-                    to_upsert.append(clean_item)
+                    to_update.append(clean_item)
                 else:
-                    # Should not happen given schema inspection, but fallback to insert/fail
-                    to_upsert.append(clean_item)
+                    # Should not happen given schema inspection, but fallback to insert
+                    to_insert.append(clean_item)
         else:
             # New item (no row_id, so it will insert)
-            to_upsert.append(clean_item)
+            to_insert.append(clean_item)
 
     # Check for Removed items
     for rid, row in unique_remote_map.items():
@@ -172,10 +173,11 @@ def sync():
             to_delete.append(row.get('row_id'))
 
     print(f"📊 Delta Analysis:")
-    print(f"   Upserts (New/Changed): {len(to_upsert)}")
-    print(f"   Deletes (Removed/Dup): {len(to_delete)}")
+    print(f"   Inserts: {len(to_insert)}")
+    print(f"   Updates: {len(to_update)}")
+    print(f"   Deletes: {len(to_delete)}")
 
-    if len(to_upsert) == 0 and len(to_delete) == 0:
+    if len(to_insert) == 0 and len(to_update) == 0 and len(to_delete) == 0:
         print("✅ Everything is already up to date!")
         return
 
@@ -192,20 +194,29 @@ def sync():
              except Exception as e:
                  print(f"   ❌ Error deleting chunk: {e}")
 
-    # 7. Execute Upserts
-    if to_upsert:
-        print(f"🚀 Syncing {len(to_upsert)} items...")
+    # 7. Execute Inserts
+    if to_insert:
+        print(f"🚀 Inserting {len(to_insert)} items...")
         chunk_size = 100
-        synced_count = 0
-        for i in range(0, len(to_upsert), chunk_size):
-            chunk = to_upsert[i:i + chunk_size]
+        for i in range(0, len(to_insert), chunk_size):
+            chunk = to_insert[i:i + chunk_size]
             try:
-                # Upsert works with PK (row_id) present
-                supabase.table(TABLE_NAME).upsert(chunk).execute()
-                synced_count += len(chunk)
-                print(f"   ✅ Chunk {i}-{i+len(chunk)} synced.")
+                supabase.table(TABLE_NAME).insert(chunk).execute()
+                print(f"   ✅ Inserted chunk {i}-{i+len(chunk)}")
             except Exception as e:
-                print(f"   ❌ Error at chunk {i}: {e}")
+                print(f"   ❌ Error inserting chunk {i}: {e}")
+
+    # 8. Execute Updates
+    if to_update:
+        print(f"🔄 Updating {len(to_update)} items...")
+        chunk_size = 100
+        for i in range(0, len(to_update), chunk_size):
+            chunk = to_update[i:i + chunk_size]
+            try:
+                supabase.table(TABLE_NAME).upsert(chunk).execute()
+                print(f"   ✅ Updated chunk {i}-{i+len(chunk)}")
+            except Exception as e:
+                print(f"   ❌ Error updating chunk {i}: {e}")
 
     print("🏁 Smart Sync complete.")
 

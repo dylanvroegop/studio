@@ -359,7 +359,6 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 7. AFWERKEN (GIPS / STUC)
   { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Wapeningsband', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_wapening', category_ultra_filter: '' },
   { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
   { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
@@ -614,7 +613,6 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   // 10. NADEN & STUCWERK
   { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
   { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
-  { label: 'Wapeningsband', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_wapening', category_ultra_filter: '' },
 ];
 //#endregion
 
@@ -1938,7 +1936,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek kozijntype...',
     items: [
       {
-        title: 'Binnendeur Kozijnen – Hout',
+        title: 'Binnen kozijn (Hout)',
         description: 'Kant-en-klaar element',
         slug: 'binnen-kozijn-hout',
         measurementLabel: 'Kozijn',
@@ -1952,7 +1950,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }
       },
       {
-        title: 'Binnen Kozijnen – Staal',
+        title: 'Binnen kozijn (Staal)',
         description: 'Kant-en-klaar element',
         slug: 'binnen-kozijn-staal',
         measurementLabel: 'Kozijn',
@@ -1965,7 +1963,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }
       },
       {
-        title: 'Buiten kozijnen – Hout',
+        title: 'Buiten kozijn (Hout)',
         description: 'Kant-en-klaar element',
         slug: 'buiten-kozijn-hout',
         measurementLabel: 'Kozijn',
@@ -1978,7 +1976,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }
       },
       {
-        title: 'Buiten Kozijnen – Kunststof',
+        title: 'Buiten kozijn (Kunststof)',
         description: 'Kant-en-klaar element',
         slug: 'buiten-kozijn-kunststof',
         measurementLabel: 'Kozijn',

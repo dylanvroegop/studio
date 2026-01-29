@@ -777,9 +777,137 @@ export default function GenericMaterialsPageRedesigned() {
 
         if (klusNode) setKlus(klusNode as unknown as Job);
 
-        if (klusNode?.components && Array.isArray(klusNode.components)) {
-          setComponents(klusNode.components);
+        let currentComponents: JobComponent[] = klusNode?.components && Array.isArray(klusNode.components) ? klusNode.components : [];
+
+        // Sync Openings from Measurement Data
+        const maatwerkItems = klusNode?.[`${jobSlug}_maatwerk`] || klusNode?.maatwerk || [];
+        if (Array.isArray(maatwerkItems)) {
+          const openings = maatwerkItems.flatMap((item: any) => item.openings || []);
+
+          const newComponents = [...currentComponents];
+          let hasChanges = false;
+
+          openings.forEach((op: any) => {
+            if (!op.id) return;
+
+            // Map types
+            let compType: JobComponentType | null = null;
+            let labelPrefix = 'Opening';
+            let slug = 'zelfgemaakte-kozijnen'; // Default generic slug
+
+            if (op.type === 'window') {
+              compType = 'kozijn';
+              labelPrefix = 'Raamkozijn';
+              slug = 'zelfgemaakte-kozijnen';
+            }
+            else if (op.type === 'door-frame' || op.type === 'frame-inner' || op.type === 'frame-outer') {
+              compType = 'kozijn';
+
+              if (op.type === 'frame-inner') {
+                labelPrefix = 'Binnenkozijn';
+                // Map to the specific slug for inner frames. 
+                // We use 'binnen-kozijn-hout' as a default timber frame for indoor
+                slug = 'binnen-kozijn-hout';
+              } else if (op.type === 'frame-outer') {
+                labelPrefix = 'Buitenkozijn';
+                slug = 'buiten-kozijn-hout';
+              } else {
+                labelPrefix = 'Deurkozijn';
+                slug = 'zelfgemaakte-kozijnen';
+              }
+            }
+            else if (op.type === 'door') {
+              compType = 'deur';
+              labelPrefix = 'Deur';
+              slug = 'binnendeur-afhangen';
+            }
+
+            if (compType) {
+              console.log('[DEBUG-FIX] Opening data:', op);
+              const existingIdx = newComponents.findIndex(c => c.id === op.id);
+
+              // Robust dimension extraction
+              const w = op.width || op.breedte || op.lengte || op.openingWidth || 0;
+              const h = op.height || op.hoogte || op.openingHeight || 0;
+              const dimensionLabel = `${w}x${h} mm`;
+
+              if (existingIdx === -1) {
+                // Create new
+                newComponents.push({
+                  id: op.id,
+                  type: compType,
+                  label: `${labelPrefix} - ${dimensionLabel}`,
+                  measurements: { breedte: w, hoogte: h, lengte: w }, // Pre-fill
+                  slug: slug,
+                  meta: {
+                    source: 'opening',
+                    openingType: op.type,
+                    dimensions: dimensionLabel,
+                    width: w,
+                    height: h
+                  }
+                });
+                hasChanges = true;
+              } else {
+                // Update meta/label if needed (sync drift)
+                const existing = newComponents[existingIdx];
+                if (existing.label !== `${labelPrefix} - ${dimensionLabel}`) {
+                  newComponents[existingIdx] = {
+                    ...existing,
+                    label: `${labelPrefix} - ${dimensionLabel}`,
+                    meta: { ...existing.meta, dimensions: dimensionLabel, openingType: op.type, width: w, height: h }
+                  };
+                  hasChanges = true;
+                }
+              }
+
+              // --- DAGKANT LOGIC ---
+              const dagkantId = `${op.id}_dagkant`;
+              const dagkantIdx = newComponents.findIndex(c => c.id === dagkantId);
+
+              if (op.dagkanten) {
+                // Should have a dagkant component
+                if (dagkantIdx === -1) {
+                  newComponents.push({
+                    id: dagkantId,
+                    type: 'dagkant',
+                    label: `Dagkant ${labelPrefix} - ${dimensionLabel}`,
+                    measurements: { diepte: op.dagkantenDiepte || op.dagkantDiepte || 0, lengte: w, hoogte: h },
+                    slug: 'dagkanten',
+                    meta: {
+                      source: 'opening_dagkant',
+                      parentId: op.id,
+                      openingType: op.type,
+                      dimensions: dimensionLabel
+                    }
+                  });
+                  hasChanges = true;
+                } else {
+                  // Update existing dagkant label if needed
+                  const existing = newComponents[dagkantIdx];
+                  if (existing.label !== `Dagkant ${labelPrefix} - ${dimensionLabel}`) {
+                    newComponents[dagkantIdx] = {
+                      ...existing,
+                      label: `Dagkant ${labelPrefix} - ${dimensionLabel}`,
+                      meta: { ...existing.meta, dimensions: dimensionLabel }
+                    };
+                    hasChanges = true;
+                  }
+                }
+              } else {
+                // Should NOT have a dagkant component
+                if (dagkantIdx !== -1) {
+                  newComponents.splice(dagkantIdx, 1);
+                  hasChanges = true;
+                }
+              }
+            }
+          });
+
+          if (hasChanges) currentComponents = newComponents;
         }
+
+        setComponents(currentComponents);
 
         if (klusNode?.materialen) {
           const mat = klusNode.materialen;
@@ -848,14 +976,33 @@ export default function GenericMaterialsPageRedesigned() {
         if (klusNode?.werkwijze?.workMethodId) setGekozenPresetId(klusNode.werkwijze.workMethodId);
         if (klusNode?.kleinMateriaal) setKleinMateriaalConfig(klusNode.kleinMateriaal);
         if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections);
-        if (klusNode?.uiState?.hiddenCategories) setHiddenCategories(klusNode.uiState.hiddenCategories);
+
+        // Auto-unhide categories if relevant components exist (Step Id: 181)
+        let loadedHidden = klusNode?.uiState?.hiddenCategories || {};
+
+        // If we are applying a preset later, that preset might hide things. 
+        // But here we are just hydrating.
+
+        currentComponents.forEach(comp => {
+          let cat: string | null = null;
+          if (comp.type === 'kozijn') cat = 'Kozijnen';
+          else if (comp.type === 'deur') cat = 'Deuren';
+          else if (comp.type === 'dagkant') cat = 'Dagkant';
+          else if (comp.type === 'vensterbank') cat = 'Vensterbank';
+          else if (comp.type === 'vlizotrap') cat = 'Toegang';
+
+          if (cat) loadedHidden[cat] = false; // Force show
+        });
+
+        setHiddenCategories(loadedHidden);
+
         if (klusNode?.notities) setNotities(klusNode.notities);
         isHydratingRef.current = false;
       } catch (e) { console.error(e); }
       finally { setPaginaLaden(false); }
     };
     hydrate();
-  }, [firestore, quoteId, klusId]);
+  }, [firestore, quoteId, klusId, jobSlug]);
 
   // Full Object Mapping
   useEffect(() => {
@@ -942,26 +1089,70 @@ export default function GenericMaterialsPageRedesigned() {
       }
       setGekozenMaterialen(newSels);
       if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
-      if (preset.hiddenCategories) setHiddenCategories(preset.hiddenCategories); else setHiddenCategories({});
-      if (preset.custommateriaal) setCustomGroups(bouwCustomGroupsUitFirestore(preset.custommateriaal, alleMaterialen));
-      else setCustomGroups([]);
-      if (preset.kleinMateriaalConfig) setKleinMateriaalConfig(preset.kleinMateriaalConfig);
 
-      // FIX: Restore components (Kozijnen, Deuren, etc.) if present in preset
-      if (preset.components && Array.isArray(preset.components)) {
-        setComponents(preset.components);
-      } else {
-        setComponents([]);
+      // Handle components (Kozijnen, Deuren, etc.)
+      let finalComponents = components;
+      // Only overwrite if preset actually has components defined and is NOT empty
+      // AND if we don't already have components (e.g. from measurements)
+      if (components.length === 0 && preset.components && Array.isArray(preset.components) && preset.components.length > 0) {
+        finalComponents = preset.components;
+        setComponents(finalComponents);
       }
+      // Else: Keep existing components (from measurements); do not clear them.
+
+      // Calculate hidden categories - Ensure active component categories are visible
+      const newHidden = preset.hiddenCategories ? { ...preset.hiddenCategories } : {};
+
+      finalComponents.forEach(comp => {
+        let cat: string | null = null;
+        if (comp.type === 'kozijn') cat = 'Kozijnen';
+        else if (comp.type === 'deur') cat = 'Deuren';
+        else if (comp.type === 'dagkant') cat = 'Dagkant';
+        else if (comp.type === 'vensterbank') cat = 'Vensterbank';
+        else if (comp.type === 'vlizotrap') cat = 'Toegang';
+
+        if (cat) newHidden[cat] = false; // Force show
+      });
+
+      setHiddenCategories(newHidden);
 
       // Unlock
+      setIsApplyingPreset(false);
       setIsApplyingPreset(false);
       autoApplyDefaultPresetRef.current = false; // Reset trigger
     }, 100);
 
+  }, [gekozenPresetId, presets, alleMaterialen, components]);
 
-    if (autoApplyDefaultPresetRef.current) autoApplyDefaultPresetRef.current = false;
-  }, [gekozenPresetId, presets, alleMaterialen]);
+  // Fail-safe: Ensure categories with components are always visible
+  // This overrides any preset trying to hide them
+  useEffect(() => {
+    if (components.length === 0) return;
+
+    setHiddenCategories(prev => {
+      const next = { ...prev };
+      let changed = false;
+
+      components.forEach(comp => {
+        let cat: string | null = null;
+        if (comp.type === 'kozijn') cat = 'Kozijnen';
+        else if (comp.type === 'deur') cat = 'Deuren';
+        else if (comp.type === 'dagkant') cat = 'Dagkant';
+        else if (comp.type === 'vensterbank') cat = 'Vensterbank';
+        else if (comp.type === 'vlizotrap') cat = 'Toegang';
+        else if (comp.type === 'installatie') cat = 'Installatie';
+        else if (comp.type === 'gips') cat = 'gips_afwerking';
+
+        // If currently hidden (true), unhide it (false)
+        if (cat && next[cat] === true) {
+          next[cat] = false;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [components, hiddenCategories]);
 
   // Handlers
   const onPresetChange = (val: string) => {
@@ -1744,9 +1935,31 @@ export default function GenericMaterialsPageRedesigned() {
                                 variantItem = comp.slug ? JOB_REGISTRY.kozijnen.items.find((i: any) => i.slug === comp.slug) : null;
                               } else if (targetComponentType === 'deur') {
                                 variantItem = comp.slug ? JOB_REGISTRY.deuren.items.find((i: any) => i.slug === comp.slug) : null;
+                              } else if (targetComponentType === 'dagkant') {
+                                variantItem = comp.slug ? JOB_REGISTRY.afwerkingen.items.find((i: any) => i.slug === comp.slug) : null;
+                              } else if (targetComponentType === 'vensterbank') {
+                                variantItem = comp.slug ? JOB_REGISTRY.afwerkingen.items.find((i: any) => i.slug === comp.slug) : null;
                               }
 
-                              const compSections = variantItem?.materialSections || COMPONENT_REGISTRY[comp.type]?.defaultMaterials || [];
+                              let compSections = variantItem?.materialSections || COMPONENT_REGISTRY[comp.type]?.defaultMaterials || [];
+
+                              // Custom Filtering based on opening type for Kozijnen
+                              if (targetComponentType === 'kozijn' && comp.meta?.openingType) {
+                                const type = comp.meta.openingType;
+                                if (type === 'window' || type === 'raamkozijn') {
+                                  // For windows: hide door specific fields
+                                  compSections = compSections.filter((s: any) =>
+                                    !['beslag', 'deurbeslag', 'deur_scharnieren', 'deur_sloten', 'deur_krukken'].some(k =>
+                                      s.key.includes(k) || (s.category && s.category.toLowerCase().includes('deur'))
+                                    )
+                                  );
+                                } else if (type === 'door-frame' || type === 'door' || type === 'deurkozijn') {
+                                  // For doors: hide window specific fields (like specific glas details if needed, though doors can have glass)
+                                  // But definitely show hinges/locks. 
+                                  // Maybe hide 'raam' section if it exists (which implies opening window parts)
+                                  compSections = compSections.filter((s: any) => s.key !== 'raam');
+                                }
+                              }
 
                               // ALL COMPONENTS: Simplified rendering (Vlizotrap Style)
                               // User requested uniform "clean list" style for everything, including Kozijnen/Deuren.
@@ -1756,6 +1969,16 @@ export default function GenericMaterialsPageRedesigned() {
 
                                 return (
                                   <div key={comp.id} className="mt-2 space-y-1.5">
+                                    {/* Header / Label with visual indicator */}
+                                    <div className="flex items-center gap-2 mb-2 px-1">
+                                      <div className={cn(
+                                        "w-1.5 h-1.5 rounded-full shrink-0",
+                                        comp.meta?.openingType === 'window' ? "bg-blue-400" :
+                                          comp.meta?.openingType === 'door-frame' || comp.meta?.openingType === 'door' ? "bg-orange-400" : "bg-gray-400"
+                                      )} />
+                                      <span className="text-sm font-semibold text-foreground/90">{comp.label}</span>
+                                    </div>
+
                                     {/* Werkwijze Selector - Inline (moved from popup) */}
                                     {(targetComponentType === 'kozijn' || targetComponentType === 'deur') && (
                                       <div className="space-y-1.5 mb-3 p-2 rounded-lg bg-muted/20 border border-border/30">

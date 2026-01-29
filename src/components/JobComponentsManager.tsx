@@ -290,10 +290,10 @@ export function JobComponentsManager({
                         {(limitToType === 'kozijn' || limitToType === 'deur') && !editingId && !tempMeasurements._variantMode && (
                             <div className="grid grid-cols-1 gap-2">
                                 {(limitToType === 'kozijn' ? [
-                                    { title: 'Binnendeur Kozijnen – Hout', desc: 'Kant-en-klaar element' },
-                                    { title: 'Binnen Kozijnen – Staal', desc: 'Kant-en-klaar element' },
-                                    { title: 'Buiten kozijnen – Hout', desc: 'Kant-en-klaar element' },
-                                    { title: 'Buiten Kozijnen – Kunststof', desc: 'Kant-en-klaar element' },
+                                    { title: 'Binnen kozijn (Hout)', desc: 'Kant-en-klaar element' },
+                                    { title: 'Binnen kozijn (Staal)', desc: 'Kant-en-klaar element' },
+                                    { title: 'Buiten kozijn (Hout)', desc: 'Kant-en-klaar element' },
+                                    { title: 'Buiten kozijn (Kunststof)', desc: 'Kant-en-klaar element' },
                                     { title: 'Zelf gemaakte houtkozijnen', desc: 'Productie in eigen werkplaats' },
                                     { title: 'Overig Kozijnen', desc: 'Renovatie of reparatie' },
                                     { title: 'Waterslagen / Dorpels', desc: 'Vervangen van waterslagen of...' }
