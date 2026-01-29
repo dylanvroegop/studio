@@ -21,13 +21,10 @@ If no items found: respond "✅ All notes processed!" and STOP.
 **DO NOT research the codebase yet. Just present:**
 
 ```
-📝 NOTE | Priority: [priority] | Type: [type]
+📝 NOTE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Title: [title]
-Page: [page]
-
-Description: [description]
+[title]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Commands: go | plan | done | wait | skip | rules [msg]
@@ -52,19 +49,18 @@ Then STOP and WAIT for user input.
 ━━━━━━━━━━━━━━━━━━━━
 Commands:
   execute → Implement this plan now
-  wait    → Save for later
-  skip    → Don't do this
-  next    → Move to next note without changes
+  wait    → Save for later, end session
+  skip    → Don't do this, end session
 ```
 Then STOP and WAIT. Do not edit any files.
 
-**"done"** → Change title to `## [DONE] Title` → Go to Step 1
+**"done"** → Change title to `## [DONE] Title` → Respond "✅ Marked as done." → STOP
 
-**"wait"** → Change title to `## [WAIT] Title` → Go to Step 1
+**"wait"** → Change title to `## [WAIT] Title` → Respond "⏸️ Moved to wait." → STOP
 
-**"skip"** → Change title to `## [SKIP] Title` → Go to Step 1
+**"skip"** → Change title to `## [SKIP] Title` → Respond "⏭️ Skipped." → STOP
 
-**"rules [message]"** → Insert into supabase_optimalisaties, change title to `## [RULES] Title` → Go to Step 1
+**"rules [message]"** → Insert into supabase_optimalisaties, change title to `## [RULES] Title` → Respond "📤 Forwarded to rules." → STOP
 
 ## Step 4: MANDATORY USER CONFIRMATION
 
@@ -87,13 +83,11 @@ Reply:
 2. **NEVER mark an item as done without user typing "confirm"**
 3. **NEVER skip the confirmation step**
 4. **NEVER verify the implementation yourself - only the USER can test in the real app**
-5. **NEVER fetch the next item until user confirms**
-
-Even if you see code that looks correct, even if you think the feature exists, even if you verified the logic - YOU MUST WAIT FOR THE USER TO TEST AND CONFIRM.
+5. **NEVER fetch the next item - session ends after this item**
 
 The user will type ONE of these commands:
-- **"confirm"** → Change title to `## [DONE] Title` → Ask "Next? (yes/no)"
+- **"confirm"** → Change title to `## [DONE] Title` → Respond "✅ Done! Start new /notes for next item." → STOP
 - **"retry"** → User will explain what's wrong. Try a different approach. Return to Step 4.
-- **"revert"** → Undo changes, change title to `## [SKIP] Title` → Go to Step 1
+- **"revert"** → Undo changes, change title to `## [SKIP] Title` → Respond "↩️ Reverted." → STOP
 
-**DO NOTHING ELSE. JUST WAIT.**
+**NEVER FETCH THE NEXT ITEM. SESSION ENDS AFTER EACH ITEM.**

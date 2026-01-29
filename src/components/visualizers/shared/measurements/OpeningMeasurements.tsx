@@ -60,11 +60,11 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                 const drawY = svgBaseY - (op.fromBottom * pxPerMm) - hPx;
 
                 // Stacking offsets for multiple openings
-                const stackStep = 15;
-                const bottomBaseY = svgBaseY + 30; // Start 30px below wall
+                const stackStep = 25;
+                const bottomBaseY = svgBaseY + 40; // Start 40px below wall
                 const dimY = bottomBaseY + (i * stackStep);
 
-                const leftBaseX = svgBaseX - 30; // Start 30px left of wall
+                const leftBaseX = svgBaseX - 40; // Start 40px left of wall
                 const dimX = leftBaseX - (i * stackStep);
 
                 // Calculate wall top at opening position (for sloped/complex shapes)

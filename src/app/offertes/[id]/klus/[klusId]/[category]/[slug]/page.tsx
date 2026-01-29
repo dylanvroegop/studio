@@ -145,7 +145,7 @@ export default function GenericMeasurementPage() {
             setComponents(savedComponents);
           }
 
-          const savedNotities = data.klussen?.[klusId]?.notities;
+          const savedNotities = data.klussen?.[klusId]?.maatwerk_notities;
           if (savedNotities) {
             setNotities(savedNotities);
           }
@@ -288,7 +288,7 @@ export default function GenericMeasurementPage() {
           // Let's just write to the new key. 
 
           [`klussen.${klusId}.components`]: cleanedComponents,
-          [`klussen.${klusId}.notities`]: notities, // Save Public Notes
+          [`klussen.${klusId}.maatwerk_notities`]: notities, // Save Public Notes
           [`klussen.${klusId}.meta`]: cleanedMeta,
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
         };

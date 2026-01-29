@@ -83,6 +83,7 @@ import {
   updateDoc,
   getDoc,
   deleteField,
+  setDoc,
 } from 'firebase/firestore';
 
 import { useToast } from '@/hooks/use-toast';
@@ -794,6 +795,26 @@ export default function GenericMaterialsPageRedesigned() {
 
   useEffect(() => setIsMounted(true), []);
 
+  // Load User Preferences (Hidden Categories)
+  useEffect(() => {
+    if (!user || !firestore) return;
+    const loadUserPrefs = async () => {
+      try {
+        const ref = doc(firestore, 'users', user.uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.hidden_categories) {
+            setHiddenCategories(prev => ({ ...prev, ...data.hidden_categories }));
+          }
+        }
+      } catch (e) {
+        console.error("Error loading user prefs", e);
+      }
+    };
+    loadUserPrefs();
+  }, [user, firestore]);
+
   // Fetch Materials
   const fetchMaterials = useCallback(async () => {
     // Determine token for API call
@@ -938,7 +959,7 @@ export default function GenericMaterialsPageRedesigned() {
             }
 
             if (compType) {
-              console.log('[DEBUG-FIX] Opening data:', op);
+
               const existingIdx = newComponents.findIndex(c => c.id === op.id);
 
               // Robust dimension extraction
@@ -1124,7 +1145,7 @@ export default function GenericMaterialsPageRedesigned() {
 
         setHiddenCategories(loadedHidden);
 
-        if (klusNode?.notities) setNotities(klusNode.notities);
+        if (klusNode?.material_notities) setNotities(klusNode.material_notities);
         isHydratingRef.current = false;
       } catch (e) { console.error(e); }
       finally { setPaginaLaden(false); }
@@ -1307,7 +1328,23 @@ export default function GenericMaterialsPageRedesigned() {
   };
 
   const toggleSection = (key: string) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
-  const toggleCategoryVisibility = (categoryKey: string) => setHiddenCategories(prev => ({ ...prev, [categoryKey]: !prev[categoryKey] }));
+
+  const toggleCategoryVisibility = (categoryKey: string) => {
+    setHiddenCategories(prev => {
+      const nextHidden = !prev[categoryKey];
+      const newState = { ...prev, [categoryKey]: nextHidden };
+
+      // Persist to Firestore if user is logged in
+      if (user && firestore) {
+        const ref = doc(firestore, 'users', user.uid);
+        setDoc(ref, {
+          hidden_categories: { [categoryKey]: nextHidden }
+        }, { merge: true }).catch(console.error);
+      }
+
+      return newState;
+    });
+  };
   const openMateriaalKiezer = (sectieKey: string, groupId: string | null = null) => { setActieveSectie(sectieKey); setActiveGroupId(groupId); setIsExtraModalOpen(true); };
   const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({ ...prev, [key]: materiaal })); };
   const handleMateriaalVerwijderen = (key: string) => { setGekozenMaterialen(prev => { const n = { ...prev }; delete n[key]; return n; }); };
@@ -1751,7 +1788,7 @@ export default function GenericMaterialsPageRedesigned() {
         })),
         [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
         [`klussen.${klusId}.uiState.hiddenCategories`]: hiddenCategories,
-        [`klussen.${klusId}.notities`]: notities,
+        [`klussen.${klusId}.material_notities`]: notities,
         [`klussen.${klusId}.updatedAt`]: serverTimestamp()
       };
 
@@ -2539,7 +2576,7 @@ export default function GenericMaterialsPageRedesigned() {
           }
         }}
         existingMaterials={enrichedMaterials}
-        showFavorites={actieveSectie !== 'extra' && !activeGroupId && !activeComponentId}
+        showFavorites={actieveSectie !== 'extra' && !activeGroupId}
         defaultCategory={(() => {
           if (!actieveSectie) return undefined;
           const raw = materialSections.find(s => s.key === actieveSectie)?.categoryFilter;

@@ -10,6 +10,7 @@ export interface JobTypeConfig {
             dblBovendorpel: boolean;
             dblOnderdorpel: boolean;
             dagkanten: boolean;
+            vensterbank?: boolean;
         };
     };
     balkenConfig: {
@@ -38,7 +39,8 @@ export const defaultJobConfig: JobTypeConfig = {
             trimmer: false,
             dblBovendorpel: false,
             dblOnderdorpel: false,
-            dagkanten: false
+            dagkanten: false,
+            vensterbank: false
         }
     },
     balkenConfig: {

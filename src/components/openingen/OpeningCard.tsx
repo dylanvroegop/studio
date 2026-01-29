@@ -1,13 +1,13 @@
 import React from 'react';
-import { useMeasurementUnit } from '@/context/MeasurementUnitContext';
+
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Trash2 } from 'lucide-react';
 import { MeasurementInput } from '@/components/MeasurementInput';
-import { cn } from '@/lib/utils'; // Assuming cn utility exists
+
 
 export interface OpeningConstructionOptions {
     dblStijl: boolean;
@@ -15,6 +15,7 @@ export interface OpeningConstructionOptions {
     dblBovendorpel: boolean;
     dblOnderdorpel: boolean;
     dagkanten?: boolean;
+    vensterbank?: boolean;
 }
 
 export interface OpeningData {
@@ -36,13 +37,15 @@ export interface OpeningData {
     // New fields
     dagkanten?: boolean;
     dagkantenDiepte?: number;
+    vensterbank?: boolean;
+    vensterbankDiepte?: number;
+    vensterbankOverlap?: number;
 }
 
 interface OpeningCardProps {
     opening: OpeningData;
     index: number;
     openingNumber: number;
-    typeOptions: string[]; // e.g., ['window', 'door-frame', 'door', 'opening', 'other']
     constructionOptions: OpeningConstructionOptions;
     onUpdate: (updatedOpening: OpeningData) => void;
     onDelete: () => void;
@@ -54,9 +57,8 @@ interface OpeningCardProps {
 
 export function OpeningCard({
     opening,
-    index,
+    // index,
     openingNumber,
-    typeOptions, // Note: The page currently hardcodes these based on category. We might just pass the list.
     constructionOptions,
     onUpdate,
     onDelete,
@@ -64,12 +66,6 @@ export function OpeningCard({
     isCeilingCategory,
     categorySlug,
 }: OpeningCardProps) {
-    // We can pass options list or cleaner logic, but let's stick to the page logic for "Type" SELECT for now 
-    // or accept the prompt's `typeOptions` string array and map it? 
-    // The page has complex logic for SelectItem values (window, door-frame, etc).
-    // The prompt says: prop `typeOptions: array of available types`
-
-    // Let's implement the internal logic of the card largely as it was.
 
     const handleTypeChange = (value: string) => {
         let w = opening.width;
@@ -83,7 +79,17 @@ export function OpeningCard({
         else if (value === 'door') { w = 830; h = 2015; }
         else if (value === 'opening') { w = 1000; h = 1000; }
 
-        onUpdate({ ...opening, type: value, width: w, height: h });
+        // If not a window, disable vensterbank to avoid confusion/calculation errors
+        // "Vensterbank toggle off when no overlap selected" -> effectively "toggle off when invalid type"
+        const resetVensterbank = value !== 'window' ? { vensterbank: false } : {};
+
+        onUpdate({
+            ...opening,
+            type: value,
+            width: w,
+            height: h,
+            ...resetVensterbank
+        });
     };
 
     return (
@@ -111,17 +117,6 @@ export function OpeningCard({
                             <SelectValue placeholder="Type" />
                         </SelectTrigger>
                         <SelectContent>
-                            {/* 
-                    We should probably make this dynamic based on props, 
-                    but for Step 1 (Refactor only), I'll copy the logic from the page 
-                    or rely on the `typeOptions` prop if I can map it back to these values.
-                    
-                    The prompt says: typeOptions: ['Raamkozijn', 'Deurkozijn', 'Sparing']
-                    The code uses values: 'window', 'door-frame', 'opening'.
-                    
-                    I will re-implement the conditional rendering from the page for now 
-                    to ensure parity, as "typeOptions" prop might need a custom object to map label->value.
-                */}
                             {isWallCategory ? (
                                 <>
                                     <SelectItem value="window">Raamkozijn</SelectItem>
@@ -194,32 +189,17 @@ export function OpeningCard({
                         <Label className="text-[10px] uppercase text-zinc-500 font-bold">Constructie</Label>
                         <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                             {constructionOptions.dblStijl && (
-                                <div className="col-span-2 space-y-1">
+                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                     <Label className="text-[10px] text-zinc-400">Dubbele Stijl</Label>
-                                    <Select
-                                        value={
-                                            opening.dubbeleStijlLinks && opening.dubbeleStijlRechts ? 'both' :
-                                                opening.dubbeleStijlLinks ? 'left' :
-                                                    opening.dubbeleStijlRechts ? 'right' : 'none'
-                                        }
-                                        onValueChange={(val) => {
-                                            onUpdate({
-                                                ...opening,
-                                                dubbeleStijlLinks: val === 'left' || val === 'both',
-                                                dubbeleStijlRechts: val === 'right' || val === 'both'
-                                            });
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-8 text-xs bg-black/20 border-white/10">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">Geen</SelectItem>
-                                            <SelectItem value="left">Links</SelectItem>
-                                            <SelectItem value="right">Rechts</SelectItem>
-                                            <SelectItem value="both">Beide</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <Switch
+                                        checked={opening.dubbeleStijlLinks && opening.dubbeleStijlRechts}
+                                        onCheckedChange={(c) => onUpdate({
+                                            ...opening,
+                                            dubbeleStijlLinks: c,
+                                            dubbeleStijlRechts: c
+                                        })}
+                                        className="scale-75 origin-right"
+                                    />
                                 </div>
                             )}
 
@@ -267,14 +247,102 @@ export function OpeningCard({
                                         />
                                     </div>
                                     {opening.dagkanten && (
-                                        <div className="space-y-1 animate-in slide-in-from-top-1">
-                                            <Label className="text-[10px] text-zinc-400">Diepte (mm)</Label>
-                                            <MeasurementInput
-                                                className="h-7 text-xs"
-                                                value={opening.dagkantenDiepte}
-                                                onChange={(v) => onUpdate({ ...opening, dagkantenDiepte: Number(v) || 0 })}
-                                                placeholder="Bijv. 200"
-                                            />
+                                        <div className="space-y-2 animate-in slide-in-from-top-1">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] text-zinc-400">Diepte (mm)</Label>
+                                                <MeasurementInput
+                                                    className="h-7 text-xs"
+                                                    value={opening.dagkantenDiepte}
+                                                    onChange={(v) => onUpdate({ ...opening, dagkantenDiepte: Number(v) || 0 })}
+                                                    placeholder="Bijv. 200"
+                                                />
+                                            </div>
+
+                                            {/* Dagkant Strips Display */}
+                                            <div className="bg-white/5 p-2 rounded flex flex-col gap-1">
+                                                <Label className="text-[10px] text-zinc-400">Benodigde stroken</Label>
+                                                <div className="flex flex-col gap-1">
+                                                    {/* Verticale stroken (zijkanten) - Altijd 2x */}
+                                                    <div className="flex justify-between items-center text-xs text-zinc-300">
+                                                        <span>2x Zijkant</span>
+                                                        <span className="font-mono text-zinc-400">
+                                                            {opening.dagkantenDiepte || 0} x {opening.height} mm
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Horizontale stroken (boven/onder) logic */}
+                                                    {opening.type === 'window' ? (
+                                                        <>
+                                                            {/* Window with Vensterbank = 1x Top, 0x Bottom */}
+                                                            {opening.vensterbank ? (
+                                                                <div className="flex justify-between items-center text-xs text-zinc-300">
+                                                                    <span>1x Boven</span>
+                                                                    <span className="font-mono text-zinc-400">
+                                                                        {opening.dagkantenDiepte || 0} x {opening.width} mm
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                /* Window without Vensterbank = 2x (Top + Bottom) */
+                                                                <div className="flex justify-between items-center text-xs text-zinc-300">
+                                                                    <span>2x Boven/Onder</span>
+                                                                    <span className="font-mono text-zinc-400">
+                                                                        {opening.dagkantenDiepte || 0} x {opening.width} mm
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        /* Door/Other = Usually 1x Top */
+                                                        <div className="flex justify-between items-center text-xs text-zinc-300">
+                                                            <span>1x Boven</span>
+                                                            <span className="font-mono text-zinc-400">
+                                                                {opening.dagkantenDiepte || 0} x {opening.width} mm
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {constructionOptions.vensterbank && opening.type === 'window' && (
+                                <div className="col-span-2 pt-2 border-t border-white/5 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-[10px] uppercase text-zinc-500 font-bold">Vensterbank</Label>
+                                        <Switch
+                                            checked={opening.vensterbank || false}
+                                            onCheckedChange={(c) => onUpdate({ ...opening, vensterbank: c })}
+                                            className="scale-75 origin-right"
+                                        />
+                                    </div>
+                                    {opening.vensterbank && (
+                                        <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-top-1">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] text-zinc-400">Diepte (mm)</Label>
+                                                <MeasurementInput
+                                                    className="h-7 text-xs"
+                                                    value={opening.vensterbankDiepte}
+                                                    onChange={(v) => onUpdate({ ...opening, vensterbankDiepte: Number(v) || 0 })}
+                                                    placeholder="Bijv. 250"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] text-zinc-400">Overstek L/R (mm)</Label>
+                                                <MeasurementInput
+                                                    className="h-7 text-xs"
+                                                    value={opening.vensterbankOverlap}
+                                                    onChange={(v) => onUpdate({ ...opening, vensterbankOverlap: Number(v) || 0 })}
+                                                    placeholder="Bijv. 50"
+                                                />
+                                            </div>
+                                            <div className="col-span-2 space-y-1 bg-white/5 p-2 rounded">
+                                                <Label className="text-[10px] text-zinc-400 block">Totaal lengte</Label>
+                                                <span className="text-xs text-zinc-200 font-mono">
+                                                    {(opening.width + (opening.vensterbankOverlap || 0) * 2).toLocaleString()} mm
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -283,12 +351,6 @@ export function OpeningCard({
                     </div>
                 )}
 
-                {/* Onderdorpel Logic for Doors - Keep existing logic conditional as per original? 
-            Original only checked for type 'door' or 'door-frame'. 
-            It didn't explicitly check 'isWallCategory' but was nested inside the map.
-            However, the 'isWallCategory' check wraps the "Constructie" block.
-            The door logic (Lines 648) was outside the "Constructie" block (Lines 566-645) in the original.
-        */}
                 {(opening.type === 'door' || opening.type === 'door-frame' || opening.type === 'frame-inner' || opening.type === 'frame-outer') && (
                     <div className="space-y-3 pt-2 border-t border-white/5">
                         <div className="flex items-center justify-between">

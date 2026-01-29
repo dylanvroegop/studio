@@ -79,7 +79,7 @@ export function OpeningenSection({
                         index={index}
                         openingNumber={index + 1}
                         constructionOptions={constructionOptions}
-                        typeOptions={[]} // TODO
+
                         onUpdate={(updated) => handleUpdate(index, updated)}
                         onDelete={() => handleDelete(index)}
                         isWallCategory={isWallCategory}

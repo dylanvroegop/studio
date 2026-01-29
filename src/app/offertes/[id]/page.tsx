@@ -55,14 +55,7 @@ export default function QuoteDetailPage() {
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [activeView, setActiveView] = useState<View>('costs');
 
-    console.log("Render State:", {
-        loading,
-        isUserLoading,
-        hasUser: !!user,
-        hasFirestore: !!firestore,
-        jobsCount: jobs.length,
-        activeJobId
-    });
+
 
 
 
@@ -231,7 +224,7 @@ export default function QuoteDetailPage() {
         let intervalId: NodeJS.Timeout;
 
         if (pollingStatus === 'polling' && activeJob && user) {
-            console.log("Starting polling for job:", activeJob.id);
+
 
             intervalId = setInterval(async () => {
                 try {
@@ -247,10 +240,8 @@ export default function QuoteDetailPage() {
                     const data = result.data;
 
                     if (!data) {
-                        console.log("Polling: No data found matching criteria.");
+                        // No data yet
                     } else {
-                        console.log("Polled status:", data.status);
-
                         // Status handling
                         if (data.status === 'completed' && data.data_json) {
                             clearInterval(intervalId);
@@ -301,7 +292,7 @@ export default function QuoteDetailPage() {
                                 materials = raw;
                             }
 
-                            console.log("Parsed materials count:", materials.length);
+
 
                             // Filter for valid items
                             if (!Array.isArray(materials)) {
@@ -360,7 +351,7 @@ export default function QuoteDetailPage() {
                 const result = await checkCalculationStatusAction(activeJob.quoteId, user.uid);
                 if (result.data) {
                     const data = result.data;
-                    console.log("Initial Check Status:", data.status);
+
 
                     if (data.status === 'completed' && data.data_json) {
                         // REUSE PARSING LOGIC
@@ -434,7 +425,7 @@ export default function QuoteDetailPage() {
                 try {
                     // Fire and forget trigger
                     await fetchMaterialsFromN8nAction(activeJob);
-                    console.log("Calculation triggered, polling started...");
+
                 } catch (err) {
                     console.error("Trigger error:", err);
                     setPollingStatus('error');

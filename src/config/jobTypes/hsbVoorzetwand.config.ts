@@ -7,7 +7,8 @@ export const openingConfig = {
         trimmer: true,
         dblBovendorpel: true,
         dblOnderdorpel: true,
-        dagkanten: true // Will be implemented in Part 2
+        dagkanten: true,
+        vensterbank: true
     }
 };
 

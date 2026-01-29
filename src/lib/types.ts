@@ -128,6 +128,8 @@ export type Job = {
   diepteMm?: number;
   aantal: number;
   notities?: string;
+  maatwerk_notities?: string;
+  material_notities?: string;
   measurements?: Record<string, number | string>;
 
   createdAt: string;
