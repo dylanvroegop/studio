@@ -4,13 +4,13 @@ description: improvements-app
 
 # Improve App Workflow
 
-Description: Process AI-suggested app/UI improvements from Supabase
+Description: Process app improvements from Supabase queue
 
 Content:
 
-## Step 1: Fetch next pending improvement
+## Step 1: Fetch ONE improvement
 
-Use the Supabase MCP to fetch ONE pending app improvement, prioritizing "hoog" first:
+Run this query via Supabase MCP:
 
 ```sql
 SELECT * FROM app_ontwikkeling 
@@ -26,77 +26,39 @@ ORDER BY
 LIMIT 1
 ```
 
-If no results, respond: "✅ No pending app improvements found. Queue is empty!"
+If no results: respond "✅ Queue empty!" and STOP.
 
-## Step 2: Analyze and present
+## Step 2: Present and STOP
 
-**CRITICAL WARNINGS:**
-- These suggestions come from an AI agent in n8n that does NOT have access to the codebase
-- The agent may hallucinate or suggest changes to things that don't exist
-- ALWAYS verify the actual current implementation before planning changes
-- Check if referenced files, functions, components actually exist
-
-Parse the `ontwikkeling` JSONB column. It contains an array of improvement objects with fields like:
-- `github_issue_titel` - title of the suggestion
-- `feature_request` - detailed description
-- `prioriteit` - priority level
-
-Present in this format:
+**DO NOT research the codebase yet. DO NOT analyze files. Just present:**
 
 ```
-📋 APP IMPROVEMENT #[id]
-━━━━━━━━━━━━━━━━━━━━━━━━
+📋 IMPROVEMENT #[id] | Priority: [prioriteit]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 SUGGESTION
 Title: [github_issue_titel]
-Priority: [prioriteit]
+
 Request: [feature_request]
 
-🔎 VERIFICATION
-[Check if this suggestion is valid]
-[Does the referenced component/page exist?]
-[Is the suggested change actually needed or already implemented?]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ This is an AI suggestion - may be invalid
 
-📝 IMPLEMENTATION PLAN
-[Step-by-step plan if valid, or explanation why invalid]
-
-⚠️ CONCERNS
-[Any risks or issues to watch out for]
+Commands: go | wait | skip | invalid
 ```
 
-## Step 3: Wait for decision
+Then STOP and WAIT for user input. Do not proceed until user responds.
 
-Wait for user input:
+## Step 3: Handle user response
 
-- **"go"** or **"proceed"** → Execute the plan
-- **"skip"** → Mark as completed without implementing, fetch next
-- **"invalid"** → Mark as completed (suggestion was wrong), fetch next
-- **"modify [instructions]"** → User provides adjusted requirements
+**"go"** → Research the codebase, make a plan, and implement. After done: `UPDATE app_ontwikkeling SET status = 'completed' WHERE id = [id]`
 
-## Step 4: Execute and complete
+**"wait"** → Run: `UPDATE app_ontwikkeling SET status = 'wait' WHERE id = [id]` → Respond "Moved to waitlist." → Go to Step 1
 
-**If proceeding:**
-1. Implement the changes
-2. After successful implementation, mark as completed:
-   ```sql
-   UPDATE app_ontwikkeling SET status = 'completed' WHERE id = [row_id]
-   ```
-3. Offer to commit: "Changes implemented. Run /commit?"
+**"skip"** → Run: `UPDATE app_ontwikkeling SET status = 'skipped' WHERE id = [id]` → Go to Step 1
 
-**If skipping or invalid:**
-1. Mark as completed:
-   ```sql
-   UPDATE app_ontwikkeling SET status = 'skipped' WHERE id = [row_id]
-   ```
-   or for invalid:
-   ```sql
-   UPDATE app_ontwikkeling SET status = 'invalid' WHERE id = [row_id]
-   ```
-2. Immediately fetch the next pending improvement (return to Step 1)
+**"invalid"** → Run: `UPDATE app_ontwikkeling SET status = 'invalid' WHERE id = [id]` → Go to Step 1
 
-## Step 5: Continue
+## Step 4: After implementation
 
-After completing an improvement, ask:
-"Done. Next improvement? (yes/no)"
-
-If yes → return to Step 1
+Ask: "Done. Next? (yes/no)"
+If yes → Go to Step 1
