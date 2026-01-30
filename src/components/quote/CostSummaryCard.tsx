@@ -107,7 +107,7 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                 {/* Labor */}
                 <div className="flex justify-between text-sm">
                     <span className="text-zinc-400 flex flex-wrap items-center gap-1">
-                        Arbeid {settings.schattingUren ? '(schatting)' : ''} (
+                        Arbeid (
 
                         {/* Hours Editing */}
                         {isEditingHours ? (
@@ -177,7 +177,15 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                 {/* Margin */}
                 <div className="flex justify-between text-sm">
                     <span className="text-zinc-400">
-                        Winstmarge ({settings.extras.winstMarge.percentage}%)
+                        {settings.extras.winstMarge.mode === 'percentage' ? (
+                            <>
+                                Winstmarge ({settings.extras.winstMarge.percentage}%)
+                                {settings.extras.winstMarge.basis === 'materialen' && <span className="text-xs text-zinc-500 ml-1">(over mat.)</span>}
+                                {settings.extras.winstMarge.basis === 'materialen_arbeid' && <span className="text-xs text-zinc-500 ml-1">(over mat.+arb.)</span>}
+                            </>
+                        ) : (
+                            <>Winstmarge (vast)</>
+                        )}
                     </span>
                     <span className="text-zinc-300">{formatCurrency(totals.winstMarge)}</span>
                 </div>

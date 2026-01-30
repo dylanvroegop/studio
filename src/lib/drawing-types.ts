@@ -62,4 +62,7 @@ export interface DrawingData {
 
     // Raw inputs
     params: Record<string, unknown>;
+
+    // Optional calculated data for specific visualizers
+    calculatedData?: Record<string, unknown>;
 }

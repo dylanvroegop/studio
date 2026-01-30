@@ -225,6 +225,7 @@ type WinstMargeState = {
   mode: WinstMargeMode;
   percentage: number | null;
   fixedAmount: number | null;
+  basis: 'totaal' | 'materialen' | 'materialen_arbeid';
 };
 
 type StandaardTransport = {
@@ -237,6 +238,7 @@ type StandaardWinstMarge = {
   mode: WinstMargeMode;
   percentage?: number | null;
   fixedAmount?: number | null;
+  basis?: 'totaal' | 'materialen' | 'materialen_arbeid';
 };
 
 type BouwplaatsKostenPakket = {
@@ -383,6 +385,7 @@ export default function OverzichtPage() {
     mode: 'percentage',
     percentage: 10,
     fixedAmount: null,
+    basis: 'totaal',
   });
 
   // User settings (standaarden)
@@ -602,7 +605,7 @@ export default function OverzichtPage() {
         setPrijsPerKm('');
         setVasteTransportkosten('');
         setBouwplaatskosten([]);
-        setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null });
+        setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
 
         const heeftTransportInQuote = !!extras?.transport;
         const heeftWinstInQuote = !!extras?.winstMarge;
@@ -632,14 +635,16 @@ export default function OverzichtPage() {
         // Winstmarge: quote extras, anders user standaard
         const applyWinst = (w: any) => {
           const mode = (w?.mode as WinstMargeMode) ?? 'percentage';
+          const basis = (w?.basis as any) || 'totaal';
+
           if (mode === 'percentage') {
             const p = typeof w?.percentage === 'number' ? w.percentage : 10;
-            setWinstMarge({ mode: 'percentage', percentage: p, fixedAmount: null });
+            setWinstMarge({ mode: 'percentage', percentage: p, fixedAmount: null, basis });
           } else if (mode === 'fixed') {
             const f = typeof w?.fixedAmount === 'number' ? w.fixedAmount : null;
-            setWinstMarge({ mode: 'fixed', percentage: null, fixedAmount: f });
+            setWinstMarge({ mode: 'fixed', percentage: null, fixedAmount: f, basis: 'totaal' });
           } else {
-            setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null });
+            setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null, basis: 'totaal' });
           }
         };
 
@@ -790,7 +795,7 @@ export default function OverzichtPage() {
     if (winstMode === 'percentage') {
       const p = winstMarge.percentage;
       if (typeof p !== 'number' || p <= 0) return null;
-      return { mode: 'percentage', percentage: p };
+      return { mode: 'percentage', percentage: p, basis: winstMarge.basis };
     }
 
     const f = winstMarge.fixedAmount;
@@ -892,6 +897,7 @@ export default function OverzichtPage() {
     winstMarge.mode,
     winstMarge.percentage,
     winstMarge.fixedAmount,
+    winstMarge.basis,
   ]);
 
   /* ---------------------------------------------
@@ -942,7 +948,7 @@ export default function OverzichtPage() {
     if (winstMode === 'percentage') {
       const p = winstMarge.percentage;
       if (typeof p !== 'number' || p <= 0) return null;
-      return { mode: 'percentage', percentage: p };
+      return { mode: 'percentage', percentage: p, basis: winstMarge.basis };
     }
     const f = winstMarge.fixedAmount;
     if (typeof f !== 'number' || f <= 0) return null;
@@ -2223,7 +2229,7 @@ export default function OverzichtPage() {
                 value={winstMode}
                 onChange={(id) => {
                   if (id === 'none') {
-                    setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null });
+                    setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null, basis: 'totaal' });
                   } else {
                     setWinstMarge((p) => ({ ...p, mode: id as WinstMargeMode }));
                   }
@@ -2231,9 +2237,8 @@ export default function OverzichtPage() {
                 error={!winstMargeIsValid}
               />
 
-              {/* DYNAMIC INPUTS ROW */}
               {winstMode === 'percentage' && (
-                <div className="animate-in fade-in slide-in-from-top-1">
+                <div className="animate-in fade-in slide-in-from-top-1 space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                       <Input
@@ -2258,7 +2263,24 @@ export default function OverzichtPage() {
                       />
                       <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground pointer-events-none">%</span>
                     </div>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">op totaal</span>
+                  </div>
+
+                  {/* Basis Selector */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-zinc-400 ml-1">Berekenen over:</Label>
+                    <Select
+                      value={winstMarge.basis || 'totaal'}
+                      onValueChange={(v: any) => setWinstMarge(prev => ({ ...prev, basis: v }))}
+                    >
+                      <SelectTrigger className="w-full bg-black/20 border-white/5 rounded-lg h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="totaal">Totaal (alles inbegrepen)</SelectItem>
+                        <SelectItem value="materialen">Alleen materialen</SelectItem>
+                        <SelectItem value="materialen_arbeid">Materialen + Arbeid</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}

@@ -24,9 +24,10 @@ export const defaultQuotePDFSettings: QuotePDFSettings = {
 interface QuoteSettingsProps {
     settings: QuotePDFSettings;
     onChange: (settings: QuotePDFSettings) => void;
+    variant?: 'default' | 'flat';
 }
 
-export function QuoteSettings({ settings, onChange }: QuoteSettingsProps) {
+export function QuoteSettings({ settings, onChange, variant = 'default' }: QuoteSettingsProps) {
     const [expanded, setExpanded] = useState(false);
 
     const toggleSetting = (key: keyof QuotePDFSettings) => {
@@ -48,27 +49,109 @@ export function QuoteSettings({ settings, onChange }: QuoteSettingsProps) {
         icon: React.ElementType;
     }) => (
         <div
-            className="flex items-center justify-between py-3 px-4 hover:bg-zinc-800/50 rounded-lg cursor-pointer transition-colors"
+            className="flex items-center justify-between py-2 px-3 hover:bg-zinc-800/50 rounded-lg cursor-pointer transition-colors"
             onClick={() => toggleSetting(settingKey)}
         >
             <div className="flex items-center gap-3">
-                <Icon size={18} className="text-zinc-400" />
+                <Icon size={16} className="text-zinc-400" />
                 <div>
                     <p className="text-sm font-medium text-zinc-200">{label}</p>
                     <p className="text-xs text-zinc-500">{description}</p>
                 </div>
             </div>
             <button
-                className={`relative w-11 h-6 rounded-full transition-colors ${settings[settingKey] ? 'bg-emerald-600' : 'bg-zinc-700'
+                className={`relative w-9 h-5 rounded-full transition-colors ${settings[settingKey] ? 'bg-emerald-600' : 'bg-zinc-700'
                     }`}
             >
                 <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${settings[settingKey] ? 'translate-x-5' : 'translate-x-0'
+                    className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${settings[settingKey] ? 'translate-x-4' : 'translate-x-0'
                         }`}
                 />
             </button>
         </div>
     );
+
+    const Content = () => (
+        <div className={variant === 'default' ? "border-t border-zinc-800 p-2" : "p-2 min-w-[300px]"}>
+            <ToggleRow
+                settingKey="showFullWerkbeschrijving"
+                label="Volledige werkbeschrijving"
+                description="Alle stappen op aparte pagina"
+                icon={FileText}
+            />
+
+            <ToggleRow
+                settingKey="showGrootmaterialen"
+                label="Grootmaterialen tonen"
+                description="Platen, isolatie, kozijnen etc."
+                icon={Package}
+            />
+
+            <ToggleRow
+                settingKey="showVerbruiksartikelen"
+                label="Verbruiksartikelen tonen"
+                description="Schroeven, kit, tape etc."
+                icon={Package}
+            />
+
+            <ToggleRow
+                settingKey="showUrenSpecificatie"
+                label="Urenspecificatie tonen"
+                description="Gedetailleerde uren per taak"
+                icon={Clock}
+            />
+
+            {(settings.showGrootmaterialen || settings.showVerbruiksartikelen) && (
+                <ToggleRow
+                    settingKey="showPricesPerItem"
+                    label="Prijzen per stuk tonen"
+                    description="Individuele materiaalprijzen"
+                    icon={Eye}
+                />
+            )}
+
+            <ToggleRow
+                settingKey="showTekeningen"
+                label="Tekeningen toevoegen"
+                description="Voeg een tekeningen pagina toe"
+                icon={Image}
+            />
+
+            {/* Quick presets */}
+            <div className="mt-4 px-3 pb-2 flex gap-2 border-t border-zinc-800 pt-3">
+                <button
+                    onClick={() => onChange({
+                        showGrootmaterialen: false,
+                        showVerbruiksartikelen: false,
+                        showUrenSpecificatie: false,
+                        showFullWerkbeschrijving: true,
+                        showPricesPerItem: false,
+                        showTekeningen: false,
+                    })}
+                    className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors flex-1"
+                >
+                    Minimaal
+                </button>
+                <button
+                    onClick={() => onChange({
+                        showGrootmaterialen: true,
+                        showVerbruiksartikelen: true,
+                        showUrenSpecificatie: true,
+                        showFullWerkbeschrijving: true,
+                        showPricesPerItem: false,
+                        showTekeningen: true,
+                    })}
+                    className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors flex-1"
+                >
+                    Volledig
+                </button>
+            </div>
+        </div>
+    );
+
+    if (variant === 'flat') {
+        return <Content />;
+    }
 
     return (
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
@@ -92,87 +175,7 @@ export function QuoteSettings({ settings, onChange }: QuoteSettingsProps) {
             </button>
 
             {/* Expandable settings */}
-            {expanded && (
-                <div className="border-t border-zinc-800 p-2">
-
-
-                    <ToggleRow
-                        settingKey="showFullWerkbeschrijving"
-                        label="Volledige werkbeschrijving"
-                        description="Alle stappen op aparte pagina"
-                        icon={FileText}
-                    />
-
-                    <ToggleRow
-                        settingKey="showGrootmaterialen"
-                        label="Grootmaterialen tonen"
-                        description="Platen, isolatie, kozijnen etc."
-                        icon={Package}
-                    />
-
-                    <ToggleRow
-                        settingKey="showVerbruiksartikelen"
-                        label="Verbruiksartikelen tonen"
-                        description="Schroeven, kit, tape etc."
-                        icon={Package}
-                    />
-
-                    <ToggleRow
-                        settingKey="showUrenSpecificatie"
-                        label="Urenspecificatie tonen"
-                        description="Gedetailleerde uren per taak"
-                        icon={Clock}
-                    />
-
-                    {(settings.showGrootmaterialen || settings.showVerbruiksartikelen) && (
-                        <ToggleRow
-                            settingKey="showPricesPerItem"
-                            label="Prijzen per stuk tonen"
-                            description="Individuele materiaalprijzen"
-                            icon={Eye}
-                        />
-                    )}
-
-                    <ToggleRow
-                        settingKey="showTekeningen"
-                        label="Tekeningen toevoegen"
-                        description="Voeg een tekeningen pagina toe"
-                        icon={Image}
-                    />
-
-                    {/* Quick presets */}
-                    {/* Quick presets */}
-                    <div className="mt-4 px-4 pb-2 flex gap-2">
-                        <button
-                            onClick={() => onChange({
-                                showGrootmaterialen: false,
-                                showVerbruiksartikelen: false,
-                                showUrenSpecificatie: false,
-                                showFullWerkbeschrijving: true,
-                                showPricesPerItem: false,
-                                showTekeningen: false,
-                            })}
-                            className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors"
-                        >
-                            Minimaal (standaard)
-                        </button>
-                        <button
-                            onClick={() => onChange({
-                                showGrootmaterialen: true,
-                                showVerbruiksartikelen: true,
-                                showUrenSpecificatie: true,
-                                showFullWerkbeschrijving: true,
-                                showPricesPerItem: false,
-                                showTekeningen: true,
-                            })}
-                            className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors"
-                        >
-                            Volledig transparant
-                        </button>
-                    </div>
-                </div >
-            )
-            }
-        </div >
+            {expanded && <Content />}
+        </div>
     );
 }

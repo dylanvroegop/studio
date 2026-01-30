@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { PersonalNotes } from '@/components/PersonalNotes';
-import { cn } from '@/lib/utils';
+import { cn, removeEmptyFields } from '@/lib/utils';
 import { MeasurementInput } from '@/components/MeasurementInput';
 
 import { Switch } from '@/components/ui/switch';
@@ -257,9 +257,7 @@ export default function GenericMeasurementPage() {
         }
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
-        const cleanData = (data: any) => data === undefined ? null : JSON.parse(JSON.stringify(data));
-
-        const cleanedItems = (cleanData(items) || []).map((item: any) => {
+        const cleanedItems = (items || []).map((item: any) => {
           // Clean Openings: remove duplicate width/height, keep only openingWidth/openingHeight
           if (item.openings && Array.isArray(item.openings)) {
             item.openings = item.openings.map((op: any) => {
@@ -272,11 +270,11 @@ export default function GenericMeasurementPage() {
               };
             });
           }
-          return item;
+          return removeEmptyFields(item);
         });
-        const cleanedComponents = cleanData(components) || [];
+        const cleanedComponents = removeEmptyFields(components) || [];
         const rawMeta = { title: jobConfig.title, type: categorySlug, slug: jobSlug, description: jobConfig.description || '' };
-        const cleanedMeta = cleanData(rawMeta);
+        const cleanedMeta = removeEmptyFields(rawMeta);
 
         const updateData: Record<string, any> = {
           // Use specific key for this job type/slug to avoid collisions
@@ -572,6 +570,10 @@ export default function GenericMeasurementPage() {
                           <div className="pt-2 border-t border-white/5 space-y-4">
                             <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
 
+                            {fields.find(f => f.key === 'onderzijde_latafstand') && (
+                              <DynamicInput field={fields.find(f => f.key === 'onderzijde_latafstand')!} value={item.onderzijde_latafstand} onChange={v => updateItem(index, 'onderzijde_latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+
                             <div className="space-y-3">
                               <Label className="text-xs">Startpositie</Label>
                               <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
@@ -605,12 +607,37 @@ export default function GenericMeasurementPage() {
                     </div>
                   )}
 
+                  {/* Kopkanten Configuration */}
+                  {fields.find(f => f.key === 'kopkanten') && (
+                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                      <div className="px-4 py-3 flex items-center justify-between select-none">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-zinc-200">Kopkanten</span>
+                        </div>
+                        <Switch checked={item.kopkanten || false} onCheckedChange={(c) => updateItem(index, 'kopkanten', c)} />
+                      </div>
+
+                      {item.kopkanten && (
+                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                            {fields.find(f => f.key === 'kopkant_breedte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                            {fields.find(f => f.key === 'kopkant_hoogte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'kopkant_hoogte')!} value={item.kopkant_hoogte} onChange={v => updateItem(index, 'kopkant_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Extra Fields - NO SLICE, just filter out known keys */}
-                  {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).length > 0 && (
+                  {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-white/5">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
                       <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                        {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right'].includes(f.key)).map(f => (
+                        {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
                           <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                         ))}
                       </div>

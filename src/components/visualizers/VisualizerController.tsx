@@ -7,6 +7,7 @@ import { MetalStudCeilingDrawing } from './MetalStudCeilingDrawing';
 import { RoofDrawing } from './RoofDrawing';
 import { EPDMDrawing } from './EPDMDrawing';
 import { GolfplaatDrawing } from './GolfplaatDrawing';
+import { BoeiboordDrawing } from './BoeiboordDrawing';
 
 interface VisualizerControllerProps {
     category: string;
@@ -129,6 +130,9 @@ export function VisualizerController({
                 className={className}
                 onOpeningsChange={onOpeningsChange}
                 includeOuterBattens={slug.includes('hellend-dak')}
+                edgeLeft={item.edge_left || item.edgeLeft}
+                edgeRight={item.edge_right || item.edgeRight}
+                onEdgeChange={onEdgeChange}
                 {...props}
             />
         );
@@ -144,6 +148,24 @@ export function VisualizerController({
         category === 'wanden' ||
         wallSlugs.some(s => slug.includes(s)) ||
         (fields && fields.some(f => f.key === 'balkafstand'));
+
+    if (slug.includes('boeiboord')) {
+        return (
+            <BoeiboordDrawing
+                lengte={item.lengte}
+                hoogte={item.hoogte} // Voorzijde
+                breedte={item.breedte} // Onderzijde
+                balkafstand={item.balkafstand}
+                latafstand={item.latafstand}
+                onderzijde_latafstand={item.onderzijde_latafstand}
+                className={className}
+                fitContainer={fitContainer}
+                onDataGenerated={props.onDataGenerated}
+                title={props.title}
+                showKopkanten={item.kopkanten}
+            />
+        );
+    }
 
     if (isWallCategory) {
         return (

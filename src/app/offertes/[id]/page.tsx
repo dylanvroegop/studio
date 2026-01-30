@@ -13,14 +13,14 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+
 import { Quote } from "@/lib/types";
 
 export default function QuotePage() {
@@ -42,6 +42,7 @@ export default function QuotePage() {
 
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
+    const [activeTab, setActiveTab] = useState('overzicht');
 
     const [materials, setMaterials] = useState<{
         groot: MaterialItem[];
@@ -114,11 +115,14 @@ export default function QuotePage() {
                     extras: {
                         transport: {
                             prijsPerKm: rawInst.extras?.transport?.prijsPerKm ?? rawInst.reiskosten_prijs_per_km ?? 0.30,
+                            vasteTransportkosten: rawInst.extras?.transport?.vasteTransportkosten ?? 0,
                             mode: rawInst.extras?.transport?.mode ?? (rawInst.reiskosten_type === 'vast' ? 'vast' : 'perKm')
                         },
                         winstMarge: {
                             percentage: rawInst.extras?.winstMarge?.percentage ?? rawInst.winstmarge_percentage ?? 10,
-                            mode: rawInst.extras?.winstMarge?.mode ?? 'percentage'
+                            fixedAmount: rawInst.extras?.winstMarge?.fixedAmount ?? 0,
+                            mode: rawInst.extras?.winstMarge?.mode ?? 'percentage',
+                            basis: rawInst.extras?.winstMarge?.basis ?? 'totaal'
                         }
                     }
                 };
@@ -206,11 +210,14 @@ export default function QuotePage() {
                         extras: {
                             transport: {
                                 prijsPerKm: inst.reiskosten_prijs_per_km || 0.30,
+                                vasteTransportkosten: 0,
                                 mode: inst.reiskosten_type === 'vast' ? 'vast' : 'perKm'
                             },
                             winstMarge: {
                                 percentage: inst.winstmarge_percentage || 10,
-                                mode: 'percentage'
+                                fixedAmount: 0,
+                                mode: 'percentage',
+                                basis: 'totaal'
                             }
                         }
                     };
@@ -327,6 +334,28 @@ export default function QuotePage() {
             verbruiksartikelen: materials.verbruik,
         }, quoteSettings)
         : null;
+
+    // Sync calculated totals to Firebase for Dashboard visibility
+    useEffect(() => {
+        if (!firestore || !user || !id || !totals) return;
+
+        const updateFirebasePrice = async () => {
+            try {
+                const docRef = doc(firestore, 'quotes', id);
+                await updateDoc(docRef, {
+                    totaalbedrag: totals.totaalInclBtw,
+                    amount: totals.totaalInclBtw, // Sync both for compatibility
+                    updatedAt: new Date(),
+                });
+            } catch (err) {
+                console.error("Failed to sync price to Firestore:", err);
+            }
+        };
+
+        // Debounce to avoid rapid writes during slider/input changes
+        const timer = setTimeout(updateFirebasePrice, 2000);
+        return () => clearTimeout(timer);
+    }, [totals, firestore, user, id]);
 
     // Handle updating settings
     const handleUpdateSettings = async (newSettings: QuoteCalculationSettings) => {
@@ -510,24 +539,43 @@ export default function QuotePage() {
 
             <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-24">
                 {/* Tabs */}
-                <Tabs defaultValue="overzicht" className="space-y-6">
-                    <TabsList className="bg-zinc-900 border border-zinc-800 p-1 rounded-lg w-full sm:w-auto flex flex-wrap h-auto">
-                        <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
-                            <Euro size={16} /> Overzicht
-                        </TabsTrigger>
-                        <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
-                            <Package size={16} /> Materialen
-                        </TabsTrigger>
-                        <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
-                            <Clock size={16} /> Arbeid
-                        </TabsTrigger>
-                        <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
-                            <FileText size={16} /> PDF Preview
-                        </TabsTrigger>
-                        <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
-                            <MessageSquare size={16} /> Notities
-                        </TabsTrigger>
-                    </TabsList>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900 border border-zinc-800 p-1 rounded-lg w-full sm:w-auto">
+                        <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
+                            <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                                <Euro size={16} /> Overzicht
+                            </TabsTrigger>
+                            <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                                <Package size={16} /> Materialen
+                            </TabsTrigger>
+                            <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                                <Clock size={16} /> Arbeid
+                            </TabsTrigger>
+                            <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                                <FileText size={16} /> PDF Preview
+                            </TabsTrigger>
+                            <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                                <MessageSquare size={16} /> Notities
+                            </TabsTrigger>
+                        </TabsList>
+
+                        {activeTab === 'pdf' && (
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white mr-1">
+                                        <Settings size={16} className="mr-2" /> PDF Instellingen
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 bg-zinc-900 border-zinc-800 p-0" align="end">
+                                    <QuoteSettings
+                                        settings={pdfSettings}
+                                        onChange={handlePdfSettingsChange}
+                                        variant="flat"
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        )}
+                    </div>
 
                     {/* Overzicht Tab */}
                     <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -545,17 +593,7 @@ export default function QuotePage() {
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     <ClientInfoCard klantInfo={klantInfo} />
                                     <div className="lg:col-span-2 flex flex-col gap-4">
-                                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 flex items-center justify-between">
-                                            <Label htmlFor="estimate-mode" className="text-zinc-400 text-sm">Uren als schatting weergeven</Label>
-                                            <Switch
-                                                id="estimate-mode"
-                                                checked={quoteSettings?.schattingUren || false}
-                                                onCheckedChange={(checked) => {
-                                                    if (!quoteSettings) return;
-                                                    handleUpdateSettings({ ...quoteSettings, schattingUren: checked });
-                                                }}
-                                            />
-                                        </div>
+
                                         <CostSummaryCard
                                             totals={totals}
                                             settings={quoteSettings}
@@ -671,10 +709,6 @@ export default function QuotePage() {
 
                     {/* PDF Tab */}
                     <TabsContent value="pdf" className="mt-6 space-y-4">
-                        <QuoteSettings
-                            settings={pdfSettings}
-                            onChange={handlePdfSettingsChange}
-                        />
                         <PDFPreview
                             pdfData={buildPDFData()}
                             onDownload={handleDownloadPDF}

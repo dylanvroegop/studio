@@ -5,11 +5,14 @@ export interface QuoteSettings {
     extras: {
         transport: {
             prijsPerKm: number;
-            mode: 'perKm' | 'vast';
+            vasteTransportkosten?: number;
+            mode: 'perKm' | 'vast' | 'fixed' | 'none';
         };
         winstMarge: {
             percentage: number;
-            mode: 'percentage' | 'vast';
+            fixedAmount?: number;
+            mode: 'percentage' | 'vast' | 'fixed' | 'none';
+            basis: 'totaal' | 'materialen' | 'materialen_arbeid';
         };
     };
 }
@@ -76,7 +79,7 @@ export function calculateQuoteTotals(
     transportKm: number = 0
 ): CalculationResult {
     // Sum groot materialen
-    const materialenGroot = dataJson.grootmaterialen.reduce(
+    const materialenGroot = (dataJson.grootmaterialen || []).reduce(
         (sum, item) => {
             const itemTotal = item.totaal_prijs ?? (item.prijs_per_stuk ?? 0) * item.aantal;
             return sum + itemTotal;
@@ -85,7 +88,7 @@ export function calculateQuoteTotals(
     );
 
     // Sum verbruiksartikelen
-    const materialenVerbruik = dataJson.verbruiksartikelen.reduce(
+    const materialenVerbruik = (dataJson.verbruiksartikelen || []).reduce(
         (sum, item) => {
             const itemTotal = item.totaal_prijs ?? (item.prijs_per_stuk ?? 0) * item.aantal;
             return sum + itemTotal;
@@ -96,20 +99,42 @@ export function calculateQuoteTotals(
     const materialenTotaal = materialenGroot + materialenVerbruik;
 
     // Labor calculation
-    const arbeidTotaal = dataJson.totaal_uren * settings.uurTariefExclBtw;
+    const arbeidTotaal = (dataJson.totaal_uren || 0) * settings.uurTariefExclBtw;
 
     // Transport calculation
-    const transportTotaal = settings.extras.transport.mode === 'perKm'
-        ? transportKm * settings.extras.transport.prijsPerKm
-        : 0;
+    let transportTotaal = 0;
+    if (settings.extras.transport.mode === 'perKm') {
+        transportTotaal = transportKm * settings.extras.transport.prijsPerKm;
+    } else if (settings.extras.transport.mode === 'vast' || settings.extras.transport.mode === 'fixed') {
+        transportTotaal = settings.extras.transport.vasteTransportkosten || 0;
+    }
 
     // Subtotal before margin
     const subtotaalExclBtw = materialenTotaal + arbeidTotaal + transportTotaal;
 
     // Margin calculation
-    const winstMarge = settings.extras.winstMarge.mode === 'percentage'
-        ? subtotaalExclBtw * (settings.extras.winstMarge.percentage / 100)
-        : settings.extras.winstMarge.percentage;
+    let winstMarge = 0;
+    const marginMode = settings.extras.winstMarge.mode;
+
+    if (marginMode === 'percentage') {
+        const basis = settings.extras.winstMarge.basis || 'totaal';
+        let basisBedrag = 0;
+
+        if (basis === 'materialen') {
+            basisBedrag = materialenTotaal;
+        } else if (basis === 'materialen_arbeid') {
+            basisBedrag = materialenTotaal + arbeidTotaal;
+        } else {
+            // Default: 'totaal' includes everything
+            basisBedrag = subtotaalExclBtw;
+        }
+
+        winstMarge = basisBedrag * (settings.extras.winstMarge.percentage / 100);
+    } else if (marginMode === 'vast' || marginMode === 'fixed') {
+        // Use fixedAmount if available, fallback to old percentage field if it was abused for fixed amount (unlikely given types but safe)
+        winstMarge = settings.extras.winstMarge.fixedAmount || 0;
+        // Legacy fallback not strictly needed if we enforce migration, but kept minimal. 
+    }
 
     // Final totals
     const totaalExclBtw = subtotaalExclBtw + winstMarge;

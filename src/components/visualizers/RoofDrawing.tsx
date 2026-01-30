@@ -45,6 +45,10 @@ export interface RoofDrawingProps {
     title?: string;
     doubleEndBattens?: boolean;
     includeOuterBattens?: boolean;
+    // Edge Types for "Hoek", "Tussen", "Vrij" logic
+    edgeLeft?: 'gevel' | 'buren'; // Default 'gevel' (Free/Verge)
+    edgeRight?: 'gevel' | 'buren';
+    onEdgeChange?: (side: 'left' | 'right', value: 'gevel' | 'buren') => void;
 }
 
 export function RoofDrawing({
@@ -71,7 +75,10 @@ export function RoofDrawing({
     startFromRight,
     title = 'Dak Vlak',
     doubleEndBattens,
-    includeOuterBattens
+    includeOuterBattens,
+    edgeLeft = 'buren',
+    edgeRight = 'buren',
+    onEdgeChange
 }: RoofDrawingProps) {
     const uniqueId = React.useId().replace(/:/g, '');
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
@@ -222,6 +229,89 @@ export function RoofDrawing({
             // Standardize scale
             const pxPerMmW = pxPerMm;
             const pxPerMmH = pxPerMm;
+
+            // --- Helper: Render Interactive Edge (Adapted from EPDMDrawing) ---
+            const renderInteractiveEdge = (
+                key: string,
+                p1: { x: number, y: number },
+                p2: { x: number, y: number },
+                side: 'left' | 'right',
+                currentType: 'gevel' | 'buren'
+            ) => {
+                // If no handler, do not render interaction (or render static?)
+                // Just render static if no handle, but we want to show the state?
+
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
+
+                // Normal (pointing "out" or "in"?).
+                // Left Edge (Bottom to Top): dy is negative. Normal (-dy, dx) -> (+, 0). Points Right (In).
+                // Right Edge (Top to Bottom): dy is positive. Normal (-dy, dx) -> (-, 0). Points Left (In).
+                // We want labels OUTSIDE? 
+                // EPDM uses Inside. 
+                // For Roof, "Vrij" vs "Buren". Outside is better to avoid overlapping roof details.
+                const nx = -dy / len;
+                const ny = dx / len;
+
+                // Flip normal to point OUTSIDE
+                // For Left edge (pBL -> pTL), Normal points Right (Inside). We want Left (Outside).
+                // For Right edge (pTR -> pBR), Normal points Left (Inside). We want Right (Outside).
+                // So we negate normal.
+                const outNx = -nx;
+                const outNy = -ny;
+
+                const textDist = 30;
+                const labelX = midX + (outNx * textDist);
+                const labelY = midY + (outNy * textDist);
+
+                // Angular correction for text
+                while (angleDeg > 90) angleDeg -= 180;
+                while (angleDeg <= -90) angleDeg += 180;
+                // USER REQUEST: Switch 180 degrees
+                angleDeg += 180;
+
+                const interact = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    if (onEdgeChange) {
+                        onEdgeChange(side, currentType === 'gevel' ? 'buren' : 'gevel');
+                    }
+                };
+
+                const label = currentType === 'gevel' ? "VRIJ" : "BUREN";
+                const color = currentType === 'gevel' ? "rgb(16, 185, 129)" : "rgb(148, 163, 184)"; // Green if Vrij (Good?), Gray if Buren
+
+                return (
+                    <g key={key} onClick={interact} cursor={onEdgeChange ? "pointer" : "default"}>
+                        <title>{currentType === 'gevel' ? "Wijzig naar Buren (Aansluitend)" : "Wijzig naar Vrij (Kopgevel)"}</title>
+                        {/* Hit Area */}
+                        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="transparent" strokeWidth={40} />
+
+                        {/* Visible Line Indication if Vrij? */}
+                        {currentType === 'gevel' && (
+                            <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={color} strokeWidth={4} strokeOpacity={0.5} />
+                        )}
+
+                        {/* Label */}
+                        <text
+                            x={labelX} y={labelY}
+                            transform={`rotate(${angleDeg}, ${labelX}, ${labelY})`}
+                            textAnchor="middle"
+                            dy="0.3em"
+                            fill={color}
+                            fontWeight="bold"
+                            fontSize="10"
+                            style={{ userSelect: 'none' }}
+                        >
+                            {label}
+                        </text>
+                    </g>
+                );
+            };
 
             // Calculate Frame
             const framing = calculateGridGaps({
@@ -402,6 +492,74 @@ export function RoofDrawing({
                         `;
                 }
             }
+
+            // ============================================================
+            // CALCULATE EDGE POINTS FOR INTERACTION
+            // ============================================================
+            // We focus on Left and Right edges for now.
+            // These points must match the visual outline.
+
+            let pBL = { x: startX, y: startY + rectH };
+            let pTL = { x: startX, y: startY };
+            let pTR = { x: startX + rectW, y: startY };
+            let pBR = { x: startX + rectW, y: startY + rectH };
+
+            if (shape === 'slope') {
+                if (variant === 'bottom') {
+                    // Slope Bottom: Left is (startX, yTop) to (startX, yBL_pos)? 
+                    // No. yTop is startY. yBL_pos is startY + hLeft*px.
+                    // The drawing fills Top-Down visually in SVG?
+                    // "Bottom" variant: Top edge is flat. Bottom edge is sloped.
+                    // Left Edge is: Top (startX, startY) -> Bottom (startX, startY + hLeft*px)
+                    const yBL_pos = startY + (hLeft * pxPerMmH);
+                    const yBR_pos = startY + (hRight * pxPerMmH);
+                    pTL = { x: startX, y: startY };
+                    pBL = { x: startX, y: yBL_pos };
+                    pTR = { x: startX + rectW, y: startY };
+                    pBR = { x: startX + rectW, y: yBR_pos };
+                } else {
+                    // Slope Top (Default): Bottom is flat. Top is sloped.
+                    // Left Edge: Top (startX, yBot - hLeft) -> Bottom (startX, yBot)
+                    const yBot = startY + rectH;
+                    const yTL = yBot - (hLeft * pxPerMmH);
+                    const yTR = yBot - (hRight * pxPerMmH);
+                    pBL = { x: startX, y: yBot };
+                    pTL = { x: startX, y: yTL };
+                    pBR = { x: startX + rectW, y: yBot };
+                    pTR = { x: startX + rectW, y: yTR };
+                }
+            } else if (shape === 'gable') {
+                // Gable Left Edge: Start at Eaves, go to Ground? Or Eaves is Top?
+                // "RoofDrawing" usually draws the Face.
+                // Gable shape in this visualizer:
+                // "variant != bottom": Bottom is generic floor. Top is Gable shape.
+                // Left edge is (startX, ySide) to (startX, yBot).
+                const yBot = startY + rectH;
+                const ySide = yBot - (hLeft * pxPerMmH);
+
+                if (variant === 'bottom') {
+                    const yTop = startY;
+                    const ySidePos = startY + (hLeft * pxPerMmH);
+                    pTL = { x: startX, y: yTop };
+                    pBL = { x: startX, y: ySidePos };
+                    // Right
+                    pTR = { x: startX + rectW, y: yTop };
+                    pBR = { x: startX + rectW, y: ySidePos };
+                } else {
+                    pBL = { x: startX, y: yBot };
+                    pTL = { x: startX, y: ySide };
+                    pBR = { x: startX + rectW, y: yBot };
+                    pTR = { x: startX + rectW, y: ySide };
+                }
+            }
+
+            // Add Interactive Edges to elements
+            const edgeElements = (
+                <g key="interactive-edges">
+                    {renderInteractiveEdge('edge-left', pBL, pTL, 'left', edgeLeft || 'gevel')}
+                    {renderInteractiveEdge('edge-right', pTR, pBR, 'right', edgeRight || 'gevel')}
+                </g>
+            );
 
             // ============================================================
             // Helper: Get Y position at given X (for beam clipping)
@@ -795,6 +953,8 @@ export function RoofDrawing({
                     />
                 </React.Fragment>
             );
+
+            elements.push(edgeElements);
 
 
             elements.push(

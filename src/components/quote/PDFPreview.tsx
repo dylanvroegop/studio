@@ -65,30 +65,7 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
 
     return (
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-            {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-zinc-800">
-                <div className="flex items-center gap-3">
-                    <FileText size={18} className="text-zinc-400" />
-                    <h3 className="font-semibold text-white">PDF PREVIEW</h3>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={generatePreview}
-                        disabled={loading}
-                        className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50"
-                    >
-                        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                        Vernieuwen
-                    </button>
-                    <button
-                        onClick={onDownload}
-                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-sm transition-colors"
-                    >
-                        <Download size={14} />
-                        Download PDF
-                    </button>
-                </div>
-            </div>
+            {/* Header removed as requested */}
 
             {/* Preview Area */}
             <div className="p-4">
@@ -107,7 +84,7 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
                 {!loading && !error && previewUrl && (
                     <iframe
                         src={previewUrl}
-                        className="w-full h-[700px] rounded border border-zinc-700"
+                        className="w-full h-[850px] rounded border border-zinc-700"
                         title="PDF Preview"
                     />
                 )}

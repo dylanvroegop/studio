@@ -223,7 +223,6 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         ['Materialen', formatCurrency(data.totals.materialenTotaal)],
         [`Arbeid (${data.totals.totaalUren} uur)`, formatCurrency(data.totals.arbeidTotaal)],
         ['Transport', formatCurrency(data.totals.transportTotaal)],
-        [`Winstmarge (${data.totals.margePercentage}%)`, formatCurrency(data.totals.winstMarge)],
     ];
 
     doc.setTextColor(80, 80, 80);

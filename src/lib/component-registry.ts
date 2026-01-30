@@ -28,9 +28,17 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         title: 'Boeiboord',
         description: 'Boeiboord incl. m1, hoogte, type materiaal',
         measurements: [
-            { key: 'lengte', label: 'Lengte (m1)', type: 'number', suffix: 'mm' },
-            { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm' },
-            { key: 'materiaal', label: 'Materiaal', type: 'text', placeholder: 'Trespa/Hout' },
+            { key: 'lengte', label: 'Lengte (m1)', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+            { key: 'hoogte', label: 'Hoogte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 250' },
+            { key: 'breedte', label: 'Breedte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300' },
+
+            { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
+            { key: 'latafstand', label: 'Latafstand Voorzijde (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
+            { key: 'onderzijde_latafstand', label: 'Latafstand Onderzijde (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
+
+            { key: 'kopkanten', label: 'Kopkanten Toevoegen', type: 'boolean', defaultValue: 'false' },
+            { key: 'kopkant_breedte', label: 'Breedte Kopkant', type: 'number', suffix: 'mm', optional: true },
+            { key: 'kopkant_hoogte', label: 'Hoogte Kopkant', type: 'number', suffix: 'mm', optional: true },
         ],
         defaultMaterials: [
             { label: 'Beplating', categoryFilter: 'Gevelbekleding', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },

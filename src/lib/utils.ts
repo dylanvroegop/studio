@@ -31,3 +31,32 @@ export function parsePriceToNumber(raw: unknown): number | null {
   const num = parseFloat(value);
   return Number.isNaN(num) ? null : num;
 }
+
+/**
+ * Recursively removes empty fields from an object or array.
+ * - Removes null, undefined, "", [], {} (unless specified otherwise)
+ * - Preserves 0 and false
+ */
+export function removeEmptyFields(obj: any): any {
+  if (obj === null || obj === undefined || obj === '') return undefined;
+
+  if (Array.isArray(obj)) {
+    const cleaned = obj.map(removeEmptyFields).filter(v => v !== undefined);
+    return cleaned.length > 0 ? cleaned : undefined;
+  }
+
+  if (typeof obj === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const value = removeEmptyFields(obj[key]);
+        if (value !== undefined) {
+          cleaned[key] = value;
+        }
+      }
+    }
+    return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+  }
+
+  return obj;
+}
