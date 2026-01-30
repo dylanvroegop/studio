@@ -15,7 +15,7 @@ import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -43,11 +43,34 @@ export default function QuotePage() {
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
 
-    // Add state for materials
     const [materials, setMaterials] = useState<{
         groot: MaterialItem[];
         verbruik: MaterialItem[];
     }>({ groot: [], verbruik: [] });
+
+    const [userProfile, setUserProfile] = useState<any>(null);
+
+    // Fetch user profile for company details
+    useEffect(() => {
+        const fetchUserProfile = async () => {
+            if (user && firestore) {
+                try {
+                    const docRef = doc(firestore, 'users', user.uid);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        setUserProfile(data);
+                        if (data.defaultPdfSettings) {
+                            setPdfSettings(data.defaultPdfSettings);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error fetching user profile:", err);
+                }
+            }
+        };
+        fetchUserProfile();
+    }, [user, firestore]);
 
     // Initialize state from calculation data (Supabase)
     useEffect(() => {
@@ -338,14 +361,14 @@ export default function QuotePage() {
                 year: 'numeric'
             }),
             bedrijf: {
-                naam: 'Your Company Name', // TODO: Make configurable
-                adres: 'Building Street 123',
-                postcode: '1234 AB',
-                plaats: 'Amsterdam',
-                telefoon: '06-12345678',
-                email: 'info@yourcompany.com',
-                kvk: '12345678',
-                btw: 'NL123456789B01',
+                naam: userProfile?.bedrijfsnaam || userProfile?.companyName || 'Uw Bedrijfsnaam',
+                adres: userProfile?.adres || userProfile?.address || 'Straatnaam 123',
+                postcode: userProfile?.postcode || userProfile?.zipcode || '1234 AB',
+                plaats: userProfile?.plaats || userProfile?.city || 'Plaats',
+                telefoon: userProfile?.telefoon || userProfile?.phone || '06-12345678',
+                email: userProfile?.email || user?.email || 'email@voorbeeld.nl',
+                kvk: userProfile?.kvk || '12345678',
+                btw: userProfile?.btw || 'NL123456789B01',
             },
             klant: {
                 naam: `${klantInfo.voornaam} ${klantInfo.achternaam}`,
@@ -382,6 +405,22 @@ export default function QuotePage() {
             },
             settings: pdfSettings,
         };
+    };
+
+    // Handle PDF settings update with persistence
+    const handlePdfSettingsChange = async (newSettings: QuotePDFSettings) => {
+        setPdfSettings(newSettings);
+
+        if (user && firestore) {
+            try {
+                const userRef = doc(firestore, 'users', user.uid);
+                await updateDoc(userRef, {
+                    defaultPdfSettings: newSettings
+                });
+            } catch (err) {
+                console.error("Error saving PDF settings preference:", err);
+            }
+        }
     };
 
     // Download handler
@@ -634,7 +673,7 @@ export default function QuotePage() {
                     <TabsContent value="pdf" className="mt-6 space-y-4">
                         <QuoteSettings
                             settings={pdfSettings}
-                            onChange={setPdfSettings}
+                            onChange={handlePdfSettingsChange}
                         />
                         <PDFPreview
                             pdfData={buildPDFData()}

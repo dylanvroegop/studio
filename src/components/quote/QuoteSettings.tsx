@@ -94,12 +94,7 @@ export function QuoteSettings({ settings, onChange }: QuoteSettingsProps) {
             {/* Expandable settings */}
             {expanded && (
                 <div className="border-t border-zinc-800 p-2">
-                    <div className="mb-2 px-4 py-2">
-                        <p className="text-xs text-yellow-500/80 flex items-center gap-2">
-                            <EyeOff size={12} />
-                            Tip: De meeste aannemers tonen geen materiaallijst op offertes
-                        </p>
-                    </div>
+
 
                     <ToggleRow
                         settingKey="showFullWerkbeschrijving"

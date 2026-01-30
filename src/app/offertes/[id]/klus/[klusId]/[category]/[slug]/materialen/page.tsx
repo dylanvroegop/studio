@@ -281,6 +281,48 @@ function buildDagkantStroken(openingType: string, width: number, height: number,
   return stroken;
 }
 
+function getMaterialLength(material: any): number | null {
+  if (!material) return null;
+  const val = material.lengte;
+
+  // Try direct number (already in mm)
+  if (typeof val === 'number') return val;
+
+  // Try string with unit (e.g., "300cm" or "3000mm")
+  if (typeof val === 'string') {
+    const cleaned = val.replace(',', '.').toLowerCase().trim();
+
+    // Check for cm suffix - convert to mm
+    if (cleaned.endsWith('cm')) {
+      const num = parseFloat(cleaned.replace('cm', ''));
+      if (!isNaN(num)) return num * 10; // cm to mm
+    }
+
+    // Check for mm suffix
+    if (cleaned.endsWith('mm')) {
+      const num = parseFloat(cleaned.replace('mm', ''));
+      if (!isNaN(num)) return num;
+    }
+
+    // Try plain number (assume mm if large, cm if small)
+    const num = parseFloat(cleaned);
+    if (!isNaN(num)) {
+      return num < 100 ? num * 10 : num; // Assume cm if < 100
+    }
+  }
+
+  // Fallback: parse from material name (e.g., "44x69mm 3000mm lang")
+  const name = material.materiaalnaam || '';
+  const mmMatch = name.match(/(\d{3,4})mm\s*lang/i) || name.match(/(\d{3,4})\s*mm/i);
+  if (mmMatch) return parseInt(mmMatch[1], 10);
+
+  // Check for cm in name, e.g. "300cm"
+  const cmMatch = name.match(/(\d{3})\s*cm/i);
+  if (cmMatch) return parseInt(cmMatch[1], 10) * 10;
+
+  return null;
+}
+
 // ==================================
 // STYLING CONSTANTS
 // ==================================
@@ -756,6 +798,8 @@ export default function GenericMaterialsPageRedesigned() {
 
     return null;
   }, [jobSlug, klus, gekozenMaterialen]);
+
+
 
   const handleComponentMaterialSelect = (compId: string, sectionKey: string, material: any) => {
     setComponents(prev => prev.map(comp => {
@@ -1348,6 +1392,62 @@ export default function GenericMaterialsPageRedesigned() {
   const openMateriaalKiezer = (sectieKey: string, groupId: string | null = null) => { setActieveSectie(sectieKey); setActiveGroupId(groupId); setIsExtraModalOpen(true); };
   const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({ ...prev, [key]: materiaal })); };
   const handleMateriaalVerwijderen = (key: string) => { setGekozenMaterialen(prev => { const n = { ...prev }; delete n[key]; return n; }); };
+
+  const suggestBetterBeam = useCallback((sectionKey: string) => {
+    if (!beamHeightWarning || !alleMaterialen.length) return;
+
+    const targetHeight = beamHeightWarning.wallHeight;
+    const currentName = beamHeightWarning.materialName || '';
+
+    // Heuristic: Extract "NNxNN" (dimensions) from current name to find similar beams
+    const dimRegex = /(\d+)[xX](\d+)/;
+    const match = currentName.match(dimRegex);
+    let candidates = alleMaterialen;
+
+    if (match) {
+      const dimStr = match[0]; // e.g. "38x89"
+      candidates = candidates.filter(m => (m.materiaalnaam || '').includes(dimStr));
+    } else {
+      // Fallback: if 'SLS' in name, filter for SLS
+      if (currentName.toLowerCase().includes('sls')) {
+        candidates = candidates.filter(m => (m.materiaalnaam || '').toLowerCase().includes('sls'));
+      }
+    }
+
+    // Find valid lengths
+    const validOptions = candidates.map(m => {
+      const len = getMaterialLength(m);
+      return { material: m, length: len };
+    }).filter(item => item.length !== null && item.length >= targetHeight);
+
+    // Sort: Smallest sufficient length first (best fit), then price
+    validOptions.sort((a, b) => {
+      const lenDiff = a.length! - b.length!;
+      if (lenDiff !== 0) return lenDiff;
+      // Price low to high
+      const pA = typeof a.material.prijs === 'number' ? a.material.prijs : 0;
+      const pB = typeof b.material.prijs === 'number' ? b.material.prijs : 0;
+      return pA - pB;
+    });
+
+    const best = validOptions[0];
+
+    if (best) {
+      handleMateriaalSelectie(sectionKey, best.material);
+      toast({
+        title: "Balk aangepast",
+        description: `Geselecteerd: ${best.material.materiaalnaam} (${best.length}mm)`,
+        duration: 3000
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Geen geschikte balk gevonden",
+        description: `Geen standaard balk gevonden langer dan ${targetHeight}mm.`,
+        duration: 4000
+      });
+    }
+  }, [beamHeightWarning, alleMaterialen, handleMateriaalSelectie, toast]);
 
   // --- RENDERERS ---
 
@@ -2253,6 +2353,15 @@ export default function GenericMaterialsPageRedesigned() {
                                           {' '}Is dit correct?
                                         </p>
                                       </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 bg-amber-100 border-amber-300 text-amber-900 hover:bg-emerald-100 hover:text-emerald-900 hover:border-emerald-300 transition-colors shrink-0"
+                                        onClick={() => suggestBetterBeam(section.key)}
+                                      >
+                                        <Sparkles className="mr-2 h-3.5 w-3.5" />
+                                        Balk aanpassen
+                                      </Button>
                                     </div>
                                   </div>
                                 )}
