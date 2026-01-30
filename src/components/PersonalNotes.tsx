@@ -14,6 +14,7 @@ import {
   serverTimestamp,
   orderBy,
 } from 'firebase/firestore';
+import { cleanFirestoreData } from '@/lib/clean-firestore';
 import {
   StickyNote,
   Plus,
@@ -188,7 +189,7 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
 
     setIsSaving(true);
     try {
-      const docRef = await addDoc(collection(firestore, 'notes'), {
+      const rawData = {
         userId: user.uid,
         quoteId,
         jobId: jobId || null, // Create relationship
@@ -198,7 +199,10 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
         isResolved: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      const cleanedData = cleanFirestoreData(rawData);
+      const docRef = await addDoc(collection(firestore, 'notes'), cleanedData);
 
       const newNote: Note = {
         id: docRef.id,
@@ -240,11 +244,14 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
     setIsSaving(true);
     try {
       const noteRef = doc(firestore, 'notes', editingNote.id);
-      await updateDoc(noteRef, {
+      const rawUpdate = {
         content: editContent.trim(),
         tags: editTags,
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      const cleanedUpdate = cleanFirestoreData(rawUpdate, { isUpdate: true });
+      await updateDoc(noteRef, cleanedUpdate);
 
       setNotes(notes.map(n =>
         n.id === editingNote.id

@@ -7,7 +7,8 @@ import { Job } from "@/lib/types";
 
 export function JobPreview({ job }: { job: Job }) {
     // 1. Get the first item from maatwerk (most jobs have at least one)
-    const firstItem = job.maatwerk?.[0];
+    const maatwerk = (job.maatwerk && !Array.isArray(job.maatwerk)) ? (job.maatwerk as any).items : job.maatwerk;
+    const firstItem = Array.isArray(maatwerk) ? maatwerk[0] : null;
 
     if (!firstItem) {
         return (
@@ -33,9 +34,9 @@ export function JobPreview({ job }: { job: Job }) {
                 className="w-full h-full pointer-events-none"
             />
             {/* Optional: Add badge for item count if > 1 */}
-            {job.maatwerk && job.maatwerk.length > 1 && (
+            {Array.isArray(maatwerk) && maatwerk.length > 1 && (
                 <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-                    +{job.maatwerk.length - 1}
+                    +{maatwerk.length - 1}
                 </div>
             )}
         </div>

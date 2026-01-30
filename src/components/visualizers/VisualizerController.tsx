@@ -163,6 +163,8 @@ export function VisualizerController({
                 onDataGenerated={props.onDataGenerated}
                 title={props.title}
                 showKopkanten={item.kopkanten}
+                startLattenFromBottom={item.startLattenFromBottom}
+                doubleEndBattens={item.doubleEndBattens}
             />
         );
     }

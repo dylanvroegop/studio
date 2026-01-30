@@ -147,7 +147,7 @@ export interface MeasurementField {
   type: 'number' | 'text' | 'textarea' | 'select' | 'boolean';
   suffix?: string;
   placeholder?: string;
-  defaultValue?: string | number;
+  defaultValue?: string | number | boolean;
   group?: string;
   options?: { label: string; value: string }[];
   optional?: boolean;
@@ -272,6 +272,18 @@ const KOOF_FIELDS: MeasurementField[] = [
   { key: 'diepte', label: 'Diepte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300' },
   { key: 'aantal', label: 'Aantal', type: 'number', suffix: 'stuks', defaultValue: 1 },
 
+];
+
+const BOEIBOORD_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'hoogte', label: 'Hoogte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 250', defaultValue: 250 },
+  { key: 'breedte', label: 'Breedte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300', defaultValue: 300 },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
+  { key: 'latafstand', label: 'Latafstand Voorzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
+  { key: 'onderzijde_latafstand', label: 'Latafstand Onderzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
+  { key: 'kopkanten', label: 'Kopkanten', type: 'boolean', defaultValue: false },
+  { key: 'kopkant_breedte', label: 'Breedte Kopkant', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
+  { key: 'kopkant_hoogte', label: 'Hoogte Kopkant', type: 'number', suffix: 'mm', defaultValue: 250, optional: true },
 ];
 
 // 4. MATERIAL CONFIGURATIONS (Cards)
@@ -1791,7 +1803,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Hout of Kunststof (Trespa/Keralit)',
         slug: 'boeiboorden-vervangen',
         measurementLabel: 'Boeiboord',
-        measurements: WALL_FIELDS,
+        measurements: BOEIBOORD_FIELDS,
         materialSections: BOEIBOORD_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },

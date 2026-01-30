@@ -50,6 +50,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
+import { cleanFirestoreData } from '@/lib/clean-firestore';
 
 /* ---------------------------------------------
  Formatters & Helpers
@@ -66,14 +67,7 @@ function formatPostcode(value: string) {
   return clean;
 }
 
-function schoonObject(obj: any) {
-  const cleaned: any = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === undefined || v === null || v === '') continue;
-    cleaned[k] = v;
-  }
-  return cleaned;
-}
+// function schoonObject removed in favor of cleanFirestoreData
 
 /**
  * Haalt het volgende offerte-nummer op via transaction en verhoogt de teller.
@@ -222,8 +216,12 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
   const handleAutoSave = async (field: string, value: any) => {
     if (!quoteId || !firestore) return;
     try {
+      // Clean the value before saving. If empty, it returns deleteField() (since isUpdate: true)
+      // However, for nested fields like `klantinformatie.voornaam`, deleteField() works fine.
+      const cleanValue = cleanFirestoreData(value, { isUpdate: true });
+
       await updateDoc(doc(firestore, 'quotes', quoteId), {
-        [`klantinformatie.${field}`]: value,
+        [`klantinformatie.${field}`]: cleanValue,
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
@@ -259,7 +257,7 @@ export function NewQuoteForm({ quoteId }: { quoteId?: string }) {
         return;
       }
 
-      const cleanData = schoonObject({
+      const cleanData = cleanFirestoreData({
         ...validated.data,
         userId: user.uid,
         updatedAt: serverTimestamp(),

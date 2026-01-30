@@ -5,7 +5,7 @@ import React, { useEffect, useState, useTransition, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
-import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import html2canvas from 'html2canvas';
@@ -40,7 +40,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { PersonalNotes } from '@/components/PersonalNotes';
-import { cn, removeEmptyFields } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { cleanFirestoreData } from '@/lib/clean-firestore';
 import { MeasurementInput } from '@/components/MeasurementInput';
 
 import { Switch } from '@/components/ui/switch';
@@ -114,15 +115,17 @@ export default function GenericMeasurementPage() {
 
         if (snapshot.exists()) {
           const data = snapshot.data();
-          // Try specific slug key first, then fallback to legacy 'maatwerk'
-          const savedItems = data.klussen?.[klusId]?.[`${jobSlug}_maatwerk`] || data.klussen?.[klusId]?.maatwerk;
+          const container = data.klussen?.[klusId] || {};
+          const maatwerk = container.maatwerk;
+
+          // 1. Try new structure, then specific slug key, then legacy 'maatwerk' array
+          const savedItems = maatwerk?.items || container[`${jobSlug}_maatwerk`] || (Array.isArray(maatwerk) ? maatwerk : []);
 
           if (Array.isArray(savedItems) && savedItems.length > 0) {
             // Normalize openings: restore width/height from openingWidth/openingHeight if needed
             const normalizedItems = savedItems.map((item: any) => {
               if (item.openings && Array.isArray(item.openings)) {
                 item.openings = item.openings.map((op: any) => {
-                  // If width/height are missing but openingWidth/openingHeight exist, restore them
                   const normalizedOpening = { ...op };
                   if (op.openingWidth !== undefined && op.width === undefined) {
                     normalizedOpening.width = op.openingWidth;
@@ -140,12 +143,14 @@ export default function GenericMeasurementPage() {
             setItems([createEmptyItem()]);
           }
 
-          const savedComponents = data.klussen?.[klusId]?.components;
+          // 2. Load Components
+          const savedComponents = maatwerk?.components || container.components;
           if (Array.isArray(savedComponents)) {
             setComponents(savedComponents);
           }
 
-          const savedNotities = data.klussen?.[klusId]?.maatwerk_notities;
+          // 3. Load Notities
+          const savedNotities = maatwerk?.notities || container.maatwerk_notities;
           if (savedNotities) {
             setNotities(savedNotities);
           }
@@ -257,11 +262,11 @@ export default function GenericMeasurementPage() {
         }
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
-        const cleanedItems = (items || []).map((item: any) => {
-          // Clean Openings: remove duplicate width/height, keep only openingWidth/openingHeight
+
+        // Prepare items
+        const processedItems = (items || []).map((item: any) => {
           if (item.openings && Array.isArray(item.openings)) {
             item.openings = item.openings.map((op: any) => {
-              // Destructure to remove width and height, keep everything else
               const { width, height, ...rest } = op;
               return {
                 ...rest,
@@ -270,24 +275,26 @@ export default function GenericMeasurementPage() {
               };
             });
           }
-          return removeEmptyFields(item);
+          return item;
         });
-        const cleanedComponents = removeEmptyFields(components) || [];
-        const rawMeta = { title: jobConfig.title, type: categorySlug, slug: jobSlug, description: jobConfig.description || '' };
-        const cleanedMeta = removeEmptyFields(rawMeta);
+
+        const rawMeta = {
+          title: jobConfig.title,
+          type: categorySlug,
+          slug: jobSlug,
+          description: jobConfig.description || ''
+        };
+
+        // Construct the single maatwerk object
+        const maatwerkData = {
+          items: processedItems,
+          components: components,
+          notities: notities,
+          meta: rawMeta,
+        };
 
         const updateData: Record<string, any> = {
-          // Use specific key for this job type/slug to avoid collisions
-          [`klussen.${klusId}.${jobSlug}_maatwerk`]: cleanedItems,
-          // Clear legacy key to avoid confusion (optional, but good for cleanup if we want to migrate fully)
-          // For now, let's keep it or just overwrite the new one. 
-          // Actually, let's explicitely NOT save to 'maatwerk' anymore. 
-          // But if we want to "migrate", we might want to delete the old one?
-          // Let's just write to the new key. 
-
-          [`klussen.${klusId}.components`]: cleanedComponents,
-          [`klussen.${klusId}.maatwerk_notities`]: notities, // Save Public Notes
-          [`klussen.${klusId}.meta`]: cleanedMeta,
+          [`klussen.${klusId}.maatwerk`]: cleanFirestoreData(maatwerkData, { isUpdate: true }),
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
         };
 

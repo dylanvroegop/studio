@@ -11,12 +11,13 @@ import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
 import { PersonalNotes } from '@/components/PersonalNotes';
+import { useToast } from '@/hooks/use-toast';
 import { JOB_REGISTRY } from '@/lib/job-registry';
 import { WizardHeader } from '@/components/WizardHeader';
 
 // ✅ Firebase imports
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 /* ---------------------------------------------
   DATA
@@ -65,6 +66,7 @@ const categories: CategoryItem[] = [
 export default function NewJobPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const quoteId = params.id as string;
 
   // ✅ Hooks voor User & DB
@@ -210,18 +212,39 @@ export default function NewJobPage() {
                 ? crypto.randomUUID()
                 : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-            await updateDoc(quoteRef, {
-              [`klussen.${nieuweKlusId}.meta`]: {
-                title: singleItem.title,
-                type: category.slug, // Category slug (e.g. 'wanden')
-                description: singleItem.description,
-                slug: singleItem.slug // Job slug (e.g. 'hsb-voorzetwand')
-              },
-            });
+            await setDoc(quoteRef, {
+              klussen: {
+                [nieuweKlusId]: {
+                  maatwerk: {
+                    meta: {
+                      title: singleItem.title,
+                      type: category.slug,
+                      description: singleItem.description,
+                      slug: singleItem.slug
+                    }
+                  },
+                  updatedAt: serverTimestamp()
+                }
+              }
+            }, { merge: true });
 
             router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${category.slug}/${singleItem.slug}`);
-          } catch (err) {
+          } catch (err: any) {
             console.error('Error creating job:', err);
+
+            // diagnostic info
+            const myUid = user?.uid || 'Not logged in';
+            const quoteUid = quote?.userId || 'No userId on quote';
+            const isPermissionError = err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'));
+            const details = isPermissionError
+              ? ` (UID mismatch: ${myUid} vs ${quoteUid})`
+              : '';
+
+            toast({
+              variant: 'destructive',
+              title: 'Toevoegen mislukt',
+              description: (err.message || 'Geen rechten.') + details
+            });
             creatingJobRef.current = false;
           }
         })();

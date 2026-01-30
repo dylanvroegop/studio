@@ -5,13 +5,14 @@ import { useEffect, useMemo, useRef, useState, useTransition, useCallback } from
 import Link from 'next/link';
 import { useParams, useRouter, notFound } from 'next/navigation'; // Added notFound
 import { ArrowLeft, Search, ChevronRight, Star } from 'lucide-react';
-import { doc, updateDoc, onSnapshot, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, setDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { Quote } from '@/lib/types';
 import { useFirestore, useUser } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
 import { PersonalNotes } from '@/components/PersonalNotes';
 import { JOB_REGISTRY, JobSubItem } from '@/lib/job-registry';
 import { WizardHeader } from '@/components/WizardHeader';
@@ -20,6 +21,7 @@ export default function GenericSubCategoryPage() {
   const params = useParams();
   const router = useRouter();
 
+  const { toast } = useToast();
   const quoteId = params.id as string;
   const categorySlug = params.category as string; // e.g., "wanden", "vloeren"
 
@@ -130,14 +132,21 @@ export default function GenericSubCategoryPage() {
               ? crypto.randomUUID()
               : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-          await updateDoc(quoteRef, {
-            [`klussen.${nieuweKlusId}.meta`]: {
-              title: item.title,
-              type: categorySlug, // Category slug
-              description: item.description,
-              slug: item.slug // Job slug
-            },
-          });
+          await setDoc(quoteRef, {
+            klussen: {
+              [nieuweKlusId]: {
+                maatwerk: {
+                  meta: {
+                    title: item.title,
+                    type: categorySlug, // Category slug
+                    description: item.description,
+                    slug: item.slug // Job slug
+                  }
+                },
+                updatedAt: serverTimestamp()
+              }
+            }
+          }, { merge: true });
 
           // ✅ Check if job has measurements - if not, skip to materials page
           const hasMeasurements = item.measurements && item.measurements.length > 0;
@@ -149,8 +158,22 @@ export default function GenericSubCategoryPage() {
             // Skip measurement page - go directly to materials
             router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}/materialen`);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('Fout bij opslaan klussen.*.klusomschrijving:', err);
+
+          // diagnostic info
+          const myUid = user?.uid || 'Not logged in';
+          const quoteUid = quote?.userId || 'No userId on quote';
+          const isPermissionError = err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'));
+          const details = isPermissionError
+            ? ` (UID mismatch: ${myUid} vs ${quoteUid})`
+            : '';
+
+          toast({
+            variant: 'destructive',
+            title: 'Toevoegen mislukt',
+            description: (err.message || 'Geen rechten.') + details
+          });
           klusAanmakenRef.current = false;
         }
       })();

@@ -30,6 +30,7 @@ import {
     ArrowRightLeft,
     AlertCircle
 } from 'lucide-react';
+import { cleanFirestoreData } from '@/lib/clean-firestore';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -141,14 +142,18 @@ export function QuoteNotes({ quoteId }: QuoteNotesProps) {
 
         setIsSaving(true);
         try {
-            await addDoc(collection(firestore, 'quotes', quoteId, 'quote_notes'), {
+            const rawData = {
                 userId: user.uid,
                 quoteId,
                 content: newNoteContent.trim(),
                 tags: selectedTags,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
-            });
+            };
+
+            const cleanedData = cleanFirestoreData(rawData);
+
+            await addDoc(collection(firestore, 'quotes', quoteId, 'quote_notes'), cleanedData);
 
             setNewNoteContent('');
             setSelectedTags([]);
@@ -176,11 +181,15 @@ export function QuoteNotes({ quoteId }: QuoteNotesProps) {
         setIsSaving(true);
         try {
             const noteRef = doc(firestore, 'quotes', quoteId, 'quote_notes', editingNote.id);
-            await updateDoc(noteRef, {
+            const rawUpdate = {
                 content: editContent.trim(),
                 tags: editTags,
                 updatedAt: serverTimestamp(),
-            });
+            };
+
+            const cleanedUpdate = cleanFirestoreData(rawUpdate, { isUpdate: true });
+
+            await updateDoc(noteRef, cleanedUpdate);
 
             setEditingNote(null);
             setEditContent('');

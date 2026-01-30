@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-var-requires, prefer-const, @typescript-eslint/no-unused-vars */
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
+import { removeEmptyFields } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -145,10 +145,14 @@ export async function POST(req: Request) {
             }
 
             // B. Force Dimensions to Numbers
-            if (enrichedJob.maatwerk && Array.isArray(enrichedJob.maatwerk)) {
-              enrichedJob.maatwerk = enrichedJob.maatwerk.map((item: any) => {
+            const maatwerkObj = enrichedJob.maatwerk;
+            const maatwerkItems = (maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj))
+              ? (maatwerkObj as any).items
+              : (Array.isArray(maatwerkObj) ? maatwerkObj : []);
+
+            if (Array.isArray(maatwerkItems) && maatwerkItems.length > 0) {
+              const convertedItems = maatwerkItems.map((item: any) => {
                 const newItem = { ...item };
-                // List of keys known to be numeric dimensions
                 const numericKeys = [
                   'lengte', 'hoogte', 'diepte', 'breedte',
                   'lengte1', 'lengte2', 'lengte3',
@@ -164,7 +168,6 @@ export async function POST(req: Request) {
                   }
                 });
 
-                // Also fix openings
                 if (Array.isArray(newItem.openings)) {
                   newItem.openings = newItem.openings.map((op: any) => {
                     const newOp = { ...op };
@@ -174,9 +177,15 @@ export async function POST(req: Request) {
                     return newOp;
                   });
                 }
-
                 return newItem;
               });
+
+              // Update the correct part of the job
+              if (maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj)) {
+                (enrichedJob.maatwerk as any).items = convertedItems;
+              } else {
+                enrichedJob.maatwerk = convertedItems;
+              }
             }
 
             return enrichedJob;
@@ -211,7 +220,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const optimizedQuote = quote;
+    // Clean the entire quote object to remove empty arrays, objects, strings, nulls
+    const optimizedQuote = removeEmptyFields(quote);
 
     const payload = {
       quoteId,

@@ -1895,7 +1895,11 @@ export default function OverzichtPage() {
                 const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
 
                 // Extract dimensions summary
-                const maatwerk = job?.[`${slug}_maatwerk`] || job?.maatwerk;
+                const container = job;
+                const maatwerkObj = container.maatwerk;
+                const maatwerk = (maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj))
+                  ? (maatwerkObj as any).items
+                  : (Array.isArray(maatwerkObj) ? maatwerkObj : container[`${slug}_maatwerk`]);
                 const klusinformatie = job?.klusinformatie;
                 let dimensionsSummary = '';
                 let areaSummary = '';

@@ -128,18 +128,30 @@ export type Job = {
   diepteMm?: number;
   aantal: number;
   notities?: string;
+  createdAt: string;
+  updatedAt?: Timestamp;
+
+  // ✅ New Consolidated Structure
+  maatwerk?: {
+    items?: Record<string, any>[]; // The segments/main items
+    components?: JobComponent[];
+    notities?: string;
+    meta?: {
+      title?: string;
+      description?: string;
+      type?: string;
+      slug?: string;
+    };
+    updatedAt?: Timestamp;
+  };
+
+  // Legacy fields (kept for compatibility during migration)
   maatwerk_notities?: string;
-  material_notities?: string;
+  components?: JobComponent[];
   measurements?: Record<string, number | string>;
 
-  createdAt: string;
-
-  // ✅ Optimized Structure
-  maatwerk?: Record<string, unknown>[]; // The array of measurements (segments)
-  materialen?: unknown; // Supports both old Record structure and new n8n array items
+  materialen?: any;
   kleinMateriaal?: KleinMateriaalConfig;
-
-  components?: JobComponent[];
 
   // UI ONLY (Strip before calculation)
   uiState?: {

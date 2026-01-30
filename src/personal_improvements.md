@@ -29,7 +29,7 @@ and that the drawing is one drawing, but its split up into 2 rows. since the dra
 
 - hiding the 'automatische klein materiaal berekening' still does not seem to fully work. if i actually hide it, then it doesnt stay hidden across the entire job type app. i want this to be fully 'hidden' forever, on all pages its located on if they click it once. same goes if they undo it.
 
-- [DONE] on the dashboard it currently does not give the 'price' when in fact inside the quote[id]page.tsx it actually was calculated already. 
+- on the dashboard it currently does not give the 'price' when in fact inside the quote[id]page.tsx it actually was calculated already. 
 
 - when i accidentally click a card in the material page it openns up the selectionmaterialmodal, but when i didnt add anything since i misclicked, it still s eems to add a 'empty state' im not sure this is also in firestore stored now as empty, but the 'green' as if it was filled in inside the app itself is wrong. they should be able to misclick and click out of the selectionmaterialmodal to then actually not have a green line as if it was filled in causing confusion for the user.
 
@@ -38,3 +38,8 @@ this only applies to construction logic where its impossible for example to buil
 
 
 - set a limit on 'fill in measurement numbers' so it doesnt crash. 
+
+- fix how 'maatwerk' is stored inside the firestore, also for components.
+make sure this always has the same 'name' or is stored inside a single 'maatwerk' object.
+within this maatwerk, there could be multiple 'maatwerk' items, but they all need to be stored inside this single object and a 'key' can be stored such as for the 'leidingkoof' the key would be stored inside 'maatwerk'. so that 'maatwerk' stores all measurements inside a single map of firestore inside the 'specific klussen'. if there are multiple klussen types, then it may be stored inside that other klustype but still under the same name 'maatwerk'. 
+
