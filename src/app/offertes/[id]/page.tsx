@@ -1,790 +1,539 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities, react-hooks/exhaustive-deps */
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import {
-    ArrowLeft,
-    Pencil,
-    ClipboardList,
-    Ruler,
-    Package,
-    Euro,
-    Layers,
-    ChevronDown
-} from "lucide-react";
-import type { Job, Quote, Client as ClientType } from "@/lib/types";
-import { JobPreview } from "@/components/JobPreview";
+import { useState, useEffect } from 'react';
+import { useQuoteData } from '@/hooks/useQuoteData';
+import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary } from '@/lib/quote-calculations';
+import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
+import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
+import { WorkDescriptionCard } from '@/components/quote/WorkDescriptionCard';
+import { MaterialEditor } from '@/components/quote/MaterialEditor';
+import { LaborBreakdown } from '@/components/quote/LaborBreakdown';
+import { PDFPreview } from '@/components/quote/PDFPreview';
+import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
+import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
-import { WorkStatusBadge } from "@/components/WorkStatusBadge";
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { cn, parsePriceToNumber } from "@/lib/utils";
-import { fetchMaterialsFromN8nAction, checkCalculationStatusAction } from "@/lib/actions";
-import { supabase } from "@/lib/supabase";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Loader2 } from "lucide-react";
+import { doc, getDoc } from 'firebase/firestore';
+import { useParams } from 'next/navigation';
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Quote } from "@/lib/types";
 
-type View = 'drawing' | 'materials' | 'costs' | 'notes' | 'testing';
-
-export default function QuoteDetailPage() {
+export default function QuotePage() {
     const params = useParams();
-    const quoteId = params.id as string;
+    const id = params?.id as string;
 
+    // Fetch calculation data from Supabase
+    const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id);
+
+    // Firebase hooks
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
+    const [quoteSettings, setQuoteSettings] = useState<QuoteCalculationSettings | null>(null);
+    const [klantInfo, setKlantInfo] = useState<KlantInformatie | null>(null);
     const [quote, setQuote] = useState<Quote | null>(null);
-    const [client, setClient] = useState<ClientType | null>(null);
-    const [jobs, setJobs] = useState<Job[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [firebaseLoading, setFirebaseLoading] = useState(true);
+    const [firebaseError, setFirebaseError] = useState<string | null>(null);
 
+    // Add state for PDF settings using default imported settings
+    const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
 
+    // Add state for materials
+    const [materials, setMaterials] = useState<{
+        groot: MaterialItem[];
+        verbruik: MaterialItem[];
+    }>({ groot: [], verbruik: [] });
 
-    // Layout State
-    const [activeJobId, setActiveJobId] = useState<string | null>(null);
-    const [activeView, setActiveView] = useState<View>('costs');
+    // Initialize state from calculation data (Supabase)
+    useEffect(() => {
+        if (calculation?.data_json) {
+            // 1. Materials
+            setMaterials({
+                groot: calculation.data_json.grootmaterialen || [],
+                verbruik: calculation.data_json.verbruiksartikelen || [],
+            });
 
+            // 2. Client Info (Prioritize Supabase data)
+            if (calculation.data_json.klantinformatie) {
+                console.log("Loading client info from calculation:", calculation.data_json.klantinformatie);
+                // Ensure we map it correctly if needed, or assume it matches the interface
+                // Quick normalization in case of missing fields
+                const rawKi = calculation.data_json.klantinformatie as any;
+                const normalizedKi: KlantInformatie = {
+                    klanttype: rawKi.klanttype || 'Particulier',
+                    voornaam: rawKi.voornaam || '',
+                    achternaam: rawKi.achternaam || '',
+                    bedrijfsnaam: rawKi.bedrijfsnaam,
+                    emailadres: rawKi.emailadres || rawKi['e-mailadres'] || '', // Handle both keys
+                    telefoonnummer: rawKi.telefoonnummer || '',
+                    straat: rawKi.straat || rawKi.factuuradres?.straat || '',
+                    huisnummer: rawKi.huisnummer || rawKi.factuuradres?.huisnummer || '',
+                    postcode: rawKi.postcode || rawKi.factuuradres?.postcode || '',
+                    plaats: rawKi.plaats || rawKi.factuuradres?.plaats || '',
+                    afwijkendProjectadres: rawKi.afwijkendProjectadres || false,
+                    projectAdres: rawKi.projectAdres || rawKi.projectadres,
+                };
+                setKlantInfo(normalizedKi);
+            }
 
+            // 3. Settings (Prioritize Supabase data)
+            if (calculation.data_json.instellingen) {
+                const rawInst = calculation.data_json.instellingen as any;
+                const mappedSettings: QuoteCalculationSettings = {
+                    btwTarief: rawInst.btwTarief || 21,
+                    uurTariefExclBtw: rawInst.uurTariefExclBtw || rawInst.uurTarief || 50,
+                    extras: {
+                        transport: {
+                            prijsPerKm: rawInst.extras?.transport?.prijsPerKm ?? rawInst.reiskosten_prijs_per_km ?? 0.30,
+                            mode: rawInst.extras?.transport?.mode ?? (rawInst.reiskosten_type === 'vast' ? 'vast' : 'perKm')
+                        },
+                        winstMarge: {
+                            percentage: rawInst.extras?.winstMarge?.percentage ?? rawInst.winstmarge_percentage ?? 10,
+                            mode: rawInst.extras?.winstMarge?.mode ?? 'percentage'
+                        }
+                    }
+                };
+                setQuoteSettings(mappedSettings);
+            }
+        }
+    }, [calculation]);
 
-
-
-    // Fetch Data
+    // Fetch quote metadata from Firebase (Fallback for legacy data or metadata only)
     useEffect(() => {
         if (isUserLoading) return;
-
         if (!user) {
-            setLoading(false);
-            setError("Niet ingelogd");
+            setFirebaseLoading(false);
+            setFirebaseError("Niet ingelogd");
             return;
         }
-
-        if (!firestore || !quoteId) return;
+        if (!firestore || !id) return;
 
         const fetchData = async () => {
-            setLoading(true);
-            setError(null);
+            setFirebaseLoading(true);
+            setFirebaseError(null);
             try {
-                const docRef = doc(firestore, 'quotes', quoteId);
+                const docRef = doc(firestore, 'quotes', id);
                 const docSnap = await getDoc(docRef);
 
                 if (!docSnap.exists()) {
-                    setError("Offerte niet gevonden");
-                    setLoading(false);
+                    setFirebaseError("Offerte niet gevonden");
+                    setFirebaseLoading(false);
                     return;
                 }
 
-                const quoteData = docSnap.data() as Quote;
-                if (quoteData.userId !== user.uid && (quoteData as any).klantinformatie?.userId !== user.uid) {
-                    setError("Geen toegang tot deze offerte");
-                    setLoading(false);
+                const quoteData = docSnap.data() as any;
+
+                // Security check
+                if (quoteData.userId !== user.uid && quoteData.klantinformatie?.userId !== user.uid) {
+                    setFirebaseError("Geen toegang tot deze offerte");
+                    setFirebaseLoading(false);
                     return;
                 }
 
-                setQuote({ ...quoteData, id: docSnap.id });
+                setQuote({ ...quoteData, id: docSnap.id } as Quote);
 
-                // Client Info
-                const ki: any = (quoteData as any).klantinformatie;
-                const factuur = ki?.factuuradres;
-                const clientNaam =
-                    ki?.klanttype === 'Zakelijk'
-                        ? (ki?.bedrijfsnaam || `${ki?.voornaam || ''} ${ki?.achternaam || ''}`.trim())
-                        : `${ki?.voornaam || ''} ${ki?.achternaam || ''}`.trim();
+                // Only set KlantInfo/Settings from Firebase if NOT already set by Supabase calculation
+                // (However, this runs async and independent of calculation loading...)
+                // Safer strategy: Only pull quote-level metadata here.
+                // Or: Check if we successfully loaded from calculation? 
+                // For now, let's allow Firebase to overwrite ONLY if calculation was missing it, 
+                // but since hooks run in parallel, it's safer to just rely on calculation for the 'meat' 
+                // and Firebase for the 'header' (offerteNummer, title).
 
-                const clientObj: ClientType = {
-                    id: 'temp-id',
-                    userId: user.uid,
-                    naam: clientNaam,
-                    email: ki?.['e-mailadres'] || '',
-                    telefoon: ki?.telefoonnummer || '',
-                    adres: `${factuur?.straat || ''} ${factuur?.huisnummer || ''}`.trim(),
-                    postcode: factuur?.postcode || '',
-                    plaats: factuur?.plaats || '',
-                    createdAt: new Date().toISOString()
-                };
-                setClient(clientObj);
+                // If calculation didn't have client info, try Firebase (legacy support)
+                setKlantInfo((prev) => {
+                    if (prev) return prev; // Already loaded from calculation
 
-                // Jobs
-                const extractedJobs: Job[] = [];
-                const klussenMap: any = (quoteData as any).klussen;
+                    const ki = quoteData.klantinformatie || {};
+                    const factuur = ki.factuuradres || {};
+                    return {
+                        klanttype: ki.klanttype || 'Particulier',
+                        voornaam: ki.voornaam || '',
+                        achternaam: ki.achternaam || '',
+                        bedrijfsnaam: ki.bedrijfsnaam,
+                        emailadres: ki['e-mailadres'] || '',
+                        telefoonnummer: ki.telefoonnummer || '',
+                        straat: factuur.straat || '',
+                        huisnummer: (factuur.huisnummer || '') + (factuur.toevoeging ? ` ${factuur.toevoeging}` : ''),
+                        postcode: factuur.postcode || '',
+                        plaats: factuur.plaats || '',
+                        afwijkendProjectadres: ki.afwijkendProjectadres || false,
+                        projectAdres: ki.projectadres ? {
+                            straat: ki.projectadres.straat || '',
+                            huisnummer: (ki.projectadres.huisnummer || '') + (ki.projectadres.toevoeging ? ` ${ki.projectadres.toevoeging}` : ''),
+                            postcode: ki.projectadres.postcode || '',
+                            plaats: ki.projectadres.plaats || ''
+                        } : undefined
+                    };
+                });
 
-                if (klussenMap && typeof klussenMap === 'object') {
-                    Object.keys(klussenMap).forEach(key => {
-                        const data = klussenMap[key];
-
-                        // Normalize 'maatwerk' field which has a dynamic key like '{slug}_maatwerk'
-                        let normalizedMaatwerk = data.maatwerk;
-                        if (!normalizedMaatwerk) {
-                            const match = Object.keys(data).find(k => k.endsWith('_maatwerk'));
-                            if (match) {
-                                normalizedMaatwerk = data[match];
+                setQuoteSettings(prev => {
+                    if (prev) return prev;
+                    const inst = quoteData.instellingen || {};
+                    return {
+                        btwTarief: inst.btwTarief || 21,
+                        uurTariefExclBtw: inst.uurTarief || 50,
+                        extras: {
+                            transport: {
+                                prijsPerKm: inst.reiskosten_prijs_per_km || 0.30,
+                                mode: inst.reiskosten_type === 'vast' ? 'vast' : 'perKm'
+                            },
+                            winstMarge: {
+                                percentage: inst.winstmarge_percentage || 10,
+                                mode: 'percentage'
                             }
                         }
-
-                        // Normalize openings within maatwerk: restore width/height from openingWidth/openingHeight
-                        if (Array.isArray(normalizedMaatwerk)) {
-                            normalizedMaatwerk = normalizedMaatwerk.map((item: any) => {
-                                if (item.openings && Array.isArray(item.openings)) {
-                                    item.openings = item.openings.map((op: any) => {
-                                        const normalizedOpening = { ...op };
-                                        if (op.openingWidth !== undefined && op.width === undefined) {
-                                            normalizedOpening.width = op.openingWidth;
-                                        }
-                                        if (op.openingHeight !== undefined && op.height === undefined) {
-                                            normalizedOpening.height = op.openingHeight;
-                                        }
-                                        return normalizedOpening;
-                                    });
-                                }
-                                return item;
-                            });
-                        }
-
-                        extractedJobs.push({
-                            id: key,
-                            quoteId: docSnap.id,
-                            ...data,
-                            // Ensure standard field is populated
-                            maatwerk: normalizedMaatwerk || [],
-                            meta: data.meta || {},
-                            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
-                        } as Job);
-                    });
-                }
-                setJobs(extractedJobs);
-                if (extractedJobs.length > 0) {
-                    setActiveJobId(extractedJobs[0].id);
-                }
+                    };
+                });
 
             } catch (err: any) {
-                console.error("Error fetching quote:", err);
-                setError("Fout bij laden.");
+                console.error("Error fetching firebase quote:", err);
+                setFirebaseError("Fout bij laden offerte gegevens.");
             } finally {
-                setLoading(false);
+                setFirebaseLoading(false);
             }
         };
 
         fetchData();
-    }, [quoteId, user, isUserLoading, firestore]);
+    }, [id, user, isUserLoading, firestore]);
 
-    const activeJob = useMemo(() => jobs.find(j => j.id === activeJobId), [jobs, activeJobId]);
+    // Handler for updating grootmaterialen prices
+    const handleUpdateGrootMateriaal = async (index: number, price: number) => {
+        const updated = [...materials.groot];
+        updated[index] = { ...updated[index], prijs_per_stuk: price };
+        setMaterials(prev => ({ ...prev, groot: updated }));
 
-    // Derived Values for Drawing Overlay
-    const maatwerk: any = activeJob?.maatwerk?.[0] || {};
-    const length = Number(maatwerk.lengte || activeJob?.lengteMm || 0);
-    const height = Number(maatwerk.hoogte || activeJob?.hoogteMm || 0);
-
-    // Material List State (Derived)
-    const materialList = useMemo(() => {
-        if (activeJob?.materialen && Array.isArray(activeJob.materialen)) {
-            return activeJob.materialen;
-        }
-        return [];
-    }, [activeJob?.materialen]);
-
-    const [isCalculating, setIsCalculating] = useState(false);
-
-    // Fetch Materials via n8n & Supabase Polling
-    const [fetchedJobIds, setFetchedJobIds] = useState<Set<string>>(new Set());
-    const [debugData, setDebugData] = useState<any>(null);
-    const [isTesting, setIsTesting] = useState(false);
-    const [pollingStatus, setPollingStatus] = useState<'idle' | 'polling' | 'completed' | 'error'>('idle');
-    const [polledMaterials, setPolledMaterials] = useState<any[]>([]);
-
-    const handleTestFetch = async () => {
-        if (!activeJob) return;
-        setIsTesting(true);
-        // Reset state so polling starts fresh
-        setPollingStatus('idle');
-        setIsCalculating(true);
-
-        try {
-            await fetchMaterialsFromN8nAction(activeJob);
-            setPollingStatus('polling');
-        } catch (e) {
-            console.error(e);
-            setPollingStatus('error');
-        } finally {
-            setIsTesting(false);
+        // Save to Supabase
+        if (calculation) {
+            await updateDataJson({
+                ...calculation.data_json,
+                grootmaterialen: updated,
+            });
         }
     };
 
-    // Polling Logic
-    useEffect(() => {
-        let intervalId: NodeJS.Timeout;
+    // Handler for updating verbruiksartikelen prices
+    const handleUpdateVerbruiksartikel = async (index: number, price: number) => {
+        const updated = [...materials.verbruik];
+        updated[index] = { ...updated[index], prijs_per_stuk: price };
+        setMaterials(prev => ({ ...prev, verbruik: updated }));
 
-        if (pollingStatus === 'polling' && activeJob && user) {
+        // Save to Supabase
+        if (calculation) {
+            await updateDataJson({
+                ...calculation.data_json,
+                verbruiksartikelen: updated,
+            });
+        }
+    };
 
+    // Calculate subtotals for display
+    const grootSubtotal = materials.groot.reduce(
+        (sum, item) => sum + (item.prijs_per_stuk || 0) * item.aantal,
+        0
+    );
+    const verbruikSubtotal = materials.verbruik.reduce(
+        (sum, item) => sum + (item.prijs_per_stuk || 0) * item.aantal,
+        0
+    );
 
-            intervalId = setInterval(async () => {
-                try {
-                    // Use Server Action to bypass RLS
-                    const result = await checkCalculationStatusAction(activeJob.quoteId, user.uid);
+    // Calculate totals when data is available
+    const totals = calculation?.data_json && quoteSettings
+        ? calculateQuoteTotals({
+            ...calculation.data_json,
+            grootmaterialen: materials.groot,
+            verbruiksartikelen: materials.verbruik,
+        }, quoteSettings)
+        : null;
 
-                    if (result.error) {
-                        console.error("Supabase polling error:", result.error);
-                        setDebugData({ error: result.error });
-                        return;
-                    }
-
-                    const data = result.data;
-
-                    if (!data) {
-                        // No data yet
-                    } else {
-                        // Status handling
-                        if (data.status === 'completed' && data.data_json) {
-                            clearInterval(intervalId);
-                            setPollingStatus('completed');
-                            setIsCalculating(false);
-
-                            // Parse Data
-                            let materials = [];
-                            let raw = data.data_json;
-
-                            // 1. Handle double-encoded JSON (string inside JSONB)
-                            // Supabase/Postgres sometimes returns JSONB as a string if stringified before save
-                            if (typeof raw === 'string') {
-                                try {
-                                    raw = JSON.parse(raw);
-                                } catch (e) {
-                                    console.error("Failed to parse inner JSON string:", e);
-                                }
-                            }
-
-                            // 2. Handle various n8n return structures
-                            // Recursive helper to look for 'materialen' array anywhere
-                            const findMaterialen = (obj: any): any[] | null => {
-                                if (!obj || typeof obj !== 'object') return null;
-                                // 1. Check if current object IS the result (contains materialen)
-                                // Handle case { materialen: [...] }
-                                if (Array.isArray(obj.materialen) && obj.materialen.length > 0) return obj.materialen;
-
-                                // 2. Perform deep search
-                                if (Array.isArray(obj)) {
-                                    for (const item of obj) {
-                                        const res = findMaterialen(item);
-                                        if (res) return res;
-                                    }
-                                } else {
-                                    for (const key of Object.keys(obj)) {
-                                        const res = findMaterialen(obj[key]);
-                                        if (res) return res;
-                                    }
-                                }
-                                return null;
-                            };
-
-                            materials = findMaterialen(raw) || [];
-
-                            // Fallback: maybe 'raw' itself is the array of materials, if it lacks 'materialen' wrapper
-                            if (materials.length === 0 && Array.isArray(raw) && raw.length > 0 && raw[0].materiaal) {
-                                materials = raw;
-                            }
-
-
-
-                            // Filter for valid items
-                            if (!Array.isArray(materials)) {
-                                console.warn("Materials is not an array, attempting to wrap", materials);
-                                materials = materials ? [materials] : [];
-                            }
-                            materials = materials.filter((m: any) => m && m.materiaal);
-
-                            // Extended Debug Info
-                            setDebugData({
-                                raw_sample: raw && Array.isArray(raw) ? "Array(len=" + raw.length + ")" : typeof raw,
-                                parsed_count: materials.length,
-                                first_item: materials.length > 0 ? materials[0] : "N/A",
-                                raw_full: raw
-                            });
-
-                            setPolledMaterials(materials);
-
-                            // Save to Firestore
-                            if (activeJob.quoteId && activeJob.id && firestore) {
-                                const jobRef = doc(firestore, `quotes/${activeJob.quoteId}/jobs/${activeJob.id}`);
-                                await updateDoc(jobRef, {
-                                    materialen: materials,
-                                    updatedAt: new Date()
-                                });
-                            }
-
-                            // Update Local State
-                            setJobs(currentJobs => currentJobs.map(j => j.id === activeJob.id ? { ...j, materialen: materials } : j));
-                        } else if (data.status === 'error') {
-                            setPollingStatus('error');
-                            clearInterval(intervalId);
-                            setIsCalculating(false);
-                        }
-                    }
-                } catch (err) {
-                    console.error("Polling exception:", err);
-                }
-            }, 10000); // 10 seconds
+    // Helper to build PDF data object
+    const buildPDFData = (): PDFQuoteData | null => {
+        if (!calculation?.data_json || !klantInfo || !quoteSettings || !totals) {
+            return null;
         }
 
-        return () => {
-            if (intervalId) clearInterval(intervalId);
+        return {
+            offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
+            datum: new Date().toLocaleDateString('nl-NL', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }),
+            geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }),
+            bedrijf: {
+                naam: 'Your Company Name', // TODO: Make configurable
+                adres: 'Building Street 123',
+                postcode: '1234 AB',
+                plaats: 'Amsterdam',
+                telefoon: '06-12345678',
+                email: 'info@yourcompany.com',
+                kvk: '12345678',
+                btw: 'NL123456789B01',
+            },
+            klant: {
+                naam: `${klantInfo.voornaam} ${klantInfo.achternaam}`,
+                adres: `${klantInfo.straat} ${klantInfo.huisnummer}`,
+                postcode: klantInfo.postcode,
+                plaats: klantInfo.plaats,
+                telefoon: klantInfo.telefoonnummer,
+                email: klantInfo.emailadres,
+            },
+            projectLocatie: klantInfo.afwijkendProjectadres && klantInfo.projectAdres
+                ? `${klantInfo.projectAdres.straat} ${klantInfo.projectAdres.huisnummer}, ${klantInfo.projectAdres.plaats}`
+                : `${klantInfo.straat} ${klantInfo.huisnummer}, ${klantInfo.plaats}`,
+            werkbeschrijving: generateWorkSummary(calculation.data_json.werkbeschrijving, 800),
+            werkbeschrijvingFull: calculation.data_json.werkbeschrijving || [],
+            grootmaterialen: materials.groot.map(m => ({
+                aantal: m.aantal,
+                product: m.product,
+                prijsPerStuk: m.prijs_per_stuk || 0,
+                totaal: (m.prijs_per_stuk || 0) * m.aantal,
+            })),
+            verbruiksartikelen: materials.verbruik.map(m => ({
+                aantal: m.aantal,
+                product: m.product,
+                prijsPerStuk: m.prijs_per_stuk || 0,
+                totaal: (m.prijs_per_stuk || 0) * m.aantal,
+            })),
+            urenSpecificatie: calculation.data_json.uren_specificatie,
+            totals: {
+                ...totals,
+                totaalUren: calculation.data_json.totaal_uren,
+                uurTarief: quoteSettings.uurTariefExclBtw,
+                btwPercentage: quoteSettings.btwTarief,
+                margePercentage: quoteSettings.extras.winstMarge.percentage,
+            },
+            settings: pdfSettings,
         };
-    }, [pollingStatus, activeJob, user, firestore]);
+    };
 
-    // Initial Check on Load
-    useEffect(() => {
-        if (!activeJob || !user) return;
+    // Download handler
+    const handleDownloadPDF = async () => {
+        const pdfData = buildPDFData();
+        if (!pdfData) return;
 
-        const checkStatus = async () => {
-            // Only check if we don't have materials locally
-            if (materialList.length > 0) return;
-
-            try {
-                const result = await checkCalculationStatusAction(activeJob.quoteId, user.uid);
-                if (result.data) {
-                    const data = result.data;
-
-
-                    if (data.status === 'completed' && data.data_json) {
-                        // REUSE PARSING LOGIC
-                        let raw = data.data_json;
-                        if (typeof raw === 'string') {
-                            try { raw = JSON.parse(raw); } catch (e) { console.error(e); }
-                        }
-
-                        const findMaterialen = (obj: any): any[] | null => {
-                            if (!obj || typeof obj !== 'object') return null;
-                            if (Array.isArray(obj.materialen) && obj.materialen.length > 0) return obj.materialen;
-                            if (Array.isArray(obj)) {
-                                for (const item of obj) {
-                                    const res = findMaterialen(item);
-                                    if (res) return res;
-                                }
-                            } else {
-                                for (const key of Object.keys(obj)) {
-                                    const res = findMaterialen(obj[key]);
-                                    if (res) return res;
-                                }
-                            }
-                            return null;
-                        };
-
-                        let materials = findMaterialen(raw) || [];
-                        if (materials.length === 0 && Array.isArray(raw) && raw.length > 0 && raw[0].materiaal) {
-                            materials = raw;
-                        }
-
-                        if (materials.length > 0) {
-                            setPolledMaterials(materials);
-                            setPollingStatus('completed');
-
-                            // Debug Info
-                            setDebugData({
-                                raw_sample: raw && Array.isArray(raw) ? "Array(len=" + raw.length + ")" : typeof raw,
-                                parsed_count: materials.length,
-                                first_item: materials.length > 0 ? materials[0] : "N/A",
-                                raw_full: raw,
-                                source: 'initial_check'
-                            });
-                        }
-                    } else if (data.status === 'processing' || data.status === 'pending') {
-                        setPollingStatus('polling');
-                        setIsCalculating(true);
-                    }
-                }
-            } catch (e) {
-                console.error("Initial check failed", e);
-            }
-        };
-
-        checkStatus();
-    }, [activeJob?.id, user?.uid]); // Only re-run if job changes
-
-    // Initial Trigger Logic (Existing - kept for fallback triggering)
-    useEffect(() => {
-        if (!activeJob) return;
-
-        // Condition to fetch:
-        // 1. Materials are missing (undefined)
-        // 2. We haven't fetched for this ID yet
-        // 3. We are not currently calculating
-        if (activeJob.materialen === undefined && !fetchedJobIds.has(activeJob.id) && !isCalculating && pollingStatus === 'idle') {
-            const triggerCalculation = async () => {
-                setIsCalculating(true);
-                setFetchedJobIds(prev => new Set(prev).add(activeJob.id));
-                setPollingStatus('polling');
-
-                try {
-                    // Fire and forget trigger
-                    await fetchMaterialsFromN8nAction(activeJob);
-
-                } catch (err) {
-                    console.error("Trigger error:", err);
-                    setPollingStatus('error');
-                    setIsCalculating(false);
-                }
-            };
-
-            triggerCalculation();
+        try {
+            const blob = await generateQuotePDF(pdfData);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Offerte-${(quote as any)?.offerteNummer || 'concept'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('PDF download failed:', err);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeJob?.id, activeJob?.materialen, firestore, pollingStatus]);
+    };
 
-    // Calculate Totals
-    const materialTotal = useMemo(() => {
-        const list = materialList.length > 0 ? materialList : polledMaterials;
-        if (!Array.isArray(list)) return 0;
-        return list.reduce((sum, item) => {
-            const price = parsePriceToNumber(item.totaal_prijs) || 0;
-            return sum + price;
-        }, 0);
-    }, [materialList, polledMaterials]);
+    const loading = calculationLoading || firebaseLoading || isUserLoading;
+    const error = calculationError || firebaseError;
 
-    if (isUserLoading || loading) return <div className="min-h-screen bg-zinc-950" />;
-
-    if (error || !quote || !client) {
+    if (loading) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 bg-zinc-950 text-white">
-                <h1 className="text-xl font-semibold text-red-500">Fout</h1>
-                <p className="text-zinc-400">{error || "Er is iets misgegaan."}</p>
-                <Button asChild variant="secondary"><Link href="/dashboard">Terug</Link></Button>
+            <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+                <div className="text-zinc-400">Laden...</div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
+                <div className="text-red-400">Fout: {error}</div>
+                <Button asChild variant="secondary"><Link href="/dashboard">Terug naar Dashboard</Link></Button>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col h-screen bg-background text-zinc-100 font-sans selection:bg-emerald-500/30 overflow-hidden">
-
-            {/* 1. HEADER (Minimal) */}
-            <header className="shrink-0 z-50 bg-zinc-900/40 backdrop-blur-md border-b border-white/5 h-16 flex items-center px-6 justify-between supports-[backdrop-filter]:bg-zinc-900/40">
-                <div className="flex items-center gap-4">
-                    <div className="flex flex-col">
-                        <h1 className="font-bold text-sm tracking-wide text-zinc-100">{quote.titel}</h1>
-                        <span className="text-xs text-zinc-500">{client.naam}</span>
-                    </div>
-                    <div className="h-6 w-px bg-zinc-800/50 hidden sm:block" />
-                    <WorkStatusBadge quote={quote} />
-                </div>
-
-                {/* Job Selector (If multiple jobs) */}
-                {jobs.length > 1 && (
-                    <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center gap-1 bg-zinc-800/50 p-1 rounded-lg border border-white/5">
-                        {jobs.map(job => (
-                            <button
-                                key={job.id}
-                                onClick={() => setActiveJobId(job.id)}
-                                className={cn(
-                                    "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                                    activeJobId === job.id
-                                        ? "bg-zinc-800 text-white shadow-sm"
-                                        : "text-zinc-500 hover:text-zinc-300"
-                                )}
-                            >
-                                {/* Fallback logic: check for 'slug', 'type' (often used for internal names), or 'categorie'. 'omschrijvingKlant' is usually the user-friendly name, but user wants technical name if possible */}
-                                {(job as any).slug || (job as any).type || job.categorie || "Naamloze klus"}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </header>
-
-            {/* 2. MAIN CONTENT (Scrollable) */}
-            <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
-                <div className="max-w-5xl mx-auto h-full flex flex-col items-center justify-center">
-
-                    {!activeJob ? (
-                        <div className="text-center py-24 border border-dashed border-zinc-800 rounded-xl w-full">
-                            <p className="text-zinc-500">Geen klussen gevonden in deze offerte.</p>
-                        </div>
-                    ) : (
-                        <div className="w-full h-full flex flex-col gap-6 animate-in fade-in duration-500">
-
-                            {/* View: DRAWING */}
-                            {activeView === 'drawing' && (
-                                <div className="relative w-full h-full flex flex-col">
-                                    {/* Job Title Overlay */}
-                                    <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-start pointer-events-none">
-                                        <div>
-                                            <h2 className="text-2xl font-light text-zinc-100 drop-shadow-md">
-                                                {(activeJob as any).slug || (activeJob as any).type || activeJob.categorie || "Naamloze klus"}
-                                            </h2>
-                                            <p className="text-zinc-400 text-sm font-medium drop-shadow-md opacity-80">{activeJob.categorie}</p>
-                                        </div>
-                                        <div className="flex flex-col gap-2 items-end">
-                                            {length > 0 && <Badge variant="outline" className="bg-zinc-900/80 backdrop-blur border-emerald-500/30 text-emerald-400 font-mono text-xs"><Ruler className="w-3 h-3 mr-2" />{length}mm</Badge>}
-                                            {height > 0 && <Badge variant="outline" className="bg-zinc-900/80 backdrop-blur border-emerald-500/30 text-emerald-400 font-mono text-xs"><Ruler className="w-3 h-3 mr-2 rotate-90" />{height}mm</Badge>}
-                                        </div>
-                                    </div>
-
-                                    {/* The Visualizer */}
-                                    <div className="flex-1 bg-zinc-900/30 border border-zinc-800/50 rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 md:p-16">
-                                        <JobPreview job={activeJob} />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* View: MATERIALS */}
-                            {activeView === 'materials' && (
-                                <div className="w-full max-w-4xl mx-auto py-12">
-                                    {isCalculating ? (
-                                        <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                                            <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-                                            <p className="text-zinc-500 text-sm">
-                                                {pollingStatus === 'polling'
-                                                    ? "Ons AI-systeem berekent momenteel de materialen. Dit duurt ongeveer 5-10 minuten..."
-                                                    : "Materialen berekenen..."}
-                                            </p>
-                                        </div>
-                                    ) : (materialList.length > 0 || polledMaterials.length > 0) ? (
-                                        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl overflow-hidden shadow-sm">
-                                            <Table>
-                                                <TableHeader className="bg-zinc-900/80">
-                                                    <TableRow className="border-zinc-800 hover:bg-zinc-900/80">
-                                                        <TableHead className="text-zinc-400 font-medium pl-6">Materiaal</TableHead>
-                                                        <TableHead className="text-zinc-400 font-medium w-[150px]">Aantal</TableHead>
-                                                        <TableHead className="text-zinc-400 font-medium text-right w-[140px]">Prijs p/st</TableHead>
-                                                        <TableHead className="text-zinc-400 font-medium text-right w-[140px] pr-6">Totaal</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {(materialList.length > 0 ? materialList : polledMaterials).map((item, idx) => (
-                                                        <TableRow key={idx} className="border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group">
-                                                            <TableCell className="font-medium text-zinc-200 pl-6 py-4">
-                                                                <div className="flex flex-col">
-                                                                    <span>{item.materiaal}</span>
-                                                                    {/* Optional: Show ID or extra info if available */}
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell className="text-zinc-400 text-sm">
-                                                                <span className="bg-zinc-800/50 px-2 py-1 rounded border border-zinc-700/50 text-xs font-mono">
-                                                                    {item.aantal}
-                                                                </span>
-                                                            </TableCell>
-                                                            <TableCell className="text-right text-zinc-400 font-mono text-sm">
-                                                                {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(Number(item.prijs_per_stuk) || 0)}
-                                                            </TableCell>
-                                                            <TableCell className="text-right text-zinc-200 font-mono font-medium pr-6">
-                                                                {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(Number(item.totaal_prijs) || 0)}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                    {/* Total Row */}
-                                                    <TableRow className="bg-emerald-950/20 border-t border-emerald-900/30 hover:bg-emerald-950/30">
-                                                        <TableCell colSpan={3} className="text-right font-medium text-emerald-400 py-4">Totaal excl. BTW</TableCell>
-                                                        <TableCell className="text-right font-bold text-emerald-400 font-mono text-lg pr-6">
-                                                            {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(
-                                                                (materialList.length > 0 ? materialList : polledMaterials).reduce((acc, item) => acc + (Number(item.totaal_prijs) || 0), 0)
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                </TableBody>
-                                            </Table>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/30 border border-zinc-800 rounded-2xl p-8 text-center space-y-6 shadow-xl shadow-black/20">
-                                            <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mx-auto border border-zinc-700/30">
-                                                <Package className="w-8 h-8 text-zinc-500" />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-lg font-medium text-white">Nog geen materialen</h3>
-                                                <p className="text-zinc-500 mt-2 max-w-xs mx-auto">
-                                                    De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* View: COSTS */}
-                            {activeView === 'costs' && (
-                                <div className="w-full max-w-2xl mx-auto py-12">
-                                    <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/30 border border-zinc-800 rounded-2xl p-8 space-y-8 shadow-xl shadow-black/20">
-                                        <div className="flex items-center gap-3 border-b border-zinc-800/50 pb-4">
-                                            <div className="p-2 bg-emerald-500/10 rounded-lg">
-                                                <Euro className="w-5 h-5 text-emerald-500" />
-                                            </div>
-                                            <h3 className="font-medium text-white">Kostenoverzicht</h3>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center text-zinc-400">
-                                                <span>Arbeid</span>
-                                                <span className="font-mono text-zinc-200">€ 0,00</span>
-                                            </div>
-                                            <div className="flex justify-between items-center text-zinc-400">
-                                                <span>Materialen</span>
-                                                <span className="font-mono text-zinc-200">
-                                                    {isCalculating ? (
-                                                        <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
-                                                    ) : (
-                                                        new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materialTotal)
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between items-center text-zinc-400">
-                                                <span>Transport</span>
-                                                <span className="font-mono text-zinc-200">€ 0,00</span>
-                                            </div>
-                                            <div className="border-t border-zinc-800/50 pt-4 flex justify-between items-center font-bold text-lg text-white">
-                                                <span>Totaal excl. BTW</span>
-                                                <span className="font-mono">
-                                                    {isCalculating ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(materialTotal) // Assuming other costs are 0 for now as per original code
-                                                    )}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* View: NOTES */}
-                            {activeView === 'notes' && (
-                                <div className="w-full max-w-2xl mx-auto py-12 h-full flex flex-col">
-                                    <div className="flex-1 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-8 relative">
-                                        <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
-                                            <ClipboardList className="w-4 h-4" /> Veldnotities
-                                        </h3>
-                                        <div className="text-base text-zinc-300 leading-relaxed whitespace-pre-wrap font-medium">
-                                            {activeJob.notities || <span className="text-zinc-600 italic">Geen notities genoteerd tijdens opname.</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* View: TESTING */}
-                            {activeView === 'testing' && (
-                                <div className="w-full h-full p-4 overflow-auto flex flex-col gap-4">
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <h3 className="font-bold text-lg text-white">Webhook Response Test</h3>
-                                            <p className="text-xs text-zinc-500 font-mono mt-1">
-                                                Status: <span className={cn(pollingStatus === 'polling' ? "text-amber-400 animate-pulse" : "text-zinc-300")}>{pollingStatus.toUpperCase()}</span>
-                                            </p>
-                                        </div>
-                                        <Button
-                                            onClick={handleTestFetch}
-                                            disabled={isTesting}
-                                            variant="secondary"
-                                            className="gap-2"
-                                        >
-                                            {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-                                            Test & Refresh Data
-                                        </Button>
-                                    </div>
-
-                                    {/* DEBUG PANEL */}
-                                    <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 space-y-2 text-xs font-mono text-zinc-400">
-                                        <div><strong>Query Target:</strong> Table 'quotes collection'</div>
-                                        <div><strong>Quote ID:</strong> {activeJob.quoteId}</div>
-                                        <div><strong>User ID:</strong> {user?.uid}</div>
-                                    </div>
-
-                                    <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 font-mono text-xs text-green-400 whitespace-pre-wrap flex-1 overflow-auto">
-                                        {debugData ? JSON.stringify(debugData, null, 2) : (
-                                            <span className="text-zinc-600">
-                                                Geen data gevonden.<br />
-                                                1. Controleer of rows in Supabase 'quotes collection' bestaan.<br />
-                                                2. Controleer of 'quoteid' en 'gebruikerid' matchen met bovenstaande values.<br />
-                                                3. Controleer of status = 'completed'.
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-                    )}
-                </div>
-            </main>
-
-            {/* 3. STICKY FOOTER NAVIGATION */}
-            <footer className="shrink-0 bg-zinc-900/80 backdrop-blur-md border-t border-white/5 pb-safe pt-2 px-6 z-50">
-                <div className="max-w-5xl mx-auto flex items-center justify-between py-2">
-
-                    {/* Left: Back */}
-                    <div className="flex-1">
-                        <Button asChild variant="outline" className="h-10 px-4 rounded-lg gap-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors border-zinc-200 dark:border-zinc-800">
-                            <Link href="/dashboard">
-                                <ArrowLeft className="w-4 h-4" />
-                                <span className="hidden sm:inline font-medium">Terug</span>
-                            </Link>
+        <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-emerald-500/30">
+            {/* Header */}
+            <header className="border-b border-zinc-800 px-6 py-4 bg-zinc-900/40 backdrop-blur-md sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <Button asChild variant="ghost" size="icon" className="text-zinc-400 hover:text-white hover:bg-zinc-800">
+                            <Link href="/dashboard"><ArrowLeft size={20} /></Link>
                         </Button>
+                        <div>
+                            <h1 className="text-xl font-bold flex items-center gap-2">
+                                <span>{(quote as any)?.offerteNummer || 'Concept Offerte'}</span>
+                                {quote?.titel && <span className="text-zinc-500 font-normal hidden sm:inline">• {quote.titel}</span>}
+                            </h1>
+                            {klantInfo && (
+                                <p className="text-zinc-400 text-sm">
+                                    {klantInfo.voornaam} {klantInfo.achternaam} • {klantInfo.plaats}
+                                </p>
+                            )}
+                        </div>
                     </div>
-
-                    {/* Center: Tabs (BottomNav Style) */}
-                    <div className="flex items-center gap-2 md:gap-6">
-                        <TabButton
-                            active={activeView === 'costs'}
-                            onClick={() => setActiveView('costs')}
-                            icon={<Euro />}
-                            label="Kosten"
-                        />
-                        <TabButton
-                            active={activeView === 'materials'}
-                            onClick={() => setActiveView('materials')}
-                            icon={<Package />}
-                            label="Materialen"
-                        />
-                        <TabButton
-                            active={activeView === 'drawing'}
-                            onClick={() => setActiveView('drawing')}
-                            icon={<Layers />}
-                            label="Tekening"
-                        />
-                        <TabButton
-                            active={activeView === 'notes'}
-                            onClick={() => setActiveView('notes')}
-                            icon={<ClipboardList />}
-                            label="Notities"
-                        />
-                        <TabButton
-                            active={activeView === 'testing'}
-                            onClick={() => setActiveView('testing')}
-                            icon={<div className="font-mono text-[10px] border border-current rounded px-1">{ }</div>}
-                            label="Testing"
-                        />
-                    </div>
-
-                    {/* Right: Actions */}
-                    <div className="flex-1 flex justify-end">
+                    <div className="flex gap-3 w-full sm:w-auto">
+                        {/* Placeholder Actions */}
+                        <button
+                            onClick={handleDownloadPDF}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!totals}
+                        >
+                            <Download size={16} />
+                            Download
+                        </button>
+                        <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700">
+                            <Mail size={16} />
+                            Versturen
+                        </button>
                         <Button asChild variant="secondary" className="gap-2 h-10 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-100 shadow-sm">
-                            <Link href={`/offertes/${quote.id}/overzicht`}>
+                            <Link href={`/offertes/${id}/klus`}>
                                 <Pencil className="w-4 h-4" />
                                 <span className="hidden sm:inline">Bewerken</span>
                             </Link>
                         </Button>
                     </div>
                 </div>
-            </footer>
+            </header>
+
+            <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-24">
+                {/* Tabs */}
+                <Tabs defaultValue="overzicht" className="space-y-6">
+                    <TabsList className="bg-zinc-900 border border-zinc-800 p-1 rounded-lg w-full sm:w-auto flex flex-wrap h-auto">
+                        <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <Euro size={16} /> Overzicht
+                        </TabsTrigger>
+                        <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <Package size={16} /> Materialen
+                        </TabsTrigger>
+                        <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <Clock size={16} /> Arbeid
+                        </TabsTrigger>
+                        <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <FileText size={16} /> PDF Preview
+                        </TabsTrigger>
+                        <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <MessageSquare size={16} /> Notities
+                        </TabsTrigger>
+                    </TabsList>
+
+                    {/* Overzicht Tab */}
+                    <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {!calculation?.data_json ? (
+                            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
+                                <Package size={48} className="mx-auto text-zinc-600 mb-4" />
+                                <h3 className="text-lg font-medium text-zinc-300 mb-2">Nog geen calculatie</h3>
+                                <p className="text-zinc-500">
+                                    De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Top row: Client + Cost Summary */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    <ClientInfoCard klantInfo={klantInfo} />
+                                    <div className="lg:col-span-2">
+                                        <CostSummaryCard
+                                            totals={totals}
+                                            settings={quoteSettings}
+                                            totalUren={calculation.data_json?.totaal_uren || 0}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Work Description */}
+                                <WorkDescriptionCard werkbeschrijving={calculation.data_json?.werkbeschrijving || []} />
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    {/* Materialen Tab */}
+                    <TabsContent value="materialen" className="mt-6 space-y-6">
+                        {!calculation?.data_json ? (
+                            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
+                                <Package size={48} className="mx-auto text-zinc-600 mb-4" />
+                                <h3 className="text-lg font-medium text-zinc-300 mb-2">Nog geen materialen</h3>
+                                <p className="text-zinc-500">
+                                    De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                </p>
+                            </div>
+                        ) : (
+                            <>
+                                <MaterialEditor
+                                    title="GROOTMATERIALEN"
+                                    items={materials.groot}
+                                    onUpdatePrice={handleUpdateGrootMateriaal}
+                                    subtotal={grootSubtotal}
+                                />
+                                <MaterialEditor
+                                    title="VERBRUIKSARTIKELEN"
+                                    items={materials.verbruik}
+                                    onUpdatePrice={handleUpdateVerbruiksartikel}
+                                    subtotal={verbruikSubtotal}
+                                />
+
+                                {/* Total materials summary */}
+                                <div className="bg-zinc-800 rounded-lg p-4 flex justify-between items-center">
+                                    <span className="text-zinc-300">Totaal materialen</span>
+                                    <span className="text-xl font-bold text-emerald-400">
+                                        {formatCurrency(grootSubtotal + verbruikSubtotal)}
+                                    </span>
+                                </div>
+                            </>
+                        )}
+                    </TabsContent>
+
+                    {/* Arbeid Tab */}
+                    <TabsContent value="arbeid" className="mt-6">
+                        {!calculation?.data_json || !quoteSettings ? (
+                            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
+                                <Clock size={48} className="mx-auto text-zinc-600 mb-4" />
+                                <h3 className="text-lg font-medium text-zinc-300 mb-2">Nog geen uren</h3>
+                                <p className="text-zinc-500">
+                                    De urenspecificatie wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                </p>
+                            </div>
+                        ) : (
+                            <LaborBreakdown
+                                urenSpecificatie={calculation.data_json.uren_specificatie || []}
+                                totaalUren={calculation.data_json.totaal_uren || 0}
+                                uurTarief={quoteSettings?.uurTariefExclBtw || 0}
+                            />
+                        )}
+                    </TabsContent>
+
+                    {/* PDF Tab */}
+                    <TabsContent value="pdf" className="mt-6 space-y-4">
+                        <QuoteSettings
+                            settings={pdfSettings}
+                            onChange={setPdfSettings}
+                        />
+                        <PDFPreview
+                            pdfData={buildPDFData()}
+                            onDownload={handleDownloadPDF}
+                        />
+                    </TabsContent>
+
+                    {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
+                    <TabsContent value="notities" className="mt-6">
+                        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
+                            <div className="flex-1 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-8 relative">
+                                <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4" /> Veldnotities
+                                </h3>
+                                {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes. 
+                                     The original code showed activeJob.notities. 
+                                     Since we don't have activeJob selector here yet (simplified view), 
+                                     we might just show a placeholder or aggregates.
+                                 */}
+                                <p className="text-zinc-500 italic">Notities functionaliteit wordt bijgewerkt.</p>
+                            </div>
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </main>
         </div>
     );
 }
-
-function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
-    return (
-        <button
-            onClick={onClick}
-            className={cn(
-                "flex flex-col items-center gap-1 p-2 transition-colors min-w-[64px]",
-                active ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
-            )}
-        >
-            <div className={cn("[&_svg]:w-6 [&_svg]:h-6", active ? "[&_svg]:stroke-[2.5px]" : "[&_svg]:stroke-2")}>
-                {icon}
-            </div>
-            <span className="text-[10px] font-medium tracking-wide">{label}</span>
-        </button>
-    )
-}
-

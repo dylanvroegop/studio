@@ -1,17 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-
-export interface MaterialItem {
-    aantal: number;
-    product: string;
-    prijs_per_stuk?: number;
-    totaal_prijs?: number;
-}
-
-export interface UrenItem {
-    taak: string;
-    uren: number;
-}
+import { DataJson } from '@/lib/quote-calculations';
 
 export interface QuoteCalculation {
     id: string;
@@ -19,13 +8,7 @@ export interface QuoteCalculation {
     gebruikerid: string;
     status: 'pending' | 'processing' | 'completed' | 'failed';
     created_at: string;
-    data_json: {
-        totaal_uren: number;
-        grootmaterialen: MaterialItem[];
-        verbruiksartikelen: MaterialItem[];
-        werkbeschrijving: string[];
-        uren_specificatie: UrenItem[];
-    };
+    data_json: DataJson;
 }
 
 export function useQuoteData(quoteId: string) {
@@ -37,6 +20,8 @@ export function useQuoteData(quoteId: string) {
         async function fetchQuoteData() {
             try {
                 setLoading(true);
+                console.log('Fetching for quoteId:', quoteId);
+
                 const { data, error } = await supabase
                     .from('quotes_collection')
                     .select('*')
@@ -46,9 +31,12 @@ export function useQuoteData(quoteId: string) {
                     .limit(1)
                     .single();
 
+                console.log('Supabase response:', { data, error });
+
                 if (error) throw error;
                 setCalculation(data);
             } catch (err) {
+                console.error('Fetch error:', err);
                 setError(err instanceof Error ? err.message : 'Failed to fetch quote data');
             } finally {
                 setLoading(false);

@@ -92,3 +92,20 @@ description: Display calculated total length for vensterbank
 type: bug
 page: measurement
 description: Reset vensterbank to off if opening type is not window
+
+## 2026-01-29
+- Boei delen drawing
+- Category correct inside the job registry
+- Hsb tussenwand job type add
+- Move vensterbanken and dag kanten to only when + dag kant toevoegen etc. No more on measurement page
+- Kleine text boven de “maatwerk voor openingen” die zegt: “vul hier maatwerk in of verplaats in tekening de opening”
+
+## 2026-01-30
+- Ability to add row in end quote
+- Make sure edit price in end quote actually saves in supabase in the exact table material
+- Add in n8n prompt a rule “if unsure add more, not less”
+- Add another In the calculator prompt for “notes of the carpenter” in case this is something I missed and they keep adding like “achterhout” toggle button
+- Add toggle somewhere at overzicht “schat uren” or not
+- The moment they click edit hours, make them able to edit hour rate too
+- Add toggle as well for quote pdf for “add drawing” as well. This must be placed under the “sign “ page.
+- Make sure all English wording is removed from the app entirely (not the code, only what is shown inside the app itself for the user to see)

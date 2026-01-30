@@ -53,12 +53,20 @@ export interface MaterialItem {
     totaal_prijs?: number;
 }
 
+export interface UrenItem {
+    taak: string;
+    uren: number;
+}
+
 export interface DataJson {
     totaal_uren: number;
     grootmaterialen: MaterialItem[];
     verbruiksartikelen: MaterialItem[];
     werkbeschrijving: string[];
-    uren_specificatie: Array<{ taak: string; uren: number }>;
+    uren_specificatie: UrenItem[];
+    // Optional fields that might be present in the JSON blob
+    klantinformatie?: KlantInformatie;
+    instellingen?: any; // Using any for now to avoid circular dependency or complex type mapping if not strictly needed here
 }
 
 export function calculateQuoteTotals(
