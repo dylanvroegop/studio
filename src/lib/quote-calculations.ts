@@ -1,6 +1,7 @@
 export interface QuoteSettings {
     btwTarief: number;
     uurTariefExclBtw: number;
+    schattingUren?: boolean;
     extras: {
         transport: {
             prijsPerKm: number;

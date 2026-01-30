@@ -1,4 +1,5 @@
 import * as hsbVoorzetwand from './hsbVoorzetwand.config';
+import * as metalstudTussenwand from './metalstudTussenwand.config';
 
 // Define the interface for the config to ensure type safety
 export interface JobTypeConfig {
@@ -28,6 +29,8 @@ export interface JobTypeConfig {
 
 export const jobTypeConfigs: Record<string, JobTypeConfig> = {
     'hsb-voorzetwand': hsbVoorzetwand as JobTypeConfig,
+    'hsb-tussenwand': hsbVoorzetwand as JobTypeConfig,
+    'metalstud-tussenwand': metalstudTussenwand as JobTypeConfig,
     // Add others as needed, defaulting to HSB-like or specific defaults
 };
 

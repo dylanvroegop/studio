@@ -138,7 +138,7 @@ export function VisualizerController({
     const wallSlugs = [
         'hsb-voorzetwand', 'metalstud-voorzetwand', 'hsb-buiten-wand',
         'hsb-tussenwand', 'metalstud-tussenwand', 'knieschotten',
-        'cinewall-tv-wand'
+        'cinewall-tv-wand', 'boeiboorden-vervangen'
     ];
     const isWallCategory =
         category === 'wanden' ||
@@ -164,7 +164,6 @@ export function VisualizerController({
 
     // 4. LINEAR_MODE (Strips/Profiles)
     const linearSlugs = [
-        'boeiboorden-vervangen', 'windveren-vervangen',
         'plinten-afwerklatten', 'dagkanten',
         'vensterbanken', 'waterslagen-dorpels'
     ];

@@ -1,5 +1,6 @@
 'use client';
 
+import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
 import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary } from '@/lib/quote-calculations';
@@ -18,6 +19,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Quote } from "@/lib/types";
 
 export default function QuotePage() {
@@ -84,6 +87,7 @@ export default function QuotePage() {
                 const mappedSettings: QuoteCalculationSettings = {
                     btwTarief: rawInst.btwTarief || 21,
                     uurTariefExclBtw: rawInst.uurTariefExclBtw || rawInst.uurTarief || 50,
+                    schattingUren: rawInst.schattingUren ?? false,
                     extras: {
                         transport: {
                             prijsPerKm: rawInst.extras?.transport?.prijsPerKm ?? rawInst.reiskosten_prijs_per_km ?? 0.30,
@@ -175,6 +179,7 @@ export default function QuotePage() {
                     return {
                         btwTarief: inst.btwTarief || 21,
                         uurTariefExclBtw: inst.uurTarief || 50,
+                        schattingUren: inst.schattingUren ?? false,
                         extras: {
                             transport: {
                                 prijsPerKm: inst.reiskosten_prijs_per_km || 0.30,
@@ -199,18 +204,46 @@ export default function QuotePage() {
         fetchData();
     }, [id, user, isUserLoading, firestore]);
 
+    // Helper to update master price via API
+    const updateMasterPrice = async (materiaalnaam: string, priceInclBtw: string) => {
+        if (!user) return;
+        try {
+            const token = await user.getIdToken();
+            await fetch('/api/materialen/update-price', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    materiaalnaam,
+                    prijs_incl_btw: priceInclBtw
+                })
+            });
+        } catch (err) {
+            console.error("Failed to update master price:", err);
+        }
+    };
+
     // Handler for updating grootmaterialen prices
     const handleUpdateGrootMateriaal = async (index: number, price: number) => {
         const updated = [...materials.groot];
         updated[index] = { ...updated[index], prijs_per_stuk: price };
         setMaterials(prev => ({ ...prev, groot: updated }));
 
-        // Save to Supabase
+        // Save to Supabase (Quote Data)
         if (calculation) {
             await updateDataJson({
                 ...calculation.data_json,
                 grootmaterialen: updated,
             });
+        }
+
+        // Save to Supabase (Master Data - main_material_list)
+        if (updated[index].product && quoteSettings?.btwTarief) {
+            const priceIncl = price * (1 + (quoteSettings.btwTarief / 100));
+            const priceInclString = priceIncl.toFixed(2);
+            await updateMasterPrice(updated[index].product!, priceInclString);
         }
     };
 
@@ -220,11 +253,35 @@ export default function QuotePage() {
         updated[index] = { ...updated[index], prijs_per_stuk: price };
         setMaterials(prev => ({ ...prev, verbruik: updated }));
 
-        // Save to Supabase
+        // Save to Supabase (Quote Data)
         if (calculation) {
             await updateDataJson({
                 ...calculation.data_json,
                 verbruiksartikelen: updated,
+            });
+        }
+
+        // Save to Supabase (Master Data - main_material_list)
+        if (updated[index].product && quoteSettings?.btwTarief) {
+            const priceIncl = price * (1 + (quoteSettings.btwTarief / 100));
+            const priceInclString = priceIncl.toFixed(2);
+            await updateMasterPrice(updated[index].product!, priceInclString);
+        }
+    };
+
+    // Handler for adding new material items
+    const handleAddItem = async (category: 'groot' | 'verbruik', item: MaterialItem) => {
+        const listKey = category === 'groot' ? 'groot' : 'verbruik';
+        const jsonKey = category === 'groot' ? 'grootmaterialen' : 'verbruiksartikelen';
+
+        const updated = [...materials[listKey], item];
+        setMaterials(prev => ({ ...prev, [listKey]: updated }));
+
+        // Save to Supabase
+        if (calculation) {
+            await updateDataJson({
+                ...calculation.data_json,
+                [jsonKey]: updated,
             });
         }
     };
@@ -247,6 +304,20 @@ export default function QuotePage() {
             verbruiksartikelen: materials.verbruik,
         }, quoteSettings)
         : null;
+
+    // Handle updating settings
+    const handleUpdateSettings = async (newSettings: QuoteCalculationSettings) => {
+        setQuoteSettings(newSettings);
+        if (calculation) {
+            await updateDataJson({
+                ...calculation.data_json,
+                instellingen: {
+                    ...(calculation.data_json.instellingen as any),
+                    ...newSettings
+                }
+            });
+        }
+    };
 
     // Helper to build PDF data object
     const buildPDFData = (): PDFQuoteData | null => {
@@ -434,11 +505,35 @@ export default function QuotePage() {
                                 {/* Top row: Client + Cost Summary */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     <ClientInfoCard klantInfo={klantInfo} />
-                                    <div className="lg:col-span-2">
+                                    <div className="lg:col-span-2 flex flex-col gap-4">
+                                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 flex items-center justify-between">
+                                            <Label htmlFor="estimate-mode" className="text-zinc-400 text-sm">Uren als schatting weergeven</Label>
+                                            <Switch
+                                                id="estimate-mode"
+                                                checked={quoteSettings?.schattingUren || false}
+                                                onCheckedChange={(checked) => {
+                                                    if (!quoteSettings) return;
+                                                    handleUpdateSettings({ ...quoteSettings, schattingUren: checked });
+                                                }}
+                                            />
+                                        </div>
                                         <CostSummaryCard
                                             totals={totals}
                                             settings={quoteSettings}
                                             totalUren={calculation.data_json?.totaal_uren || 0}
+                                            onUpdateHourlyRate={(newRate) => {
+                                                if (!quoteSettings) return;
+                                                handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
+                                            }}
+                                            onUpdateTotalHours={async (newHours) => {
+                                                if (!calculation) return;
+                                                // Assuming we can just update the total, note: this might desync from uren_specificatie
+                                                // but since user explicitly requested editing total hours, we allow it.
+                                                await updateDataJson({
+                                                    ...calculation.data_json,
+                                                    totaal_uren: newHours,
+                                                });
+                                            }}
                                         />
                                     </div>
                                 </div>
@@ -465,13 +560,17 @@ export default function QuotePage() {
                                     title="GROOTMATERIALEN"
                                     items={materials.groot}
                                     onUpdatePrice={handleUpdateGrootMateriaal}
+                                    onAddItem={(item) => handleAddItem('groot', item)}
                                     subtotal={grootSubtotal}
+                                    vatRate={quoteSettings?.btwTarief}
                                 />
                                 <MaterialEditor
                                     title="VERBRUIKSARTIKELEN"
                                     items={materials.verbruik}
                                     onUpdatePrice={handleUpdateVerbruiksartikel}
+                                    onAddItem={(item) => handleAddItem('verbruik', item)}
                                     subtotal={verbruikSubtotal}
+                                    vatRate={quoteSettings?.btwTarief}
                                 />
 
                                 {/* Total materials summary */}
@@ -500,6 +599,33 @@ export default function QuotePage() {
                                 urenSpecificatie={calculation.data_json.uren_specificatie || []}
                                 totaalUren={calculation.data_json.totaal_uren || 0}
                                 uurTarief={quoteSettings?.uurTariefExclBtw || 0}
+                                onUpdateHourlyRate={(newRate) => {
+                                    if (!quoteSettings) return;
+                                    handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
+                                }}
+                                onUpdateTotalHours={async (newHours) => {
+                                    if (!calculation) return;
+                                    await updateDataJson({
+                                        ...calculation.data_json,
+                                        totaal_uren: newHours,
+                                    });
+                                }}
+                                onUpdateItem={async (index, newHours) => {
+                                    if (!calculation) return;
+                                    const updatedItems = [...(calculation.data_json.uren_specificatie || [])];
+                                    if (updatedItems[index]) {
+                                        updatedItems[index] = { ...updatedItems[index], uren: newHours };
+
+                                        // Recalculate total hours based on the new item value
+                                        const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
+
+                                        await updateDataJson({
+                                            ...calculation.data_json,
+                                            uren_specificatie: updatedItems,
+                                            totaal_uren: newTotal
+                                        });
+                                    }
+                                }}
                             />
                         )}
                     </TabsContent>

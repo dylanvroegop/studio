@@ -591,6 +591,44 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setTextColor(30, 30, 30);
     doc.text(data.bedrijf.naam, margin, y);
 
+    // ═══════════════════════════════════════════════════════════════
+    // OPTIONAL PAGE: TEKENINGEN (if enabled)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (data.settings.showTekeningen) {
+        doc.addPage();
+        y = margin;
+
+        // Header
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 30, 30);
+        doc.text('TEKENINGEN', margin, y);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+
+        y += 8;
+        drawLine(y);
+        y += 10;
+
+        // Placeholder content
+        doc.setFontSize(10);
+        doc.setTextColor(50, 50, 50);
+        doc.text('Zie bijlagen voor technische tekeningen en plattegronden.', margin, y);
+
+        // Example box to indicate where drawings would go
+        y += 20;
+        doc.setDrawColor(230, 230, 230);
+        doc.setFillColor(250, 250, 250);
+        doc.roundedRect(margin, y, pageWidth - (margin * 2), 150, 3, 3, 'FD');
+
+        doc.setTextColor(150, 150, 150);
+        doc.setFontSize(14);
+        doc.text('Ruimte voor tekeningen', pageWidth / 2, y + 75, { align: 'center' });
+    }
+
     // Return as blob
     return doc.output('blob');
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, Eye, EyeOff, FileText, Package, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, Eye, EyeOff, FileText, Package, Clock, ChevronDown, ChevronUp, Image } from 'lucide-react';
 
 export interface QuotePDFSettings {
     showGrootmaterialen: boolean;
@@ -9,6 +9,7 @@ export interface QuotePDFSettings {
     showUrenSpecificatie: boolean;
     showFullWerkbeschrijving: boolean;
     showPricesPerItem: boolean;
+    showTekeningen: boolean;
 }
 
 export const defaultQuotePDFSettings: QuotePDFSettings = {
@@ -17,6 +18,7 @@ export const defaultQuotePDFSettings: QuotePDFSettings = {
     showUrenSpecificatie: false,
     showFullWerkbeschrijving: true,
     showPricesPerItem: false,
+    showTekeningen: false,
 };
 
 interface QuoteSettingsProps {
@@ -136,6 +138,14 @@ export function QuoteSettings({ settings, onChange }: QuoteSettingsProps) {
                         />
                     )}
 
+                    <ToggleRow
+                        settingKey="showTekeningen"
+                        label="Tekeningen toevoegen"
+                        description="Voeg een tekeningen pagina toe"
+                        icon={Image}
+                    />
+
+                    {/* Quick presets */}
                     {/* Quick presets */}
                     <div className="mt-4 px-4 pb-2 flex gap-2">
                         <button
@@ -145,6 +155,7 @@ export function QuoteSettings({ settings, onChange }: QuoteSettingsProps) {
                                 showUrenSpecificatie: false,
                                 showFullWerkbeschrijving: true,
                                 showPricesPerItem: false,
+                                showTekeningen: false,
                             })}
                             className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors"
                         >
@@ -157,14 +168,16 @@ export function QuoteSettings({ settings, onChange }: QuoteSettingsProps) {
                                 showUrenSpecificatie: true,
                                 showFullWerkbeschrijving: true,
                                 showPricesPerItem: false,
+                                showTekeningen: true,
                             })}
                             className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors"
                         >
                             Volledig transparant
                         </button>
                     </div>
-                </div>
-            )}
-        </div>
+                </div >
+            )
+            }
+        </div >
     );
 }
