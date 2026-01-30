@@ -14,6 +14,6 @@
 - [WAIT] make sure the drawings are shown also in a separate page next to 'pdf review'. 
 - [DONE] make on the quote visisble their own company information.
 - check whether the kvk is on the register page when they first register login
-- improve PROJECTOMSCHRIJVING on the quote pdf
+- improve PROJECTOMSCHRIJVING on the quote pdf, so that the it more explains a 'small description of the job itself. (this must be done in the prompt of the werkbeschrijving ai agent inside n8n.)
 - remove winst marge from quote pdf, client must never see that. ever.
 - give the option how to make the winstmarge function, on total quote price? just materials? 
