@@ -275,9 +275,10 @@ const KOOF_FIELDS: MeasurementField[] = [
 ];
 
 const BOEIBOORD_FIELDS: MeasurementField[] = [
-  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
-  { key: 'hoogte', label: 'Hoogte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 250', defaultValue: 250 },
-  { key: 'breedte', label: 'Breedte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300', defaultValue: 300 },
+  { key: 'lengte', label: 'Lengte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'hoogte', label: 'Hoogte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 250' },
+  { key: 'lengte_onderzijde', label: 'Lengte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'breedte', label: 'Breedte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300' },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
   { key: 'latafstand', label: 'Latafstand Voorzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
   { key: 'onderzijde_latafstand', label: 'Latafstand Onderzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },

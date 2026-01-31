@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities, react-hooks/exhaustive-deps */
 'use client';
 
-import React, { useEffect, useState, useTransition, useRef } from 'react';
+import React, { useEffect, useState, useTransition, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
@@ -93,6 +93,7 @@ export default function GenericMeasurementPage() {
   const isWallCategory = Boolean(categorySlug === 'wanden' || (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand'))));
   const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
+  const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
   const showOpeningsSection = isWallCategory || hasWallFields || isCeilingCategory || isRoofCategory;
 
@@ -102,7 +103,21 @@ export default function GenericMeasurementPage() {
   const [notities, setNotities] = useState(''); // New: Job Notes state
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const stored = localStorage.getItem(`collapsed-${klusId}`);
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
+
+  const toggleCollapsed = useCallback((key: string) => {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem(`collapsed-${klusId}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [klusId]);
 
   // 4. Load Data
   useEffect(() => {
@@ -294,7 +309,7 @@ export default function GenericMeasurementPage() {
         };
 
         const updateData: Record<string, any> = {
-          [`klussen.${klusId}.maatwerk`]: cleanFirestoreData(maatwerkData, { isUpdate: true }),
+          [`klussen.${klusId}.maatwerk`]: cleanFirestoreData(maatwerkData, { allowEmptyArrays: true }),
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
         };
 
@@ -347,7 +362,18 @@ export default function GenericMeasurementPage() {
         <form>
           <div className="space-y-8">
             {items.map((item, index) => (
-              <div key={index} className="flex flex-col lg:flex-row gap-6 items-start">
+              <React.Fragment key={index}>
+                {/* Item divider / label — only when multiple items */}
+                {items.length > 1 && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider whitespace-nowrap">
+                      {itemLabel} {index + 1}
+                    </span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+                )}
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
 
                 {/* LEFT SIDEBAR - SETTINGS */}
                 <div className="w-full lg:w-[340px] shrink-0 space-y-6">
@@ -456,6 +482,51 @@ export default function GenericMeasurementPage() {
                       }
 
                       // Default: Rectangle, Slope, Gable
+
+                      // Boeiboord: grouped Voorzijde / Onderzijde fields
+                      if (isBoeiboord) {
+                        return (
+                          <div className="space-y-4">
+                            <Label className="text-xs uppercase text-zinc-500 tracking-wider">Voorzijde</Label>
+                            {fields.find(f => f.key === 'lengte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                            {fields.find(f => f.key === 'hoogte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'hoogte')!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                            <div className="pt-2 border-t border-white/5" />
+                            <Label className="text-xs uppercase text-zinc-500 tracking-wider">Onderzijde</Label>
+                            {fields.find(f => f.key === 'lengte_onderzijde') && (
+                              <DynamicInput field={fields.find(f => f.key === 'lengte_onderzijde')!} value={item.lengte_onderzijde} onChange={v => updateItem(index, 'lengte_onderzijde', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                            {fields.find(f => f.key === 'breedte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+
+                            {/* Kopkanten toggle */}
+                            {fields.find(f => f.key === 'kopkanten') && (
+                              <>
+                                <div className="pt-2 border-t border-white/5" />
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs uppercase text-zinc-500 tracking-wider">Kopkanten</Label>
+                                  <Switch checked={item.kopkanten || false} onCheckedChange={(c) => updateItem(index, 'kopkanten', c)} />
+                                </div>
+                                {item.kopkanten && (
+                                  <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                                    {fields.find(f => f.key === 'kopkant_breedte') && (
+                                      <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                    )}
+                                    {fields.find(f => f.key === 'kopkant_hoogte') && (
+                                      <DynamicInput field={fields.find(f => f.key === 'kopkant_hoogte')!} value={item.kopkant_hoogte} onChange={v => updateItem(index, 'kopkant_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      }
+
                       return (
                         <div className="space-y-4">
                           {/* Roof Tile Specific Fields */}
@@ -506,7 +577,7 @@ export default function GenericMeasurementPage() {
                     <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                       <div
                         className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                        onClick={() => setCollapsedSections(prev => ({ ...prev, [`dakrand-${index}`]: !prev[`dakrand-${index}`] }))}
+                        onClick={() => toggleCollapsed(`dakrand-${index}`)}
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-medium text-zinc-200">Dakrand</span>
@@ -557,7 +628,7 @@ export default function GenericMeasurementPage() {
                     <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                       <div
                         className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                        onClick={() => setCollapsedSections(prev => ({ ...prev, [`latten-${index}`]: !prev[`latten-${index}`] }))}
+                        onClick={() => toggleCollapsed(`latten-${index}`)}
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-medium text-zinc-200">Latten</span>
@@ -614,8 +685,8 @@ export default function GenericMeasurementPage() {
                     </div>
                   )}
 
-                  {/* Kopkanten Configuration */}
-                  {fields.find(f => f.key === 'kopkanten') && (
+                  {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}
+                  {!isBoeiboord && fields.find(f => f.key === 'kopkanten') && (
                     <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                       <div className="px-4 py-3 flex items-center justify-between select-none">
                         <div className="flex items-center gap-3">
@@ -640,11 +711,11 @@ export default function GenericMeasurementPage() {
                   )}
 
                   {/* Extra Fields - NO SLICE, just filter out known keys */}
-                  {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
+                  {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-white/5">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
                       <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                        {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
+                        {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
                           <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                         ))}
                       </div>
@@ -658,45 +729,62 @@ export default function GenericMeasurementPage() {
                 </div>
 
                 {/* RIGHT/CENTER: DRAWING CANVAS - STICKY */}
-                <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
-                  {/* Toolbar */}
-
-
-
-                  {/* Canvas Container */}
+                {isBoeiboord ? (
                   <div
                     ref={(el) => { visualizerRefs.current[index] = el; }}
-                    className="relative w-full flex-1 flex items-center justify-center bg-[#09090b]"
+                    className="flex-1 w-full lg:min-w-0 sticky top-24 self-start"
                   >
-                    {/* Dot Pattern Background */}
-                    <div
-                      className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
-                      style={{
-                        backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                        backgroundSize: '24px 24px'
-                      }}
+                    <VisualizerController
+                      category={categorySlug}
+                      slug={jobSlug}
+                      item={item}
+                      fields={fields}
+                      title={`${itemLabel} ${index + 1}`}
+                      isMagnifier={false}
+                      fitContainer={false}
+                      onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                      onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                      onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
                     />
-
-                    {/* Drawing */}
-                    <div className="relative z-10 w-full h-full flex items-center justify-center">
-                      <VisualizerController
-                        category={categorySlug}
-                        slug={jobSlug}
-                        item={item}
-                        fields={fields}
-                        title={`${itemLabel} ${index + 1}`}
-                        isMagnifier={false}
-                        fitContainer={true}
-                        onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                        onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                        onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
-                        className="w-full h-full"
+                  </div>
+                ) : (
+                  <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
+                    {/* Canvas Container */}
+                    <div
+                      ref={(el) => { visualizerRefs.current[index] = el; }}
+                      className="relative w-full flex-1 flex items-center justify-center bg-[#09090b]"
+                    >
+                      {/* Dot Pattern Background */}
+                      <div
+                        className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                        style={{
+                          backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                          backgroundSize: '24px 24px'
+                        }}
                       />
+
+                      {/* Drawing */}
+                      <div className="relative z-10 w-full h-full flex items-center justify-center">
+                        <VisualizerController
+                          category={categorySlug}
+                          slug={jobSlug}
+                          item={item}
+                          fields={fields}
+                          title={`${itemLabel} ${index + 1}`}
+                          isMagnifier={false}
+                          fitContainer={true}
+                          onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                          onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                          onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
+                          className="w-full h-full"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
               </div>
+              </React.Fragment>
             ))}
 
             {items.length === 0 && <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-3xl bg-card/20"><p className="text-muted-foreground">Geen items.</p></div>}

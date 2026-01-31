@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
-import { DrawingData } from '@/lib/drawing-types';
 import {
     OverallDimensions,
     GridMeasurements
@@ -10,59 +9,45 @@ import {
 import { calculateGridGaps } from './shared/framing-utils';
 
 interface BoeiboordDrawingProps {
-    lengte: string | number;
-    hoogte: string | number; // Voorzijde Hoogte
-    breedte: string | number; // Onderzijde Breedte
-    balkafstand: string | number;
-    latafstand: string | number; // Voorzijde spacing
-    onderzijde_latafstand?: string | number;
-    className?: string;
-    fitContainer?: boolean;
-    onDataGenerated?: (data: DrawingData) => void;
+    lengte: number;
+    hoogte: number;
+    balkafstand: number;
+    latafstand: number;
     title?: string;
-    showKopkanten?: boolean;
     startLattenFromBottom?: boolean;
     doubleEndBattens?: boolean;
+    fitContainer?: boolean;
+    className?: string;
 }
 
 export function BoeiboordDrawing({
     lengte,
     hoogte,
-    breedte,
     balkafstand,
     latafstand,
-    className,
-    fitContainer,
-    onDataGenerated,
     title,
     startLattenFromBottom,
-    doubleEndBattens
+    doubleEndBattens,
+    fitContainer,
+    className,
 }: BoeiboordDrawingProps) {
-    const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
-    const hoogteNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
-    const breedteNum = typeof breedte === 'number' ? breedte : parseFloat(String(breedte)) || 0;
-
-    // The user wants "1 drawing again". We combine Voorzijde and Onderzijde into one total height.
-    const totalHeight = hoogteNum + breedteNum;
-
-    // Spacing
-    const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 600;
-    const latafstandNum = typeof latafstand === 'number' ? latafstand : parseFloat(String(latafstand)) || 300;
-
     const structure = useMemo(() => {
-        if (lengteNum <= 0 || totalHeight <= 0) return { beamCenters: [], gridGaps: [], latCenters: [], latGaps: [] };
+        if (lengte <= 0 || hoogte <= 0) return {
+            beamCenters: [] as number[],
+            gridGaps: [] as { value: number; c1: number; c2: number }[],
+            latCenters: [] as number[],
+            latGaps: [] as { value: number; c1: number; c2: number }[],
+        };
 
-        // 1. VERTICAL BEAMS (Balken) - along the length
         const framing = calculateGridGaps({
-            wallLength: lengteNum,
-            spacing: balkafstandNum,
+            wallLength: lengte,
+            spacing: balkafstand,
             studWidth: 70
         });
 
-        // 2. HORIZONTAL LATTEN (Latten) - along the height
-        const lattenFraming = calculateGridGaps({
-            wallLength: totalHeight,
-            spacing: latafstandNum,
+        const latFraming = calculateGridGaps({
+            wallLength: hoogte,
+            spacing: latafstand,
             studWidth: 22,
             startFromRight: startLattenFromBottom
         });
@@ -70,179 +55,137 @@ export function BoeiboordDrawing({
         return {
             beamCenters: framing.beamCenters,
             gridGaps: framing.gaps,
-            latCenters: lattenFraming.beamCenters,
-            latGaps: lattenFraming.gaps
+            latCenters: latFraming.beamCenters,
+            latGaps: latFraming.gaps,
         };
-    }, [lengteNum, totalHeight, balkafstandNum, latafstandNum, startLattenFromBottom]);
-
-    // Emit Data
-    const lastEmittedRef = useRef<string>('');
-    useEffect(() => {
-        if (!onDataGenerated) return;
-        const data: DrawingData = {
-            walls: [{ label: 'Main', lengte: lengteNum, hoogte: totalHeight, shape: 'rectangle' }],
-            beams: [],
-            dimensions: [],
-            params: { lengte: lengteNum, hoogte: totalHeight },
-            calculatedData: {
-                totalHeight,
-                beamCount: structure.beamCenters.length,
-                latCount: structure.latCenters.length
-            }
-        };
-        const json = JSON.stringify(data);
-        if (json !== lastEmittedRef.current) {
-            lastEmittedRef.current = json;
-            onDataGenerated(data);
-        }
-    }, [structure, onDataGenerated, lengteNum, totalHeight]);
+    }, [lengte, hoogte, balkafstand, latafstand, startLattenFromBottom]);
 
     return (
+        <div className={`bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative h-[340px] ${className ?? ''}`}>
+            {/* Dot Pattern Background */}
+            <div
+                className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                style={{
+                    backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                    backgroundSize: '24px 24px'
+                }}
+            />
+            <div className="relative z-10 w-full h-full">
         <BaseDrawingFrame
+            width={lengte}
+            height={hoogte}
+            fitContainer={true}
+            svgHeight={400}
+            suppressTotalDimensions={true}
             areaStats={{
-                gross: lengteNum * totalHeight,
-                net: lengteNum * totalHeight,
+                gross: lengte * hoogte,
+                net: lengte * hoogte,
                 hasOpenings: false
             }}
-            width={lengteNum}
-            height={totalHeight}
-            className={className}
-            fitContainer={fitContainer}
-            widthLabel={`${lengteNum}`}
-            heightLabel={`${totalHeight}`}
-            suppressTotalDimensions={true}
         >
             {(ctx) => {
                 const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT } = ctx;
 
-                // Colors - matching CeilingWoodDrawing (No Blue)
                 const structureColor = "rgb(70, 75, 85)";
-                const lattenColor = "rgb(70, 75, 85)";
+                const LAT_WIDTH_MM = 22;
+                const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
 
-                const elements: React.ReactNode[] = [];
+                const dashProps = {
+                    stroke: structureColor,
+                    strokeWidth: 1,
+                    strokeDasharray: "4,4" as string,
+                };
 
-                // Render Vertical Beams (Balken)
-                if (balkafstandNum > 0) {
-                    const BEAM_WIDTH_MM = 70;
-                    const BEAM_STROKE = BEAM_WIDTH_MM * pxPerMm;
-
-                    structure.beamCenters.forEach((cx, idx) => {
-                        const drawX = startX + (cx * pxPerMm);
-                        // Vertical line for the beam
-                        elements.push(
-                            <line
-                                key={`beam-${idx}`}
-                                x1={drawX} y1={startY}
-                                x2={drawX} y2={startY + rectH}
-                                stroke={structureColor}
-                                strokeWidth={BEAM_STROKE}
-                                opacity="0.4"
-                            />
-                        );
-                    });
-                }
-
-                // Render Horizontal Latten (following CeilingWoodDrawing style: two dashed lines)
-                if (latafstandNum > 0) {
-                    const LAT_WIDTH_MM = 22;
-                    const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
-                    const dashProps = {
-                        stroke: lattenColor,
-                        strokeWidth: 1,
-                        strokeDasharray: "4,4"
-                    };
-
-                    structure.latCenters.forEach((cy, idx) => {
-                        const centerY = startY + (cy * pxPerMm);
-                        const topY = centerY - halfWidthPx;
-                        const bottomY = centerY + halfWidthPx;
-
-                        elements.push(<line key={`lat-${idx}-t`} x1={startX} y1={topY} x2={startX + rectW} y2={topY} {...dashProps} />);
-                        elements.push(<line key={`lat-${idx}-b`} x1={startX} y1={bottomY} x2={startX + rectW} y2={bottomY} {...dashProps} />);
-                    });
-
-                    // Render Double End Latten if enabled
-                    if (doubleEndBattens) {
-                        const extraStart = (LAT_WIDTH_MM / 2) + LAT_WIDTH_MM;
-                        const extraEnd = totalHeight - ((LAT_WIDTH_MM / 2) + LAT_WIDTH_MM);
-
-                        if (extraStart < totalHeight) {
-                            const drawY = startY + (extraStart * pxPerMm);
-                            elements.push(<line key="lat-double-start-t" x1={startX} y1={drawY - halfWidthPx} x2={startX + rectW} y2={drawY - halfWidthPx} {...dashProps} />);
-                            elements.push(<line key="lat-double-start-b" x1={startX} y1={drawY + halfWidthPx} x2={startX + rectW} y2={drawY + halfWidthPx} {...dashProps} />);
-                        }
-
-                        if (extraEnd > 0) {
-                            const drawY = startY + (extraEnd * pxPerMm);
-                            elements.push(<line key="lat-double-end-t" x1={startX} y1={drawY - halfWidthPx} x2={startX + rectW} y2={drawY - halfWidthPx} {...dashProps} />);
-                            elements.push(<line key="lat-double-end-b" x1={startX} y1={drawY + halfWidthPx} x2={startX + rectW} y2={drawY + halfWidthPx} {...dashProps} />);
-                        }
-                    }
-                }
-
-                // Prepare gap measurements for the shared components
                 const gridGaps = structure.gridGaps.map(g => ({
                     value: g.value,
                     c1: startX + g.c1 * pxPerMm,
-                    c2: startX + g.c2 * pxPerMm
+                    c2: startX + g.c2 * pxPerMm,
                 }));
 
                 const latGaps = structure.latGaps.map(g => ({
                     value: g.value,
                     c1: startY + g.c1 * pxPerMm,
-                    c2: startY + g.c2 * pxPerMm
+                    c2: startY + g.c2 * pxPerMm,
                 }));
 
                 return (
                     <>
-                        {/* Main outer outline */}
+                        {/* Main outline */}
                         <rect
-                            x={startX}
-                            y={startY}
-                            width={rectW}
-                            height={rectH}
-                            fill="none"
-                            stroke={structureColor}
-                            strokeWidth="1"
+                            x={startX} y={startY}
+                            width={rectW} height={rectH}
+                            fill="none" stroke={structureColor} strokeWidth="1"
                         />
 
-                        {/* Faint indicator of the split between Voorzijde and Onderzijde if both exist */}
-                        {hoogteNum > 0 && breedteNum > 0 && (
-                            <line
-                                x1={startX}
-                                y1={startY + (hoogteNum * pxPerMm)}
-                                x2={startX + rectW}
-                                y2={startY + (hoogteNum * pxPerMm)}
-                                stroke={structureColor}
-                                strokeWidth="0.5"
-                                strokeDasharray="2,2"
-                                opacity="0.3"
-                            />
+                        {/* Vertical beams */}
+                        {balkafstand > 0 && structure.beamCenters.map((cx, i) => {
+                            const drawX = startX + cx * pxPerMm;
+                            return (
+                                <line
+                                    key={`beam-${i}`}
+                                    x1={drawX} y1={startY}
+                                    x2={drawX} y2={startY + rectH}
+                                    stroke={structureColor}
+                                    strokeWidth={70 * pxPerMm}
+                                    opacity="0.4"
+                                />
+                            );
+                        })}
+
+                        {/* Horizontal latten */}
+                        {latafstand > 0 && structure.latCenters.map((cy, i) => {
+                            const centerY = startY + cy * pxPerMm;
+                            return (
+                                <g key={`lat-${i}`}>
+                                    <line x1={startX} y1={centerY - halfWidthPx} x2={startX + rectW} y2={centerY - halfWidthPx} {...dashProps} />
+                                    <line x1={startX} y1={centerY + halfWidthPx} x2={startX + rectW} y2={centerY + halfWidthPx} {...dashProps} />
+                                </g>
+                            );
+                        })}
+
+                        {/* Double end battens */}
+                        {doubleEndBattens && (() => {
+                            const extraStart = (LAT_WIDTH_MM / 2) + LAT_WIDTH_MM;
+                            const extraEnd = hoogte - ((LAT_WIDTH_MM / 2) + LAT_WIDTH_MM);
+                            const els: React.ReactNode[] = [];
+
+                            if (extraStart < hoogte) {
+                                const y = startY + extraStart * pxPerMm;
+                                els.push(
+                                    <g key="dbl-start">
+                                        <line x1={startX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
+                                        <line x1={startX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
+                                    </g>
+                                );
+                            }
+                            if (extraEnd > 0) {
+                                const y = startY + extraEnd * pxPerMm;
+                                els.push(
+                                    <g key="dbl-end">
+                                        <line x1={startX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
+                                        <line x1={startX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
+                                    </g>
+                                );
+                            }
+                            return els;
+                        })()}
+
+                        {/* Beam grid dims (top) */}
+                        <GridMeasurements gaps={gridGaps} svgBaseYTop={startY} />
+
+                        {/* Lat grid dims (right) */}
+                        {latGaps.length > 0 && (
+                            <GridMeasurements gaps={latGaps} svgBaseX={startX + rectW} orientation="vertical" />
                         )}
 
-                        {elements}
-
-                        {/* Universal Dimensions Overlay */}
+                        {/* Overall dimensions */}
                         <OverallDimensions
-                            wallLength={lengteNum}
-                            wallHeight={totalHeight}
+                            wallLength={lengte}
+                            wallHeight={hoogte}
                             svgBaseX={startX}
                             svgBaseY={startY + rectH}
                             pxPerMm={pxPerMm}
                         />
-
-                        <GridMeasurements
-                            gaps={gridGaps}
-                            svgBaseYTop={startY}
-                        />
-
-                        {latGaps.length > 0 && (
-                            <GridMeasurements
-                                gaps={latGaps}
-                                svgBaseX={startX + rectW}
-                                orientation="vertical"
-                            />
-                        )}
 
                         {title && (
                             <text
@@ -260,5 +203,7 @@ export function BoeiboordDrawing({
                 );
             }}
         </BaseDrawingFrame>
+            </div>
+        </div>
     );
 }

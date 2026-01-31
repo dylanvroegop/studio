@@ -41,6 +41,7 @@ export interface BaseDrawingFrameProps {
     svgOverlay?: React.ReactNode;
     contentId?: string;
     drawingData?: DrawingData;
+    svgHeight?: number; // Override SVG viewBox height
 }
 
 export interface DrawingContext {
@@ -57,10 +58,10 @@ export interface DrawingContext {
     SVG_HEIGHT: number;
 }
 
-export function calculateDrawingMetrics(width: number, height: number, fitContainer?: boolean) {
+export function calculateDrawingMetrics(width: number, height: number, fitContainer?: boolean, svgHeightOverride?: number) {
     // Increase container width slightly to accommodate right-side dimensions
     const SVG_WIDTH = fitContainer ? 1200 : 600;
-    const SVG_HEIGHT = fitContainer ? 800 : 450;
+    const SVG_HEIGHT = svgHeightOverride ?? (fitContainer ? 800 : 450);
 
     // Margins - Increased to accommodate all dimension lines
     const marginX = fitContainer ? 120 : 80;
@@ -117,11 +118,12 @@ export function BaseDrawingFrame({
     svgDefs,
     svgOverlay,
     contentId,
-    areaStats
+    areaStats,
+    svgHeight: svgHeightOverride
 }: BaseDrawingFrameProps) {
     const patternId = useId().replace(/:/g, '');
 
-    const metrics = calculateDrawingMetrics(width, height, fitContainer);
+    const metrics = calculateDrawingMetrics(width, height, fitContainer, svgHeightOverride);
     const { SVG_WIDTH, SVG_HEIGHT, rectW, rectH, startX, startY, pxPerMm, drawW, drawH } = metrics;
 
     // Style Constants from Shared Source

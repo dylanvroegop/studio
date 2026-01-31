@@ -150,22 +150,36 @@ export function VisualizerController({
         (fields && fields.some(f => f.key === 'balkafstand'));
 
     if (slug.includes('boeiboord')) {
+        const toNum = (v: any, fb = 0) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || fb);
+        const vzLengte = toNum(item.lengte);
+        const vzHoogte = toNum(item.hoogte);
+        const ozLengte = toNum(item.lengte_onderzijde) || vzLengte;
+        const ozBreedte = toNum(item.breedte);
+        const balkNum = toNum(item.balkafstand, 600);
+        const latVz = toNum(item.latafstand, 300);
+        const latOz = toNum(item.onderzijde_latafstand) || latVz;
+
         return (
-            <BoeiboordDrawing
-                lengte={item.lengte}
-                hoogte={item.hoogte} // Voorzijde
-                breedte={item.breedte} // Onderzijde
-                balkafstand={item.balkafstand}
-                latafstand={item.latafstand}
-                onderzijde_latafstand={item.onderzijde_latafstand}
-                className={className}
-                fitContainer={fitContainer}
-                onDataGenerated={props.onDataGenerated}
-                title={props.title}
-                showKopkanten={item.kopkanten}
-                startLattenFromBottom={item.startLattenFromBottom}
-                doubleEndBattens={item.doubleEndBattens}
-            />
+            <div className="flex flex-col gap-4">
+                <BoeiboordDrawing
+                    lengte={vzLengte}
+                    hoogte={vzHoogte}
+                    balkafstand={balkNum}
+                    latafstand={latVz}
+                    title="Voorzijde"
+                    startLattenFromBottom={item.startLattenFromBottom}
+                    doubleEndBattens={item.doubleEndBattens}
+                />
+                <BoeiboordDrawing
+                    lengte={ozLengte}
+                    hoogte={ozBreedte}
+                    balkafstand={balkNum}
+                    latafstand={latOz}
+                    title="Onderzijde"
+                    startLattenFromBottom={item.startLattenFromBottom}
+                    doubleEndBattens={item.doubleEndBattens}
+                />
+            </div>
         );
     }
 

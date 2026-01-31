@@ -62,6 +62,13 @@ export function MeasurementInput({
         const parsed = parseFloat(newVal);
         if (!isNaN(parsed)) {
             const mmVal = convertToMm(parsed);
+            if (mmVal > 99999) {
+                const clamped = 99999;
+                const clampedDisplay = parseFloat(convertFromMm(clamped).toFixed(precision)).toString();
+                setDisplayValue(clampedDisplay);
+                onChange(clamped);
+                return;
+            }
             onChange(mmVal);
         }
     };
