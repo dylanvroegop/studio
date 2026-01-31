@@ -29,8 +29,9 @@ interface BalkenSectionProps {
     isWallCategory: boolean;
     jobSlug: string; // for surroundingBeams logic
 
-    // Field definition for balkafstand (if we want to use DynamicInput logic or similar)
-    // For now I will just use MeasurementInput for balkafstand to simplify dependency
+    // Persistence
+    isCollapsed?: boolean;
+    onToggleCollapsed?: () => void;
 }
 
 export function BalkenSection({
@@ -43,15 +44,26 @@ export function BalkenSection({
     optionsConfig,
     onUpdate,
     isWallCategory,
-    jobSlug
+    jobSlug,
+    isCollapsed: propsIsCollapsed,
+    onToggleCollapsed
 }: BalkenSectionProps) {
-    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [localIsCollapsed, setLocalIsCollapsed] = useState(true);
+    const isCollapsed = propsIsCollapsed !== undefined ? propsIsCollapsed : localIsCollapsed;
+
+    const handleToggle = () => {
+        if (onToggleCollapsed) {
+            onToggleCollapsed();
+        } else {
+            setLocalIsCollapsed(!localIsCollapsed);
+        }
+    };
 
     return (
         <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
             <div
                 className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                onClick={() => setIsCollapsed(!isCollapsed)}
+                onClick={handleToggle}
             >
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-zinc-200">Balken</span>

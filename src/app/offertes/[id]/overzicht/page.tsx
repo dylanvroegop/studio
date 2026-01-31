@@ -554,9 +554,12 @@ export default function OverzichtPage() {
             const werkwijze = container.werkwijze ?? null;
             const kleinMateriaal = container.kleinMateriaal ?? null;
             const meta = container.meta ?? null;
+            const maatwerk = container.maatwerk ?? null;
+            const maatwerkMeta = maatwerk?.meta ?? null;
 
             const jobKey =
               (materialen?.jobKey as string | undefined) ||
+              (maatwerkMeta?.slug as string | undefined) ||
               (meta?.slug as string | undefined) ||
               (meta?.jobKey as string | undefined) ||
               (klusinformatie?.slug as string | undefined) ||
@@ -569,6 +572,7 @@ export default function OverzichtPage() {
               klusId,
               jobKey,
               meta,
+              maatwerk,
               klusinformatie,
               materialen,
               werkwijze,
@@ -1171,6 +1175,7 @@ export default function OverzichtPage() {
   const openDeleteDialogForJob = (job: any) => {
     const rawKey =
       job?.klusinformatie?.title?.trim?.() ||
+      job?.maatwerk?.meta?.title?.trim?.() ||
       job?.meta?.title?.trim?.() ||
       job?.materialen?.jobKey?.trim?.() ||
       job?.jobKey ||
@@ -1864,6 +1869,7 @@ export default function OverzichtPage() {
               {jobs.map((job: any, index: number) => {
                 const rawKey =
                   job?.klusinformatie?.title?.trim?.() ||
+                  job?.maatwerk?.meta?.title?.trim?.() ||
                   job?.meta?.title?.trim?.() ||
                   job?.materialen?.jobKey?.trim?.() ||
                   job?.jobKey ||
@@ -1881,14 +1887,17 @@ export default function OverzichtPage() {
 
                 const isComplete = jobIsComplete(job);
 
+                const maatwerkMeta = job?.maatwerk?.meta;
                 const type =
                   job?.klusinformatie?.type ||
                   job?.materialen?.jobType ||
+                  maatwerkMeta?.type ||
                   job?.meta?.type ||
                   'wanden';
 
                 const slug =
                   job?.materialen?.jobSlug ||
+                  maatwerkMeta?.slug ||
                   job?.meta?.slug ||
                   slugify(title);
 

@@ -161,6 +161,21 @@ function formatNlMoneyFromNumber(n: number | null | undefined): string {
   const withDots = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${withDots},${d}`;
 }
+const BLOCKLIST = ['isFavorite', 'sectionKey', 'quantity', '_raw', 'created_at', 'id'];
+
+function cleanMaterialData(v: any) {
+  if (!v) return null;
+  const source = v._raw || v;
+  const clean: any = {};
+  Object.keys(source).forEach(prop => {
+    if (BLOCKLIST.includes(prop)) return;
+    const val = source[prop];
+    if (val === null || val === undefined || val === '') return;
+    clean[prop] = val;
+  });
+  if (!clean.materiaalnaam && v.materiaalnaam) clean.materiaalnaam = v.materiaalnaam;
+  return Object.keys(clean).length > 0 ? clean : null;
+}
 
 function EuroInput({ id, value, onChange, placeholder = '0,00', disabled }: any) {
   const [focused, setFocused] = useState(false);
@@ -666,6 +681,14 @@ export default function GenericMaterialsPageRedesigned() {
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [addExtraMaterialOpen, setAddExtraMaterialOpen] = useState(false);
   const [newExtraMaterialTitle, setNewExtraMaterialTitle] = useState('');
+
+  // Missing price dialog
+  const [missingPriceItems, setMissingPriceItems] = useState<any[]>([]);
+  const [showMissingPriceDialog, setShowMissingPriceDialog] = useState(false);
+  const [pendingNavigateTo, setPendingNavigateTo] = useState<string | null>(null);
+  const [missingPriceInputs, setMissingPriceInputs] = useState<Record<string, string>>({});
+  const [missingPriceSaved, setMissingPriceSaved] = useState<Record<string, boolean>>({});
+  const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [components, setComponents] = useState<JobComponent[]>([]);
 
   // Calculate which component types are active for this job configuration
@@ -710,6 +733,7 @@ export default function GenericMaterialsPageRedesigned() {
   const [activeComponentType, setActiveComponentType] = useState<string | null>(null);
   const [activeComponentId, setActiveComponentId] = useState<string | null>(null);
   const [editingComponentId, setEditingComponentId] = useState<string | null>(null); // For JobComponentsManager control
+  const [pendingMeasurementQueue, setPendingMeasurementQueue] = useState<string[]>([]); // IDs of components needing measurements after preset load
 
   const [klus, setKlus] = useState<Job | null>(null);
   const [notities, setNotities] = useState('');
@@ -957,10 +981,48 @@ export default function GenericMaterialsPageRedesigned() {
 
         if (klusNode) setKlus(klusNode as unknown as Job);
 
-        let currentComponents: JobComponent[] = klusNode?.components && Array.isArray(klusNode.components) ? klusNode.components : [];
+        const maatwerkNode = klusNode?.maatwerk;
+        const materialenLijstNode = klusNode?.materialen?.materialen_lijst || {};
+
+        // Reconstruct components from maatwerk.toevoegingen + materialen_lijst
+        const toevoegingen = maatwerkNode?.toevoegingen || [];
+        let currentComponents: JobComponent[];
+
+        if (Array.isArray(toevoegingen) && toevoegingen.length > 0) {
+          currentComponents = toevoegingen.map((t: any, idx: number) => {
+            const compId = t.id || `toevoeging_${idx}`;
+
+            // Reconstruct materials from materialen_lijst entries with comp_ prefix
+            const compMaterials: any[] = [];
+            Object.entries(materialenLijstNode).forEach(([key, entry]: [string, any]) => {
+              if (key.startsWith(`comp_${compId}_`)) {
+                compMaterials.push({
+                  sectionKey: entry.sectionKey,
+                  material: entry.material,
+                });
+              }
+            });
+
+            return {
+              id: compId,
+              type: t.type,
+              label: t.label,
+              measurements: t.afmetingen || {},
+              materials: compMaterials,
+              slug: t.slug,
+            } as JobComponent;
+          });
+        } else if (Array.isArray(klusNode?.components) && klusNode.components.length > 0) {
+          // Fallback: legacy components field for old data
+          currentComponents = klusNode.components;
+        } else {
+          currentComponents = [];
+        }
 
         // Sync Openings from Measurement Data
-        const maatwerkItems = klusNode?.[`${jobSlug}_maatwerk`] || klusNode?.maatwerk || [];
+        const maatwerkItems = (maatwerkNode && typeof maatwerkNode === 'object' && !Array.isArray(maatwerkNode))
+          ? (maatwerkNode.basis || maatwerkNode.items || [])
+          : (klusNode?.[`${jobSlug}_maatwerk`] || (Array.isArray(maatwerkNode) ? maatwerkNode : []));
         if (Array.isArray(maatwerkItems)) {
           const openings = maatwerkItems.flatMap((item: any) => item.openings || []);
 
@@ -1246,6 +1308,23 @@ export default function GenericMaterialsPageRedesigned() {
     }
   }, [isPresetsLaden, presets, gekozenPresetId, customGroups.length, isPaginaLaden]);
 
+  // Helper: Check if a component has incomplete (missing/zero) measurements
+  const getComponentsWithIncompleteMeasurements = useCallback((comps: JobComponent[]): string[] => {
+    return comps.filter(comp => {
+      const config = COMPONENT_REGISTRY[comp.type];
+      if (!config || !config.measurements || config.measurements.length === 0) return false;
+
+      const requiredFields = config.measurements.filter(f => !f.optional && f.type === 'number');
+      if (requiredFields.length === 0) return false;
+
+      const measurements = (comp as any)[`measurements_${comp.type}`] || comp.measurements || {};
+      return requiredFields.some(field => {
+        const val = measurements[field.key];
+        return val === undefined || val === null || val === '' || val === 0;
+      });
+    }).map(c => c.id);
+  }, []);
+
   // Apply Preset Logic
   useEffect(() => {
     if (gekozenPresetId === 'default') {
@@ -1258,6 +1337,7 @@ export default function GenericMaterialsPageRedesigned() {
         setFirestoreCustommateriaal(null);
         setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
         setComponents([]);
+        setPendingMeasurementQueue([]);
         setIsApplyingPreset(false); // Reset loading state
       }
       return;
@@ -1285,14 +1365,40 @@ export default function GenericMaterialsPageRedesigned() {
       if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
 
       // Handle components (Kozijnen, Deuren, etc.)
-      let finalComponents = components;
-      // Only overwrite if preset actually has components defined and is NOT empty
-      // AND if we don't already have components (e.g. from measurements)
-      if (components.length === 0 && preset.components && Array.isArray(preset.components) && preset.components.length > 0) {
-        finalComponents = preset.components;
-        setComponents(finalComponents);
+      // Merge preset components with existing ones (from measurements/openings)
+      let finalComponents = [...components];
+      if (preset.components && Array.isArray(preset.components) && preset.components.length > 0) {
+        const existingIds = new Set(components.map(c => c.id));
+        const existingTypes = new Set(components.map(c => c.type));
+        const toAdd = preset.components.filter((pc: JobComponent) => {
+          // Skip if exact ID already exists (e.g. re-applying same preset)
+          if (existingIds.has(pc.id)) return false;
+          // Skip if a component of this type already exists from measurements (opening-derived)
+          // but only for types that are typically derived from openings (kozijn, deur, dagkant)
+          const openingDerivedTypes = ['kozijn', 'deur', 'dagkant'];
+          if (openingDerivedTypes.includes(pc.type) && existingTypes.has(pc.type)) return false;
+          return true;
+        }).map((pc: JobComponent) => {
+          // Clear measurements so the user is forced to re-enter them for this job.
+          // Preset defines WHAT components are needed, not the dimensions.
+          const config = COMPONENT_REGISTRY[pc.type];
+          const hasRequiredMeasurements = config?.measurements?.some((f: any) => !f.optional && f.type === 'number');
+          if (hasRequiredMeasurements) {
+            const cleared: JobComponent = {
+              ...pc,
+              id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+              measurements: {},
+              [`measurements_${pc.type}`]: {},
+            };
+            return cleared;
+          }
+          return { ...pc, id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2) };
+        });
+        if (toAdd.length > 0) {
+          finalComponents = [...finalComponents, ...toAdd];
+          setComponents(finalComponents);
+        }
       }
-      // Else: Keep existing components (from measurements); do not clear them.
 
       // Calculate hidden categories - Ensure active component categories are visible
       const newHidden = preset.hiddenCategories ? { ...preset.hiddenCategories } : {};
@@ -1304,20 +1410,52 @@ export default function GenericMaterialsPageRedesigned() {
         else if (comp.type === 'dagkant') cat = 'Dagkant';
         else if (comp.type === 'vensterbank') cat = 'Vensterbank';
         else if (comp.type === 'vlizotrap') cat = 'Toegang';
+        else if (comp.type === 'leidingkoof') cat = 'Koof';
 
         if (cat) newHidden[cat] = false; // Force show
       });
 
       setHiddenCategories(newHidden);
 
+      // Measurement validation: queue components with incomplete measurements
+      const incompleteIds = getComponentsWithIncompleteMeasurements(finalComponents);
+      if (incompleteIds.length > 0) {
+        setPendingMeasurementQueue(incompleteIds);
+      }
+
       // Unlock
-      setIsApplyingPreset(false);
       setIsApplyingPreset(false);
       autoApplyDefaultPresetRef.current = false; // Reset trigger
     }, 100);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gekozenPresetId, presets, alleMaterialen]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
+
+  // Measurement validation queue: open the modal for the first incomplete component
+  useEffect(() => {
+    if (pendingMeasurementQueue.length === 0 || isApplyingPreset || isPaginaLaden) return;
+
+    const nextId = pendingMeasurementQueue[0];
+    const comp = components.find(c => c.id === nextId);
+    if (!comp) {
+      setPendingMeasurementQueue(prev => prev.slice(1));
+      return;
+    }
+
+    const stillIncomplete = getComponentsWithIncompleteMeasurements([comp]);
+    if (stillIncomplete.length === 0) {
+      setPendingMeasurementQueue(prev => prev.slice(1));
+      return;
+    }
+
+    // Delay to ensure the category section is rendered (unhidden) before opening the dialog
+    const timer = setTimeout(() => {
+      setActiveComponentType(comp.type);
+      setEditingComponentId(comp.id);
+      setKozijnenModalOpen(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [pendingMeasurementQueue, isApplyingPreset, isPaginaLaden, components, getComponentsWithIncompleteMeasurements]);
 
   // Fail-safe: Ensure categories with components are always visible
   // This overrides any preset trying to hide them
@@ -1793,102 +1931,97 @@ export default function GenericMaterialsPageRedesigned() {
 
       const materialenLijst: Record<string, any> = {};
 
-      const BLOCKLIST = ['isFavorite', 'sectionKey', 'quantity', '_raw', 'created_at'];
+      // 1. Unified Material Map Construction
 
-      // 1. Standard Selections
+      // A. Standard Selections (Base Job)
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
-        if (k.startsWith('component_')) return; // Ignore legacy flat components
-        if (v) {
+        if (k.startsWith('component_')) return;
+        const cleaned = cleanMaterialData(v);
+        if (cleaned) {
           materialenLijst[k] = {
             sectionKey: k,
-            material: (() => {
-              // Priority: Use raw Supabase data if available to ensure exact DB fidelity
-              const source = v._raw || v;
-              const clean: any = {};
-
-              Object.keys(source).forEach(prop => {
-                if (BLOCKLIST.includes(prop)) return;
-                const val = source[prop];
-                // Skip null/undefined/empty string
-                if (val === null || val === undefined || val === '') return;
-                clean[prop] = val;
-              });
-
-              // Ensure name is set (fallback to UI name if raw name is missing, unlikely)
-              if (!clean.materiaalnaam && v.materiaalnaam) clean.materiaalnaam = v.materiaalnaam;
-
-              return clean;
-            })()
+            material: cleaned,
+            context: JOB_TITEL
           };
         }
       });
 
-      // 2. Custom Groups (Merged into materialen_lijst)
-      // We use the bouwCustommateriaalMapUitCustomGroups helper, but need to strip IDs
-      // and ensure we keep 'title' and 'order' for reconstruction
+      // B. Custom Groups (Extra Materials)
       const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
       Object.entries(customMap).forEach(([gid, cm]: [string, any]) => {
-        materialenLijst[gid] = {
-          // Flattened save for custom groups
-          ...(() => {
-            const clean: any = {};
-            Object.keys(cm).forEach(prop => {
-              if (BLOCKLIST.includes(prop)) return;
-              const val = cm[prop];
-              if (val !== null && val !== undefined && val !== '') clean[prop] = val;
-            });
-            return clean;
-          })(),
-          title: cm.title // Ensure title works for grouping
-        };
+        const cleaned = cleanMaterialData(cm);
+        if (cleaned) {
+          materialenLijst[gid] = {
+            material: cleaned,
+            title: cm.title,
+            context: JOB_TITEL,
+            type: 'custom_group'
+          };
+        }
       });
 
-      const updatePayload: any = {
-        // Deep clean components to remove metadata like 'aangemaakt_op', 'gebruikerid', etc.
-        [`klussen.${klusId}.components`]: JSON.parse(JSON.stringify(components.map(c => ({
-          ...c,
-          materials: (c.materials || []).map((m: any) => {
-            // Keep structure but clean the inner 'material' object
-            if (!m.material) return m;
+      // C. Component Materials (Rich Data & Labeled)
+      // We both save them in the special list for AI AND keep them in the components for UI
+      const mappedComponents = components.map(c => {
+        const componentMaterials = (c.materials || []).map((m: any, idx: number) => {
+          if (!m.material) return m;
 
-            // Format price: "9.3 p/m2"
-            const rawPrice = typeof m.material.prijs === 'number' ? m.material.prijs : 0;
-            const unit = m.material.eenheid || '';
-            const formattedPrice = unit ? `${rawPrice} ${unit}` : rawPrice; // Use rawPrice number if no unit, or string if unit exists? User wants "9.3 p/m2" which is a string.
-
-            return {
+          const cleaned = cleanMaterialData(m.material);
+          if (cleaned) {
+            // Push to main list for AI/Overview
+            const globalKey = `comp_${c.id}_${m.sectionKey || idx}`;
+            materialenLijst[globalKey] = {
+              material: cleaned,
               sectionKey: m.sectionKey,
-              material: {
-                materiaalnaam: m.material.materiaalnaam || '',
-                prijs: formattedPrice,
-                // We keep 'prijs_per_stuk' just in case, but cleaned
-                prijs_per_stuk: m.material.prijs_per_stuk || 0,
-                // We remove id, row_id, etc.
-              }
+              context: c.label || c.type,
+              type: 'component_material'
             };
-          })
-        })))),
+          }
+
+          return {
+            sectionKey: m.sectionKey,
+            material: cleaned
+          };
+        });
+
+        return { ...c, materials: componentMaterials };
+      });
+
+      const maatwerkKey = `${jobSlug}_maatwerk`;
+      const baseItems = updatedMaatwerkData ? updatedMaatwerkData.items : ((klus as any)?.[maatwerkKey] || (klus as any)?.maatwerk?.basis || (klus as any)?.maatwerk?.items || []);
+
+      const updatePayload: any = {
+        [`klussen.${klusId}.maatwerk`]: JSON.parse(JSON.stringify({
+          basis: baseItems,
+          toevoegingen: mappedComponents.map((c: any) => ({
+            id: c.id,
+            type: c.type,
+            label: c.label,
+            slug: c.slug,
+            afmetingen: c.measurements || {}
+          })),
+          notities: notities ?? "",
+          meta: (klus as any)?.maatwerk?.meta || undefined,
+        })),
+        [`klussen.${klusId}.components`]: deleteField(),
         [`klussen.${klusId}.materialen.jobKey`]: JOB_KEY,
-
-        // The new clean list
         [`klussen.${klusId}.materialen.materialen_lijst`]: JSON.parse(JSON.stringify(materialenLijst)),
-
         [`klussen.${klusId}.materialen.savedByUid`]: user.uid,
         [`klussen.${klusId}.materialen.savedAt`]: serverTimestamp(),
 
-        // CLEANUP: Removing old dirty fields
+        // CLEANUP: Removing old dirty/legacy fields
+        [`klussen.${klusId}.${maatwerkKey}`]: deleteField(),
         [`klussen.${klusId}.materialen.selections`]: deleteField(),
         [`klussen.${klusId}.materialen.custommateriaal`]: deleteField(),
         [`klussen.${klusId}.materialen.extraMaterials`]: deleteField(),
 
         [`klussen.${klusId}.werkwijze`]: JSON.parse(JSON.stringify({
           workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
-          // presetLabel removed to prevent AI confusion (Solution 1)
           savedByUid: user.uid
         })),
-        [`klussen.${klusId}.uiState.collapsedSections`]: collapsedSections,
-        [`klussen.${klusId}.uiState.hiddenCategories`]: hiddenCategories,
-        [`klussen.${klusId}.material_notities`]: notities,
+        [`klussen.${klusId}.uiState.collapsedSections`]: JSON.parse(JSON.stringify(collapsedSections ?? {})),
+        [`klussen.${klusId}.uiState.hiddenCategories`]: JSON.parse(JSON.stringify(hiddenCategories ?? {})),
+        [`klussen.${klusId}.material_notities`]: notities ?? "",
         [`klussen.${klusId}.updatedAt`]: serverTimestamp()
       };
 
@@ -1902,11 +2035,6 @@ export default function GenericMaterialsPageRedesigned() {
           cleanKlein.fixedAmount = kleinMateriaalConfig.fixedAmount;
         }
         updatePayload[`klussen.${klusId}.kleinMateriaal`] = cleanKlein;
-      }
-
-      // Add updated maatwerk with beam dimensions if calculated
-      if (typeof updatedMaatwerkData !== 'undefined' && updatedMaatwerkData) {
-        updatePayload[`klussen.${klusId}.${updatedMaatwerkData.key}`] = JSON.parse(JSON.stringify(updatedMaatwerkData.items));
       }
 
       await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
@@ -1946,9 +2074,74 @@ export default function GenericMaterialsPageRedesigned() {
     notities
   ]);
 
-  const handleNext = (e: React.MouseEvent) => {
+  const handleNext = async (e: React.MouseEvent) => {
     e.preventDefault();
-    saveToFirestore({ navigateTo: `/offertes/${quoteId}/overzicht` });
+
+    // Block save if any component has incomplete measurements
+    const incompleteIds = getComponentsWithIncompleteMeasurements(components);
+    if (incompleteIds.length > 0) {
+      const firstComp = components.find(c => c.id === incompleteIds[0]);
+      if (firstComp) {
+        const config = COMPONENT_REGISTRY[firstComp.type];
+        toast({
+          variant: 'destructive',
+          title: 'Afmetingen ontbreken',
+          description: `Vul de afmetingen in voor ${config?.title || firstComp.label} voordat je opslaat.`,
+        });
+        // Open the measurement popup for the first incomplete component
+        setActiveComponentType(firstComp.type);
+        setEditingComponentId(firstComp.id);
+        setKozijnenModalOpen(true);
+      }
+      return;
+    }
+
+    const navigateTo = `/offertes/${quoteId}/overzicht`;
+
+    // Save to Firestore first (without navigation)
+    await saveToFirestore({});
+
+    // Collect all selected materials
+    const allMaterials: any[] = [];
+    const seenNames = new Set<string>();
+
+    // 1. Standard selections from gekozenMaterialen
+    Object.values(gekozenMaterialen).forEach((v: any) => {
+      if (!v) return;
+      const source = v._raw || v;
+      const name = source.materiaalnaam || v.materiaalnaam;
+      if (!name || seenNames.has(name)) return;
+      seenNames.add(name);
+      allMaterials.push(source);
+    });
+
+    // 2. Component materials
+    components.forEach((comp) => {
+      (comp.materials || []).forEach((m: any) => {
+        const mat = m.material || m;
+        const name = mat.materiaalnaam;
+        if (!name || seenNames.has(name)) return;
+        seenNames.add(name);
+        allMaterials.push(mat);
+      });
+    });
+
+    // Filter to those missing a price
+    const missing = allMaterials.filter((m) => {
+      const price = m.prijs_incl_btw ?? m.prijs ?? m.prijs_per_stuk ?? 0;
+      const numPrice = typeof price === 'number' ? price : parseFloat(String(price)) || 0;
+      return numPrice === 0;
+    });
+
+    if (missing.length > 0) {
+      setMissingPriceItems(missing);
+      setMissingPriceInputs({});
+      setMissingPriceSaved({});
+      setPendingNavigateTo(navigateTo);
+      setShowMissingPriceDialog(true);
+    } else {
+      router.push(navigateTo);
+    }
   };
 
   const handleBack = (e: React.MouseEvent) => {
@@ -2188,6 +2381,10 @@ export default function GenericMaterialsPageRedesigned() {
                                 if (!open) {
                                   setEditingComponentId(null);
                                   setActiveComponentType(null);
+                                  // Advance the measurement validation queue
+                                  if (pendingMeasurementQueue.length > 0) {
+                                    setPendingMeasurementQueue(prev => prev.slice(1));
+                                  }
                                 }
                               }}
                               renderList={false}
@@ -2776,6 +2973,138 @@ export default function GenericMaterialsPageRedesigned() {
           setIsExtraModalOpen(false);
         }}
       />
+
+      {/* Missing Price Dialog */}
+      <Dialog open={showMissingPriceDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowMissingPriceDialog(false);
+          setPendingNavigateTo(null);
+        }
+      }}>
+        <DialogContent className={cn('max-w-lg w-full max-h-[80vh] overflow-y-auto', DIALOG_CLOSE_TAP)}>
+          <DialogHeader>
+            <DialogTitle>Materialen zonder prijs</DialogTitle>
+            <DialogDescription>
+              De volgende materialen hebben nog geen prijs. Vul de prijs per stuk in.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {missingPriceItems.map((item, idx) => {
+              const name = item.materiaalnaam || `Materiaal ${idx + 1}`;
+              return (
+                <div key={name} className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{name}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm text-muted-foreground">€</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      className="w-24 h-9"
+                      value={missingPriceInputs[name] ?? ''}
+                      onChange={(e) => {
+                        setMissingPriceInputs(prev => ({ ...prev, [name]: e.target.value }));
+                        // Clear saved state if user changes value
+                        if (missingPriceSaved[name]) {
+                          setMissingPriceSaved(prev => ({ ...prev, [name]: false }));
+                        }
+                      }}
+                      disabled={isSavingPrices}
+                    />
+                    {missingPriceSaved[name] && (
+                      <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              disabled={isSavingPrices}
+              onClick={() => {
+                setShowMissingPriceDialog(false);
+                if (pendingNavigateTo) router.push(pendingNavigateTo);
+              }}
+            >
+              Overslaan
+            </Button>
+            <Button
+              variant="success"
+              disabled={isSavingPrices}
+              onClick={async () => {
+                setIsSavingPrices(true);
+                try {
+                  const token = await user!.getIdToken();
+                  const entriesToSave = Object.entries(missingPriceInputs).filter(
+                    ([, val]) => val !== '' && parseFloat(val) > 0
+                  );
+
+                  for (const [materiaalnaam, prijs] of entriesToSave) {
+                    try {
+                      const res = await fetch('/api/materialen/update-price', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                          materiaalnaam,
+                          prijs_incl_btw: parseFloat(prijs),
+                        }),
+                      });
+                      const json = await res.json();
+                      if (json.ok) {
+                        setMissingPriceSaved(prev => ({ ...prev, [materiaalnaam]: true }));
+                        // Update local gekozenMaterialen state
+                        setGekozenMaterialen(prev => {
+                          const updated = { ...prev };
+                          for (const [k, v] of Object.entries(updated)) {
+                            if (!v) continue;
+                            const source = (v as any)._raw || v;
+                            if (source.materiaalnaam === materiaalnaam) {
+                              const newVal = { ...v as any };
+                              newVal.prijs_incl_btw = parseFloat(prijs);
+                              if (newVal._raw) newVal._raw = { ...newVal._raw, prijs_incl_btw: parseFloat(prijs) };
+                              updated[k] = newVal;
+                            }
+                          }
+                          return updated;
+                        });
+                      }
+                    } catch (err) {
+                      console.error(`Failed to update price for ${materiaalnaam}:`, err);
+                    }
+                  }
+
+                  setShowMissingPriceDialog(false);
+                  if (pendingNavigateTo) router.push(pendingNavigateTo);
+                } catch (err) {
+                  console.error('Error saving prices:', err);
+                  toast({ variant: 'destructive', title: 'Fout', description: 'Kon prijzen niet opslaan.' });
+                } finally {
+                  setIsSavingPrices(false);
+                }
+              }}
+            >
+              {isSavingPrices ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Opslaan...
+                </>
+              ) : (
+                'Opslaan & Volgende'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

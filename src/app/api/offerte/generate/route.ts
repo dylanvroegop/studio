@@ -80,19 +80,27 @@ export async function POST(req: Request) {
     const quote = await haalQuoteOp(db, quoteId) as any;
 
     try {
-      // 1. Collect all Material IDs to fetch
+      // ─── 1. Collect ALL Material IDs from every source ───
       const materialIdsToBeFetched = new Set<string>();
       if (quote.klussen) {
         Object.values(quote.klussen).forEach((job: any) => {
+          // From legacy selections
           if (job?.materialen?.selections) {
             Object.values(job.materialen.selections).forEach((sel: any) => {
               if (sel?.id) materialIdsToBeFetched.add(sel.id);
             });
           }
+          // From new materialen_lijst
+          if (job?.materialen?.materialen_lijst) {
+            Object.values(job.materialen.materialen_lijst).forEach((entry: any) => {
+              if (entry?.material?.id) materialIdsToBeFetched.add(entry.material.id);
+            });
+          }
+          // Component materials are already included in materialen_lijst with comp_ prefix keys
         });
       }
 
-      // 2. Fetch full material details from Supabase (if we have IDs)
+      // ─── 2. Fetch full material details from Supabase ───
       let materialMap = new Map<string, any>();
       if (materialIdsToBeFetched.size > 0 && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         try {
@@ -109,12 +117,13 @@ export async function POST(req: Request) {
 
           if (!error && materials) {
             materials.forEach((m: any) => {
-              // Ensure numeric price
               const pr = typeof m.prijs === 'number' ? m.prijs : Number(m.prijs);
               const prStuk = typeof m.prijs_per_stuk === 'number' ? m.prijs_per_stuk : Number(m.prijs_per_stuk);
-              // Use row_id as key since Firestore stores Supabase row_id as 'id'
-              // The materialMap key must match the 'id' from Firestore (which is actually row_id from Supabase)
-              materialMap.set(m.row_id, { ...m, prijs: isNaN(pr) ? 0 : pr, prijs_per_stuk: isNaN(prStuk) ? 0 : prStuk });
+              materialMap.set(m.row_id, {
+                ...m,
+                prijs: isNaN(pr) ? 0 : pr,
+                prijs_per_stuk: isNaN(prStuk) ? 0 : prStuk
+              });
             });
           }
         } catch (err) {
@@ -122,78 +131,209 @@ export async function POST(req: Request) {
         }
       }
 
-      // 3. Process Jobs: Flatten, Enrich Materials, Convert Dimensions
+      // ─── Helper: Convert dimension values to numbers ───
+      const NUMERIC_DIMENSION_KEYS = [
+        'lengte', 'hoogte', 'diepte', 'breedte',
+        'lengte1', 'lengte2', 'lengte3',
+        'hoogte1', 'hoogte2', 'hoogte3',
+        'hoogteLinks', 'hoogteRechts', 'hoogteNok',
+        'hoogteZijkant', 'balkafstand', 'latafstand'
+      ];
+
+      const convertDimensions = (items: any[]) => {
+        if (!Array.isArray(items)) return [];
+        return items.map((item: any) => {
+          const newItem = { ...item };
+          NUMERIC_DIMENSION_KEYS.forEach(key => {
+            if (newItem[key] !== undefined && newItem[key] !== null && newItem[key] !== '') {
+              const parsed = Number(newItem[key]);
+              if (!isNaN(parsed)) newItem[key] = parsed;
+            }
+          });
+          if (Array.isArray(newItem.openings)) {
+            newItem.openings = newItem.openings.map((op: any) => {
+              const newOp = { ...op };
+              ['width', 'height', 'fromLeft', 'fromBottom'].forEach(k => {
+                if (newOp[k] !== undefined) newOp[k] = Number(newOp[k]);
+              });
+              return newOp;
+            });
+          }
+          return newItem;
+        });
+      };
+
+      // ─── Helper: Enrich a single material entry with Supabase data ───
+      const enrichMaterial = (entry: any) => {
+        const mat = entry?.material;
+        if (mat?.id && materialMap.has(mat.id)) {
+          const full = materialMap.get(mat.id);
+          return {
+            ...entry,
+            material: {
+              id: full.row_id,
+              materiaalnaam: full.materiaalnaam,
+              categorie: full.categorie,
+              eenheid: full.eenheid,
+              leverancier: full.leverancier,
+              prijs: full.prijs,
+              prijs_per_stuk: full.prijs_per_stuk,
+              dikte: full.dikte ?? null,
+              breedte: full.breedte ?? null,
+            }
+          };
+        }
+        return entry;
+      };
+
+      // ─── 3. Process Jobs: Build clean Geometry + Inventory per job ───
       const jobArray = quote.klussen
         ? Object.values(quote.klussen)
           .map((job: any) => {
             const { uiState, ...rest } = job;
             const enrichedJob = { ...rest };
 
-            // A. Enrich Materials
-            if (enrichedJob.materialen?.selections) {
-              const enrichedSelections: any = {};
-              Object.entries(enrichedJob.materialen.selections).forEach(([key, val]: [string, any]) => {
-                if (val?.id && materialMap.has(val.id)) {
-                  // Inject full details (Name, Price, Unit)
-                  enrichedSelections[key] = materialMap.get(val.id);
-                } else {
-                  // Fallback to existing
-                  enrichedSelections[key] = val;
-                }
-              });
-              enrichedJob.materialen.selections = enrichedSelections;
-            }
-
-            // B. Force Dimensions to Numbers
             const maatwerkObj = enrichedJob.maatwerk;
-            const maatwerkItems = (maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj))
-              ? (maatwerkObj as any).items
-              : (Array.isArray(maatwerkObj) ? maatwerkObj : []);
+            const jobTitle = enrichedJob.meta?.title || "Basis klus";
 
-            if (Array.isArray(maatwerkItems) && maatwerkItems.length > 0) {
-              const convertedItems = maatwerkItems.map((item: any) => {
-                const newItem = { ...item };
-                const numericKeys = [
-                  'lengte', 'hoogte', 'diepte', 'breedte',
-                  'lengte1', 'lengte2', 'lengte3',
-                  'hoogte1', 'hoogte2', 'hoogte3',
-                  'hoogteLinks', 'hoogteRechts', 'hoogteNok',
-                  'hoogteZijkant', 'balkafstand', 'latafstand'
-                ];
+            // ═══════════════════════════════════════════
+            // A. GEOMETRY MAP (maatwerk) — Pure dimensions
+            // ═══════════════════════════════════════════
 
-                numericKeys.forEach(key => {
-                  if (newItem[key] !== undefined && newItem[key] !== null && newItem[key] !== '') {
-                    const parsed = Number(newItem[key]);
-                    if (!isNaN(parsed)) newItem[key] = parsed;
-                  }
-                });
+            // A1. Basis items (main segments)
+            const basisItems = maatwerkObj?.basis
+              || maatwerkObj?.items
+              || ((maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj))
+                ? (maatwerkObj as any).items : null)
+              || (Array.isArray(maatwerkObj) ? maatwerkObj : []);
 
-                if (Array.isArray(newItem.openings)) {
-                  newItem.openings = newItem.openings.map((op: any) => {
-                    const newOp = { ...op };
-                    ['width', 'height', 'fromLeft', 'fromBottom'].forEach(k => {
-                      if (newOp[k] !== undefined) newOp[k] = Number(newOp[k]);
-                    });
-                    return newOp;
+            const convertedBasis = convertDimensions(basisItems);
+
+            // A2. Toevoegingen (components → pure geometry with semantic keys)
+            const rawComponents = (maatwerkObj as any)?.toevoegingen || [];
+
+            const cleanToevoegingen = Array.isArray(rawComponents) ? rawComponents.map((c: any) => {
+              const cleanAfmetingen: any = {};
+              const source = c.measurements || c.afmetingen || {};
+
+              Object.keys(source).forEach(k => {
+                if (k === 'subtitle' || k === '_variantMode') return;
+                let val = source[k];
+                if (typeof val === 'string') {
+                  const n = parseFloat(val.replace(',', '.'));
+                  if (!isNaN(n)) val = n;
+                }
+                // Semantic key prefixing: 'leidingkoof_hoogte' instead of 'hoogte'
+                const semanticKey = (k.startsWith(c.type) || k.includes('_')) ? k : `${c.type}_${k}`;
+                cleanAfmetingen[semanticKey] = val;
+              });
+
+              return {
+                type: c.type,
+                label: c.label || c.type,
+                afmetingen: cleanAfmetingen
+              };
+            }) : [];
+
+            enrichedJob.maatwerk = {
+              basis: {
+                omschrijving: `Hoofdberekening voor ${jobTitle}`,
+                items: convertedBasis
+              },
+              toevoegingen: cleanToevoegingen,
+              notities: (maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj))
+                ? (maatwerkObj as any).notities
+                : (enrichedJob.material_notities || ""),
+              meta: (maatwerkObj as any)?.meta || undefined,
+            };
+
+            // ═══════════════════════════════════════════
+            // B. INVENTORY LIST (materialen) — Unified, enriched, labeled
+            // ═══════════════════════════════════════════
+
+            const unifiedList: any[] = [];
+
+            // B1. Materials from materialen_lijst (primary source)
+            const materialenLijst = enrichedJob.materialen?.materialen_lijst || {};
+            Object.entries(materialenLijst).forEach(([slotKey, entry]: [string, any]) => {
+              if (!entry?.material) return;
+              const enriched = enrichMaterial(entry);
+              unifiedList.push({
+                slotKey,
+                material: enriched.material,
+                quantity: enriched.quantity ?? null,
+                context: enriched.context || `Basis: ${jobTitle}`,
+              });
+            });
+
+            // B2. Fallback: legacy selections (if materialen_lijst is empty)
+            if (unifiedList.length === 0 && enrichedJob.materialen?.selections) {
+              Object.entries(enrichedJob.materialen.selections).forEach(([slotKey, sel]: [string, any]) => {
+                if (!sel?.id) return;
+                const full = materialMap.get(sel.id);
+                if (full) {
+                  unifiedList.push({
+                    slotKey,
+                    material: {
+                      id: full.row_id,
+                      materiaalnaam: full.materiaalnaam,
+                      categorie: full.categorie,
+                      eenheid: full.eenheid,
+                      leverancier: full.leverancier,
+                      prijs: full.prijs,
+                      prijs_per_stuk: full.prijs_per_stuk,
+                      dikte: full.dikte ?? null,
+                      breedte: full.breedte ?? null,
+                    },
+                    quantity: null,
+                    context: `Basis: ${jobTitle}`,
+                  });
+                } else {
+                  // Keep whatever we have
+                  unifiedList.push({
+                    slotKey,
+                    material: sel,
+                    quantity: null,
+                    context: `Basis: ${jobTitle}`,
                   });
                 }
-                return newItem;
               });
-
-              // Update the correct part of the job
-              if (maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj)) {
-                (enrichedJob.maatwerk as any).items = convertedItems;
-              } else {
-                enrichedJob.maatwerk = convertedItems;
-              }
             }
+
+            // B3. Component materials are already in materialen_lijst with comp_ keys (picked up by B1)
+
+            // B4. Overwrite materialen with the unified, labeled list
+            enrichedJob.materialen = {
+              lijst: unifiedList,
+              kleinMateriaal: enrichedJob.kleinMateriaal || null,
+            };
+
+            // ═══════════════════════════════════════════
+            // C. CLEANUP — Remove all redundant/legacy keys
+            // ═══════════════════════════════════════════
+            delete enrichedJob.components;
+            delete enrichedJob.material_notities;
+            delete enrichedJob.maatwerk_notities;
+            delete enrichedJob.measurements;
+            delete enrichedJob.kleinMateriaal; // Already inside materialen
+
+            // Remove any legacy {slug}_maatwerk keys
+            const slug = enrichedJob.meta?.slug;
+            if (slug) delete enrichedJob[`${slug}_maatwerk`];
+            const jobKey = enrichedJob.materialen?.jobKey;
+            if (jobKey) delete enrichedJob[`${jobKey}_maatwerk`];
+
+            // Remove deprecated top-level dimension fields
+            delete enrichedJob.lengteMm;
+            delete enrichedJob.hoogteMm;
+            delete enrichedJob.diepteMm;
 
             return enrichedJob;
           })
           .sort((a: any, b: any) => (a.volgorde || 9999) - (b.volgorde || 9999))
         : [];
 
-      quote.klussen = jobArray; // Assign processed array
+      quote.klussen = jobArray;
 
       // 4. Fetch quote_notes subcollection
       try {

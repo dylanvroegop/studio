@@ -38,8 +38,8 @@ const categories: CategoryItem[] = [
 
   { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
   { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
-  { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeiboorden', slug: 'dakrenovatie' },
-  { name: 'Boeiboorden', description: 'Hout of kunststof boeiboorden vervangen', slug: 'boeiboorden' },
+  { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeidelen', slug: 'dakrenovatie' },
+  { name: 'Boeidelen', description: 'Hout of kunststof boeidelen vervangen', slug: 'boeiboorden' },
 
   { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
   { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },

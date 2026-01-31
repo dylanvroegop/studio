@@ -46,7 +46,7 @@ import { MeasurementInput } from '@/components/MeasurementInput';
 
 import { Switch } from '@/components/ui/switch';
 
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { JOB_REGISTRY, MeasurementField } from '@/lib/job-registry';
 import { WizardHeader } from '@/components/WizardHeader';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
@@ -62,6 +62,7 @@ export default function GenericMeasurementPage() {
   const router = useRouter();
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const quoteId = params.id as string;
   const klusId = params.klusId as string;
@@ -103,21 +104,47 @@ export default function GenericMeasurementPage() {
   const [notities, setNotities] = useState(''); // New: Job Notes state
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
-    if (typeof window === 'undefined') return {};
-    try {
-      const stored = localStorage.getItem(`collapsed-${klusId}`);
-      return stored ? JSON.parse(stored) : {};
-    } catch { return {}; }
-  });
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  // Sync with Firestore preferences
+  useEffect(() => {
+    if (!user || !firestore) return;
+    const fetchPrefs = async () => {
+      try {
+        const userRef = doc(firestore, 'users', user.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const prefs = snap.data().ui_preferences || {};
+          setCollapsedSections(prev => ({ ...prev, ...prefs }));
+        }
+      } catch (err) {
+        console.error("Error fetching preferences:", err);
+      }
+    };
+    fetchPrefs();
+  }, [user, firestore]);
 
   const toggleCollapsed = useCallback((key: string) => {
     setCollapsedSections(prev => {
-      const next = { ...prev, [key]: !prev[key] };
-      try { localStorage.setItem(`collapsed-${klusId}`, JSON.stringify(next)); } catch {}
+      // Logic: if undefined, it means it's in its' default state (collapsed = true)
+      const currentIsCollapsed = prev[key] === undefined ? true : prev[key];
+      const nextVal = !currentIsCollapsed;
+      const next = { ...prev, [key]: nextVal };
+
+      // Persist to Firestore instantly
+      if (user && firestore) {
+        const userRef = doc(firestore, 'users', user.uid);
+        // Using setDoc with merge: true for instant, granular updates
+        setDoc(userRef, {
+          ui_preferences: { [key]: nextVal }
+        }, { merge: true }).catch(err => {
+          console.error("Failed to sync UI preference:", err);
+        });
+      }
+
       return next;
     });
-  }, [klusId]);
+  }, [user, firestore]);
 
   // 4. Load Data
   useEffect(() => {
@@ -134,7 +161,7 @@ export default function GenericMeasurementPage() {
           const maatwerk = container.maatwerk;
 
           // 1. Try new structure, then specific slug key, then legacy 'maatwerk' array
-          const savedItems = maatwerk?.items || container[`${jobSlug}_maatwerk`] || (Array.isArray(maatwerk) ? maatwerk : []);
+          const savedItems = maatwerk?.basis || maatwerk?.items || container[`${jobSlug}_maatwerk`] || (Array.isArray(maatwerk) ? maatwerk : []);
 
           if (Array.isArray(savedItems) && savedItems.length > 0) {
             // Normalize openings: restore width/height from openingWidth/openingHeight if needed
@@ -159,7 +186,7 @@ export default function GenericMeasurementPage() {
           }
 
           // 2. Load Components
-          const savedComponents = maatwerk?.components || container.components;
+          const savedComponents = maatwerk?.toevoegingen || maatwerk?.components || container.components;
           if (Array.isArray(savedComponents)) {
             setComponents(savedComponents);
           }
@@ -300,17 +327,25 @@ export default function GenericMeasurementPage() {
           description: jobConfig.description || ''
         };
 
-        // Construct the single maatwerk object
-        const maatwerkData = {
-          items: processedItems,
-          components: components,
-          notities: notities,
-          meta: rawMeta,
-        };
-
+        const maatwerkKey = `${jobSlug}_maatwerk`;
         const updateData: Record<string, any> = {
-          [`klussen.${klusId}.maatwerk`]: cleanFirestoreData(maatwerkData, { allowEmptyArrays: true }),
+          [`klussen.${klusId}.maatwerk`]: cleanFirestoreData({
+            basis: processedItems,
+            toevoegingen: components.map(c => ({
+              id: c.id,
+              type: c.type,
+              label: c.label,
+              slug: c.slug,
+              afmetingen: c.measurements || {}
+            })),
+            notities: notities,
+            meta: rawMeta,
+          }, { allowEmptyArrays: true }),
+          [`klussen.${klusId}.components`]: deleteField(),
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
+
+          // CLEANUP: Remove old slug-specific key
+          [`klussen.${klusId}.${maatwerkKey}`]: deleteField(),
         };
 
         if (visualisatieUrl) {
@@ -373,417 +408,425 @@ export default function GenericMeasurementPage() {
                     <div className="flex-1 h-px bg-white/10" />
                   </div>
                 )}
-              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                <div className="flex flex-col lg:flex-row gap-6 items-start">
 
-                {/* LEFT SIDEBAR - SETTINGS */}
-                <div className="w-full lg:w-[340px] shrink-0 space-y-6">
+                  {/* LEFT SIDEBAR - SETTINGS */}
+                  <div className="w-full lg:w-[340px] shrink-0 space-y-6">
 
-                  {/* Item Header Card */}
-                  {/* Item Header Card */}
-                  <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Vorm</Label>
-                        {index > 0 && (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => setPendingDeleteIndex(index)} className="h-6 w-6 text-zinc-500 hover:text-red-400 hover:bg-red-500/10" disabled={disabledAll}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-xl border border-white/5">
-                        {[
-                          { id: 'rectangle', icon: Square, label: 'Recht' },
-                          { id: 'slope', icon: Slash, label: 'Schuin' },
-                          { id: 'gable', icon: Triangle, label: 'Punt' },
-                          { id: 'l-shape', icon: null, label: 'L', customIcon: 'L' },
-                          { id: 'u-shape', icon: null, label: 'U', customIcon: 'U' }
-                        ].map((shapeOption) => {
-                          const currentShape = item.shape || 'rectangle';
-                          const isActive = currentShape === shapeOption.id;
-                          const Icon = shapeOption.icon;
-                          const LIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4 L6 18 L20 18" /></svg>;
-                          const UIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4 L4 18 L20 18 L20 4" /></svg>;
+                    {/* Item Header Card */}
+                    {/* Item Header Card */}
+                    <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Vorm</Label>
+                          {index > 0 && (
+                            <Button type="button" variant="ghost" size="icon" onClick={() => setPendingDeleteIndex(index)} className="h-6 w-6 text-zinc-500 hover:text-red-400 hover:bg-red-500/10" disabled={disabledAll}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-xl border border-white/5">
+                          {[
+                            { id: 'rectangle', icon: Square, label: 'Recht' },
+                            { id: 'slope', icon: Slash, label: 'Schuin' },
+                            { id: 'gable', icon: Triangle, label: 'Punt' },
+                            { id: 'l-shape', icon: null, label: 'L', customIcon: 'L' },
+                            { id: 'u-shape', icon: null, label: 'U', customIcon: 'U' }
+                          ].map((shapeOption) => {
+                            const currentShape = item.shape || 'rectangle';
+                            const isActive = currentShape === shapeOption.id;
+                            const Icon = shapeOption.icon;
+                            const LIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4 L6 18 L20 18" /></svg>;
+                            const UIcon = () => <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4 L4 18 L20 18 L20 4" /></svg>;
 
-                          return (
-                            <button
-                              key={shapeOption.id}
-                              type="button"
-                              onClick={() => handleShapeChange(index, shapeOption.id)}
-                              className={cn(
-                                "flex items-center justify-center h-8 w-full transition-all rounded-lg",
-                                isActive ? "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
-                              )}
-                              title={shapeOption.label}
-                            >
-                              {shapeOption.customIcon === 'L' ? <LIcon /> : shapeOption.customIcon === 'U' ? <UIcon /> : Icon ? <Icon className={cn("h-4 w-4", shapeOption.id === 'slope' && "-rotate-12")} /> : null}
-                            </button>
-                          );
-                        })}
+                            return (
+                              <button
+                                key={shapeOption.id}
+                                type="button"
+                                onClick={() => handleShapeChange(index, shapeOption.id)}
+                                className={cn(
+                                  "flex items-center justify-center h-8 w-full transition-all rounded-lg",
+                                  isActive ? "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                                )}
+                                title={shapeOption.label}
+                              >
+                                {shapeOption.customIcon === 'L' ? <LIcon /> : shapeOption.customIcon === 'U' ? <UIcon /> : Icon ? <Icon className={cn("h-4 w-4", shapeOption.id === 'slope' && "-rotate-12")} /> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Dimensions Section */}
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Afmetingen</h4>
-                    {(() => {
-                      const shape = item.shape || 'rectangle';
+                    {/* Dimensions Section */}
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">Afmetingen</h4>
+                      {(() => {
+                        const shape = item.shape || 'rectangle';
 
-                      if (shape === 'l-shape') {
-                        const updateL = (key: 'lengte1' | 'lengte2', val: string) => {
-                          const numVal = parseFloat(val) || 0;
-                          const otherKey = key === 'lengte1' ? 'lengte2' : 'lengte1';
-                          const otherVal = parseFloat(item[otherKey]) || 0;
-                          setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: numVal + otherVal } : it));
-                        };
-                        return (
-                          <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                            <div className="space-y-3">
-                              <Label className="text-xs uppercase text-zinc-500">Deel 1</Label>
-                              <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} />
-                              <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                        if (shape === 'l-shape') {
+                          const updateL = (key: 'lengte1' | 'lengte2', val: string) => {
+                            const numVal = parseFloat(val) || 0;
+                            const otherKey = key === 'lengte1' ? 'lengte2' : 'lengte1';
+                            const otherVal = parseFloat(item[otherKey]) || 0;
+                            setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: numVal + otherVal } : it));
+                          };
+                          return (
+                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                              <div className="space-y-3">
+                                <Label className="text-xs uppercase text-zinc-500">Deel 1</Label>
+                                <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} />
+                                <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                              </div>
+                              <div className="space-y-3 pt-2 border-t border-white/5">
+                                <Label className="text-xs uppercase text-zinc-500">Deel 2</Label>
+                                <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} />
+                                <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
+                              </div>
                             </div>
-                            <div className="space-y-3 pt-2 border-t border-white/5">
-                              <Label className="text-xs uppercase text-zinc-500">Deel 2</Label>
-                              <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} />
-                              <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
-                            </div>
-                          </div>
-                        );
-                      }
+                          );
+                        }
 
-                      if (shape === 'u-shape') {
-                        const updateU = (key: 'lengte1' | 'lengte2' | 'lengte3', val: string) => {
-                          const numVal = parseFloat(val) || 0;
-                          const l1 = key === 'lengte1' ? numVal : (parseFloat(item.lengte1) || 0);
-                          const l2 = key === 'lengte2' ? numVal : (parseFloat(item.lengte2) || 0);
-                          const l3 = key === 'lengte3' ? numVal : (parseFloat(item.lengte3) || 0);
-                          setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: l1 + l2 + l3 } : it));
-                        };
-                        return (
-                          <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                            <div className="space-y-3">
-                              <Label className="text-xs">Deel 1</Label>
-                              <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
-                              <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                        if (shape === 'u-shape') {
+                          const updateU = (key: 'lengte1' | 'lengte2' | 'lengte3', val: string) => {
+                            const numVal = parseFloat(val) || 0;
+                            const l1 = key === 'lengte1' ? numVal : (parseFloat(item.lengte1) || 0);
+                            const l2 = key === 'lengte2' ? numVal : (parseFloat(item.lengte2) || 0);
+                            const l3 = key === 'lengte3' ? numVal : (parseFloat(item.lengte3) || 0);
+                            setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: l1 + l2 + l3 } : it));
+                          };
+                          return (
+                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                              <div className="space-y-3">
+                                <Label className="text-xs">Deel 1</Label>
+                                <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
+                                <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                              </div>
+                              <div className="space-y-3 pt-2 border-t border-white/5">
+                                <Label className="text-xs">Deel 2</Label>
+                                <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
+                                <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
+                              </div>
+                              <div className="space-y-3 pt-2 border-t border-white/5">
+                                <Label className="text-xs">Deel 3</Label>
+                                <MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
+                                <MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
+                              </div>
                             </div>
-                            <div className="space-y-3 pt-2 border-t border-white/5">
-                              <Label className="text-xs">Deel 2</Label>
-                              <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
-                              <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
-                            </div>
-                            <div className="space-y-3 pt-2 border-t border-white/5">
-                              <Label className="text-xs">Deel 3</Label>
-                              <MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
-                              <MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
-                            </div>
-                          </div>
-                        );
-                      }
+                          );
+                        }
 
-                      // Default: Rectangle, Slope, Gable
+                        // Default: Rectangle, Slope, Gable
 
-                      // Boeiboord: grouped Voorzijde / Onderzijde fields
-                      if (isBoeiboord) {
+                        // Boeiboord: grouped Voorzijde / Onderzijde fields
+                        if (isBoeiboord) {
+                          return (
+                            <div className="space-y-4">
+                              <Label className="text-xs uppercase text-zinc-500 tracking-wider">Voorzijde</Label>
+                              {fields.find(f => f.key === 'lengte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+                              {fields.find(f => f.key === 'hoogte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'hoogte')!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+                              <div className="pt-2 border-t border-white/5" />
+                              <Label className="text-xs uppercase text-zinc-500 tracking-wider">Onderzijde</Label>
+                              {fields.find(f => f.key === 'lengte_onderzijde') && (
+                                <DynamicInput field={fields.find(f => f.key === 'lengte_onderzijde')!} value={item.lengte_onderzijde} onChange={v => updateItem(index, 'lengte_onderzijde', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+                              {fields.find(f => f.key === 'breedte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+
+                              {/* Kopkanten toggle */}
+                              {fields.find(f => f.key === 'kopkanten') && (
+                                <>
+                                  <div className="pt-2 border-t border-white/5" />
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-xs uppercase text-zinc-500 tracking-wider">Kopkanten</Label>
+                                    <Switch checked={item.kopkanten || false} onCheckedChange={(c) => updateItem(index, 'kopkanten', c)} />
+                                  </div>
+                                  {item.kopkanten && (
+                                    <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                                      {fields.find(f => f.key === 'kopkant_breedte') && (
+                                        <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                      )}
+                                      {fields.find(f => f.key === 'kopkant_hoogte') && (
+                                        <DynamicInput field={fields.find(f => f.key === 'kopkant_hoogte')!} value={item.kopkant_hoogte} onChange={v => updateItem(index, 'kopkant_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                      )}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        }
+
                         return (
                           <div className="space-y-4">
-                            <Label className="text-xs uppercase text-zinc-500 tracking-wider">Voorzijde</Label>
+                            {/* Roof Tile Specific Fields */}
+                            {fields.find(f => f.key === 'aantal_pannen_breedte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_breedte')!} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+                            {fields.find(f => f.key === 'aantal_pannen_hoogte') && (
+                              <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_hoogte')!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
                             {fields.find(f => f.key === 'lengte') && (
                               <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
-                            {fields.find(f => f.key === 'hoogte') && (
+                            {shape === 'slope' && (
+                              <>
+                                <div className="space-y-2"><Label>H. Links</Label><MeasurementInput value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
+                                <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div>
+                              </>
+                            )}
+                            {shape === 'gable' && (
+                              <>
+                                <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
+                                <div className="space-y-2"><Label>H. Nok</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
+                              </>
+                            )}
+                            {shape === 'rectangle' && fields.find(f => f.key === 'hoogte') && (
                               <DynamicInput field={fields.find(f => f.key === 'hoogte')!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
-                            <div className="pt-2 border-t border-white/5" />
-                            <Label className="text-xs uppercase text-zinc-500 tracking-wider">Onderzijde</Label>
-                            {fields.find(f => f.key === 'lengte_onderzijde') && (
-                              <DynamicInput field={fields.find(f => f.key === 'lengte_onderzijde')!} value={item.lengte_onderzijde} onChange={v => updateItem(index, 'lengte_onderzijde', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
-                            {fields.find(f => f.key === 'breedte') && (
+                            {shape === 'rectangle' && fields.find(f => f.key === 'breedte') && (
                               <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
-
-                            {/* Kopkanten toggle */}
-                            {fields.find(f => f.key === 'kopkanten') && (
-                              <>
-                                <div className="pt-2 border-t border-white/5" />
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-xs uppercase text-zinc-500 tracking-wider">Kopkanten</Label>
-                                  <Switch checked={item.kopkanten || false} onCheckedChange={(c) => updateItem(index, 'kopkanten', c)} />
-                                </div>
-                                {item.kopkanten && (
-                                  <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
-                                    {fields.find(f => f.key === 'kopkant_breedte') && (
-                                      <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                                    )}
-                                    {fields.find(f => f.key === 'kopkant_hoogte') && (
-                                      <DynamicInput field={fields.find(f => f.key === 'kopkant_hoogte')!} value={item.kopkant_hoogte} onChange={v => updateItem(index, 'kopkant_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                                    )}
-                                  </div>
-                                )}
-                              </>
                             )}
                           </div>
                         );
-                      }
-
-                      return (
-                        <div className="space-y-4">
-                          {/* Roof Tile Specific Fields */}
-                          {fields.find(f => f.key === 'aantal_pannen_breedte') && (
-                            <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_breedte')!} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                          )}
-                          {fields.find(f => f.key === 'aantal_pannen_hoogte') && (
-                            <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_hoogte')!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                          )}
-                          {fields.find(f => f.key === 'lengte') && (
-                            <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                          )}
-                          {shape === 'slope' && (
-                            <>
-                              <div className="space-y-2"><Label>H. Links</Label><MeasurementInput value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
-                              <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div>
-                            </>
-                          )}
-                          {shape === 'gable' && (
-                            <>
-                              <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
-                              <div className="space-y-2"><Label>H. Nok</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
-                            </>
-                          )}
-                          {shape === 'rectangle' && fields.find(f => f.key === 'hoogte' || f.key === 'breedte') && (
-                            <DynamicInput field={fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!} value={item.hoogte || item.breedte} onChange={v => updateItem(index, fields.find(f => f.key === 'hoogte' || f.key === 'breedte')!.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
+                      })()}
+                    </div>
 
 
-                  {/* Openingen Section */}
-                  {showOpeningsSection && (
-                    <OpeningenSection
-                      openings={item.openings || []}
-                      onChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
-                      constructionOptions={specificJobConfig.openingConfig.constructionOptions}
-                      isWallCategory={isWallCategory}
-                      isCeilingCategory={isCeilingCategory}
-                      categorySlug={categorySlug}
-                    />
-                  )}
+                    {/* Openingen Section */}
+                    {showOpeningsSection && (
+                      <OpeningenSection
+                        openings={item.openings || []}
+                        onChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
+                        constructionOptions={specificJobConfig.openingConfig.constructionOptions}
+                        isWallCategory={isWallCategory}
+                        isCeilingCategory={isCeilingCategory}
+                        categorySlug={categorySlug}
+                      />
+                    )}
 
-                  {/* Dakrand Configuration */}
-                  {fields.find(f => f.key === 'dakrand_breedte') && (
-                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                      <div
-                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                        onClick={() => toggleCollapsed(`dakrand-${index}`)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-zinc-200">Dakrand</span>
-                          {collapsedSections[`dakrand-${index}`] && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                              {item.dakrand_breedte ? `${item.dakrand_breedte}mm` : 'Ingesteld'}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-zinc-500">
-                          {collapsedSections[`dakrand-${index}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </div>
-                      </div>
-
-                      {!collapsedSections[`dakrand-${index}`] && (
-                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
-                            {fields.find(f => f.key === 'dakrand_breedte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'dakrand_breedte')!} value={item.dakrand_breedte} onChange={(v) => updateItem(index, 'dakrand_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
-                            {fields.find(f => f.key === 'dakrand_hoogte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'dakrand_hoogte')!} value={item.dakrand_hoogte} onChange={(v) => updateItem(index, 'dakrand_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                    {/* Dakrand Configuration */}
+                    {fields.find(f => f.key === 'dakrand_breedte') && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                          onClick={() => toggleCollapsed(`dakrand-${index}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Dakrand</span>
+                            {/* Collapse default: true (collapsed) */}
+                            {collapsedSections[`dakrand-${index}`] !== false && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                {item.dakrand_breedte ? `${item.dakrand_breedte}mm` : 'Ingesteld'}
+                              </span>
                             )}
                           </div>
+                          <div className="text-zinc-500">
+                            {collapsedSections[`dakrand-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  )}
 
-                  {/* Balken Configuration */}
-                  {fields.find(f => f.key === 'balkafstand') && (
-                    <BalkenSection
-                      balkafstand={item.balkafstand}
-                      startFromRight={item.startFromRight}
-                      doubleEndBeams={item.doubleEndBeams}
-                      doubleTopPlate={item.doubleTopPlate}
-                      doubleBottomPlate={item.doubleBottomPlate}
-                      surroundingBeams={item.surroundingBeams}
-                      optionsConfig={specificJobConfig.balkenConfig.options}
-                      onUpdate={(key, val) => updateItem(index, key, val)}
-                      isWallCategory={isWallCategory}
-                      jobSlug={jobSlug}
-                    />
-                  )}
-
-                  {/* Latten Configuration */}
-                  {fields.find(f => f.key === 'latafstand') && (
-                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                      <div
-                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                        onClick={() => toggleCollapsed(`latten-${index}`)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-zinc-200">Latten</span>
-                          {collapsedSections[`latten-${index}`] && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                              {item.latafstand}mm h.o.h
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-zinc-500">
-                          {collapsedSections[`latten-${index}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </div>
-                      </div>
-
-                      {!collapsedSections[`latten-${index}`] && (
-                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                          <div className="pt-2 border-t border-white/5 space-y-4">
-                            <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-
-                            {fields.find(f => f.key === 'onderzijde_latafstand') && (
-                              <DynamicInput field={fields.find(f => f.key === 'onderzijde_latafstand')!} value={item.onderzijde_latafstand} onChange={v => updateItem(index, 'onderzijde_latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
-
-                            <div className="space-y-3">
-                              <Label className="text-xs">Startpositie</Label>
-                              <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                  {isRoofCategory ? 'Links' : 'Boven'}
-                                </button>
-                                <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                  {isRoofCategory ? 'Rechts' : 'Onder'}
-                                </button>
-                              </div>
+                        {collapsedSections[`dakrand-${index}`] === false && (
+                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                              {fields.find(f => f.key === 'dakrand_breedte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'dakrand_breedte')!} value={item.dakrand_breedte} onChange={(v) => updateItem(index, 'dakrand_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+                              {fields.find(f => f.key === 'dakrand_hoogte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'dakrand_hoogte')!} value={item.dakrand_hoogte} onChange={(v) => updateItem(index, 'dakrand_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
                             </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                            <div className="space-y-3">
-                              <Label className="text-xs">Opties</Label>
-                              <div className="grid grid-cols-2 gap-2">
-                                {isRoofCategory && (
+                    {/* Balken Configuration */}
+                    {fields.find(f => f.key === 'balkafstand') && (
+                      <BalkenSection
+                        balkafstand={item.balkafstand}
+                        startFromRight={item.startFromRight}
+                        doubleEndBeams={item.doubleEndBeams}
+                        doubleTopPlate={item.doubleTopPlate}
+                        doubleBottomPlate={item.doubleBottomPlate}
+                        surroundingBeams={item.surroundingBeams}
+                        optionsConfig={specificJobConfig.balkenConfig.options}
+                        onUpdate={(key, val) => updateItem(index, key, val)}
+                        isWallCategory={isWallCategory}
+                        jobSlug={jobSlug}
+                        // Collapse default: true (collapsed)
+                        isCollapsed={collapsedSections[`balken-${index}`] !== false}
+                        onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
+                      />
+                    )}
+
+                    {/* Latten Configuration */}
+                    {fields.find(f => f.key === 'latafstand') && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                          onClick={() => toggleCollapsed(`latten-${index}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Latten</span>
+                            {/* Collapse default: true (collapsed) */}
+                            {collapsedSections[`latten-${index}`] !== false && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                {item.latafstand}mm h.o.h
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-zinc-500">
+                            {collapsedSections[`latten-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </div>
+                        </div>
+
+                        {collapsedSections[`latten-${index}`] === false && (
+                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                            <div className="pt-2 border-t border-white/5 space-y-4">
+                              <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                              {fields.find(f => f.key === 'onderzijde_latafstand') && (
+                                <DynamicInput field={fields.find(f => f.key === 'onderzijde_latafstand')!} value={item.onderzijde_latafstand} onChange={v => updateItem(index, 'onderzijde_latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+
+                              <div className="space-y-3">
+                                <Label className="text-xs">Startpositie</Label>
+                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                    {isRoofCategory ? 'Links' : 'Boven'}
+                                  </button>
+                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                    {isRoofCategory ? 'Rechts' : 'Onder'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                <Label className="text-xs">Opties</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {isRoofCategory && (
+                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                      <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
+                                      <Switch checked={item.doubleStartBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleStartBattens', c)} className="scale-75 origin-right" />
+                                    </div>
+                                  )}
                                   <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
-                                    <Switch checked={item.doubleStartBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleStartBattens', c)} className="scale-75 origin-right" />
+                                    <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
+                                    <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
                                   </div>
-                                )}
-                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                  <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
-                                  <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}
-                  {!isBoeiboord && fields.find(f => f.key === 'kopkanten') && (
-                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                      <div className="px-4 py-3 flex items-center justify-between select-none">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-zinc-200">Kopkanten</span>
-                        </div>
-                        <Switch checked={item.kopkanten || false} onCheckedChange={(c) => updateItem(index, 'kopkanten', c)} />
+                        )}
                       </div>
+                    )}
 
-                      {item.kopkanten && (
-                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
-                            {fields.find(f => f.key === 'kopkant_breedte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
-                            {fields.find(f => f.key === 'kopkant_hoogte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'kopkant_hoogte')!} value={item.kopkant_hoogte} onChange={v => updateItem(index, 'kopkant_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
+                    {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}
+                    {!isBoeiboord && fields.find(f => f.key === 'kopkanten') && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div className="px-4 py-3 flex items-center justify-between select-none">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Kopkanten</span>
                           </div>
+                          <Switch checked={item.kopkanten || false} onCheckedChange={(c) => updateItem(index, 'kopkanten', c)} />
                         </div>
-                      )}
-                    </div>
-                  )}
 
-                  {/* Extra Fields - NO SLICE, just filter out known keys */}
-                  {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
-                    <div className="space-y-3 pt-4 border-t border-white/5">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                        {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
-                          <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                        ))}
+                        {item.kopkanten && (
+                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                              {fields.find(f => f.key === 'kopkant_breedte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+                              {fields.find(f => f.key === 'kopkant_hoogte') && (
+                                <DynamicInput field={fields.find(f => f.key === 'kopkant_hoogte')!} value={item.kopkant_hoogte} onChange={v => updateItem(index, 'kopkant_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                    {/* Extra Fields - NO SLICE, just filter out known keys */}
+                    {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
+                      <div className="space-y-3 pt-4 border-t border-white/5">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                          {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
+                            <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
 
 
 
 
-                </div>
-
-                {/* RIGHT/CENTER: DRAWING CANVAS - STICKY */}
-                {isBoeiboord ? (
-                  <div
-                    ref={(el) => { visualizerRefs.current[index] = el; }}
-                    className="flex-1 w-full lg:min-w-0 sticky top-24 self-start"
-                  >
-                    <VisualizerController
-                      category={categorySlug}
-                      slug={jobSlug}
-                      item={item}
-                      fields={fields}
-                      title={`${itemLabel} ${index + 1}`}
-                      isMagnifier={false}
-                      fitContainer={false}
-                      onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                      onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                      onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
-                    />
                   </div>
-                ) : (
-                  <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
-                    {/* Canvas Container */}
+
+                  {/* RIGHT/CENTER: DRAWING CANVAS - STICKY */}
+                  {isBoeiboord ? (
                     <div
                       ref={(el) => { visualizerRefs.current[index] = el; }}
-                      className="relative w-full flex-1 flex items-center justify-center bg-[#09090b]"
+                      className="flex-1 w-full lg:min-w-0 sticky top-24 self-start"
                     >
-                      {/* Dot Pattern Background */}
-                      <div
-                        className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
-                        style={{
-                          backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                          backgroundSize: '24px 24px'
-                        }}
+                      <VisualizerController
+                        category={categorySlug}
+                        slug={jobSlug}
+                        item={item}
+                        fields={fields}
+                        title={`${itemLabel} ${index + 1}`}
+                        isMagnifier={false}
+                        fitContainer={false}
+                        onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                        onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                        onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
                       />
-
-                      {/* Drawing */}
-                      <div className="relative z-10 w-full h-full flex items-center justify-center">
-                        <VisualizerController
-                          category={categorySlug}
-                          slug={jobSlug}
-                          item={item}
-                          fields={fields}
-                          title={`${itemLabel} ${index + 1}`}
-                          isMagnifier={false}
-                          fitContainer={true}
-                          onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
-                          onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
-                          onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
-                          className="w-full h-full"
+                    </div>
+                  ) : (
+                    <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
+                      {/* Canvas Container */}
+                      <div
+                        ref={(el) => { visualizerRefs.current[index] = el; }}
+                        className="relative w-full flex-1 flex items-center justify-center bg-[#09090b]"
+                      >
+                        {/* Dot Pattern Background */}
+                        <div
+                          className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                          style={{
+                            backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                            backgroundSize: '24px 24px'
+                          }}
                         />
+
+                        {/* Drawing */}
+                        <div className="relative z-10 w-full h-full flex items-center justify-center">
+                          <VisualizerController
+                            category={categorySlug}
+                            slug={jobSlug}
+                            item={item}
+                            fields={fields}
+                            title={`${itemLabel} ${index + 1}`}
+                            isMagnifier={false}
+                            fitContainer={true}
+                            onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
+                            onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
+                            onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
+                            className="w-full h-full"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-              </div>
+                </div>
               </React.Fragment>
             ))}
 

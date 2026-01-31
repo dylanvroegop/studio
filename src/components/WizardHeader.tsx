@@ -62,8 +62,10 @@ export function WizardHeader({
 
                 Object.keys(klussenMap).forEach((id) => {
                     const job = klussenMap[id];
+                    const maatwerkMeta = job?.maatwerk?.meta;
                     const rawKey =
                         job?.klusinformatie?.title?.trim?.() ||
+                        maatwerkMeta?.title?.trim?.() ||
                         job?.meta?.title?.trim?.() ||
                         job?.materialen?.jobKey?.trim?.() ||
                         job?.jobKey ||
@@ -74,11 +76,13 @@ export function WizardHeader({
                     const type =
                         job?.klusinformatie?.type ||
                         job?.materialen?.jobType ||
+                        maatwerkMeta?.type ||
                         job?.meta?.type ||
                         'wanden'; // Fallback
 
                     const slug =
                         job?.materialen?.jobSlug ||
+                        maatwerkMeta?.slug ||
                         job?.meta?.slug ||
                         slugify(title);
 

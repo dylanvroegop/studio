@@ -123,25 +123,19 @@ export function JobComponentsManager({
             }
         }
 
+        const measurementsToSave = { ...actualMeasurements };
+        if (subtitle) measurementsToSave.subtitle = subtitle;
+
         const newItem: JobComponent = {
             id: editingId || (typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2)),
             type: selectedType as JobComponentType,
             label: newLabel,
-            // measurements: {}, // Removed duplicate 
-            // Assuming JobComponent has [key: string]: any or we just use measurements for now but ALSO add the specific key?
-            // User requested "measurements_${type}".
-            // Let's store BOTH or just the specific one?
-            // "currently it stores ... under 'maatwerk' ... I want ... slug + maatwerk ... component ... doing the same thing"
-            // If I change 'measurements' to {} and put data in `measurements_${type}`, I need to update the interface or cast.
-            // Let's start by storing it in the dynamic key AND 'measurements' for compatibility if feasible, OR just dynamic key if we update readers.
-            // I'll assume we want to Move away from 'measurements'.
-            // So:
-            [`measurements_${selectedType}`]: { ...actualMeasurements, subtitle },
-            measurements: { ...actualMeasurements, subtitle }, // Keeping this for UI compatibility in other places for now? 
-            // User said: "maybe doing the same thing? it already has 'type' in there but to be safe"
-            // If I duplicate, it is safe.
-            slug: matchedItem?.slug || (editingId ? components.find(c => c.id === editingId)?.slug : undefined),
+            [`measurements_${selectedType}`]: measurementsToSave,
+            measurements: measurementsToSave,
         };
+
+        const resolvedSlug = matchedItem?.slug || (editingId ? components.find(c => c.id === editingId)?.slug : null);
+        if (resolvedSlug) newItem.slug = resolvedSlug;
 
         if (editingId) {
             onChange(components.map((c) => (c.id === editingId ? newItem : c)));
@@ -238,9 +232,15 @@ export function JobComponentsManager({
             <Dialog open={isOpen} onOpenChange={setOpen}>
                 <DialogContent className="sm:max-w-3xl">
                     <DialogHeader>
-                        <DialogTitle>{editingId ? 'Onderdeel aanpassen' : 'Onderdeel toevoegen'}</DialogTitle>
+                        <DialogTitle>
+                            {editingId
+                                ? `${selectedType && COMPONENT_REGISTRY[selectedType] ? COMPONENT_REGISTRY[selectedType].title : 'Onderdeel'} — afmetingen invullen`
+                                : 'Onderdeel toevoegen'}
+                        </DialogTitle>
                         <DialogDescription>
-                            Voeg losse bouwelementen toe aan deze klus.
+                            {editingId && selectedType && COMPONENT_REGISTRY[selectedType]
+                                ? `Vul de afmetingen in voor ${COMPONENT_REGISTRY[selectedType].title}.`
+                                : 'Voeg losse bouwelementen toe aan deze klus.'}
                         </DialogDescription>
                     </DialogHeader>
 

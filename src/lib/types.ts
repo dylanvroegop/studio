@@ -133,8 +133,14 @@ export type Job = {
 
   // ✅ New Consolidated Structure
   maatwerk?: {
-    items?: Record<string, any>[]; // The segments/main items
-    components?: JobComponent[];
+    basis?: Record<string, any>[]; // The segments/main items
+    toevoegingen?: Array<{
+      id: string;
+      type: string;
+      label: string;
+      slug?: string;
+      afmetingen: Record<string, any>;
+    }>;
     notities?: string;
     meta?: {
       title?: string;
@@ -147,6 +153,7 @@ export type Job = {
 
   // Legacy fields (kept for compatibility during migration)
   maatwerk_notities?: string;
+  /** @deprecated Data now lives in maatwerk.toevoegingen and materialen.materialen_lijst */
   components?: JobComponent[];
   measurements?: Record<string, number | string>;
 

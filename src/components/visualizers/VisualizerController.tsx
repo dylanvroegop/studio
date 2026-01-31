@@ -8,6 +8,7 @@ import { RoofDrawing } from './RoofDrawing';
 import { EPDMDrawing } from './EPDMDrawing';
 import { GolfplaatDrawing } from './GolfplaatDrawing';
 import { BoeiboordDrawing } from './BoeiboordDrawing';
+import { GlasDrawing } from './GlasDrawing';
 
 interface VisualizerControllerProps {
     category: string;
@@ -148,6 +149,18 @@ export function VisualizerController({
         category === 'wanden' ||
         wallSlugs.some(s => slug.includes(s)) ||
         (fields && fields.some(f => f.key === 'balkafstand'));
+
+    if (slug.includes('isolatieglas') || category === 'glas-zetten') {
+        const toNum = (v: any, fb = 0) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || fb);
+        return (
+            <GlasDrawing
+                breedte={toNum(item.breedte)}
+                hoogte={toNum(item.hoogte)}
+                fitContainer={fitContainer}
+                className={className}
+            />
+        );
+    }
 
     if (slug.includes('boeiboord')) {
         const toNum = (v: any, fb = 0) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || fb);
