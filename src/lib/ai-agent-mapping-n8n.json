@@ -451,12 +451,6 @@
   },
   {
     "hoofdtitel": "Metalstud Voorzetwand",
-    "subcategorie_label": "Wapeningsband",
-    "subsectie": "Stucwerk & Afwerking",
-    "Extra_info": "Selecteer gaasband of papierband voor de scheuroverbrugging van gipsplaatnaden. Focus op rollen hoofdmateriaal voor de voorbereiding van het voegwerk."
-  },
-  {
-    "hoofdtitel": "Metalstud Voorzetwand",
     "subcategorie_label": "Voegenmiddel",
     "subsectie": "Stucwerk & Afwerking",
     "Extra_info": "Selecteer voegenvuller voor de eerste fasen van de gipsplaatafwerking. Focus op het hoofdmateriaal voor het vullen van naden en negeer kleine verbruiksartikelen."
@@ -1086,12 +1080,6 @@
     "Extra_info": "Selecteer fijne finishpasta voor de uiteindelijke gladde afwerking. Focus op materiaal voor een schilderklaar resultaat van plafondnaden en schroefgaten."
   },
   {
-    "hoofdtitel": "Plafond - Houten Framewerk",
-    "subcategorie_label": "Wapeningsband",
-    "subsectie": "Stucwerk & Afwerking",
-    "Extra_info": "Selecteer gaasband of papierband voor de scheuroverbrugging tussen de plafondplaten. Focus op rollen hoofdmateriaal voor de voorbereiding van het voegwerk."
-  },
-  {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "subcategorie_label": "Randprofielen",
     "subsectie": "Metaalprofielen",
@@ -1222,12 +1210,6 @@
     "subcategorie_label": "Finish Pasta",
     "subsectie": "Stucwerk & Afwerking",
     "Extra_info": "Selecteer fijne finishpasta voor de uiteindelijke gladde afwerking van plafondnaden en schroefgaten. Focus op een schilderklaar resultaat."
-  },
-  {
-    "hoofdtitel": "Plafond - Metalstud C/U",
-    "subcategorie_label": "Wapeningsband",
-    "subsectie": "Stucwerk & Afwerking",
-    "Extra_info": "Selecteer gaasband of papierband voor de scheuroverbrugging tussen de plafondplaten. Focus op rollen hoofdmateriaal voor de voorbereiding van het voegwerk."
   },
   {
     "hoofdtitel": "Massief Houten Vloer (finish)",

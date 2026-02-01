@@ -753,16 +753,6 @@
     "hoofdtitel": "Metalstud Voorzetwand",
     "slug": "metalstud-voorzetwand",
     "hoofdcategorie": "Naden & Stucwerk",
-    "subcategorie_label": "Wapeningsband",
-    "categoryFilter_subsectie": "Afwerking",
-    "category_key": "gips_afwerking",
-    "subsectie": "Stucwerk & Afwerking",
-    "Extra_info": "Selecteer gaasband of papierband voor de scheuroverbrugging van gipsplaatnaden. Focus op rollen hoofdmateriaal voor de voorbereiding van het voegwerk."
-  },
-  {
-    "hoofdtitel": "Metalstud Voorzetwand",
-    "slug": "metalstud-voorzetwand",
-    "hoofdcategorie": "Naden & Stucwerk",
     "subcategorie_label": "Voegenmiddel",
     "categoryFilter_subsectie": "Afwerking",
     "category_key": "gips_afwerking",
@@ -1810,16 +1800,6 @@
     "Extra_info": "Selecteer fijne finishpasta voor de uiteindelijke gladde afwerking. Focus op materiaal voor een schilderklaar resultaat van plafondnaden en schroefgaten."
   },
   {
-    "hoofdtitel": "Plafond - Houten Framewerk",
-    "slug": "plafond-houten-framework",
-    "hoofdcategorie": "Naden & Stucwerk",
-    "subcategorie_label": "Wapeningsband",
-    "categoryFilter_subsectie": "Afwerking",
-    "category_key": "gips_afwerking",
-    "subsectie": "Stucwerk & Afwerking",
-    "Extra_info": "Selecteer gaasband of papierband voor de scheuroverbrugging tussen de plafondplaten. Focus op rollen hoofdmateriaal voor de voorbereiding van het voegwerk."
-  },
-  {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "slug": "plafond-metalstud",
     "hoofdcategorie": "Metal Stud Framewerk",
@@ -2038,16 +2018,6 @@
     "category_key": "gips_afwerking",
     "subsectie": "Stucwerk & Afwerking",
     "Extra_info": "Selecteer fijne finishpasta voor de uiteindelijke gladde afwerking van plafondnaden en schroefgaten. Focus op een schilderklaar resultaat."
-  },
-  {
-    "hoofdtitel": "Plafond - Metalstud C/U",
-    "slug": "plafond-metalstud",
-    "hoofdcategorie": "Naden & Stucwerk",
-    "subcategorie_label": "Wapeningsband",
-    "categoryFilter_subsectie": "Afwerking",
-    "category_key": "gips_afwerking",
-    "subsectie": "Stucwerk & Afwerking",
-    "Extra_info": "Selecteer gaasband of papierband voor de scheuroverbrugging tussen de plafondplaten. Focus op rollen hoofdmateriaal voor de voorbereiding van het voegwerk."
   },
   {
     "hoofdtitel": "Massief Houten Vloer (finish)",
