@@ -60,7 +60,9 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         title: 'Vensterbank',
         description: 'Incl. lengte',
         measurements: [
-            { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm' },
+            { key: 'lengte', label: 'Totale Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 1100' },
+            { key: 'uitstekLinks', label: 'Oversteek Links', type: 'number', suffix: 'mm', defaultValue: 50 },
+            { key: 'uitstekRechts', label: 'Oversteek Rechts', type: 'number', suffix: 'mm', defaultValue: 50 },
         ],
         defaultMaterials: [
             { label: 'Vensterbank', categoryFilter: 'Vensterbanken', category: 'afwerking', key: 'vensterbanken', category_ultra_filter: '' },
@@ -71,9 +73,8 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         title: 'Dagkant',
         description: 'Afwerking rondom kozijn',
         measurements: [
-            { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm' },
-            { key: 'diepte', label: 'Diepte', type: 'number', suffix: 'mm' },
-            { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm' },
+            { key: 'lengte', label: 'Totale Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 3200' },
+            { key: 'diepte', label: 'Diepte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 150' },
         ],
         defaultMaterials: [
             { label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking', key: 'dagkanten', category_ultra_filter: '' },
@@ -98,8 +99,8 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         description: 'Leidingen en afvoeren wegwerken',
         measurements: [
             { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm' },
-            { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm' },
-            { key: 'diepte', label: 'Diepte', type: 'number', suffix: 'mm' },
+            { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm' },
+            { key: 'diepte', label: 'Breedte', type: 'number', suffix: 'mm' },
         ],
         defaultMaterials: [
             { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },

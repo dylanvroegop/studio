@@ -54,6 +54,9 @@ import { JobComponent } from '@/lib/types';
 import { VisualizerController } from '@/components/visualizers/VisualizerController';
 import { OpeningenSection } from '@/components/openingen/OpeningenSection';
 import { BalkenSection } from '@/components/balken/BalkenSection';
+import { LeidingkoofSection } from '@/components/leidingkoof/LeidingkoofSection';
+import { VensterbankSection } from '@/components/vensterbank/VensterbankSection';
+import { DagkantSection } from '@/components/dagkant/DagkantSection';
 import { getJobConfig } from '@/config/jobTypes/index';
 import { DynamicInput } from '@/components/DynamicInput';
 
@@ -180,11 +183,13 @@ export default function GenericMeasurementPage() {
                 });
               }
 
+              // Initialize arrays for all items
+              if (!item.leidingkofen) item.leidingkofen = [];
+              if (!item.dagkanten) item.dagkanten = [];
+              if (!item.vensterbanken) item.vensterbanken = [];
+
               // Data Migration for HSB Voorzetwand
               if (jobSlug === 'hsb-voorzetwand') {
-                if (!item.leidingkofen) item.leidingkofen = [];
-                if (!item.dagkanten) item.dagkanten = [];
-                if (!item.vensterbanken) item.vensterbanken = [];
 
                 // Move single objects to arrays if they exist
                 if (item.koof_lengte !== undefined && item.leidingkofen.length === 0) {
@@ -253,6 +258,9 @@ export default function GenericMeasurementPage() {
     fields.forEach(f => {
       newItem[f.key] = f.defaultValue !== undefined ? f.defaultValue : '';
     });
+    newItem.leidingkofen = [];
+    newItem.dagkanten = [];
+    newItem.vensterbanken = [];
     return newItem;
   };
 
@@ -303,10 +311,11 @@ export default function GenericMeasurementPage() {
   };
 
   // Linked Item Handlers
-  const onAddDagkant = (itemIdx: number, openingId: string) => {
-    const opening = items[itemIdx].openings?.find((op: any) => op.id === openingId);
-    const initialLengte = opening ? (opening.height * 2 + opening.width) : '';
-    const newDagkant = { id: crypto.randomUUID(), openingId, diepte: '', lengte: initialLengte };
+  const onAddDagkant = (itemIdx: number, openingId?: string) => {
+    const opening = openingId ? items[itemIdx].openings?.find((op: any) => op.id === openingId) : null;
+    const hasVensterbank = openingId ? (items[itemIdx].vensterbanken || []).some((v: any) => v.openingId === openingId) : false;
+    const initialLengte = opening ? (opening.height * 2 + opening.width * (hasVensterbank ? 1 : 2)) : '';
+    const newDagkant = { id: crypto.randomUUID(), openingId: openingId || null, diepte: '', lengte: initialLengte };
     const currentDagkanten = items[itemIdx].dagkanten || [];
     updateItem(itemIdx, 'dagkanten', [...currentDagkanten, newDagkant]);
   };
@@ -321,17 +330,39 @@ export default function GenericMeasurementPage() {
     updateItem(itemIdx, 'dagkanten', currentDagkanten.map((d: any) => d.id === id ? { ...d, ...updates } : d));
   };
 
-  const onAddVensterbank = (itemIdx: number, openingId: string) => {
-    const opening = items[itemIdx].openings?.find((op: any) => op.id === openingId);
+  const onAddVensterbank = (itemIdx: number, openingId?: string) => {
+    const opening = openingId ? items[itemIdx].openings?.find((op: any) => op.id === openingId) : null;
     const initialLengte = opening ? opening.width : '';
-    const newVensterbank = { id: crypto.randomUUID(), openingId, diepte: '', uitstekLinks: '', uitstekRechts: '', lengte: initialLengte };
+    const newVensterbank = { id: crypto.randomUUID(), openingId: openingId || null, diepte: '', uitstekLinks: '', uitstekRechts: '', lengte: initialLengte };
     const currentVensterbanken = items[itemIdx].vensterbanken || [];
     updateItem(itemIdx, 'vensterbanken', [...currentVensterbanken, newVensterbank]);
+    // Recalculate linked dagkant: vensterbank covers bottom, so 3 sides
+    if (openingId && opening) {
+      const currentDagkanten = items[itemIdx].dagkanten || [];
+      const linkedDagkant = currentDagkanten.find((d: any) => d.openingId === openingId);
+      if (linkedDagkant) {
+        const newLengte = opening.height * 2 + opening.width;
+        updateItem(itemIdx, 'dagkanten', currentDagkanten.map((d: any) => d.id === linkedDagkant.id ? { ...d, lengte: newLengte } : d));
+      }
+    }
   };
 
   const onDeleteVensterbank = (itemIdx: number, id: string) => {
     const currentVensterbanken = items[itemIdx].vensterbanken || [];
+    const removedVb = currentVensterbanken.find((v: any) => v.id === id);
     updateItem(itemIdx, 'vensterbanken', currentVensterbanken.filter((v: any) => v.id !== id));
+    // Recalculate linked dagkant: no vensterbank, back to 4 sides
+    if (removedVb?.openingId) {
+      const opening = items[itemIdx].openings?.find((op: any) => op.id === removedVb.openingId);
+      if (opening) {
+        const currentDagkanten = items[itemIdx].dagkanten || [];
+        const linkedDagkant = currentDagkanten.find((d: any) => d.openingId === removedVb.openingId);
+        if (linkedDagkant) {
+          const newLengte = opening.height * 2 + opening.width * 2;
+          updateItem(itemIdx, 'dagkanten', currentDagkanten.map((d: any) => d.id === linkedDagkant.id ? { ...d, lengte: newLengte } : d));
+        }
+      }
+    }
   };
 
   const onUpdateVensterbank = (itemIdx: number, id: string, updates: any) => {
@@ -831,69 +862,35 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
-                    {/* Leidingkoof Section (Array based) */}
-                    {jobSlug === 'hsb-voorzetwand' && (
-                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                        <div
-                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                          onClick={() => toggleCollapsed(`koof-${index}`)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium text-zinc-200">Leidingkoof</span>
-                            {(item.leidingkofen?.length > 0 && collapsedSections[`koof-${index}`] !== false) && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                {item.leidingkofen.length} {item.leidingkofen.length === 1 ? 'koof' : 'koven'}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-zinc-500">
-                            {collapsedSections[`koof-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </div>
-                        </div>
-                        {collapsedSections[`koof-${index}`] === false && (
-                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                            <div className="pt-2 border-t border-white/5 space-y-4">
-                              {(item.leidingkofen || []).map((koof: any, kIdx: number) => (
-                                <div key={koof.id} className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-3 relative">
-                                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                    <span className="text-[10px] uppercase font-bold text-zinc-400">Koof {kIdx + 1}</span>
-                                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-zinc-500 hover:text-red-400" onClick={() => onDeleteLeidingkoof(index, koof.id)}>
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                  <div className="grid grid-cols-1 gap-3">
-                                    <div className="space-y-1">
-                                      <Label className="text-[10px] text-zinc-500">Lengte (mm)</Label>
-                                      <MeasurementInput className="h-7 text-xs" value={koof.lengte} onChange={(v) => onUpdateLeidingkoof(index, koof.id, { lengte: Number(v) || 0 })} />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div className="space-y-1">
-                                        <Label className="text-[10px] text-zinc-500">Hoogte (mm)</Label>
-                                        <MeasurementInput className="h-7 text-xs" value={koof.hoogte} onChange={(v) => onUpdateLeidingkoof(index, koof.id, { hoogte: Number(v) || 0 })} />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <Label className="text-[10px] text-zinc-500">Diepte (mm)</Label>
-                                        <MeasurementInput className="h-7 text-xs" value={koof.diepte} onChange={(v) => onUpdateLeidingkoof(index, koof.id, { diepte: Number(v) || 0 })} />
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onAddLeidingkoof(index)}
-                                className="w-full h-8 text-[10px] text-zinc-500 hover:text-emerald-400 justify-center gap-2 border border-dashed border-white/10"
-                              >
-                                <PlusCircle className="h-3.5 w-3.5" />
-                                Leidingkoof toevoegen
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {/* Leidingkoof Section */}
+                    <LeidingkoofSection
+                      leidingkofen={item.leidingkofen || []}
+                      onAdd={() => onAddLeidingkoof(index)}
+                      onDelete={(id) => onDeleteLeidingkoof(index, id)}
+                      onUpdate={(id, updates) => onUpdateLeidingkoof(index, id, updates)}
+                      isCollapsed={collapsedSections[`koof-${index}`] !== false}
+                      onToggleCollapsed={() => toggleCollapsed(`koof-${index}`)}
+                    />
+
+                    {/* Vensterbank Section */}
+                    <VensterbankSection
+                      vensterbanken={item.vensterbanken || []}
+                      onAdd={() => onAddVensterbank(index)}
+                      onDelete={(id) => onDeleteVensterbank(index, id)}
+                      onUpdate={(id, updates) => onUpdateVensterbank(index, id, updates)}
+                      isCollapsed={collapsedSections[`vensterbank-${index}`] !== false}
+                      onToggleCollapsed={() => toggleCollapsed(`vensterbank-${index}`)}
+                    />
+
+                    {/* Dagkant Section */}
+                    <DagkantSection
+                      dagkanten={item.dagkanten || []}
+                      onAdd={() => onAddDagkant(index)}
+                      onDelete={(id) => onDeleteDagkant(index, id)}
+                      onUpdate={(id, updates) => onUpdateDagkant(index, id, updates)}
+                      isCollapsed={collapsedSections[`dagkant-${index}`] !== false}
+                      onToggleCollapsed={() => toggleCollapsed(`dagkant-${index}`)}
+                    />
 
                     {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}
                     {!isBoeiboord && fields.find(f => f.key === 'kopkanten') && (
@@ -955,6 +952,7 @@ export default function GenericMeasurementPage() {
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                         onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
+                        onLeidingkoofChange={(updated: any) => updateItem(index, 'leidingkofen', updated)}
                       />
                     </div>
                   ) : (
@@ -986,6 +984,7 @@ export default function GenericMeasurementPage() {
                             onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                             onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                             onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
+                            onLeidingkoofChange={(updated: any) => updateItem(index, 'leidingkofen', updated)}
                             className="w-full h-full"
                           />
                         </div>

@@ -92,6 +92,8 @@ export const MATERIAL_CATEGORY_INFO = {
   beveiliging: { title: 'Beveiliging', order: 1 },
   exterieur_details: { title: 'Exterieur Details', order: 1 },
   boeiboord: { title: 'Boeidelen', order: 15 },
+  Installatie: { title: 'Installatie', order: 20 },
+  Schakelmateriaal: { title: 'Schakelmateriaal', order: 21 },
 } as const;
 
 //#region total category extra info

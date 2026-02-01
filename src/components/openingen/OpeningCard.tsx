@@ -202,61 +202,6 @@ export function OpeningCard({
                     </div>
                 </div>
 
-                {isWallCategory && (
-                    <div className="space-y-3 pt-2 border-t border-white/5">
-                        <Label className="text-[10px] uppercase text-zinc-500 font-bold">Constructie</Label>
-                        <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                            {constructionOptions.dblStijl && (
-                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dubbele Stijl</Label>
-                                    <Switch
-                                        checked={(opening.dubbeleStijlLinks && opening.dubbeleStijlRechts) || false}
-                                        onCheckedChange={(c) => onUpdate({
-                                            ...opening,
-                                            dubbeleStijlLinks: c,
-                                            dubbeleStijlRechts: c
-                                        })}
-                                        className="scale-75 origin-right"
-                                    />
-                                </div>
-                            )}
-
-                            {constructionOptions.trimmer && (
-                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Trimmer</Label>
-                                    <Switch
-                                        checked={opening.trimmer || false}
-                                        onCheckedChange={(c) => onUpdate({ ...opening, trimmer: c })}
-                                        className="scale-75 origin-right"
-                                    />
-                                </div>
-                            )}
-
-                            {constructionOptions.dblBovendorpel && (
-                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dbl. Boven</Label>
-                                    <Switch
-                                        checked={opening.dubbeleBovendorpel || false}
-                                        onCheckedChange={(c) => onUpdate({ ...opening, dubbeleBovendorpel: c })}
-                                        className="scale-75 origin-right"
-                                    />
-                                </div>
-                            )}
-
-                            {constructionOptions.dblOnderdorpel && (
-                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dbl. Onder</Label>
-                                    <Switch
-                                        checked={opening.dubbeleOnderdorpel || false}
-                                        onCheckedChange={(c) => onUpdate({ ...opening, dubbeleOnderdorpel: c })}
-                                        className="scale-75 origin-right"
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 {/* Linked Dagkant & Vensterbank Section */}
                 {isWallCategory && opening.type !== 'opening' && opening.type !== 'other' && (
                     <div className="space-y-3 pt-2 border-t border-white/5">
@@ -327,15 +272,16 @@ export function OpeningCard({
                                     </div>
                                     <div className="space-y-3">
                                         <div className="space-y-1">
-                                            <Label className="text-[10px] text-zinc-500">Diepte (mm)</Label>
+                                            <Label className="text-[10px] text-zinc-500 font-normal">Totale Lengte (mm)</Label>
                                             <MeasurementInput
                                                 className="h-7 text-xs"
-                                                value={openingVensterbank.diepte}
-                                                onChange={(v) => onUpdateVensterbank(openingVensterbank.id, { diepte: Number(v) || 0 })}
-                                                placeholder="200"
+                                                value={openingVensterbank.lengte}
+                                                onChange={(v) => onUpdateVensterbank(openingVensterbank.id, { lengte: Number(v) || 0 })}
+                                                placeholder={`${(opening.width + (Number(openingVensterbank.uitstekLinks) || 0) + (Number(openingVensterbank.uitstekRechts) || 0))}`}
                                             />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2">
+
+                                        <div className="grid grid-cols-2 gap-2 pb-1">
                                             <div className="space-y-1">
                                                 <Label className="text-[10px] text-zinc-500">Uitsteek L (mm)</Label>
                                                 <MeasurementInput
@@ -352,17 +298,6 @@ export function OpeningCard({
                                                     onChange={(v) => onUpdateVensterbank(openingVensterbank.id, { uitstekRechts: Number(v) || 0 })}
                                                 />
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div className="text-[10px] text-zinc-500 space-y-2 pt-1">
-                                        <div className="space-y-1">
-                                            <Label className="text-[10px] text-zinc-500 font-normal">Totale Lengte (mm)</Label>
-                                            <MeasurementInput
-                                                className="h-7 text-xs"
-                                                value={openingVensterbank.lengte}
-                                                onChange={(v) => onUpdateVensterbank(openingVensterbank.id, { lengte: Number(v) || 0 })}
-                                                placeholder={`${(opening.width + (Number(openingVensterbank.uitstekLinks) || 0) + (Number(openingVensterbank.uitstekRechts) || 0))}`}
-                                            />
                                         </div>
                                     </div>
                                 </div>

@@ -6,6 +6,7 @@ import { OpeningLabels } from './shared/OpeningLabels';
 import { GridMeasurements, OpeningMeasurements, OverallDimensions, DimensionLine } from './shared/measurements';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { Dagkant, Vensterbank } from '../openingen/OpeningCard';
+import { LeidingkoofItem } from '../leidingkoof/LeidingkoofSection';
 
 export { type WallOpening };
 
@@ -37,6 +38,8 @@ export interface WallDrawingProps {
     doubleEndBeams?: boolean;
     dagkanten?: Dagkant[];
     vensterbanken?: Vensterbank[];
+    leidingkofen?: LeidingkoofItem[];
+    onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
 }
 
 type LogicalBeam = {
@@ -81,6 +84,8 @@ export function WallDrawing({
     doubleEndBeams = false,
     dagkanten = [],
     vensterbanken = [],
+    leidingkofen = [],
+    onLeidingkoofChange,
     onDataGenerated
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
@@ -389,7 +394,8 @@ export function WallDrawing({
 
     // Internal Drag State
     const [draggingId, setDraggingId] = useState<string | null>(null);
-    const dragStartRef = useRef<{ x: number; y: number; opId: string; origLeft: number; origBottom: number } | null>(null);
+    const [draggingType, setDraggingType] = useState<'opening' | 'koof' | null>(null);
+    const dragStartRef = useRef<{ x: number; y: number; id: string; origLeft: number; origBottom: number } | null>(null);
     const metricsRef = useRef<{ pxPerMm: number } | null>(null);
 
     const handlePointerDown = (e: React.PointerEvent, op: WallOpening) => {
@@ -399,17 +405,35 @@ export function WallDrawing({
         e.stopPropagation();
         (e.target as Element).setPointerCapture(e.pointerId);
         setDraggingId(op.id);
+        setDraggingType('opening');
         dragStartRef.current = {
             x: e.clientX,
             y: e.clientY,
-            opId: op.id,
+            id: op.id,
             origLeft: op.fromLeft,
             origBottom: op.fromBottom
         };
     };
 
+    const handleKoofPointerDown = (e: React.PointerEvent, koof: LeidingkoofItem) => {
+        if (isMagnifier) return;
+        if (!onLeidingkoofChange) return;
+        e.preventDefault();
+        e.stopPropagation();
+        (e.target as Element).setPointerCapture(e.pointerId);
+        setDraggingId(koof.id);
+        setDraggingType('koof');
+        dragStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            id: koof.id,
+            origLeft: Number(koof.vanLinks) || 0,
+            origBottom: Number(koof.vanOnder) || 0
+        };
+    };
+
     const handlePointerMove = (e: React.PointerEvent) => {
-        if (!draggingId || !dragStartRef.current || !onOpeningsChange || !metricsRef.current) return;
+        if (!draggingId || !dragStartRef.current || !metricsRef.current) return;
 
         const { pxPerMm } = metricsRef.current;
         const start = dragStartRef.current;
@@ -418,28 +442,65 @@ export function WallDrawing({
         const dyPx = e.clientY - start.y;
 
         const dxMm = dxPx / pxPerMm;
-        const dyMm = -(dyPx / pxPerMm); // Up is positive MM
+        const dyMm = -(dyPx / pxPerMm);
 
-        const newLeft = Math.round(start.origLeft + dxMm);
-        const newBottom = Math.round(start.origBottom + dyMm);
+        const newLeft = Math.max(0, Math.round(start.origLeft + dxMm));
+        const newBottom = Math.max(0, Math.round(start.origBottom + dyMm));
 
-        const updatedOpenings = openings.map(o => {
-            if (o.id === draggingId) {
-                let finalBottom = newBottom;
-                if (o.type === 'door' || o.type === 'door-frame' || o.type === 'opening') {
-                    if (Math.abs(finalBottom) < 100) finalBottom = 0;
+        if (draggingType === 'opening' && onOpeningsChange) {
+            const updatedOpenings = openings.map(o => {
+                if (o.id === draggingId) {
+                    let finalBottom = newBottom;
+                    if (o.type === 'door' || o.type === 'door-frame' || o.type === 'opening') {
+                        if (Math.abs(finalBottom) < 100) finalBottom = 0;
+                    }
+                    return { ...o, fromLeft: newLeft, fromBottom: finalBottom };
                 }
-                return { ...o, fromLeft: newLeft, fromBottom: finalBottom };
-            }
-            return o;
-        });
-        onOpeningsChange(updatedOpenings);
+                return o;
+            });
+            onOpeningsChange(updatedOpenings);
+        } else if (draggingType === 'koof' && onLeidingkoofChange) {
+            const SNAP_THRESHOLD = 50; // mm
+            const updatedKofen = leidingkofen.map(k => {
+                if (k.id !== draggingId) return k;
+
+                const orientation = k.orientation || 'side';
+                const koofLengte = Number(k.lengte) || 0;
+                const koofHoogte = Number(k.hoogte) || 0;
+                const rectWMm = orientation === 'side' ? koofHoogte : koofLengte;
+                const rectHMm = orientation === 'side' ? koofLengte : koofHoogte;
+
+                let finalLeft = newLeft;
+                let finalBottom = newBottom;
+
+                // Snap to left wall edge
+                if (finalLeft < SNAP_THRESHOLD) {
+                    finalLeft = 0;
+                }
+                // Snap to right wall edge
+                if (lengteNum > 0 && (finalLeft + rectWMm) > (lengteNum - SNAP_THRESHOLD)) {
+                    finalLeft = Math.max(0, lengteNum - rectWMm);
+                }
+                // Snap to bottom (floor)
+                if (finalBottom < SNAP_THRESHOLD) {
+                    finalBottom = 0;
+                }
+                // Snap to top (ceiling)
+                if (maxH > 0 && (finalBottom + rectHMm) > (maxH - SNAP_THRESHOLD)) {
+                    finalBottom = Math.max(0, maxH - rectHMm);
+                }
+
+                return { ...k, vanLinks: finalLeft, vanOnder: finalBottom };
+            });
+            onLeidingkoofChange(updatedKofen);
+        }
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
         if (draggingId) {
             (e.target as Element).releasePointerCapture(e.pointerId);
             setDraggingId(null);
+            setDraggingType(null);
             dragStartRef.current = null;
         }
     };
@@ -545,26 +606,25 @@ export function WallDrawing({
                                         const opDagkant = dagkanten.find(d => d.openingId === op.id);
                                         if (!opDagkant || !opDagkant.diepte) return null;
 
-                                        const dPx = Math.min(opDagkant.diepte * 0.2, 40) * pxPerMm; // Scale down depth for visual sanity
+                                        const dPx = Math.min(Number(opDagkant.diepte) * 0.2, 40) * pxPerMm; // Scale down depth for visual sanity
                                         const inset = 1 * pxPerMm;
 
                                         return (
-                                            <g opacity="0.4">
-                                                {/* Visual indicator of "depth" - subtle inner lines */}
+                                            <g opacity="0.6">
+                                                {/* Dagkant depth lines - white */}
                                                 <rect
                                                     x={drawX + inset}
                                                     y={drawY + inset}
                                                     width={wPx - inset * 2}
                                                     height={hPx - inset * 2}
                                                     fill="none"
-                                                    stroke="#10b981"
-                                                    strokeWidth="0.5"
-                                                    strokeDasharray="1,2"
+                                                    stroke="#ffffff"
+                                                    strokeWidth="1"
                                                 />
-                                                <line x1={drawX} y1={drawY} x2={drawX + inset * 4} y2={drawY + inset * 4} stroke="#10b981" strokeWidth="0.5" />
-                                                <line x1={drawX + wPx} y1={drawY} x2={drawX + wPx - inset * 4} y2={drawY + inset * 4} stroke="#10b981" strokeWidth="0.5" />
-                                                <line x1={drawX} y1={drawY + hPx} x2={drawX + inset * 4} y2={drawY + hPx - inset * 4} stroke="#10b981" strokeWidth="0.5" />
-                                                <line x1={drawX + wPx} y1={drawY + hPx} x2={drawX + wPx - inset * 4} y2={drawY + hPx - inset * 4} stroke="#10b981" strokeWidth="0.5" />
+                                                <line x1={drawX} y1={drawY} x2={drawX + inset * 4} y2={drawY + inset * 4} stroke="#ffffff" strokeWidth="1" />
+                                                <line x1={drawX + wPx} y1={drawY} x2={drawX + wPx - inset * 4} y2={drawY + inset * 4} stroke="#ffffff" strokeWidth="1" />
+                                                <line x1={drawX} y1={drawY + hPx} x2={drawX + inset * 4} y2={drawY + hPx - inset * 4} stroke="#ffffff" strokeWidth="1" />
+                                                <line x1={drawX + wPx} y1={drawY + hPx} x2={drawX + wPx - inset * 4} y2={drawY + hPx - inset * 4} stroke="#ffffff" strokeWidth="1" />
                                             </g>
                                         );
                                     })()}
@@ -574,9 +634,9 @@ export function WallDrawing({
                                         const opVensterbank = vensterbanken.find(v => v.openingId === op.id);
                                         if (!opVensterbank) return null;
 
-                                        const uitL = (opVensterbank.uitstekLinks || 0) * pxPerMm;
-                                        const uitR = (opVensterbank.uitstekRechts || 0) * pxPerMm;
-                                        const vbDiepte = (opVensterbank.diepte || 20) * pxPerMm;
+                                        const uitL = (Number(opVensterbank.uitstekLinks) || 0) * pxPerMm;
+                                        const uitR = (Number(opVensterbank.uitstekRechts) || 0) * pxPerMm;
+                                        const vbDiepte = (Number(opVensterbank.diepte) || 20) * pxPerMm;
                                         const vbH = 4 * pxPerMm; // Visual thickness of the sill board
 
                                         const vbX = drawX - uitL;
@@ -615,6 +675,91 @@ export function WallDrawing({
                                         width={op.width}
                                         height={op.height}
                                     />
+                                </g>
+                            );
+                        })}
+
+                        {/* Leidingkoof Visualization */}
+                        {leidingkofen.map((koof) => {
+                            const koofLengte = Number(koof.lengte) || 0;
+                            const koofHoogte = Number(koof.hoogte) || 0;
+                            const koofVanLinks = Number(koof.vanLinks) || 0;
+                            const koofVanOnder = Number(koof.vanOnder) || 0;
+                            const orientation = koof.orientation || 'side';
+
+                            if (koofLengte <= 0 || koofHoogte <= 0) return null;
+
+                            // Side: lengte = vertical height on wall, hoogte = horizontal width
+                            // Top: lengte = horizontal width on wall, hoogte = vertical height
+                            const rectWMm = orientation === 'side' ? koofHoogte : koofLengte;
+                            const rectHMm = orientation === 'side' ? koofLengte : koofHoogte;
+
+                            const koofX = WALL_X + koofVanLinks * pxPerMm;
+                            const koofY = getY(koofVanOnder + rectHMm);
+                            const koofW = rectWMm * pxPerMm;
+                            const koofH = rectHMm * pxPerMm;
+                            const isDragging = draggingId === koof.id;
+
+                            return (
+                                <g
+                                    key={koof.id}
+                                    onPointerDown={(e) => handleKoofPointerDown(e, koof)}
+                                    style={{ cursor: onLeidingkoofChange ? 'move' : 'default' }}
+                                >
+                                    {/* Opaque background to hide beams */}
+                                    <rect
+                                        x={koofX}
+                                        y={koofY}
+                                        width={koofW}
+                                        height={koofH}
+                                        fill="#09090b"
+                                    />
+                                    {/* Semi-transparent blue overlay */}
+                                    <rect
+                                        x={koofX}
+                                        y={koofY}
+                                        width={koofW}
+                                        height={koofH}
+                                        fill="rgba(59, 130, 246, 0.15)"
+                                        stroke={isDragging ? "#3b82f6" : "rgba(59, 130, 246, 0.5)"}
+                                        strokeWidth={isDragging ? "2" : "1"}
+                                        strokeDasharray={isDragging ? "none" : "4,2"}
+                                    />
+                                    <text
+                                        x={koofX + koofW / 2}
+                                        y={koofY + koofH / 2}
+                                        textAnchor="middle"
+                                        dominantBaseline="central"
+                                        fill="rgba(96, 165, 250, 1)"
+                                        fontSize={Math.min(10, koofH * 0.4)}
+                                        fontWeight="bold"
+                                        style={{ pointerEvents: 'none', fontFamily: 'monospace' }}
+                                    >
+                                        Koof
+                                    </text>
+                                    {/* Beam on opposite side when snapped to wall edge */}
+                                    {koofVanLinks === 0 && orientation === 'side' && (
+                                        <rect
+                                            x={koofX + koofW}
+                                            y={koofY}
+                                            width={STUD_W * pxPerMm}
+                                            height={koofH}
+                                            fill="rgb(70, 75, 85)"
+                                            stroke="rgb(55, 60, 70)"
+                                            strokeWidth="0.5"
+                                        />
+                                    )}
+                                    {lengteNum > 0 && Math.abs(koofVanLinks + rectWMm - lengteNum) < 1 && orientation === 'side' && (
+                                        <rect
+                                            x={koofX - STUD_W * pxPerMm}
+                                            y={koofY}
+                                            width={STUD_W * pxPerMm}
+                                            height={koofH}
+                                            fill="rgb(70, 75, 85)"
+                                            stroke="rgb(55, 60, 70)"
+                                            strokeWidth="0.5"
+                                        />
+                                    )}
                                 </g>
                             );
                         })}
