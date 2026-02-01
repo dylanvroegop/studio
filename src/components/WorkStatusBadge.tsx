@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Badge } from "@/components/ui/badge";
-import { Circle, Clock, CheckCircle2, Send, XCircle, AlertCircle } from "lucide-react";
+import { Circle, Clock, CheckCircle2, Send, XCircle, AlertCircle, Loader2 } from "lucide-react";
 export type Status = 'concept' | 'in_behandeling' | 'verzonden' | 'geaccepteerd' | 'afgewezen' | 'verlopen';
 
 // Helper to check if a single job (klus) is complete
@@ -24,14 +24,27 @@ type WorkStatus =
     | { type: 'no_jobs' }
     | { type: 'in_progress'; complete: number; total: number }
     | { type: 'ready'; total: number }
+    | { type: 'calculating' }
+    | { type: 'calculated' }
     | { type: 'sent'; status: Status };
 
 export function getQuoteWorkStatus(quote: any): WorkStatus {
     const status = quote.status as Status;
+    const amount = quote.totaalbedrag || quote.amount || 0;
 
     // If already sent/accepted/rejected, show that status
     if (status === 'verzonden' || status === 'geaccepteerd' || status === 'afgewezen' || status === 'verlopen') {
         return { type: 'sent', status };
+    }
+
+    // If currently being processed by n8n
+    if (status === 'in_behandeling') {
+        return { type: 'calculating' };
+    }
+
+    // If we have an amount and we're in concept, it means it's calculated but not yet sent
+    if (status === 'concept' && amount > 0) {
+        return { type: 'calculated' };
     }
 
     // Extract jobs from the quote
@@ -90,6 +103,30 @@ export function WorkStatusBadge({ quote }: { quote: any }) {
             >
                 <CheckCircle2 className="h-3 w-3" />
                 Klaar voor offerte
+            </Badge>
+        );
+    }
+
+    if (workStatus.type === 'calculating') {
+        return (
+            <Badge
+                variant="outline"
+                className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border-amber-500/20"
+            >
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Wordt berekend
+            </Badge>
+        );
+    }
+
+    if (workStatus.type === 'calculated') {
+        return (
+            <Badge
+                variant="outline"
+                className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-blue-500/10 text-blue-400 border-blue-500/20"
+            >
+                <CheckCircle2 className="h-3 w-3" />
+                Klaar om te versturen
             </Badge>
         );
     }

@@ -5,6 +5,7 @@ import { WallOpening, DrawingData, Beam } from '@/lib/drawing-types';
 import { OpeningLabels } from './shared/OpeningLabels';
 import { GridMeasurements, OpeningMeasurements, OverallDimensions, DimensionLine } from './shared/measurements';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
+import { Dagkant, Vensterbank } from '../openingen/OpeningCard';
 
 export { type WallOpening };
 
@@ -34,6 +35,8 @@ export interface WallDrawingProps {
     doubleTopPlate?: boolean;
     doubleBottomPlate?: boolean;
     doubleEndBeams?: boolean;
+    dagkanten?: Dagkant[];
+    vensterbanken?: Vensterbank[];
 }
 
 type LogicalBeam = {
@@ -76,6 +79,8 @@ export function WallDrawing({
     doubleTopPlate = false,
     doubleBottomPlate = false,
     doubleEndBeams = false,
+    dagkanten = [],
+    vensterbanken = [],
     onDataGenerated
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
@@ -368,7 +373,9 @@ export function WallDrawing({
             })),
             dimensions: [],
             params: {
-                doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand
+                doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand,
+                dagkanten,
+                vensterbanken
             }
         };
 
@@ -532,6 +539,68 @@ export function WallDrawing({
                                     style={{ cursor: onOpeningsChange ? 'move' : 'default' }}
                                 >
                                     <rect x={drawX} y={drawY} width={wPx} height={hPx} fill="#09090b" stroke={draggingId === op.id ? "#10b981" : "rgb(55, 60, 70)"} strokeWidth={draggingId === op.id ? "2" : "1"} />
+
+                                    {/* Dagkanten Depths Visualization */}
+                                    {(() => {
+                                        const opDagkant = dagkanten.find(d => d.openingId === op.id);
+                                        if (!opDagkant || !opDagkant.diepte) return null;
+
+                                        const dPx = Math.min(opDagkant.diepte * 0.2, 40) * pxPerMm; // Scale down depth for visual sanity
+                                        const inset = 1 * pxPerMm;
+
+                                        return (
+                                            <g opacity="0.4">
+                                                {/* Visual indicator of "depth" - subtle inner lines */}
+                                                <rect
+                                                    x={drawX + inset}
+                                                    y={drawY + inset}
+                                                    width={wPx - inset * 2}
+                                                    height={hPx - inset * 2}
+                                                    fill="none"
+                                                    stroke="#10b981"
+                                                    strokeWidth="0.5"
+                                                    strokeDasharray="1,2"
+                                                />
+                                                <line x1={drawX} y1={drawY} x2={drawX + inset * 4} y2={drawY + inset * 4} stroke="#10b981" strokeWidth="0.5" />
+                                                <line x1={drawX + wPx} y1={drawY} x2={drawX + wPx - inset * 4} y2={drawY + inset * 4} stroke="#10b981" strokeWidth="0.5" />
+                                                <line x1={drawX} y1={drawY + hPx} x2={drawX + inset * 4} y2={drawY + hPx - inset * 4} stroke="#10b981" strokeWidth="0.5" />
+                                                <line x1={drawX + wPx} y1={drawY + hPx} x2={drawX + wPx - inset * 4} y2={drawY + hPx - inset * 4} stroke="#10b981" strokeWidth="0.5" />
+                                            </g>
+                                        );
+                                    })()}
+
+                                    {/* Vensterbank Visualization */}
+                                    {(() => {
+                                        const opVensterbank = vensterbanken.find(v => v.openingId === op.id);
+                                        if (!opVensterbank) return null;
+
+                                        const uitL = (opVensterbank.uitstekLinks || 0) * pxPerMm;
+                                        const uitR = (opVensterbank.uitstekRechts || 0) * pxPerMm;
+                                        const vbDiepte = (opVensterbank.diepte || 20) * pxPerMm;
+                                        const vbH = 4 * pxPerMm; // Visual thickness of the sill board
+
+                                        const vbX = drawX - uitL;
+                                        const vbY = drawY + hPx;
+                                        const vbW = wPx + uitL + uitR;
+
+                                        return (
+                                            <g>
+                                                <rect
+                                                    x={vbX}
+                                                    y={vbY}
+                                                    width={vbW}
+                                                    height={vbH}
+                                                    fill="#10b981"
+                                                    fillOpacity="0.2"
+                                                    stroke="#10b981"
+                                                    strokeWidth="0.5"
+                                                />
+                                                {/* Optional front face / detail */}
+                                                <rect x={vbX} y={vbY} width={vbW} height={1} fill="#10b981" fillOpacity="0.8" />
+                                            </g>
+                                        );
+                                    })()}
+
                                     {onderdorpelRect}
                                     <line x1={drawX} y1={drawY} x2={drawX + wPx} y2={drawY + hPx} stroke="rgb(55, 60, 70)" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
                                     <line x1={drawX} y1={drawY + hPx} x2={drawX + wPx} y2={drawY} stroke="rgb(55, 60, 70)" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />

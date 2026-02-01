@@ -79,6 +79,12 @@ export async function POST(req: Request) {
 
     const quote = await haalQuoteOp(db, quoteId) as any;
 
+    // Set status to in_behandeling while n8n is processing
+    await db.collection('quotes').doc(quoteId).update({
+      status: 'in_behandeling',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     try {
       // ─── 1. Collect ALL Material IDs from every source ───
       const materialIdsToBeFetched = new Set<string>();

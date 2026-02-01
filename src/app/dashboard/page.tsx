@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 import {
   collection,
@@ -156,14 +157,32 @@ type WorkStatus =
   | { type: 'no_jobs' }
   | { type: 'in_progress'; complete: number; total: number }
   | { type: 'ready'; total: number }
+  | { type: 'calculating' }
+  | { type: 'calculated' }
   | { type: 'sent'; status: Status };
 
-function getQuoteWorkStatus(quote: any): WorkStatus {
+function getQuoteWorkStatus(quote: any, hasSupabaseData: boolean = false): WorkStatus {
   const status = quote.status as Status;
+  const amount = quote.totaalbedrag || quote.amount || 0;
 
   // If already sent/accepted/rejected, show that status
   if (status === 'verzonden' || status === 'geaccepteerd' || status === 'afgewezen' || status === 'verlopen') {
     return { type: 'sent', status };
+  }
+
+  // If we have data in Supabase, it's calculated even if Firestore hasn't updated yet
+  if (hasSupabaseData) {
+    return { type: 'calculated' };
+  }
+
+  // If currently being processed by n8n
+  if (status === 'in_behandeling') {
+    return { type: 'calculating' };
+  }
+
+  // If we have an amount and we're in concept, it means it's calculated but not yet sent
+  if (status === 'concept' && amount > 0) {
+    return { type: 'calculated' };
   }
 
   // Extract jobs from the quote
@@ -187,8 +206,8 @@ function getQuoteWorkStatus(quote: any): WorkStatus {
   return { type: 'in_progress', complete, total };
 }
 
-function WorkStatusBadge({ quote }: { quote: any }) {
-  const workStatus = getQuoteWorkStatus(quote);
+function WorkStatusBadge({ quote, hasSupabaseData }: { quote: any; hasSupabaseData: boolean }) {
+  const workStatus = getQuoteWorkStatus(quote, hasSupabaseData);
 
   if (workStatus.type === 'no_jobs') {
     return (
@@ -226,6 +245,30 @@ function WorkStatusBadge({ quote }: { quote: any }) {
     );
   }
 
+  if (workStatus.type === 'calculating') {
+    return (
+      <Badge
+        variant="outline"
+        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border-amber-500/20"
+      >
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Wordt berekend
+      </Badge>
+    );
+  }
+
+  if (workStatus.type === 'calculated') {
+    return (
+      <Badge
+        variant="outline"
+        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-blue-500/10 text-blue-400 border-blue-500/20"
+      >
+        <CheckCircle2 className="h-3 w-3" />
+        Klaar om te versturen
+      </Badge>
+    );
+  }
+
   // workStatus.type === 'sent'
   const sentStatusMap: Record<Status, { text: string; className: string; icon: React.ReactNode }> = {
     concept: { text: 'Concept', className: 'bg-zinc-700/50 text-zinc-300 border-zinc-600/30', icon: <Circle className="h-3 w-3" /> },
@@ -250,9 +293,15 @@ function WorkStatusBadge({ quote }: { quote: any }) {
 }
 
 // Helper to check if a quote is still being worked on (not sent/completed)
-function isLopendeKlus(quote: any): boolean {
-  const workStatus = getQuoteWorkStatus(quote);
-  return workStatus.type === 'no_jobs' || workStatus.type === 'in_progress' || workStatus.type === 'ready';
+function isLopendeKlus(quote: any, hasSupabaseData: boolean): boolean {
+  const workStatus = getQuoteWorkStatus(quote, hasSupabaseData);
+  return (
+    workStatus.type === 'no_jobs' ||
+    workStatus.type === 'in_progress' ||
+    workStatus.type === 'ready' ||
+    workStatus.type === 'calculating' ||
+    workStatus.type === 'calculated'
+  );
 }
 
 function DashboardSkeleton() {
@@ -299,6 +348,57 @@ export default function Dashboard() {
 
   // ✅ creating flow
   const [isCreating, setIsCreating] = useState(false);
+
+  // ✅ Supabase calculation check
+  const [supabaseQuotesWithData, setSupabaseQuotesWithData] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchSupabaseStatus = async () => {
+      const { data, error } = await supabase
+        .from('quotes_collection')
+        .select('quoteid, data_json')
+        .eq('gebruikerid', user.uid);
+
+      if (error) {
+        console.error('Error fetching Supabase quotes:', error);
+        return;
+      }
+
+      if (data) {
+        const idsWithData = new Set(
+          data
+            .filter((d) => d.data_json && Object.keys(d.data_json).length > 0)
+            .map((d) => d.quoteid)
+        );
+        setSupabaseQuotesWithData(idsWithData);
+      }
+    };
+
+    fetchSupabaseStatus();
+
+    // Subscribe to changes in quotes_collection
+    const channel = supabase
+      .channel('quotes_dashboard_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'quotes_collection',
+          filter: `gebruikerid=eq.${user.uid}`,
+        },
+        () => {
+          fetchSupabaseStatus();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   async function handleNewQuote() {
     if (!user || !firestore) return;
@@ -498,7 +598,8 @@ export default function Dashboard() {
                         const datum = o.updatedAtDate ?? o.createdAtDate;
                         const nrLabel = getOfferteNummerLabel(o);
                         const totaal = (o as any).totaalbedrag || (o as any).amount || 0;
-                        const lopend = isLopendeKlus(o);
+                        const hasSupabaseData = supabaseQuotesWithData.has(o.id);
+                        const lopend = isLopendeKlus(o, hasSupabaseData);
 
                         return (
                           <div
@@ -526,7 +627,7 @@ export default function Dashboard() {
                                   </span>
                                 )}
 
-                                <WorkStatusBadge quote={o} />
+                                <WorkStatusBadge quote={o} hasSupabaseData={hasSupabaseData} />
                               </div>
 
                               <div className="flex items-center gap-3 text-sm text-zinc-500">

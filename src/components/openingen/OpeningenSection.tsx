@@ -1,12 +1,23 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
-import { OpeningCard, OpeningData, OpeningConstructionOptions } from './OpeningCard';
+import { OpeningCard, OpeningData, OpeningConstructionOptions, Dagkant, Vensterbank } from './OpeningCard';
 
 interface OpeningenSectionProps {
     openings: OpeningData[];
     onChange: (openings: OpeningData[]) => void;
     constructionOptions: OpeningConstructionOptions;
+
+    // Linked items
+    dagkanten: Dagkant[];
+    vensterbanken: Vensterbank[];
+    onAddDagkant: (openingId: string) => void;
+    onDeleteDagkant: (id: string) => void;
+    onUpdateDagkant: (id: string, updates: Partial<Dagkant>) => void;
+    onAddVensterbank: (openingId: string) => void;
+    onDeleteVensterbank: (id: string) => void;
+    onUpdateVensterbank: (id: string, updates: Partial<Vensterbank>) => void;
+
     isWallCategory: boolean;
     isCeilingCategory: boolean;
     categorySlug: string;
@@ -16,6 +27,14 @@ export function OpeningenSection({
     openings = [],
     onChange,
     constructionOptions,
+    dagkanten = [],
+    vensterbanken = [],
+    onAddDagkant,
+    onDeleteDagkant,
+    onUpdateDagkant,
+    onAddVensterbank,
+    onDeleteVensterbank,
+    onUpdateVensterbank,
     isWallCategory,
     isCeilingCategory,
     categorySlug,
@@ -79,12 +98,21 @@ export function OpeningenSection({
                     <OpeningCard
                         key={op.id || index}
                         opening={op}
-                        index={index}
                         openingNumber={index + 1}
                         constructionOptions={constructionOptions}
 
                         onUpdate={(updated) => handleUpdate(index, updated)}
                         onDelete={() => handleDelete(index)}
+
+                        dagkanten={dagkanten}
+                        vensterbanken={vensterbanken}
+                        onAddDagkant={onAddDagkant}
+                        onDeleteDagkant={onDeleteDagkant}
+                        onUpdateDagkant={onUpdateDagkant}
+                        onAddVensterbank={onAddVensterbank}
+                        onDeleteVensterbank={onDeleteVensterbank}
+                        onUpdateVensterbank={onUpdateVensterbank}
+
                         isWallCategory={isWallCategory}
                         isCeilingCategory={isCeilingCategory}
                         categorySlug={categorySlug}

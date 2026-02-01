@@ -43,3 +43,11 @@ this only applies to construction logic where its impossible for example to buil
 make sure this always has the same 'name' or is stored inside a single 'maatwerk' object.
 within this maatwerk, there could be multiple 'maatwerk' items, but they all need to be stored inside this single object and a 'key' can be stored such as for the 'leidingkoof' the key would be stored inside 'maatwerk'. so that 'maatwerk' stores all measurements inside a single map of firestore inside the 'specific klussen'. if there are multiple klussen types, then it may be stored inside that other klustype but still under the same name 'maatwerk'. 
 
+- add wachtwoord vergeten
+
+- fix geen eigenaar gevonden if they leave before the client add page
+
+- show the 'currently picked' inside the material selection modal
+
+- fix popup at 'materiaal lijst maken' on the overzicht page. issues here.
+

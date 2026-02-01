@@ -3,7 +3,7 @@
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
-import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary } from '@/lib/quote-calculations';
+import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson } from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
 import { WorkDescriptionCard } from '@/components/quote/WorkDescriptionCard';
@@ -20,6 +20,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
+
 
 import { Quote } from "@/lib/types";
 
@@ -29,6 +31,9 @@ export default function QuotePage() {
 
     // Fetch calculation data from Supabase
     const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id);
+
+    // Normalize calculation data
+    const normalizedData = calculation?.data_json ? normalizeDataJson(calculation.data_json) : null;
 
     // Firebase hooks
     const { user, isUserLoading } = useUser();
@@ -49,51 +54,62 @@ export default function QuotePage() {
         verbruik: MaterialItem[];
     }>({ groot: [], verbruik: [] });
 
-    const [userProfile, setUserProfile] = useState<any>(null);
+    const [isSendModalOpen, setIsSendModalOpen] = useState(false);
 
-    // Fetch user profile for company details
+
+    const [userProfile, setUserProfile] = useState<any>(null);
+    const [businessData, setBusinessData] = useState<any>(null);
+
+    // Fetch user profile and business details
     useEffect(() => {
-        const fetchUserProfile = async () => {
+        const fetchUserData = async () => {
             if (user && firestore) {
                 try {
-                    const docRef = doc(firestore, 'users', user.uid);
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
+                    // Fetch from users collection
+                    const userRef = doc(firestore, 'users', user.uid);
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        const data = userSnap.data();
                         setUserProfile(data);
                         if (data.defaultPdfSettings) {
                             setPdfSettings(data.defaultPdfSettings);
                         }
                     }
+
+                    // Fetch from businesses collection
+                    const businessRef = doc(firestore, 'businesses', user.uid);
+                    const businessSnap = await getDoc(businessRef);
+                    if (businessSnap.exists()) {
+                        setBusinessData(businessSnap.data());
+                    }
                 } catch (err) {
-                    console.error("Error fetching user profile:", err);
+                    console.error("Error fetching user/business data:", err);
                 }
             }
         };
-        fetchUserProfile();
+        fetchUserData();
     }, [user, firestore]);
 
     // Initialize state from calculation data (Supabase)
     useEffect(() => {
         if (calculation?.data_json) {
+            const normalized = normalizeDataJson(calculation.data_json);
+
             // 1. Materials
             setMaterials({
-                groot: calculation.data_json.grootmaterialen || [],
-                verbruik: calculation.data_json.verbruiksartikelen || [],
+                groot: normalized.grootmaterialen || [],
+                verbruik: normalized.verbruiksartikelen || [],
             });
 
-            // 2. Client Info (Prioritize Supabase data)
-            if (calculation.data_json.klantinformatie) {
-                console.log("Loading client info from calculation:", calculation.data_json.klantinformatie);
-                // Ensure we map it correctly if needed, or assume it matches the interface
-                // Quick normalization in case of missing fields
-                const rawKi = calculation.data_json.klantinformatie as any;
+            // 2. Client Info
+            if (normalized.klantinformatie) {
+                const rawKi = normalized.klantinformatie as any;
                 const normalizedKi: KlantInformatie = {
                     klanttype: rawKi.klanttype || 'Particulier',
                     voornaam: rawKi.voornaam || '',
                     achternaam: rawKi.achternaam || '',
-                    bedrijfsnaam: rawKi.bedrijfsnaam,
-                    emailadres: rawKi.emailadres || rawKi['e-mailadres'] || '', // Handle both keys
+                    bedrijfsnaam: rawKi.bedrijfsnaam || null,
+                    emailadres: rawKi.emailadres || rawKi['e-mailadres'] || '',
                     telefoonnummer: rawKi.telefoonnummer || '',
                     straat: rawKi.straat || rawKi.factuuradres?.straat || '',
                     huisnummer: rawKi.huisnummer || rawKi.factuuradres?.huisnummer || '',
@@ -105,24 +121,26 @@ export default function QuotePage() {
                 setKlantInfo(normalizedKi);
             }
 
-            // 3. Settings (Prioritize Supabase data)
-            if (calculation.data_json.instellingen) {
-                const rawInst = calculation.data_json.instellingen as any;
+            // 3. Settings
+            if (normalized.instellingen || normalized.extras) {
+                const rawInst = normalized.instellingen as any;
+                const rawExtras = normalized.extras as any;
+
                 const mappedSettings: QuoteCalculationSettings = {
-                    btwTarief: rawInst.btwTarief || 21,
-                    uurTariefExclBtw: rawInst.uurTariefExclBtw || rawInst.uurTarief || 50,
-                    schattingUren: rawInst.schattingUren ?? false,
+                    btwTarief: rawInst?.btwTarief || 21,
+                    uurTariefExclBtw: rawInst?.uurTariefExclBtw || rawInst?.uurTarief || 50,
+                    schattingUren: rawInst?.schattingUren ?? false,
                     extras: {
                         transport: {
-                            prijsPerKm: rawInst.extras?.transport?.prijsPerKm ?? rawInst.reiskosten_prijs_per_km ?? 0.30,
-                            vasteTransportkosten: rawInst.extras?.transport?.vasteTransportkosten ?? 0,
-                            mode: rawInst.extras?.transport?.mode ?? (rawInst.reiskosten_type === 'vast' ? 'vast' : 'perKm')
+                            prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? 0.30,
+                            vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? 0,
+                            mode: rawExtras?.transport?.mode ?? 'perKm'
                         },
                         winstMarge: {
-                            percentage: rawInst.extras?.winstMarge?.percentage ?? rawInst.winstmarge_percentage ?? 10,
-                            fixedAmount: rawInst.extras?.winstMarge?.fixedAmount ?? 0,
-                            mode: rawInst.extras?.winstMarge?.mode ?? 'percentage',
-                            basis: rawInst.extras?.winstMarge?.basis ?? 'totaal'
+                            percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
+                            fixedAmount: rawExtras?.winstMarge?.fixedAmount ?? 0,
+                            mode: rawExtras?.winstMarge?.mode ?? 'percentage',
+                            basis: rawExtras?.winstMarge?.basis ?? 'totaal'
                         }
                     }
                 };
@@ -327,9 +345,9 @@ export default function QuotePage() {
     );
 
     // Calculate totals when data is available
-    const totals = calculation?.data_json && quoteSettings
+    const totals = normalizedData && quoteSettings
         ? calculateQuoteTotals({
-            ...calculation.data_json,
+            ...normalizedData,
             grootmaterialen: materials.groot,
             verbruiksartikelen: materials.verbruik,
         }, quoteSettings)
@@ -410,8 +428,10 @@ export default function QuotePage() {
             projectLocatie: klantInfo.afwijkendProjectadres && klantInfo.projectAdres
                 ? `${klantInfo.projectAdres.straat} ${klantInfo.projectAdres.huisnummer}, ${klantInfo.projectAdres.plaats}`
                 : `${klantInfo.straat} ${klantInfo.huisnummer}, ${klantInfo.plaats}`,
-            werkbeschrijving: generateWorkSummary(calculation.data_json.werkbeschrijving, 800),
-            werkbeschrijvingFull: calculation.data_json.werkbeschrijving || [],
+            korteTitel: normalizedData?.korteTitel,
+            korteBeschrijving: normalizedData?.korteBeschrijving,
+            werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving, 800),
+            werkbeschrijvingFull: normalizedData?.werkbeschrijving || [],
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
                 product: m.product,
@@ -424,10 +444,19 @@ export default function QuotePage() {
                 prijsPerStuk: m.prijs_per_stuk || 0,
                 totaal: (m.prijs_per_stuk || 0) * m.aantal,
             })),
-            urenSpecificatie: calculation.data_json.uren_specificatie,
+            urenSpecificatie: normalizedData?.uren_specificatie || [],
             totals: {
-                ...totals,
-                totaalUren: calculation.data_json.totaal_uren,
+                materialenGroot: totals.materialenGroot,
+                materialenVerbruik: totals.materialenVerbruik,
+                materialenTotaal: totals.materialenTotaal,
+                arbeidTotaal: totals.arbeidTotaal,
+                transportTotaal: totals.transportTotaal,
+                subtotaalExclBtw: totals.subtotaalExclBtw,
+                winstMarge: totals.winstMarge,
+                totaalExclBtw: totals.totaalExclBtw,
+                btw: totals.btw,
+                totaalInclBtw: totals.totaalInclBtw,
+                totaalUren: normalizedData?.totaal_uren || 0,
                 uurTarief: quoteSettings.uurTariefExclBtw,
                 btwPercentage: quoteSettings.btwTarief,
                 margePercentage: quoteSettings.extras.winstMarge.percentage,
@@ -523,10 +552,14 @@ export default function QuotePage() {
                             <Download size={16} />
                             Download
                         </button>
-                        <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700">
+                        <button
+                            onClick={() => setIsSendModalOpen(true)}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700"
+                        >
                             <Mail size={16} />
                             Versturen
                         </button>
+
                         <Button asChild variant="secondary" className="gap-2 h-10 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-100 shadow-sm">
                             <Link href={`/offertes/${id}/klus`}>
                                 <Pencil className="w-4 h-4" />
@@ -597,7 +630,7 @@ export default function QuotePage() {
                                         <CostSummaryCard
                                             totals={totals}
                                             settings={quoteSettings}
-                                            totalUren={calculation.data_json?.totaal_uren || 0}
+                                            totalUren={normalizedData?.totaal_uren || 0}
                                             onUpdateHourlyRate={(newRate) => {
                                                 if (!quoteSettings) return;
                                                 handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
@@ -616,7 +649,7 @@ export default function QuotePage() {
                                 </div>
 
                                 {/* Work Description */}
-                                <WorkDescriptionCard werkbeschrijving={calculation.data_json?.werkbeschrijving || []} />
+                                <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
                             </div>
                         )}
                     </TabsContent>
@@ -673,8 +706,8 @@ export default function QuotePage() {
                             </div>
                         ) : (
                             <LaborBreakdown
-                                urenSpecificatie={calculation.data_json.uren_specificatie || []}
-                                totaalUren={calculation.data_json.totaal_uren || 0}
+                                urenSpecificatie={normalizedData?.uren_specificatie || []}
+                                totaalUren={normalizedData?.totaal_uren || 0}
                                 uurTarief={quoteSettings?.uurTariefExclBtw || 0}
                                 onUpdateHourlyRate={(newRate) => {
                                     if (!quoteSettings) return;
@@ -688,8 +721,8 @@ export default function QuotePage() {
                                     });
                                 }}
                                 onUpdateItem={async (index, newHours) => {
-                                    if (!calculation) return;
-                                    const updatedItems = [...(calculation.data_json.uren_specificatie || [])];
+                                    if (!calculation || !normalizedData) return;
+                                    const updatedItems = [...(normalizedData.uren_specificatie || [])];
                                     if (updatedItems[index]) {
                                         updatedItems[index] = { ...updatedItems[index], uren: newHours };
 
@@ -733,6 +766,26 @@ export default function QuotePage() {
                     </TabsContent>
                 </Tabs>
             </main>
+
+            <SendQuoteModal
+                isOpen={isSendModalOpen}
+                onClose={() => setIsSendModalOpen(false)}
+                klantInfo={klantInfo}
+                offerteNummer={(quote as any)?.offerteNummer || 'CONCEPT'}
+                werkbeschrijving={normalizedData?.werkbeschrijving}
+                onDownloadPDF={handleDownloadPDF}
+                totaalInclBtw={totals?.totaalInclBtw || 0}
+                geldigTot={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                })}
+                bedrijfsnaam={userProfile?.bedrijfsnaam || userProfile?.companyName || businessData?.bedrijfsnaam || ''}
+                afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
+                korteTitel={normalizedData?.korteTitel}
+                korteBeschrijving={normalizedData?.korteBeschrijving}
+            />
         </div>
+
     );
 }

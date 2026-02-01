@@ -169,6 +169,7 @@ export default function GenericMeasurementPage() {
               if (item.openings && Array.isArray(item.openings)) {
                 item.openings = item.openings.map((op: any) => {
                   const normalizedOpening = { ...op };
+                  if (!normalizedOpening.id) normalizedOpening.id = crypto.randomUUID();
                   if (op.openingWidth !== undefined && op.width === undefined) {
                     normalizedOpening.width = op.openingWidth;
                   }
@@ -178,6 +179,47 @@ export default function GenericMeasurementPage() {
                   return normalizedOpening;
                 });
               }
+
+              // Data Migration for HSB Voorzetwand
+              if (jobSlug === 'hsb-voorzetwand') {
+                if (!item.leidingkofen) item.leidingkofen = [];
+                if (!item.dagkanten) item.dagkanten = [];
+                if (!item.vensterbanken) item.vensterbanken = [];
+
+                // Move single objects to arrays if they exist
+                if (item.koof_lengte !== undefined && item.leidingkofen.length === 0) {
+                  item.leidingkofen.push({
+                    id: crypto.randomUUID(),
+                    lengte: Number(item.koof_lengte) || 0,
+                    hoogte: Number(item.koof_hoogte) || 0,
+                    diepte: Number(item.koof_diepte) || 0
+                  });
+                  delete item.koof_lengte; delete item.koof_hoogte; delete item.koof_diepte;
+                }
+
+                if (item.dagkant_diepte !== undefined && item.dagkanten.length === 0) {
+                  const firstOpening = item.openings?.[0]?.id || null;
+                  item.dagkanten.push({
+                    id: crypto.randomUUID(),
+                    openingId: firstOpening,
+                    diepte: Number(item.dagkant_diepte) || 0
+                  });
+                  delete item.dagkant_diepte; delete item.dagkant_lengte;
+                }
+
+                if (item.vensterbank_diepte !== undefined && item.vensterbanken.length === 0) {
+                  const firstOpening = item.openings?.[0]?.id || null;
+                  item.vensterbanken.push({
+                    id: crypto.randomUUID(),
+                    openingId: firstOpening,
+                    diepte: Number(item.vensterbank_diepte) || 0,
+                    uitstekLinks: 50,
+                    uitstekRechts: 50
+                  });
+                  delete item.vensterbank_diepte; delete item.vensterbank_lengte;
+                }
+              }
+
               return item;
             });
             setItems(normalizedItems);
@@ -245,8 +287,7 @@ export default function GenericMeasurementPage() {
   const handleShapeChange = (index: number, newShape: string) => {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
-      const newItem: Record<string, any> = {};
-      Object.keys(item).forEach(key => newItem[key] = item[key]);
+      const newItem: Record<string, any> = { ...item };
       newItem.shape = newShape;
 
       const dimensionsToReset = [
@@ -255,11 +296,63 @@ export default function GenericMeasurementPage() {
         'hoogte1', 'hoogte2', 'hoogte3',
         'hoogteLinks', 'hoogteRechts',
         'hoogteNok',
-        'variant'
       ];
       dimensionsToReset.forEach(key => newItem[key] = '');
       return newItem;
     }));
+  };
+
+  // Linked Item Handlers
+  const onAddDagkant = (itemIdx: number, openingId: string) => {
+    const opening = items[itemIdx].openings?.find((op: any) => op.id === openingId);
+    const initialLengte = opening ? (opening.height * 2 + opening.width) : '';
+    const newDagkant = { id: crypto.randomUUID(), openingId, diepte: '', lengte: initialLengte };
+    const currentDagkanten = items[itemIdx].dagkanten || [];
+    updateItem(itemIdx, 'dagkanten', [...currentDagkanten, newDagkant]);
+  };
+
+  const onDeleteDagkant = (itemIdx: number, id: string) => {
+    const currentDagkanten = items[itemIdx].dagkanten || [];
+    updateItem(itemIdx, 'dagkanten', currentDagkanten.filter((d: any) => d.id !== id));
+  };
+
+  const onUpdateDagkant = (itemIdx: number, id: string, updates: any) => {
+    const currentDagkanten = items[itemIdx].dagkanten || [];
+    updateItem(itemIdx, 'dagkanten', currentDagkanten.map((d: any) => d.id === id ? { ...d, ...updates } : d));
+  };
+
+  const onAddVensterbank = (itemIdx: number, openingId: string) => {
+    const opening = items[itemIdx].openings?.find((op: any) => op.id === openingId);
+    const initialLengte = opening ? opening.width : '';
+    const newVensterbank = { id: crypto.randomUUID(), openingId, diepte: '', uitstekLinks: '', uitstekRechts: '', lengte: initialLengte };
+    const currentVensterbanken = items[itemIdx].vensterbanken || [];
+    updateItem(itemIdx, 'vensterbanken', [...currentVensterbanken, newVensterbank]);
+  };
+
+  const onDeleteVensterbank = (itemIdx: number, id: string) => {
+    const currentVensterbanken = items[itemIdx].vensterbanken || [];
+    updateItem(itemIdx, 'vensterbanken', currentVensterbanken.filter((v: any) => v.id !== id));
+  };
+
+  const onUpdateVensterbank = (itemIdx: number, id: string, updates: any) => {
+    const currentVensterbanken = items[itemIdx].vensterbanken || [];
+    updateItem(itemIdx, 'vensterbanken', currentVensterbanken.map((v: any) => v.id === id ? { ...v, ...updates } : v));
+  };
+
+  const onAddLeidingkoof = (itemIdx: number) => {
+    const newKoof = { id: crypto.randomUUID(), lengte: '', hoogte: '', diepte: '' };
+    const currentKofen = items[itemIdx].leidingkofen || [];
+    updateItem(itemIdx, 'leidingkofen', [...currentKofen, newKoof]);
+  };
+
+  const onDeleteLeidingkoof = (itemIdx: number, id: string) => {
+    const currentKofen = items[itemIdx].leidingkofen || [];
+    updateItem(itemIdx, 'leidingkofen', currentKofen.filter((k: any) => k.id !== id));
+  };
+
+  const onUpdateLeidingkoof = (itemIdx: number, id: string, updates: any) => {
+    const currentKofen = items[itemIdx].leidingkofen || [];
+    updateItem(itemIdx, 'leidingkofen', currentKofen.map((k: any) => k.id === id ? { ...k, ...updates } : k));
   };
 
   const handleSave = async (e: React.MouseEvent) => {
@@ -604,6 +697,16 @@ export default function GenericMeasurementPage() {
                         openings={item.openings || []}
                         onChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
                         constructionOptions={specificJobConfig.openingConfig.constructionOptions}
+
+                        dagkanten={item.dagkanten || []}
+                        vensterbanken={item.vensterbanken || []}
+                        onAddDagkant={(opId) => onAddDagkant(index, opId)}
+                        onDeleteDagkant={(id) => onDeleteDagkant(index, id)}
+                        onUpdateDagkant={(id, updates) => onUpdateDagkant(index, id, updates)}
+                        onAddVensterbank={(opId) => onAddVensterbank(index, opId)}
+                        onDeleteVensterbank={(id) => onDeleteVensterbank(index, id)}
+                        onUpdateVensterbank={(id, updates) => onUpdateVensterbank(index, id, updates)}
+
                         isWallCategory={isWallCategory}
                         isCeilingCategory={isCeilingCategory}
                         categorySlug={categorySlug}
@@ -728,6 +831,70 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
+                    {/* Leidingkoof Section (Array based) */}
+                    {jobSlug === 'hsb-voorzetwand' && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                          onClick={() => toggleCollapsed(`koof-${index}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Leidingkoof</span>
+                            {(item.leidingkofen?.length > 0 && collapsedSections[`koof-${index}`] !== false) && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                {item.leidingkofen.length} {item.leidingkofen.length === 1 ? 'koof' : 'koven'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-zinc-500">
+                            {collapsedSections[`koof-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </div>
+                        </div>
+                        {collapsedSections[`koof-${index}`] === false && (
+                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                            <div className="pt-2 border-t border-white/5 space-y-4">
+                              {(item.leidingkofen || []).map((koof: any, kIdx: number) => (
+                                <div key={koof.id} className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-3 relative">
+                                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                    <span className="text-[10px] uppercase font-bold text-zinc-400">Koof {kIdx + 1}</span>
+                                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-zinc-500 hover:text-red-400" onClick={() => onDeleteLeidingkoof(index, koof.id)}>
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-3">
+                                    <div className="space-y-1">
+                                      <Label className="text-[10px] text-zinc-500">Lengte (mm)</Label>
+                                      <MeasurementInput className="h-7 text-xs" value={koof.lengte} onChange={(v) => onUpdateLeidingkoof(index, koof.id, { lengte: Number(v) || 0 })} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="space-y-1">
+                                        <Label className="text-[10px] text-zinc-500">Hoogte (mm)</Label>
+                                        <MeasurementInput className="h-7 text-xs" value={koof.hoogte} onChange={(v) => onUpdateLeidingkoof(index, koof.id, { hoogte: Number(v) || 0 })} />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-[10px] text-zinc-500">Diepte (mm)</Label>
+                                        <MeasurementInput className="h-7 text-xs" value={koof.diepte} onChange={(v) => onUpdateLeidingkoof(index, koof.id, { diepte: Number(v) || 0 })} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onAddLeidingkoof(index)}
+                                className="w-full h-8 text-[10px] text-zinc-500 hover:text-emerald-400 justify-center gap-2 border border-dashed border-white/10"
+                              >
+                                <PlusCircle className="h-3.5 w-3.5" />
+                                Leidingkoof toevoegen
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}
                     {!isBoeiboord && fields.find(f => f.key === 'kopkanten') && (
                       <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
@@ -753,12 +920,12 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
-                    {/* Extra Fields - NO SLICE, just filter out known keys */}
-                    {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
+                    {/* Extra Fields - NO SLICE, just filter out known keys and grouped fields */}
+                    {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
                       <div className="space-y-3 pt-4 border-t border-white/5">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
                         <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                          {fields.filter(f => f.type !== 'textarea' && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
+                          {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
                             <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                           ))}
                         </div>

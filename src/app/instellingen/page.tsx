@@ -233,7 +233,7 @@ export default function InstellingenPage() {
                             <CardContent className="grid gap-6 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label>Bedrijfsnaam</Label>
-                                    <Input value={settings.bedrijfsnaam} onChange={e => update('bedrijfsnaam', e.target.value)} placeholder="Uw Bedrijf B.V." />
+                                    <Input value={settings.bedrijfsnaam} onChange={e => update('bedrijfsnaam', e.target.value)} placeholder="bijv. De Vries Bouw" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Contactpersoon</Label>
@@ -253,11 +253,11 @@ export default function InstellingenPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label>KVK Nummer</Label>
-                                    <Input value={settings.kvkNummer} onChange={e => update('kvkNummer', e.target.value)} />
+                                    <Input value={settings.kvkNummer} onChange={e => update('kvkNummer', e.target.value)} placeholder="12345678" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>BTW Nummer</Label>
-                                    <Input value={settings.btwNummer} onChange={e => update('btwNummer', e.target.value)} />
+                                    <Input value={settings.btwNummer} onChange={e => update('btwNummer', e.target.value)} placeholder="NL123456789B01" />
                                 </div>
                             </CardContent>
                         </Card>
@@ -269,11 +269,11 @@ export default function InstellingenPage() {
                             <CardContent className="grid gap-6 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label>E-mailadres</Label>
-                                    <Input type="email" value={settings.email} onChange={e => update('email', e.target.value)} />
+                                    <Input type="email" value={settings.email} onChange={e => update('email', e.target.value)} placeholder="bijv. info@bedrijf.nl" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Telefoonnummer</Label>
-                                    <Input type="tel" value={settings.telefoon} onChange={e => update('telefoon', e.target.value)} />
+                                    <Input type="tel" value={settings.telefoon} onChange={e => update('telefoon', e.target.value)} placeholder="06-12345678" />
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <Label>Website</Label>

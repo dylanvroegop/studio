@@ -25,6 +25,8 @@ export interface PDFQuoteData {
         email: string;
     };
     projectLocatie: string;
+    korteTitel?: string;
+    korteBeschrijving?: string;
     werkbeschrijving: string;
     werkbeschrijvingFull: string[];
     grootmaterialen: Array<{
@@ -195,14 +197,15 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    doc.text('PROJECTOMSCHRIJVING', margin, y);
+    doc.text(data.korteTitel?.toUpperCase() || 'PROJECTOMSCHRIJVING', margin, y);
     y += 7;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(50, 50, 50);
 
-    const descriptionLines = doc.splitTextToSize(data.werkbeschrijving, pageWidth - (margin * 2));
+    const descriptionContent = data.korteBeschrijving || data.werkbeschrijving;
+    const descriptionLines = doc.splitTextToSize(descriptionContent, pageWidth - (margin * 2));
     doc.text(descriptionLines, margin, y);
     y += descriptionLines.length * 4.5 + 8;
 

@@ -766,7 +766,7 @@ export default function OverzichtPage() {
     if (stats.incompleet > 0) return 'Er zijn nog onvolledige klussen. Werk ze eerst af.';
     if (!stats.transportIsValid) return 'Transport is niet ingevuld. Kies "Geen" of vul een bedrag in.';
     if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies "Geen" of vul een bedrag/percentage in.';
-    return 'Je kunt de offerte indienen voor berekening.';
+    return 'Je kunt de materialen laten berekenen.';
   }, [stats]);
 
   const statusVariant = useMemo(() => {
@@ -2335,7 +2335,7 @@ export default function OverzichtPage() {
                   {stats.isReady ? (
                     <>
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                      <span>Klaar om te verzenden</span>
+                      <span>Klaar voor berekening</span>
                     </>
                   ) : (
                     <>
@@ -2356,7 +2356,7 @@ export default function OverzichtPage() {
                   ) : (
                     <Send className="h-4 w-4" />
                   )}
-                  {isSubmitting ? 'Indienen…' : 'Offerte indienen'}
+                  {isSubmitting ? 'Berekenen…' : 'Materialen berekenen'}
                 </Button>
               </div>
             </div>

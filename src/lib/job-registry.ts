@@ -184,7 +184,22 @@ const WALL_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
+];
 
+const HSB_VOORZETWAND_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
+  // Leidingkoof
+  { key: 'koof_lengte', label: 'Lengte Koof', type: 'number', suffix: 'mm', group: 'koof', optional: true },
+  { key: 'koof_hoogte', label: 'Hoogte Koof', type: 'number', suffix: 'mm', group: 'koof', optional: true },
+  { key: 'koof_diepte', label: 'Diepte Koof', type: 'number', suffix: 'mm', group: 'koof', optional: true },
+  // Dagkanten
+  { key: 'dagkant_diepte', label: 'Diepte Dagkant', type: 'number', suffix: 'mm', group: 'dagkant', optional: true },
+  { key: 'dagkant_lengte', label: 'Totale Lengte Dagkant', type: 'number', suffix: 'mm', group: 'dagkant', optional: true },
+  // Vensterbanken
+  { key: 'vensterbank_diepte', label: 'Diepte Vensterbank', type: 'number', suffix: 'mm', group: 'vensterbank', optional: true },
+  { key: 'vensterbank_lengte', label: 'Totale Lengte Vensterbank', type: 'number', suffix: 'mm', group: 'vensterbank', optional: true },
 ];
 
 const CEILLING_FIELDS: MeasurementField[] = [
@@ -1389,7 +1404,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Enkelzijdig Bekleed',
         slug: 'hsb-voorzetwand',
         measurementLabel: 'Wand',
-        measurements: WALL_FIELDS,
+        measurements: HSB_VOORZETWAND_FIELDS,
         materialSections: HSB_VOORZETWAND_BINNEN_MATS,
         categoryConfig: {
           hout: { title: 'Framewerk', order: 1 },

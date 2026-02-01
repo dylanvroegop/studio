@@ -22,6 +22,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
+  const [naam, setNaam] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [bedrijfsnaam, setBedrijfsnaam] = useState('');
@@ -63,7 +64,7 @@ export default function RegisterPage() {
     }
 
     // Required fields validation
-    if (!email || !password || !bedrijfsnaam || !kvkNummer || !rol || !offertesPerMaand) {
+    if (!email || !password || !naam || !bedrijfsnaam || !kvkNummer || !rol || !offertesPerMaand) {
       setError('Vul alstublieft alle verplichte velden in.');
       return false;
     }
@@ -106,6 +107,7 @@ export default function RegisterPage() {
 
       const businessData = {
         email: newUser.email,
+        contactNaam: naam,
         bedrijfsnaam,
         kvkNummer,
         btwNummer,
@@ -186,8 +188,12 @@ export default function RegisterPage() {
             <div className="space-y-4">
               <h3 className="font-medium text-lg">Accountgegevens</h3>
               <div className="space-y-2">
+                <Label htmlFor="naam">Volledige naam *</Label>
+                <Input id="naam" required placeholder="bijv. Jan de Vries" value={naam} onChange={(e) => setNaam(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="email">E-mailadres *</Label>
-                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
+                <Input id="email" type="email" required placeholder="bijv. info@bedrijf.nl" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -209,21 +215,21 @@ export default function RegisterPage() {
               <h3 className="font-medium text-lg">Bedrijfsgegevens</h3>
               <div className="space-y-2">
                 <Label htmlFor="bedrijfsnaam">Bedrijfsnaam *</Label>
-                <Input id="bedrijfsnaam" required value={bedrijfsnaam} onChange={(e) => setBedrijfsnaam(e.target.value)} disabled={isLoading} />
+                <Input id="bedrijfsnaam" required placeholder="bijv. De Vries Bouw" value={bedrijfsnaam} onChange={(e) => setBedrijfsnaam(e.target.value)} disabled={isLoading} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="kvk">KVK-nummer *</Label>
-                  <Input id="kvk" required value={kvkNummer} onChange={(e) => setKvkNummer(e.target.value)} disabled={isLoading} />
+                  <Input id="kvk" required placeholder="12345678" value={kvkNummer} onChange={(e) => setKvkNummer(e.target.value)} disabled={isLoading} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="btw">BTW-nummer (optioneel)</Label>
-                  <Input id="btw" value={btwNummer} onChange={(e) => setBtwNummer(e.target.value)} disabled={isLoading} />
+                  <Input id="btw" placeholder="NL123456789B01" value={btwNummer} onChange={(e) => setBtwNummer(e.target.value)} disabled={isLoading} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="telefoon">Telefoonnummer (optioneel)</Label>
-                <Input id="telefoon" type="tel" value={telefoon} onChange={(e) => setTelefoon(e.target.value)} disabled={isLoading} />
+                <Input id="telefoon" type="tel" placeholder="06-12345678" value={telefoon} onChange={(e) => setTelefoon(e.target.value)} disabled={isLoading} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
