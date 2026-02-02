@@ -1,3 +1,7 @@
+import { MeasurementSection } from './index';
+
+export const sections: MeasurementSection[] = ['openingen', 'leidingkoof', 'vensterbanken', 'dagkanten'];
+
 export const openingConfig = {
     // Current UI maps 'window', 'door-frame', 'door', 'opening', 'other' to:
     // Raamkozijn, Deurkozijn, Deur, Sparing, Overig

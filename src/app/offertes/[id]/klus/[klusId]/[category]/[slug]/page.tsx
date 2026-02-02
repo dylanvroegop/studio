@@ -99,7 +99,10 @@ export default function GenericMeasurementPage() {
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
-  const showOpeningsSection = isWallCategory || hasWallFields || isCeilingCategory || isRoofCategory;
+  const showOpeningsSection = specificJobConfig.sections.includes('openingen');
+  const showLeidingkoofSection = specificJobConfig.sections.includes('leidingkoof');
+  const showVensterbankSection = specificJobConfig.sections.includes('vensterbanken');
+  const showDagkantSection = specificJobConfig.sections.includes('dagkanten');
 
   // 3. State: Array of Item Objects
   const [items, setItems] = useState<Record<string, any>[]>([]);
@@ -477,7 +480,7 @@ export default function GenericMeasurementPage() {
         }
 
         await updateDoc(quoteRef, updateData);
-        router.push(`/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`);
+        router.push(`/offertes/${quoteId}/overzicht`);
 
       } catch (error: any) {
         console.error(error);
@@ -500,12 +503,9 @@ export default function GenericMeasurementPage() {
   }
 
   const disabledAll = saving || isPending || loading;
-  const progressValue = 60;
+  const progressValue = 80;
   const itemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
-  const hasOnlyOneItem = categoryConfig?.items?.length === 1;
-  const backUrl = hasOnlyOneItem
-    ? `/offertes/${quoteId}/klus/nieuw`
-    : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`;
+  const backUrl = `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`;
 
   return (
     <main className="relative min-h-screen bg-background text-foreground">
@@ -863,34 +863,40 @@ export default function GenericMeasurementPage() {
                     )}
 
                     {/* Leidingkoof Section */}
-                    <LeidingkoofSection
-                      leidingkofen={item.leidingkofen || []}
-                      onAdd={() => onAddLeidingkoof(index)}
-                      onDelete={(id) => onDeleteLeidingkoof(index, id)}
-                      onUpdate={(id, updates) => onUpdateLeidingkoof(index, id, updates)}
-                      isCollapsed={collapsedSections[`koof-${index}`] !== false}
-                      onToggleCollapsed={() => toggleCollapsed(`koof-${index}`)}
-                    />
+                    {showLeidingkoofSection && (
+                      <LeidingkoofSection
+                        leidingkofen={item.leidingkofen || []}
+                        onAdd={() => onAddLeidingkoof(index)}
+                        onDelete={(id) => onDeleteLeidingkoof(index, id)}
+                        onUpdate={(id, updates) => onUpdateLeidingkoof(index, id, updates)}
+                        isCollapsed={collapsedSections[`koof-${index}`] !== false}
+                        onToggleCollapsed={() => toggleCollapsed(`koof-${index}`)}
+                      />
+                    )}
 
                     {/* Vensterbank Section */}
-                    <VensterbankSection
-                      vensterbanken={item.vensterbanken || []}
-                      onAdd={() => onAddVensterbank(index)}
-                      onDelete={(id) => onDeleteVensterbank(index, id)}
-                      onUpdate={(id, updates) => onUpdateVensterbank(index, id, updates)}
-                      isCollapsed={collapsedSections[`vensterbank-${index}`] !== false}
-                      onToggleCollapsed={() => toggleCollapsed(`vensterbank-${index}`)}
-                    />
+                    {showVensterbankSection && (
+                      <VensterbankSection
+                        vensterbanken={item.vensterbanken || []}
+                        onAdd={() => onAddVensterbank(index)}
+                        onDelete={(id) => onDeleteVensterbank(index, id)}
+                        onUpdate={(id, updates) => onUpdateVensterbank(index, id, updates)}
+                        isCollapsed={collapsedSections[`vensterbank-${index}`] !== false}
+                        onToggleCollapsed={() => toggleCollapsed(`vensterbank-${index}`)}
+                      />
+                    )}
 
                     {/* Dagkant Section */}
-                    <DagkantSection
-                      dagkanten={item.dagkanten || []}
-                      onAdd={() => onAddDagkant(index)}
-                      onDelete={(id) => onDeleteDagkant(index, id)}
-                      onUpdate={(id, updates) => onUpdateDagkant(index, id, updates)}
-                      isCollapsed={collapsedSections[`dagkant-${index}`] !== false}
-                      onToggleCollapsed={() => toggleCollapsed(`dagkant-${index}`)}
-                    />
+                    {showDagkantSection && (
+                      <DagkantSection
+                        dagkanten={item.dagkanten || []}
+                        onAdd={() => onAddDagkant(index)}
+                        onDelete={(id) => onDeleteDagkant(index, id)}
+                        onUpdate={(id, updates) => onUpdateDagkant(index, id, updates)}
+                        isCollapsed={collapsedSections[`dagkant-${index}`] !== false}
+                        onToggleCollapsed={() => toggleCollapsed(`dagkant-${index}`)}
+                      />
+                    )}
 
                     {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}
                     {!isBoeiboord && fields.find(f => f.key === 'kopkanten') && (

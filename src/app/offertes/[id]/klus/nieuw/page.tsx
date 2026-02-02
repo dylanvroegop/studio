@@ -39,7 +39,7 @@ const categories: CategoryItem[] = [
   { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
   { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
   { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeidelen', slug: 'dakrenovatie' },
-  { name: 'Boeidelen', description: 'Hout of kunststof boeidelen vervangen', slug: 'boeiboorden' },
+  { name: 'Boeiboorden', description: 'Hout of kunststof boeidelen vervangen', slug: 'boeiboorden' },
 
   { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
   { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },
@@ -228,7 +228,7 @@ export default function NewJobPage() {
               }
             }, { merge: true });
 
-            router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${category.slug}/${singleItem.slug}`);
+            router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${category.slug}/${singleItem.slug}/materialen`);
           } catch (err: any) {
             console.error('Error creating job:', err);
 

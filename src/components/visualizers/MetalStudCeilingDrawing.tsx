@@ -7,6 +7,8 @@ import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
 import { OpeningRenderer } from './shared/OpeningRenderer';
 import { calculateRaveelwerk, raveelwerkToSVG } from './shared/raveelwerk-utils';
+import { LeidingkoofOverlay } from './shared/LeidingkoofOverlay';
+import { LeidingkoofItem } from '../leidingkoof/LeidingkoofSection';
 
 export interface CeilingOpening {
     id: string;
@@ -77,6 +79,7 @@ export interface CeilingDrawingProps {
 
         doubleEndBattens?: boolean;
         openings?: CeilingOpening[];
+        leidingkofen?: LeidingkoofItem[];
     };
     className?: string;
     fitContainer?: boolean;
@@ -438,6 +441,18 @@ export function MetalStudCeilingDrawing({
                                 </g>
                             );
                         })}
+
+                        {/* Leidingkoof Overlay */}
+                        <LeidingkoofOverlay
+                            leidingkofen={item.leidingkofen || []}
+                            startX={startX}
+                            startY={startY}
+                            rectW={rectW}
+                            rectH={rectH}
+                            pxPerMm={pxPerMm}
+                            wallLength={lengte}
+                            wallHeight={effectiveHeight}
+                        />
 
                         <OverallDimensions
                             wallLength={lengte}

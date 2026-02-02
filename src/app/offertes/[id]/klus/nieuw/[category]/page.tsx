@@ -148,16 +148,8 @@ export default function GenericSubCategoryPage() {
             }
           }, { merge: true });
 
-          // ✅ Check if job has measurements - if not, skip to materials page
-          const hasMeasurements = item.measurements && item.measurements.length > 0;
-
-          if (hasMeasurements) {
-            // Route to measurement page
-            router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}`);
-          } else {
-            // Skip measurement page - go directly to materials
-            router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}/materialen`);
-          }
+          // Always go to materials page first; jobs without measurements skip from materials to overview
+          router.push(`/offertes/${quoteId}/klus/${nieuweKlusId}/${categorySlug}/${item.slug}/materialen`);
         } catch (err: any) {
           console.error('Fout bij opslaan klussen.*.klusomschrijving:', err);
 

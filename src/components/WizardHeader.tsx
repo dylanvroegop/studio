@@ -166,18 +166,6 @@ export function WizardHeader({
                                                             <div className="px-2 text-sm font-medium truncate mb-1">{job.title}</div>
                                                             <div className="pl-4 border-l-2 border-muted space-y-1">
                                                                 <Link
-                                                                    href={`/offertes/${quoteId}/klus/${job.id}/${job.type}/${job.slug}`}
-                                                                    onClick={() => setMenuOpen(false)}
-                                                                    className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                                                                >
-                                                                    {job.metingenCompleted ? (
-                                                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                                                    ) : (
-                                                                        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                                                                    )}
-                                                                    Metingen
-                                                                </Link>
-                                                                <Link
                                                                     href={`/offertes/${quoteId}/klus/${job.id}/${job.type}/${job.slug}/materialen`}
                                                                     onClick={() => setMenuOpen(false)}
                                                                     className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -188,6 +176,18 @@ export function WizardHeader({
                                                                         <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
                                                                     )}
                                                                     Materialen
+                                                                </Link>
+                                                                <Link
+                                                                    href={`/offertes/${quoteId}/klus/${job.id}/${job.type}/${job.slug}`}
+                                                                    onClick={() => setMenuOpen(false)}
+                                                                    className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                                                                >
+                                                                    {job.metingenCompleted ? (
+                                                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                                                    ) : (
+                                                                        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                                                                    )}
+                                                                    Metingen
                                                                 </Link>
                                                             </div>
                                                         </div>

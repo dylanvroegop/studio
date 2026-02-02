@@ -624,10 +624,6 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
-  // 3. GORDIJNKOOF (Specifiek voor gordijnen)
-  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Gordijnkoof', key: 'gordijn_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Gordijnkoof', key: 'gordijn_beplating', category_ultra_filter: '' },
-  { label: 'Achterhout', categoryFilter: 'Vuren hout', category: 'Gordijnkoof', key: 'gordijn_achterhout', category_ultra_filter: '' },
 
   // 4. ELEKTRA (RUWBOUW)
 
@@ -662,10 +658,6 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
-  // 3. GORDIJNKOOF (Specifiek voor gordijnen)
-  { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'Gordijnkoof', key: 'gordijn_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Gordijnkoof', key: 'gordijn_beplating', category_ultra_filter: '' },
-  { label: 'Achterhout', categoryFilter: 'Vuren hout', category: 'Gordijnkoof', key: 'gordijn_achterhout', category_ultra_filter: '' },
 
   // 4. ELEKTRA (RUWBOUW)
 
@@ -1559,7 +1551,6 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           afwerking: { title: 'Afwerken', order: 4 },
           gips_afwerking: { title: 'Naden & Stucwerk', order: 5 },
           Koof: { title: 'Leidingkoof / Omkasting', order: 6 },
-          Gordijnkoof: { title: 'Gordijnkoof', order: 7 },
           Toegang: { title: 'Toegang & Vlizotrap', order: 10 },
         }
       },
@@ -1572,13 +1563,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         materialSections: PLAFOND_METALSTUD_MATS,
         categoryConfig: {
           metaal: { title: 'Metal Stud Framewerk', order: 1 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 2 },
-          Gordijnkoof: { title: 'Gordijnkoof', order: 3 },
-          isolatie: { title: 'Isolatie & Folies', order: 6 },
-          beplating: { title: 'Beplating', order: 7 },
-          afwerking: { title: 'Afwerken', order: 8 },
-          Toegang: { title: 'Toegang & Vlizotrap', order: 9 },
-          gips_afwerking: { title: 'Naden & Stucwerk', order: 10 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          beplating: { title: 'Beplating', order: 3 },
+          afwerking: { title: 'Afwerken', order: 4 },
+          gips_afwerking: { title: 'Naden & Stucwerk', order: 5 },
+          Koof: { title: 'Leidingkoof / Omkasting', order: 6 },
+          Toegang: { title: 'Toegang & Vlizotrap', order: 10 },
         }
       },
 

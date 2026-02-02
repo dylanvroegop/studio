@@ -370,7 +370,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
         onClick={onClick}
         className={cn(
           "group relative flex flex-col sm:flex-row sm:items-center justify-between py-1.5 px-4 rounded-lg border transition-all gap-1 sm:gap-4 cursor-pointer",
-          selected ? "border-emerald-500/20 bg-emerald-500/5" : "border-border hover:bg-accent/40"
+          (selected && selected.materiaalnaam) ? "border-emerald-500/20 bg-emerald-500/5" : "border-border hover:bg-accent/40"
         )}
       >
         <div
@@ -378,7 +378,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
         >
           <span className={cn(
             "font-medium text-sm truncate",
-            selected ? "text-emerald-500" : "text-muted-foreground"
+            (selected && selected.materiaalnaam) ? "text-emerald-500" : "text-muted-foreground"
           )}>
             {label}
           </span>
@@ -386,7 +386,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
 
         <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">
           <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial sm:justify-end">
-            {selected ? (
+            {(selected && selected.materiaalnaam) ? (
               <>
                 <span className="text-xs font-medium text-emerald-500 break-words text-left sm:text-right leading-tight">
                   {selected.materiaalnaam}
@@ -406,7 +406,7 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
             )}
           </div>
 
-          {(selected || isCustom) && onRemove && (
+          {((selected && selected.materiaalnaam) || isCustom) && onRemove && (
             <Button
               variant="ghost"
               size="sm"
@@ -505,6 +505,51 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel, presets, defau
           <div className="flex items-center space-x-2">
             <Checkbox id="default-preset" checked={isDefault} onCheckedChange={(checked) => setIsDefault(checked as boolean)} className="border-emerald-600 data-[state=checked]:bg-emerald-600" />
             <Label htmlFor="default-preset">Maak standaard voor {jobTitel}</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuleren</Button>
+          <Button onClick={handleSave} disabled={!name || isSaving} variant="outline" className={cn(existingPreset ? DESTRUCTIVE_BTN_SOFT : POSITIVE_BTN_SOFT)}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isSaving ? 'Bezig...' : existingPreset ? 'Overschrijven' : 'Opslaan'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SaveComponentPresetDialog({ open, onOpenChange, componentType, existingPresets, onSave }: any) {
+  const [name, setName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const existingPreset = useMemo(() => {
+    if (!name.trim()) return null;
+    return (existingPresets || []).find((p: any) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+  }, [name, existingPresets]);
+
+  useEffect(() => { if (open) { setName(''); } }, [open]);
+
+  const handleSave = async () => {
+    if (!name) return;
+    setIsSaving(true);
+    await onSave(name);
+    setIsSaving(false);
+    onOpenChange(false);
+  };
+
+  const title = componentType ? (COMPONENT_REGISTRY[componentType]?.title || componentType) : '';
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={cn('max-w-lg w-full', DIALOG_CLOSE_TAP)}>
+        <DialogHeader>
+          <DialogTitle>{existingPreset ? 'Werkpakket bijwerken' : 'Werkpakket opslaan'}</DialogTitle>
+          <DialogDescription>{existingPreset ? `Overschrijven: "${existingPreset.name}"` : `Materialen opslaan voor ${title}`}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="comp-preset-name">Naam *</Label>
+            <Input id="comp-preset-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={`bv. Standaard ${title}`} className={cn(existingPreset && "border-red-500/50 focus-visible:ring-red-500")} />
+            {existingPreset && <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 p-2 rounded-md border border-red-500/20"><Settings className="h-4 w-4" /><span>Let op: naam bestaat al. Wordt overschreven.</span></div>}
           </div>
         </div>
         <DialogFooter>
@@ -691,11 +736,17 @@ export default function GenericMaterialsPageRedesigned() {
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [components, setComponents] = useState<JobComponent[]>([]);
 
+  // Per-component werkpakket presets
+  const [componentPresets, setComponentPresets] = useState<Record<string, any[]>>({});
+  const [saveComponentPresetOpen, setSaveComponentPresetOpen] = useState(false);
+  const [saveComponentPresetType, setSaveComponentPresetType] = useState<string | null>(null);
+  const [saveComponentPresetCompId, setSaveComponentPresetCompId] = useState<string | null>(null);
+
   // Calculate which component types are active for this job configuration
   const activeComponentTypes = useMemo(() => {
     const types = new Set<string>();
     const categories = Object.keys(jobConfig?.categoryConfig || MATERIAL_CATEGORY_INFO);
-    const isComplex = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat'));
+    const isComplex = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat') || jobSlug.includes('kozijn') || jobSlug.includes('deur') || jobSlug.includes('boeiboord') || jobSlug.includes('afwerking'));
     const isCeiling = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
 
     categories.forEach(key => {
@@ -729,11 +780,9 @@ export default function GenericMaterialsPageRedesigned() {
 
   const orphanedComponents = components.filter(c => !c.type || !activeComponentTypes.has(c.type));
 
-  const [kozijnenModalOpen, setKozijnenModalOpen] = useState(false);
-  const [activeComponentType, setActiveComponentType] = useState<string | null>(null);
+  const [variantPickerOpen, setVariantPickerOpen] = useState(false);
+  const [variantPickerType, setVariantPickerType] = useState<JobComponentType | null>(null);
   const [activeComponentId, setActiveComponentId] = useState<string | null>(null);
-  const [editingComponentId, setEditingComponentId] = useState<string | null>(null); // For JobComponentsManager control
-  const [pendingMeasurementQueue, setPendingMeasurementQueue] = useState<string[]>([]); // IDs of components needing measurements after preset load
 
   const [klus, setKlus] = useState<Job | null>(null);
   const [notities, setNotities] = useState('');
@@ -851,6 +900,39 @@ export default function GenericMaterialsPageRedesigned() {
     setComponents(prev => prev.filter(c => c.id !== compId));
   };
 
+  const getPresetMaterialsForType = useCallback((type: JobComponentType) => {
+    const activePreset = presets.find(p => p.id === gekozenPresetId);
+    if (!activePreset) return [];
+
+    // 1. Try component templates (saved components in werkpakket)
+    if (activePreset.components) {
+      const template = activePreset.components.find((c: any) => c.type === type);
+      if (template?.materials) return template.materials;
+      if (template?.materiaalKeuzes) {
+        return Object.entries(template.materiaalKeuzes).map(([key, mat]) => ({
+          sectionKey: key,
+          material: mat
+        }));
+      }
+    }
+
+    // 2. Fallback: match from global slots using COMPONENT_REGISTRY defaultMaterials
+    const config = COMPONENT_REGISTRY[type];
+    if (config?.defaultMaterials && activePreset.slots && alleMaterialen.length) {
+      const materials: any[] = [];
+      for (const section of config.defaultMaterials) {
+        const matId = activePreset.slots[section.key];
+        if (matId) {
+          const found = alleMaterialen.find((m: any) => m.id === matId);
+          if (found) materials.push({ sectionKey: section.key, material: found });
+        }
+      }
+      if (materials.length > 0) return materials;
+    }
+
+    return [];
+  }, [presets, gekozenPresetId, alleMaterialen]);
+
   // Safeguard state
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
   const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
@@ -938,6 +1020,62 @@ export default function GenericMaterialsPageRedesigned() {
     };
     fetchPresets();
   }, [user, firestore, JOB_KEY]);
+
+  // Fetch per-component werkpakket presets
+  useEffect(() => {
+    if (!user || !firestore) return;
+    const fetchComponentPresets = async () => {
+      try {
+        const q = query(collection(firestore, 'component_presets'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const grouped: Record<string, any[]> = {};
+        snap.docs.forEach(d => {
+          const data = { id: d.id, ...d.data() };
+          const type = (data as any).componentType;
+          if (!type) return;
+          if (!grouped[type]) grouped[type] = [];
+          grouped[type].push(data);
+        });
+        setComponentPresets(grouped);
+      } catch (e) { console.error('Error fetching component presets:', e); }
+    };
+    fetchComponentPresets();
+  }, [user, firestore]);
+
+  const handleSaveComponentPreset = async (presetName: string, componentType: string, compId: string) => {
+    if (!user || !firestore) return;
+    const comp = components.find(c => c.id === compId);
+    if (!comp) return;
+    const presetData: any = {
+      userId: user.uid,
+      componentType,
+      name: presetName,
+      materials: JSON.parse(JSON.stringify(comp.materials || [])),
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    };
+    const existing = (componentPresets[componentType] || []).find(
+      (p: any) => p.name.trim().toLowerCase() === presetName.trim().toLowerCase()
+    );
+    const docRef = existing ? doc(firestore, 'component_presets', existing.id) : doc(collection(firestore, 'component_presets'));
+    if (existing) delete presetData.createdAt;
+    await setDoc(docRef, presetData, { merge: true });
+    const saved = { id: docRef.id, ...presetData };
+    setComponentPresets(prev => {
+      const list = (prev[componentType] || []).filter(p => p.id !== docRef.id);
+      return { ...prev, [componentType]: [...list, saved] };
+    });
+    return saved;
+  };
+
+  const handleApplyComponentPreset = (presetId: string, componentType: string, compId: string) => {
+    const preset = (componentPresets[componentType] || []).find((p: any) => p.id === presetId);
+    if (!preset?.materials) return;
+    setComponents(prev => prev.map(comp => {
+      if (comp.id !== compId) return comp;
+      return { ...comp, materials: JSON.parse(JSON.stringify(preset.materials)) };
+    }));
+  };
 
   // Favorites
   useEffect(() => {
@@ -1249,7 +1387,8 @@ export default function GenericMaterialsPageRedesigned() {
           if (cat) loadedHidden[cat] = false; // Force show
         });
 
-        setHiddenCategories(loadedHidden);
+        // Merge job-specific hidden states with any global preferences already loaded
+        setHiddenCategories(prev => ({ ...prev, ...loadedHidden }));
 
         if (klusNode?.material_notities) setNotities(klusNode.material_notities);
         isHydratingRef.current = false;
@@ -1308,22 +1447,6 @@ export default function GenericMaterialsPageRedesigned() {
     }
   }, [isPresetsLaden, presets, gekozenPresetId, customGroups.length, isPaginaLaden]);
 
-  // Helper: Check if a component has incomplete (missing/zero) measurements
-  const getComponentsWithIncompleteMeasurements = useCallback((comps: JobComponent[]): string[] => {
-    return comps.filter(comp => {
-      const config = COMPONENT_REGISTRY[comp.type];
-      if (!config || !config.measurements || config.measurements.length === 0) return false;
-
-      const requiredFields = config.measurements.filter(f => !f.optional && f.type === 'number');
-      if (requiredFields.length === 0) return false;
-
-      const measurements = (comp as any)[`measurements_${comp.type}`] || comp.measurements || {};
-      return requiredFields.some(field => {
-        const val = measurements[field.key];
-        return val === undefined || val === null || val === '' || val === 0;
-      });
-    }).map(c => c.id);
-  }, []);
 
   // Apply Preset Logic
   useEffect(() => {
@@ -1337,7 +1460,6 @@ export default function GenericMaterialsPageRedesigned() {
         setFirestoreCustommateriaal(null);
         setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
         setComponents([]);
-        setPendingMeasurementQueue([]);
         setIsApplyingPreset(false); // Reset loading state
       }
       return;
@@ -1417,11 +1539,6 @@ export default function GenericMaterialsPageRedesigned() {
 
       setHiddenCategories(newHidden);
 
-      // Measurement validation: queue components with incomplete measurements
-      const incompleteIds = getComponentsWithIncompleteMeasurements(finalComponents);
-      if (incompleteIds.length > 0) {
-        setPendingMeasurementQueue(incompleteIds);
-      }
 
       // Unlock
       setIsApplyingPreset(false);
@@ -1431,31 +1548,6 @@ export default function GenericMaterialsPageRedesigned() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gekozenPresetId, presets, alleMaterialen]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
 
-  // Measurement validation queue: open the modal for the first incomplete component
-  useEffect(() => {
-    if (pendingMeasurementQueue.length === 0 || isApplyingPreset || isPaginaLaden) return;
-
-    const nextId = pendingMeasurementQueue[0];
-    const comp = components.find(c => c.id === nextId);
-    if (!comp) {
-      setPendingMeasurementQueue(prev => prev.slice(1));
-      return;
-    }
-
-    const stillIncomplete = getComponentsWithIncompleteMeasurements([comp]);
-    if (stillIncomplete.length === 0) {
-      setPendingMeasurementQueue(prev => prev.slice(1));
-      return;
-    }
-
-    // Delay to ensure the category section is rendered (unhidden) before opening the dialog
-    const timer = setTimeout(() => {
-      setActiveComponentType(comp.type);
-      setEditingComponentId(comp.id);
-      setKozijnenModalOpen(true);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [pendingMeasurementQueue, isApplyingPreset, isPaginaLaden, components, getComponentsWithIncompleteMeasurements]);
 
   // Fail-safe: Ensure categories with components are always visible
   // This overrides any preset trying to hide them
@@ -1793,6 +1885,16 @@ export default function GenericMaterialsPageRedesigned() {
       const materiaal = (gekozenMaterialen as any)[key];
       if (materiaal?.id) slots[key] = materiaal.id;
     }
+    // Also save component material selections into slots for werkpakket auto-fill
+    for (const comp of components) {
+      if (comp.materials) {
+        for (const m of comp.materials as any[]) {
+          if (m.sectionKey && m.material?.id && !slots[m.sectionKey]) {
+            slots[m.sectionKey] = m.material.id;
+          }
+        }
+      }
+    }
     const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
     const newPresetData: any = {
       userId: user.uid,
@@ -2077,26 +2179,11 @@ export default function GenericMaterialsPageRedesigned() {
   const handleNext = async (e: React.MouseEvent) => {
     e.preventDefault();
 
-    // Block save if any component has incomplete measurements
-    const incompleteIds = getComponentsWithIncompleteMeasurements(components);
-    if (incompleteIds.length > 0) {
-      const firstComp = components.find(c => c.id === incompleteIds[0]);
-      if (firstComp) {
-        const config = COMPONENT_REGISTRY[firstComp.type];
-        toast({
-          variant: 'destructive',
-          title: 'Afmetingen ontbreken',
-          description: `Vul de afmetingen in voor ${config?.title || firstComp.label} voordat je opslaat.`,
-        });
-        // Open the measurement popup for the first incomplete component
-        setActiveComponentType(firstComp.type);
-        setEditingComponentId(firstComp.id);
-        setKozijnenModalOpen(true);
-      }
-      return;
-    }
 
-    const navigateTo = `/offertes/${quoteId}/overzicht`;
+    const hasMeasurements = jobConfig?.measurements && jobConfig.measurements.length > 0;
+    const navigateTo = hasMeasurements
+      ? `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`
+      : `/offertes/${quoteId}/overzicht`;
 
     // Save to Firestore first (without navigation)
     await saveToFirestore({});
@@ -2146,10 +2233,10 @@ export default function GenericMaterialsPageRedesigned() {
 
   const handleBack = (e: React.MouseEvent) => {
     e.preventDefault();
-    // If job has no measurements, skip measurement page and go to category selection
-    const hasMeasurements = jobConfig?.measurements && jobConfig.measurements.length > 0;
-    const backUrl = hasMeasurements
-      ? `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`
+    // Material page is now the first step after job selection — go back to category/job selection
+    const hasOnlyOneItem = categoryConfig?.items?.length === 1;
+    const backUrl = hasOnlyOneItem
+      ? `/offertes/${quoteId}/klus/nieuw`
       : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`;
     saveToFirestore({ navigateTo: backUrl });
   };
@@ -2161,7 +2248,7 @@ export default function GenericMaterialsPageRedesigned() {
   // Page progress (not item completion)
   // This is the materials page, which is step 3 of 4 (after client info at 0%)
   // Client info (0%) -> Job selection (25%) -> Job details (50%) -> Materials (75%) -> Overview (100%)
-  const pageProgress = 80;
+  const pageProgress = 60;
 
   if (!isMounted) return null;
 
@@ -2172,8 +2259,8 @@ export default function GenericMaterialsPageRedesigned() {
         <WizardHeader
           title={JOB_TITEL}
           backLink={
-            (jobConfig?.measurements && jobConfig.measurements.length > 0)
-              ? `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`
+            categoryConfig?.items?.length === 1
+              ? `/offertes/${quoteId}/klus/nieuw`
               : `/offertes/${quoteId}/klus/nieuw/${categorySlug}`
           }
           progress={pageProgress}
@@ -2265,22 +2352,15 @@ export default function GenericMaterialsPageRedesigned() {
                 const isGipsSection = categoryKey === 'gips_afwerking';
 
                 let targetComponentType: JobComponentType | null = null;
-                if (isComplexJob) {
-                  if (isKozijnenSection) targetComponentType = 'kozijn';
-                  else if (isDeurenSection) targetComponentType = 'deur';
-                  else if (isBoeiboordSection) targetComponentType = 'boeiboord';
-                  else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
-                  else if (isInstallatieSection) targetComponentType = 'installatie';
-                  else if (isDagkantSection) targetComponentType = 'dagkant';
-                  else if (isVensterbankSection) targetComponentType = 'vensterbank';
-                }
-
-                if (isCeilingJob) {
-                  if (isVlizotrapSection) targetComponentType = 'vlizotrap';
-                  else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
-                }
-
-                if (isGipsSection) targetComponentType = 'gips';
+                if (isKozijnenSection) targetComponentType = 'kozijn';
+                else if (isDeurenSection) targetComponentType = 'deur';
+                else if (isBoeiboordSection) targetComponentType = 'boeiboord';
+                else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
+                else if (isInstallatieSection) targetComponentType = 'installatie';
+                else if (isDagkantSection) targetComponentType = 'dagkant';
+                else if (isVensterbankSection) targetComponentType = 'vensterbank';
+                else if (isVlizotrapSection) targetComponentType = 'vlizotrap';
+                else if (isGipsSection) targetComponentType = 'gips';
 
                 return (
                   <div key={categoryKey} className="space-y-2">
@@ -2296,7 +2376,7 @@ export default function GenericMaterialsPageRedesigned() {
                               type: 'vlizotrap' as const,
                               label: 'Vlizotrap',
                               measurements: {},
-                              materiaalKeuzes: {}
+                              materials: getPresetMaterialsForType('vlizotrap')
                             };
                             setComponents(prev => [...prev, newVlizotrap]);
                           } else if (targetComponentType === 'installatie') {
@@ -2305,21 +2385,48 @@ export default function GenericMaterialsPageRedesigned() {
                               type: 'installatie' as const,
                               label: 'Installatie & Elektra',
                               measurements: {},
-                              materiaalKeuzes: {}
+                              materials: getPresetMaterialsForType('installatie')
                             };
                             setComponents(prev => [...prev, newInstallatie]);
-                          } else if (targetComponentType === 'gips') {
-                            const newGips = {
-                              id: `gips-${Date.now()}`,
-                              type: 'gips' as const,
-                              label: 'Naden & Stucwerk',
-                              measurements: {},
-                              materiaalKeuzes: {}
-                            };
-                            setComponents(prev => [...prev, newGips]);
+                          } else if (targetComponentType === 'kozijn' || targetComponentType === 'deur' || targetComponentType === 'dagkant' || targetComponentType === 'vensterbank') {
+                            // Automatically add if only one variant exists
+                            let itemsForType: any[] = [];
+                            if (targetComponentType === 'kozijn') itemsForType = JOB_REGISTRY.kozijnen.items;
+                            else if (targetComponentType === 'deur') itemsForType = JOB_REGISTRY.deuren.items;
+                            else if (targetComponentType === 'dagkant' || targetComponentType === 'vensterbank') {
+                              itemsForType = JOB_REGISTRY.afwerkingen.items.filter(i => i.title.toLowerCase().includes(targetComponentType.toLowerCase()));
+                            }
+
+                            if (itemsForType.length === 1) {
+                              const item = itemsForType[0];
+                              const newItem = {
+                                id: `${targetComponentType}-${Date.now()}`,
+                                type: targetComponentType,
+                                label: item.title,
+                                slug: item.slug,
+                                measurements: {},
+                                materials: getPresetMaterialsForType(targetComponentType)
+                              };
+                              setComponents(prev => [...prev, newItem]);
+                              toast({
+                                title: "Onderdeel toegevoegd",
+                                description: `${item.title} is toegevoegd aan de lijst.`,
+                              });
+                            } else {
+                              setVariantPickerType(targetComponentType);
+                              setVariantPickerOpen(true);
+                            }
                           } else {
-                            setActiveComponentType(targetComponentType);
-                            setKozijnenModalOpen(true);
+                            // Instant add for simple types
+                            const config = COMPONENT_REGISTRY[targetComponentType];
+                            const newItem = {
+                              id: `${targetComponentType}-${Date.now()}`,
+                              type: targetComponentType as any,
+                              label: config?.title || targetComponentType,
+                              measurements: {},
+                              materials: getPresetMaterialsForType(targetComponentType as any)
+                            };
+                            setComponents(prev => [...prev, newItem]);
                           }
                         } else {
                           toggleCategoryVisibility(categoryKey);
@@ -2343,10 +2450,21 @@ export default function GenericMaterialsPageRedesigned() {
                           } toevoegen</span>
                         </div>
                       ) : (
-                        <h2 className={cn(
-                          "text-sm font-semibold uppercase transition-colors",
-                          isHidden ? "text-muted-foreground" : "text-foreground"
-                        )} style={{ letterSpacing: '0.05em' }}>{categoryInfo.title}</h2>
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <h2 className={cn(
+                            "text-sm font-semibold uppercase transition-colors shrink-0",
+                            isHidden ? "text-muted-foreground" : "text-foreground"
+                          )} style={{ letterSpacing: '0.05em' }}>{categoryInfo.title}</h2>
+                          {isHidden && (() => {
+                            const filledSections = sections.filter((s: any) => gekozenMaterialen[s.key]?.materiaalnaam);
+                            if (filledSections.length === 0) return null;
+                            return filledSections.map((s: any) => (
+                              <span key={s.key} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-medium normal-case tracking-normal truncate max-w-[180px] animate-in fade-in slide-in-from-left-2">
+                                {gekozenMaterialen[s.key].materiaalnaam}
+                              </span>
+                            ));
+                          })()}
+                        </div>
                       )}
 
                       {(!targetComponentType || components.some(c => c.type === targetComponentType)) ? (
@@ -2369,28 +2487,6 @@ export default function GenericMaterialsPageRedesigned() {
                       <div className="space-y-1.5">
                         {targetComponentType ? (
                           <div className="pl-0 sm:pl-2 space-y-8">
-                            {/* Manager purely for the "Add/Edit Dialog" functionality. We hide the list. */}
-                            <JobComponentsManager
-                              components={components}
-                              onChange={setComponents}
-                              limitToType={targetComponentType}
-                              hideAddButton={true}
-                              forceOpen={kozijnenModalOpen && activeComponentType === targetComponentType}
-                              onOpenChange={(open) => {
-                                setKozijnenModalOpen(open);
-                                if (!open) {
-                                  setEditingComponentId(null);
-                                  setActiveComponentType(null);
-                                  // Advance the measurement validation queue
-                                  if (pendingMeasurementQueue.length > 0) {
-                                    setPendingMeasurementQueue(prev => prev.slice(1));
-                                  }
-                                }
-                              }}
-                              renderList={false}
-                              externalEditingId={editingComponentId}
-                              onEditingIdChange={setEditingComponentId}
-                            />
 
                             {/* Custom Rendering of Components with Expanded Materials */}
                             {components.filter(c => c.type === targetComponentType).map((comp, idx) => {
@@ -2429,8 +2525,6 @@ export default function GenericMaterialsPageRedesigned() {
                               // ALL COMPONENTS: Simplified rendering (Vlizotrap Style)
                               // User requested uniform "clean list" style for everything, including Kozijnen/Deuren.
                               if (targetComponentType) {
-                                const measurements = (comp as any)[`measurements_${comp.type}`] || comp.measurements;
-                                const hasMeasurements = measurements && Object.keys(measurements).length > 0;
 
                                 return (
                                   <div key={comp.id} className="mt-2 space-y-1.5">
@@ -2444,24 +2538,48 @@ export default function GenericMaterialsPageRedesigned() {
                                       <span className="text-sm font-semibold text-foreground/90">{comp.label}</span>
                                     </div>
 
-                                    {/* Werkwijze Selector - Inline (moved from popup) */}
-                                    {(targetComponentType === 'kozijn' || targetComponentType === 'deur') && (
-                                      <div className="space-y-1.5 mb-3 p-2 rounded-lg bg-muted/20 border border-border/30">
-                                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                          Werkpakket
-                                        </Label>
-                                        <Select defaultValue="default">
-                                          <SelectTrigger className="w-full bg-background/60 border-emerald-500/20 focus:ring-emerald-500/20 h-9">
-                                            <div className="flex items-center gap-2">
-                                              <Box className="w-4 h-4 text-emerald-500" />
-                                              <SelectValue placeholder="Kies werkpakket" />
-                                            </div>
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="default">Nieuw</SelectItem>
-                                            {/* TODO: Load saved presets for this component type */}
-                                          </SelectContent>
-                                        </Select>
+                                    {/* Werkpakket Selector - per component type */}
+                                    {targetComponentType && (
+                                      <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-muted/20 border border-border/30">
+                                        <div className="flex-1 space-y-1.5">
+                                          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                            Werkpakket
+                                          </Label>
+                                          <Select
+                                            defaultValue="default"
+                                            onValueChange={(val) => {
+                                              if (val !== 'default') {
+                                                handleApplyComponentPreset(val, targetComponentType, comp.id);
+                                              }
+                                            }}
+                                          >
+                                            <SelectTrigger className="w-full bg-background/60 border-emerald-500/20 focus:ring-emerald-500/20 h-9">
+                                              <div className="flex items-center gap-2">
+                                                <Box className="w-4 h-4 text-emerald-500" />
+                                                <SelectValue placeholder="Kies werkpakket" />
+                                              </div>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem className={SELECT_ITEM_GREEN} value="default">Nieuw</SelectItem>
+                                              {(componentPresets[targetComponentType] || []).map((p: any) => (
+                                                <SelectItem className={SELECT_ITEM_GREEN} key={p.id} value={p.id}>{p.name}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-9 w-9 shrink-0 mt-5 text-muted-foreground hover:text-emerald-500"
+                                          title="Opslaan als werkpakket"
+                                          onClick={() => {
+                                            setSaveComponentPresetType(targetComponentType);
+                                            setSaveComponentPresetCompId(comp.id);
+                                            setSaveComponentPresetOpen(true);
+                                          }}
+                                        >
+                                          <Save className="h-4 w-4" />
+                                        </Button>
                                       </div>
                                     )}
 
@@ -2486,21 +2604,6 @@ export default function GenericMaterialsPageRedesigned() {
                                     })}
                                     {/* Footer Actions: Edit (if applicable) & Delete */}
                                     <div className="flex justify-end pt-2 pb-1 gap-1">
-                                      {hasMeasurements && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-7 text-xs text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 transition-opacity"
-                                          onClick={() => {
-                                            setActiveComponentType(targetComponentType);
-                                            setEditingComponentId(comp.id);
-                                            setKozijnenModalOpen(true);
-                                          }}
-                                        >
-                                          <Edit2 className="h-3 w-3 mr-1" />
-                                          Wijzigen
-                                        </Button>
-                                      )}
                                       <Button
                                         variant="ghost"
                                         size="sm"
@@ -2763,6 +2866,22 @@ export default function GenericMaterialsPageRedesigned() {
         presets={presets}
         defaultName={gekozenPresetId !== 'default' ? presets.find(p => p.id === gekozenPresetId)?.name : ''}
       />
+
+      {/* Per-component werkpakket save dialog */}
+      <SaveComponentPresetDialog
+        open={saveComponentPresetOpen}
+        onOpenChange={setSaveComponentPresetOpen}
+        componentType={saveComponentPresetType}
+        existingPresets={saveComponentPresetType ? (componentPresets[saveComponentPresetType] || []) : []}
+        onSave={async (name: string) => {
+          if (!saveComponentPresetType || !saveComponentPresetCompId) return;
+          const saved = await handleSaveComponentPreset(name, saveComponentPresetType, saveComponentPresetCompId);
+          if (saved) {
+            toast({ title: 'Werkpakket opgeslagen', description: `"${name}" is opgeslagen voor ${COMPONENT_REGISTRY[saveComponentPresetType]?.title || saveComponentPresetType}.` });
+          }
+        }}
+      />
+
       <AddExtraMaterialDialog
         open={addExtraMaterialOpen}
         onOpenChange={setAddExtraMaterialOpen}
@@ -2876,7 +2995,8 @@ export default function GenericMaterialsPageRedesigned() {
           } else if (actieveSectie) {
             setGekozenMaterialen(prev => {
               const current = prev[actieveSectie] || {};
-              // Ensure we preserve existing properties or create new object if empty
+              if (!current.materiaalnaam) return prev; // Don't create empty material object on close
+              // Ensure we preserve existing properties
               return { ...prev, [actieveSectie]: { ...current, wastePercentage: newWaste, quantity: (current as any).quantity || 1 } };
             });
           }
@@ -2981,7 +3101,7 @@ export default function GenericMaterialsPageRedesigned() {
           setPendingNavigateTo(null);
         }
       }}>
-        <DialogContent className={cn('max-w-lg w-full max-h-[80vh] overflow-y-auto', DIALOG_CLOSE_TAP)}>
+        <DialogContent className={cn('max-w-2xl max-h-[80vh] overflow-y-auto', DIALOG_CLOSE_TAP)}>
           <DialogHeader>
             <DialogTitle>Materialen zonder prijs</DialogTitle>
             <DialogDescription>
@@ -3102,6 +3222,60 @@ export default function GenericMaterialsPageRedesigned() {
                 'Opslaan & Volgende'
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* NEW: Variant Selection Dialog */}
+      <Dialog open={variantPickerOpen} onOpenChange={setVariantPickerOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Type {variantPickerType === 'kozijn' ? 'Kozijn' : (variantPickerType === 'deur' ? 'Deur' : 'Onderdeel')} kiezen</DialogTitle>
+            <DialogDescription>
+              Selecteer een variant om toe te voegen aan de lijst.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 gap-2 py-4">
+            {variantPickerType && (() => {
+              let items: any[] = [];
+              if (variantPickerType === 'kozijn') items = JOB_REGISTRY.kozijnen.items;
+              else if (variantPickerType === 'deur') items = JOB_REGISTRY.deuren.items;
+              else if (variantPickerType === 'dagkant' || variantPickerType === 'vensterbank') items = JOB_REGISTRY.afwerkingen.items;
+
+              // Filter logic for dagkant/vensterbank specifically
+              if (variantPickerType === 'dagkant' || variantPickerType === 'vensterbank') {
+                items = items.filter(i => i.title.toLowerCase().includes(variantPickerType.toLowerCase()));
+              }
+
+              return items.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
+                  onClick={() => {
+                    const newItem = {
+                      id: `${variantPickerType}-${Date.now()}-${idx}`,
+                      type: variantPickerType,
+                      label: item.title,
+                      slug: item.slug,
+                      measurements: {},
+                      materials: getPresetMaterialsForType(variantPickerType)
+                    };
+                    setComponents(prev => [...prev, newItem]);
+                    setVariantPickerOpen(false);
+                  }}
+                >
+                  <div>
+                    <div className="text-sm font-medium group-hover:text-emerald-500 transition-colors">{item.title}</div>
+                    <div className="text-xs text-muted-foreground">{item.description}</div>
+                  </div>
+                  <Plus className="h-4 w-4 text-muted-foreground group-hover:text-emerald-500" />
+                </div>
+              ));
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVariantPickerOpen(false)}>Annuleren</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

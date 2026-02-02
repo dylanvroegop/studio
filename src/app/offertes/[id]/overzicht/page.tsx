@@ -1901,7 +1901,7 @@ export default function OverzichtPage() {
                   job?.meta?.slug ||
                   slugify(title);
 
-                const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}`;
+                const bewerkenHref = `/offertes/${quoteId}/klus/${job.id}/${type}/${slug}/materialen`;
 
                 // Extract dimensions summary
                 const container = job;

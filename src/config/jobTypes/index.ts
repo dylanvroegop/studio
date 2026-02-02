@@ -1,8 +1,13 @@
 import * as hsbVoorzetwand from './hsbVoorzetwand.config';
 import * as metalstudTussenwand from './metalstudTussenwand.config';
 
+// Measurement section types that can be toggled per job type
+export type MeasurementSection = 'openingen' | 'leidingkoof' | 'vensterbanken' | 'dagkanten';
+
 // Define the interface for the config to ensure type safety
 export interface JobTypeConfig {
+    // Which extra measurement sections to show on the measurement page
+    sections: MeasurementSection[];
     openingConfig: {
         typeOptions: string[];
         constructionOptions: {
@@ -27,14 +32,51 @@ export interface JobTypeConfig {
     };
 }
 
+// ─── Sections per job slug ───────────────────────────────────────────
+// Add/remove slugs here to control which measurement cards appear.
+// Only slugs listed here get extra sections; everything else gets none.
+const WALL_SECTIONS: MeasurementSection[] = ['openingen', 'leidingkoof', 'vensterbanken', 'dagkanten'];
+const CEILING_SECTIONS: MeasurementSection[] = ['openingen', 'leidingkoof'];
+const ROOF_SECTIONS: MeasurementSection[] = ['openingen'];
+const FACADE_SECTIONS: MeasurementSection[] = ['openingen', 'leidingkoof', 'vensterbanken', 'dagkanten'];
+
+export const jobSections: Record<string, MeasurementSection[]> = {
+    // Wanden
+    'hsb-voorzetwand':        WALL_SECTIONS,
+    'hsb-tussenwand':         WALL_SECTIONS,
+    'metalstud-voorzetwand':  WALL_SECTIONS,
+    'metalstud-tussenwand':   WALL_SECTIONS,
+    'HBS-buiten-wand':        WALL_SECTIONS,
+    'knieschotten':           WALL_SECTIONS,
+    'cinewall-tv-wand':       WALL_SECTIONS,
+
+    // Plafonds
+    'plafond-houten-framework': CEILING_SECTIONS,
+    'plafond-metalstud':        CEILING_SECTIONS,
+
+    // Dakrenovatie
+    'hellend-dak':       ROOF_SECTIONS,
+    'epdm-dakbedekking': ROOF_SECTIONS,
+    'golfplaat-dak':     ROOF_SECTIONS,
+
+    // Gevelbekleding
+    'gevelbekleding-compleet': FACADE_SECTIONS,
+
+    // Boeiboorden
+    'boeiboorden-vervangen': ['leidingkoof'],
+
+    // Vloeren
+    'balklaag-constructievloer': ['leidingkoof'],
+};
+
 export const jobTypeConfigs: Record<string, JobTypeConfig> = {
     'hsb-voorzetwand': hsbVoorzetwand as JobTypeConfig,
     'hsb-tussenwand': hsbVoorzetwand as JobTypeConfig,
     'metalstud-tussenwand': metalstudTussenwand as JobTypeConfig,
-    // Add others as needed, defaulting to HSB-like or specific defaults
 };
 
 export const defaultJobConfig: JobTypeConfig = {
+    sections: [],
     openingConfig: {
         typeOptions: ['Sparing', 'Overig'],
         constructionOptions: {
@@ -47,17 +89,22 @@ export const defaultJobConfig: JobTypeConfig = {
         }
     },
     balkenConfig: {
-        showBalkafstand: true, // Defaulting true for most walls/ceilings
+        showBalkafstand: true,
         showStartpositie: true,
         options: {
             dblEindbalk: false,
             dblBovenbalk: false,
             dblOnderbalk: false,
-            surroundingBeams: true // Default for generic frames often
+            surroundingBeams: true
         }
     }
 };
 
 export function getJobConfig(slug: string): JobTypeConfig {
-    return jobTypeConfigs[slug] || defaultJobConfig;
+    const base = jobTypeConfigs[slug] || defaultJobConfig;
+    // Merge centralized sections into the config
+    return {
+        ...base,
+        sections: jobSections[slug] || base.sections || [],
+    };
 }
