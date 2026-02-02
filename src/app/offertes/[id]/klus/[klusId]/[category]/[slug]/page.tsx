@@ -871,6 +871,8 @@ export default function GenericMeasurementPage() {
                         onUpdate={(id, updates) => onUpdateLeidingkoof(index, id, updates)}
                         isCollapsed={collapsedSections[`koof-${index}`] !== false}
                         onToggleCollapsed={() => toggleCollapsed(`koof-${index}`)}
+                        wallLength={Number(item.lengte) || 0}
+                        wallHeight={Number(item.hoogte) || 0}
                       />
                     )}
 

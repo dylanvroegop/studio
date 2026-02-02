@@ -13,6 +13,7 @@ export interface LeidingkoofItem {
     vanLinks?: number | string;
     vanOnder?: number | string;
     orientation?: 'side' | 'top';
+    aantalZijden?: number;
 }
 
 interface LeidingkoofSectionProps {
@@ -22,6 +23,8 @@ interface LeidingkoofSectionProps {
     onUpdate: (id: string, updates: Partial<LeidingkoofItem>) => void;
     isCollapsed?: boolean;
     onToggleCollapsed?: () => void;
+    wallLength?: number;
+    wallHeight?: number;
 }
 
 export function LeidingkoofSection({
@@ -31,6 +34,8 @@ export function LeidingkoofSection({
     onUpdate,
     isCollapsed = true,
     onToggleCollapsed,
+    wallLength = 0,
+    wallHeight = 0,
 }: LeidingkoofSectionProps) {
     const addedRef = useRef(false);
 
@@ -110,6 +115,42 @@ export function LeidingkoofSection({
                                                 </div>
                                             </div>
 
+                                            {(() => {
+                                                const vL = Number(koof.vanLinks) || 0;
+                                                const vO = Number(koof.vanOnder) || 0;
+                                                const kL = Number(koof.lengte) || 0;
+                                                const kH = Number(koof.hoogte) || 0;
+                                                const kD = Number(koof.diepte) || 0;
+                                                const orientation = koof.orientation || 'side';
+
+                                                let sides = 3;
+                                                const rectWMm = orientation === 'side' ? kH : kL;
+                                                const rectHMm = orientation === 'side' ? kL : kH;
+
+                                                if (orientation === 'side') {
+                                                    if (vL === 0 || (wallLength > 0 && Math.abs(vL + rectWMm - wallLength) < 2)) {
+                                                        sides = 2;
+                                                    }
+                                                } else {
+                                                    if (vO === 0 || (wallHeight > 0 && Math.abs(vO + rectHMm - wallHeight) < 2)) {
+                                                        sides = 2;
+                                                    }
+                                                }
+
+                                                // Update item if sides changed
+                                                if (koof.aantalZijden !== sides) {
+                                                    setTimeout(() => onUpdate(koof.id, { aantalZijden: sides }), 0);
+                                                }
+
+                                                return (
+                                                    <div className="px-2 py-1 rounded bg-emerald-500/5 border border-emerald-500/10 inline-flex items-center">
+                                                        <span className="text-[10px] text-emerald-500/80 font-medium">
+                                                            Positie: {sides === 2 ? 'Hoek' : 'Midden'} ({sides} zijden)
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
+
                                             {/* Orientation toggle */}
                                             <div className="space-y-1">
                                                 <Label className="text-[10px] text-zinc-500">Positie</Label>
@@ -122,7 +163,7 @@ export function LeidingkoofSection({
                                                             orientation === 'side' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
                                                         )}
                                                     >
-                                                        Zijkant
+                                                        Verticaal
                                                     </button>
                                                     <button
                                                         type="button"
@@ -132,7 +173,7 @@ export function LeidingkoofSection({
                                                             orientation === 'top' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
                                                         )}
                                                     >
-                                                        Bovenkant
+                                                        Horizontaal
                                                     </button>
                                                 </div>
                                             </div>

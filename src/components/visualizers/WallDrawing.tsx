@@ -490,7 +490,19 @@ export function WallDrawing({
                     finalBottom = Math.max(0, maxH - rectHMm);
                 }
 
-                return { ...k, vanLinks: finalLeft, vanOnder: finalBottom };
+                // Calculate sides logic
+                let sides = 3;
+                if (orientation === 'side') {
+                    if (finalLeft === 0 || (lengteNum > 0 && Math.abs(finalLeft + rectWMm - lengteNum) < 2)) {
+                        sides = 2;
+                    }
+                } else {
+                    if (finalBottom === 0 || (maxH > 0 && Math.abs(finalBottom + rectHMm - maxH) < 2)) {
+                        sides = 2;
+                    }
+                }
+
+                return { ...k, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides };
             });
             onLeidingkoofChange(updatedKofen);
         }

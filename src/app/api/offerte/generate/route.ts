@@ -143,7 +143,8 @@ export async function POST(req: Request) {
         'lengte1', 'lengte2', 'lengte3',
         'hoogte1', 'hoogte2', 'hoogte3',
         'hoogteLinks', 'hoogteRechts', 'hoogteNok',
-        'hoogteZijkant', 'balkafstand', 'latafstand'
+        'hoogteZijkant', 'balkafstand', 'latafstand',
+        'vanLinks', 'vanOnder', 'aantalZijden'
       ];
 
       const convertDimensions = (items: any[]) => {
@@ -163,6 +164,18 @@ export async function POST(req: Request) {
                 if (newOp[k] !== undefined) newOp[k] = Number(newOp[k]);
               });
               return newOp;
+            });
+          }
+          if (Array.isArray(newItem.leidingkofen)) {
+            newItem.leidingkofen = newItem.leidingkofen.map((k: any) => {
+              const newK = { ...k };
+              ['lengte', 'hoogte', 'diepte', 'vanLinks', 'vanOnder', 'aantalZijden'].forEach(key => {
+                if (newK[key] !== undefined && newK[key] !== null && newK[key] !== '') {
+                  const num = Number(newK[key]);
+                  if (!isNaN(num)) newK[key] = num;
+                }
+              });
+              return newK;
             });
           }
           return newItem;
