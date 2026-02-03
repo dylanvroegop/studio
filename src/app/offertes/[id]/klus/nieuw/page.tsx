@@ -57,9 +57,6 @@ const categories: CategoryItem[] = [
   { name: 'Meubels Op Maat', description: 'Meubels op maat', slug: 'MEUBELS_OP_MAAT' },
   { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
   { name: 'Dakramen / Lichtkoepel', description: 'Velux dakramen & lichtkoepels', slug: 'dakramen' },
-  { name: 'Sloopwerk & Logistiek', description: 'Sloopwerk, afvoer en bescherming', slug: 'sloopwerk' },
-  { name: 'Constructief', description: 'Stalen balken & Stempelwerk', slug: 'constructief' },
-  { name: 'Beveiliging', description: 'Politiekeurmerk Veilig Wonen', slug: 'beveiliging' },
   { name: 'Isolatiewerken', description: 'Zolder- en vloerisolatie', slug: 'isolatie' },
 ];
 

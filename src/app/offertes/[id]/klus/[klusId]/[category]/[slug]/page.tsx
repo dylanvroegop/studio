@@ -71,6 +71,7 @@ export default function GenericMeasurementPage() {
   const klusId = params.klusId as string;
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
+  const isMaatwerkKozijn = jobSlug === 'raamkozijn-maatwerk' || jobSlug === 'deurkozijn-maatwerk';
   const specificJobConfig = getJobConfig(jobSlug);
 
   const [loading, setLoading] = useState(true);
@@ -111,6 +112,89 @@ export default function GenericMeasurementPage() {
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [kozijnhoutFrameThicknessMm, setKozijnhoutFrameThicknessMm] = useState<number | null>(null);
+
+  const parseDimToMm = (raw: any): number | null => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    const s = String(raw).trim().toLowerCase();
+    const match = s.match(/([\d.,]+)\s*(mm|cm|m)?/i);
+    if (!match) return null;
+    const num = parseFloat(match[1].replace(',', '.'));
+    if (!Number.isFinite(num)) return null;
+    const unit = match[2];
+    if (unit === 'cm') return num * 10;
+    if (unit === 'm') return num * 1000;
+    return num;
+  };
+
+  const findVlizotrapMaterial = (container: any) => {
+    const materialenLijst = container?.materialen?.materialen_lijst || {};
+    let found: any = null;
+    Object.values(materialenLijst).forEach((entry: any) => {
+      if (!entry || !entry.material) return;
+      const sectionKey = entry.sectionKey || entry.material?.sectionKey;
+      const categorie = entry.material?.categorie;
+      const naam = entry.material?.materiaalnaam || '';
+      const keyMatch = sectionKey === 'trap' || sectionKey === 'vlizotrap' || sectionKey === 'vlizotrap_unit';
+      const catMatch = typeof categorie === 'string' && categorie.toLowerCase().includes('vlieringtrap');
+      const nameMatch = typeof naam === 'string' && naam.toLowerCase().includes('vlizotrap');
+      if (keyMatch || catMatch || nameMatch) found = entry.material;
+    });
+    return found;
+  };
+
+  const findKozijnhoutMaterial = (container: any) => {
+    const materialenLijst = container?.materialen?.materialen_lijst || {};
+    let found: any = null;
+    Object.values(materialenLijst).forEach((entry: any) => {
+      if (!entry || !entry.material) return;
+      const sectionKey = entry.sectionKey || entry.material?.sectionKey;
+      if (sectionKey === 'kozijnhout_buiten') found = entry.material;
+    });
+    return found;
+  };
+
+  const syncVlizotrapOpening = (item: any, material: any) => {
+    const openings = Array.isArray(item.openings) ? [...item.openings] : [];
+    const autoIndex = openings.findIndex((op: any) => op?.autoSource === 'vlizotrap_material');
+    const widthMm = parseDimToMm(material?.breedte);
+    const heightMm = parseDimToMm(material?.lengte);
+
+    if (!material || !widthMm || !heightMm) {
+      if (autoIndex !== -1) openings.splice(autoIndex, 1);
+      return { ...item, openings };
+    }
+
+    if (autoIndex === -1) {
+      const len = Number(item.lengte) || 0;
+      const br = Number(item.breedte) || 0;
+      const fromLeft = len > 0 ? Math.max(0, (len - widthMm) / 2) : 0;
+      const fromBottom = br > 0 ? Math.max(0, (br - heightMm) / 2) : 0;
+      openings.push({
+        id: crypto.randomUUID(),
+        type: 'vlizotrap',
+        width: widthMm,
+        height: heightMm,
+        fromLeft,
+        fromBottom,
+        autoSource: 'vlizotrap_material',
+        sourceMaterialId: material?.row_id || material?.id || null,
+      });
+    } else {
+      const existing = openings[autoIndex];
+      openings[autoIndex] = {
+        ...existing,
+        type: 'vlizotrap',
+        width: widthMm,
+        height: heightMm,
+        autoSource: 'vlizotrap_material',
+        sourceMaterialId: material?.row_id || material?.id || existing?.sourceMaterialId || null,
+      };
+    }
+
+    return { ...item, openings };
+  };
 
   // Sync with Firestore preferences
   useEffect(() => {
@@ -165,6 +249,13 @@ export default function GenericMeasurementPage() {
           const data = snapshot.data();
           const container = data.klussen?.[klusId] || {};
           const maatwerk = container.maatwerk;
+          const vlizotrapMaterial = findVlizotrapMaterial(container);
+          const kozijnhoutMaterial = isMaatwerkKozijn ? findKozijnhoutMaterial(container) : null;
+          const kozijnhoutThickness = kozijnhoutMaterial ? parseDimToMm(kozijnhoutMaterial?.breedte) : null;
+
+          if (isMaatwerkKozijn) {
+            setKozijnhoutFrameThicknessMm(kozijnhoutThickness);
+          }
 
           // 1. Try new structure, then specific slug key, then legacy 'maatwerk' array
           const savedItems = maatwerk?.basis || maatwerk?.items || container[`${jobSlug}_maatwerk`] || (Array.isArray(maatwerk) ? maatwerk : []);
@@ -230,9 +321,16 @@ export default function GenericMeasurementPage() {
 
               return item;
             });
-            setItems(normalizedItems);
+            const withVlizotrap = vlizotrapMaterial
+              ? normalizedItems.map((item: any) => syncVlizotrapOpening(item, vlizotrapMaterial))
+              : normalizedItems;
+            setItems(withVlizotrap);
           } else {
-            setItems([createEmptyItem()]);
+            const emptyItem = createEmptyItem();
+            const withVlizotrap = vlizotrapMaterial
+              ? syncVlizotrapOpening(emptyItem, vlizotrapMaterial)
+              : emptyItem;
+            setItems([withVlizotrap]);
           }
 
           // 2. Load Components
@@ -1051,6 +1149,7 @@ export default function GenericMeasurementPage() {
                         title={`${itemLabel} ${index + 1}`}
                         isMagnifier={false}
                         fitContainer={false}
+                        frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                         onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
@@ -1083,6 +1182,7 @@ export default function GenericMeasurementPage() {
                             title={`${itemLabel} ${index + 1}`}
                             isMagnifier={false}
                             fitContainer={true}
+                            frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
                             onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                             onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                             onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}

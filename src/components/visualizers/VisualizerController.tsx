@@ -9,6 +9,7 @@ import { EPDMDrawing } from './EPDMDrawing';
 import { GolfplaatDrawing } from './GolfplaatDrawing';
 import { BoeiboordDrawing } from './BoeiboordDrawing';
 import { GlasDrawing } from './GlasDrawing';
+import { KozijnMaatwerkDrawing } from './KozijnMaatwerkDrawing';
 
 interface VisualizerControllerProps {
     category: string;
@@ -214,6 +215,20 @@ export function VisualizerController({
                 onLeidingkoofChange={onLeidingkoofChange}
                 onDataGenerated={props.onDataGenerated}
                 {...props}
+            />
+        );
+    }
+
+    // 3b. KOZIJN MAATWERK
+    if (slug.includes('raamkozijn-maatwerk') || slug.includes('deurkozijn-maatwerk')) {
+        return (
+            <KozijnMaatwerkDrawing
+                breedte={item.breedte}
+                hoogte={item.hoogte}
+                frameThickness={props.frameThickness}
+                fitContainer={fitContainer}
+                className={className}
+                title={props.title}
             />
         );
     }

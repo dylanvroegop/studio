@@ -95,6 +95,7 @@ import {
   MaterialCategoryKey
 } from '@/lib/job-registry';
 import { COMPONENT_REGISTRY } from '@/lib/component-registry';
+import { getJobConfig } from '@/config/jobTypes/index';
 
 // ==================================
 // HELPER FUNCTIONS
@@ -686,6 +687,8 @@ export default function GenericMaterialsPageRedesigned() {
   const klusId = params.klusId as string;
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
+  const specificJobConfig = getJobConfig(jobSlug);
+  const showOpeningsSection = specificJobConfig.sections.includes('openingen');
 
   const categoryConfig = JOB_REGISTRY[categorySlug];
   const jobConfig = categoryConfig?.items.find((item) => item.slug === jobSlug);
@@ -1430,6 +1433,15 @@ export default function GenericMaterialsPageRedesigned() {
 
         // Auto-unhide categories if relevant components exist (Step Id: 181)
         let loadedHidden = klusNode?.uiState?.hiddenCategories || {};
+        const defaultHiddenForDeuren = (jobSlug === 'binnendeur-afhangen' || jobSlug === 'buitendeur-afhangen')
+          ? { glas: true, tochtstrips: true, ventilatie: true }
+          : null;
+
+        if (defaultHiddenForDeuren) {
+          Object.entries(defaultHiddenForDeuren).forEach(([key, value]) => {
+            if (loadedHidden[key] === undefined) loadedHidden[key] = value;
+          });
+        }
 
         // If we are applying a preset later, that preset might hide things. 
         // But here we are just hydrating.
@@ -2423,9 +2435,10 @@ export default function GenericMaterialsPageRedesigned() {
                 const isVensterbankSection = categoryKey === 'Vensterbank';
                 const isGipsSection = categoryKey === 'gips_afwerking';
 
+                const allowDoorComponents = showOpeningsSection || isComplexJob;
                 let targetComponentType: JobComponentType | null = null;
-                if (isKozijnenSection) targetComponentType = 'kozijn';
-                else if (isDeurenSection) targetComponentType = 'deur';
+                if (isKozijnenSection && allowDoorComponents) targetComponentType = 'kozijn';
+                else if (isDeurenSection && allowDoorComponents) targetComponentType = 'deur';
                 else if (isBoeiboordSection) targetComponentType = 'boeiboord';
                 else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
                 else if (isInstallatieSection) targetComponentType = 'installatie';

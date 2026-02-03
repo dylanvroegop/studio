@@ -610,6 +610,16 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
   { label: 'Komgrepen', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_greep', category_ultra_filter: '' },
 ];
 
+const DEUR_SCHUIF_MATS: MaterialSection[] = [
+  { label: 'Schuifdeurrails', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_rails', category_ultra_filter: '' },
+  { label: 'Schuifdeurpanelen', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Schuifdeur', key: 'schuifdeur_paneel', category_ultra_filter: '' },
+  { label: 'Komgrepen', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_greep', category_ultra_filter: '' },
+  { label: 'Geleiders', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_geleiders', category_ultra_filter: '' },
+  { label: 'Stoppers', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_stoppers', category_ultra_filter: '' },
+  { label: 'Soft-close', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_softclose', category_ultra_filter: '' },
+  { label: 'Afdichting', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_afdichting', category_ultra_filter: '' },
+];
+
 //#region ========================================== MATERIAL SECTIONS - PLAFONDS XXX==========================================
 
 const PLAFOND_HOUT_MATS: MaterialSection[] = [
@@ -837,8 +847,9 @@ const VENSTERBANK_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - DEUREN XXX==========================================
 
 const DEUR_BINNEN_MATS: MaterialSection[] = [
-  { label: 'Binnendeuren', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '' },
+  { label: 'Binnendeur', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '' },
 
+  { label: 'Deurbeslag set', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_set', category_ultra_filter: '' },
   { label: 'Scharnieren / Paumelles', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '' },
   { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '' },
   { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
@@ -1037,16 +1048,32 @@ const KOZIJN_BUITEN_KUNSTSTOF_MATS: MaterialSection[] = [
   { label: 'Inzethorren', categoryFilter: 'Overig', category: 'afwerking', key: 'inzethorren', category_ultra_filter: '' },
 ];
 // 5. AMBACHTELIJK TIMMERWERK (CUSTOM / RENOVATIE)
-const KOZIJN_TIMMERWERK_MATS: MaterialSection[] = [
-  { label: 'Kozijn (Complete Set)', categoryFilter: 'Kozijnhout', category: 'hout', key: 'kozijn_compleet', category_ultra_filter: '' },
-  { label: 'Kozijnhout (Zelfbouw)', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'kozijnhout_buiten', category_ultra_filter: '' },
-  { label: 'Onderdorpel', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'onderdorpel', category_ultra_filter: '' },
+const KOZIJN_TIMMERWERK_RAAM_MATS: MaterialSection[] = [
+  { label: 'Kozijnhout', categoryFilter: 'kozijnhout', category: 'hout', key: 'kozijnhout_buiten', category_ultra_filter: '' },
+  { label: 'Tussen stijl', categoryFilter: 'kozijnhout', category: 'hout', key: 'tussenstijl', category_ultra_filter: '' },
+  { label: 'Onderdorpel', categoryFilter: 'kozijnhout', category: 'hout', key: 'onderdorpel', category_ultra_filter: '' },
 
   { label: 'Raamhout', categoryFilter: 'Hardhout geschaafd, Merantie, Vuren hout', category: 'raam', key: 'raamhout', category_ultra_filter: '' },
 
   { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
   { label: 'Raamboom', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'raamboom', category_ultra_filter: '' },
   { label: 'Raamuitzetter', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'raamuitzetter', category_ultra_filter: '' },
+  { label: 'Meerpuntsluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
+
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_buiten', category_ultra_filter: '' },
+  { label: 'Neuslatten', categoryFilter: 'Hardhout geschaafd, Merantie, Afwerking', category: 'glas', key: 'neuslatten', category_ultra_filter: '' },
+  { label: 'Ventilatierooster', categoryFilter: 'Overig', category: 'glas', key: 'ventilatierooster', category_ultra_filter: '' },
+
+  { label: 'Tochtkader', categoryFilter: 'Deurbeslag', category: 'afwerking', key: 'tochtkader', category_ultra_filter: '' },
+  { label: 'Lood / DPC', categoryFilter: 'Lood, Loodvervanger, Dpc', category: 'afwerking', key: 'waterkering', category_ultra_filter: '' },
+];
+
+const KOZIJN_TIMMERWERK_DEUR_MATS: MaterialSection[] = [
+  { label: 'Kozijnhout', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'kozijnhout_buiten', category_ultra_filter: '' },
+  { label: 'Tussen stijl', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'tussenstijl', category_ultra_filter: '' },
+  { label: 'Onderdorpel', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'onderdorpel', category_ultra_filter: '' },
+
+  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
   { label: 'Meerpuntsluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
 
   { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_buiten', category_ultra_filter: '' },
@@ -1815,9 +1842,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurements: [],
         materialSections: DEUR_BINNEN_MATS,
         categoryConfig: {
-          Deuren: { title: 'Deurblad', order: 1 },
-          deurbeslag: { title: 'Deurbeslag & Sloten', order: 2 },
-          glas: { title: 'Glas & Beglazing', order: 3 },
+          Deuren: { title: 'Binnendeur', order: 1 },
+          deurbeslag: { title: 'Deurbeslag', order: 2 },
+          glas: { title: 'Glas', order: 3 },
           tochtstrips: { title: 'Tochtwering', order: 4 },
           ventilatie: { title: 'Ventilatie', order: 5 },
         }
@@ -1831,8 +1858,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         materialSections: DEUR_BUITEN_MATS,
         categoryConfig: {
           Deuren: { title: 'Buitendeur', order: 1 },
-          deurbeslag: { title: 'Beveiliging & Sloten', order: 2 },
-          glas: { title: 'Glas & Beglazing', order: 3 },
+          deurbeslag: { title: 'Deurbeslag', order: 2 },
+          glas: { title: 'Glas', order: 3 },
           tochtstrips: { title: 'Tochtwering', order: 4 },
           ventilatie: { title: 'Ventilatie', order: 5 },
         }
@@ -1843,7 +1870,11 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         slug: 'Schuifdeuren',
         measurementLabel: 'Deur',
         measurements: [],
-        materialSections: DEUR_BUITEN_MATS,
+        materialSections: DEUR_SCHUIF_MATS,
+        categoryConfig: {
+          Schuifdeur: { title: 'Schuifdeur', order: 1 },
+          Schuifdeuren: { title: 'Schuifdeur Beslag', order: 1 },
+        }
       },
     ],
   },
@@ -1999,18 +2030,32 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }
       },
       {
-        title: 'Zelf gemaakte houtkozijnen',
+        title: 'Raamkozijn (maatwerk)',
         description: 'Productie in eigen werkplaats',
-        slug: 'zelfgemaakte-kozijnen',
+        slug: 'raamkozijn-maatwerk',
         measurementLabel: 'Kozijn',
         measurements: COUNT_FIELDS,
-        materialSections: KOZIJN_TIMMERWERK_MATS,
+        materialSections: KOZIJN_TIMMERWERK_RAAM_MATS,
         categoryConfig: {
           hout: { title: 'Kozijnhout', order: 1 },
           raam: { title: 'Ramen', order: 2 },
           beslag: { title: 'Hang- & Sluitwerk', order: 3 },
-          glas: { title: 'Glas & Beglazing', order: 4 },
+          glas: { title: 'Glas', order: 4 },
           afwerking: { title: 'Afwerking', order: 5 },
+        }
+      },
+      {
+        title: 'Deurkozijn (maatwerk)',
+        description: 'Productie in eigen werkplaats',
+        slug: 'deurkozijn-maatwerk',
+        measurementLabel: 'Kozijn',
+        measurements: COUNT_FIELDS,
+        materialSections: KOZIJN_TIMMERWERK_DEUR_MATS,
+        categoryConfig: {
+          hout: { title: 'Kozijnhout', order: 1 },
+          beslag: { title: 'Hang- & Sluitwerk', order: 2 },
+          glas: { title: 'Glas', order: 3 },
+          afwerking: { title: 'Afwerking', order: 4 },
         }
       },
 
