@@ -135,7 +135,7 @@ export function OpeningRenderer<T extends DraggableOpening>({
                             className="fill-emerald-400 text-[9px] font-medium select-none pointer-events-none"
                             style={{ fontFamily: "'Inter', sans-serif" }}
                         >
-                            {op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing'}
+                            {op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : op.type === 'nis' ? 'Nis' : 'Sparing'}
                         </text>
 
                         {/* 2. Internal Dimensions (Width x Height) */}

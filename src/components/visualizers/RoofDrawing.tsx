@@ -42,6 +42,7 @@ export interface RoofDrawingProps {
     fitContainer?: boolean;
     isMagnifier?: boolean;
     startFromRight?: boolean;
+    startLattenFromBottom?: boolean;
     title?: string;
     doubleEndBattens?: boolean;
     includeOuterBattens?: boolean;
@@ -73,6 +74,7 @@ export function RoofDrawing({
     fitContainer,
     isMagnifier,
     startFromRight,
+    startLattenFromBottom,
     title = 'Dak Vlak',
     doubleEndBattens,
     includeOuterBattens,
@@ -743,8 +745,14 @@ export function RoofDrawing({
                     curY = topBoundY;
                 }
 
+                // If starting from bottom, flip direction
+                if (startLattenFromBottom) {
+                    curY = includeOuterBattens ? bottomBoundY : (bottomBoundY - spacingPx);
+                }
+
                 // Adjust start to prevent overlap/bad loop
                 if (curY < topBoundY) curY = topBoundY;
+                if (curY > bottomBoundY) curY = bottomBoundY;
 
                 // Helper to draw rachel
                 const drawRachel = (y: number, key: string) => {
@@ -765,11 +773,21 @@ export function RoofDrawing({
                 // For outer battens, we want to include the bottom edge (approx)
                 const limitY = includeOuterBattens ? bottomBoundY + 1 : bottomBoundY;
 
-                while (curY < limitY && safety < MAX_LOOPS) {
-                    drawRachel(curY, `rachel-${rachelIndex}`);
-                    curY += spacingPx;
-                    rachelIndex++;
-                    safety++;
+                if (startLattenFromBottom) {
+                    const limitTop = includeOuterBattens ? topBoundY - 1 : topBoundY;
+                    while (curY > limitTop && safety < MAX_LOOPS) {
+                        drawRachel(curY, `rachel-${rachelIndex}`);
+                        curY -= spacingPx;
+                        rachelIndex++;
+                        safety++;
+                    }
+                } else {
+                    while (curY < limitY && safety < MAX_LOOPS) {
+                        drawRachel(curY, `rachel-${rachelIndex}`);
+                        curY += spacingPx;
+                        rachelIndex++;
+                        safety++;
+                    }
                 }
 
                 // Double End Rachels Logic
@@ -911,7 +929,7 @@ export function RoofDrawing({
                         <OpeningLabels
                             centerX={displayX + displayW / 2}
                             centerY={displayY + displayH / 2}
-                            typeName={{ 'opening': 'Sparing', 'dakraam': 'Dakraam', 'schoorsteen': 'Schoorsteen' }[op.type] || op.type}
+                            typeName={{ 'opening': 'Sparing', 'nis': 'Nis', 'dakraam': 'Dakraam', 'schoorsteen': 'Schoorsteen' }[op.type] || op.type}
                             width={wRaw}
                             height={hRaw}
                         />

@@ -780,86 +780,180 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
-                    {/* Balken Configuration */}
-                    {fields.find(f => f.key === 'balkafstand') && (
-                      <BalkenSection
-                        balkafstand={item.balkafstand}
-                        startFromRight={item.startFromRight}
-                        doubleEndBeams={item.doubleEndBeams}
-                        doubleTopPlate={item.doubleTopPlate}
-                        doubleBottomPlate={item.doubleBottomPlate}
-                        surroundingBeams={item.surroundingBeams}
-                        optionsConfig={specificJobConfig.balkenConfig.options}
-                        onUpdate={(key, val) => updateItem(index, key, val)}
-                        isWallCategory={isWallCategory}
-                        jobSlug={jobSlug}
-                        // Collapse default: true (collapsed)
-                        isCollapsed={collapsedSections[`balken-${index}`] === true}
-                        onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
-                      />
-                    )}
-
-                    {/* Latten Configuration */}
-                    {fields.find(f => f.key === 'latafstand') && (
-                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                        <div
-                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                          onClick={() => toggleCollapsed(`latten-${index}`)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium text-zinc-200">Latten</span>
-                            {/* Collapse default: true (collapsed) */}
-                            {collapsedSections[`latten-${index}`] === true && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                {item.latafstand}mm h.o.h
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-zinc-500">
-                            {collapsedSections[`latten-${index}`] === true ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </div>
-                        </div>
-
-                        {collapsedSections[`latten-${index}`] !== true && (
-                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                            <div className="pt-2 border-t border-white/5 space-y-4">
-                              <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-
-                              {fields.find(f => f.key === 'onderzijde_latafstand') && (
-                                <DynamicInput field={fields.find(f => f.key === 'onderzijde_latafstand')!} value={item.onderzijde_latafstand} onChange={v => updateItem(index, 'onderzijde_latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                              )}
-
-                              <div className="space-y-3">
-                                <Label className="text-xs">Startpositie</Label>
-                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                    {isRoofCategory ? 'Links' : 'Boven'}
-                                  </button>
-                                  <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                    {isRoofCategory ? 'Rechts' : 'Onder'}
-                                  </button>
-                                </div>
+                    {isCeilingCategory && (
+                      <>
+                        {/* Latten / Profielen Configuration */}
+                        {fields.find(f => f.key === 'latafstand') && (
+                          <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                            <div
+                              className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                              onClick={() => toggleCollapsed(`latten-${index}`)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-zinc-200">
+                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : 'Latten'}
+                                </span>
+                                {/* Collapse default: true (collapsed) */}
+                                {collapsedSections[`latten-${index}`] === true && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    {item.latafstand}mm h.o.h
+                                  </span>
+                                )}
                               </div>
+                              <div className="text-zinc-500">
+                                {collapsedSections[`latten-${index}`] === true ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </div>
+                            </div>
 
-                              <div className="space-y-3">
-                                <Label className="text-xs">Opties</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {isRoofCategory && (
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                      <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
-                                      <Switch checked={item.doubleStartBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleStartBattens', c)} className="scale-75 origin-right" />
-                                    </div>
+                            {collapsedSections[`latten-${index}`] !== true && (
+                              <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                <div className="pt-2 border-t border-white/5 space-y-4">
+                                  <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                                  {fields.find(f => f.key === 'onderzijde_latafstand') && (
+                                    <DynamicInput field={fields.find(f => f.key === 'onderzijde_latafstand')!} value={item.onderzijde_latafstand} onChange={v => updateItem(index, 'onderzijde_latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                                   )}
-                                  <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                    <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
-                                    <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Startpositie</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                        {isRoofCategory ? 'Links' : 'Boven'}
+                                      </button>
+                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                        {isRoofCategory ? 'Rechts' : 'Onder'}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Opties</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {isRoofCategory && (
+                                        <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                          <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
+                                          <Switch checked={item.doubleStartBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleStartBattens', c)} className="scale-75 origin-right" />
+                                        </div>
+                                      )}
+                                      <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                        <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
+                                        <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         )}
-                      </div>
+
+                        {/* Balken Configuration */}
+                        {fields.find(f => f.key === 'balkafstand') && (
+                          <BalkenSection
+                            balkafstand={item.balkafstand}
+                            startFromRight={item.startFromRight}
+                            doubleEndBeams={item.doubleEndBeams}
+                            doubleTopPlate={item.doubleTopPlate}
+                            doubleBottomPlate={item.doubleBottomPlate}
+                            surroundingBeams={item.surroundingBeams}
+                            optionsConfig={specificJobConfig.balkenConfig.options}
+                            onUpdate={(key, val) => updateItem(index, key, val)}
+                            isWallCategory={isWallCategory}
+                            jobSlug={jobSlug}
+                            // Collapse default: true (collapsed)
+                            isCollapsed={collapsedSections[`balken-${index}`] !== false}
+                            onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {!isCeilingCategory && (
+                      <>
+                        {/* Balken Configuration */}
+                        {fields.find(f => f.key === 'balkafstand') && (
+                          <BalkenSection
+                            balkafstand={item.balkafstand}
+                            startFromRight={item.startFromRight}
+                            doubleEndBeams={item.doubleEndBeams}
+                            doubleTopPlate={item.doubleTopPlate}
+                            doubleBottomPlate={item.doubleBottomPlate}
+                            surroundingBeams={item.surroundingBeams}
+                            optionsConfig={specificJobConfig.balkenConfig.options}
+                            onUpdate={(key, val) => updateItem(index, key, val)}
+                            isWallCategory={isWallCategory}
+                            jobSlug={jobSlug}
+                            // Collapse default: true (collapsed)
+                            isCollapsed={collapsedSections[`balken-${index}`] === true}
+                            onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
+                          />
+                        )}
+
+                        {/* Latten Configuration */}
+                        {fields.find(f => f.key === 'latafstand') && (
+                          <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                            <div
+                              className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                              onClick={() => toggleCollapsed(`latten-${index}`)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-zinc-200">
+                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : 'Latten'}
+                                </span>
+                                {/* Collapse default: true (collapsed) */}
+                                {collapsedSections[`latten-${index}`] === true && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    {item.latafstand}mm h.o.h
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-zinc-500">
+                                {collapsedSections[`latten-${index}`] === true ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </div>
+                            </div>
+
+                            {collapsedSections[`latten-${index}`] !== true && (
+                              <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                <div className="pt-2 border-t border-white/5 space-y-4">
+                                  <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                                  {fields.find(f => f.key === 'onderzijde_latafstand') && (
+                                    <DynamicInput field={fields.find(f => f.key === 'onderzijde_latafstand')!} value={item.onderzijde_latafstand} onChange={v => updateItem(index, 'onderzijde_latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                  )}
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Startpositie</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                        {isRoofCategory ? 'Links' : 'Boven'}
+                                      </button>
+                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                        {isRoofCategory ? 'Rechts' : 'Onder'}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Opties</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {isRoofCategory && (
+                                        <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                          <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
+                                          <Switch checked={item.doubleStartBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleStartBattens', c)} className="scale-75 origin-right" />
+                                        </div>
+                                      )}
+                                      <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                        <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
+                                        <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Leidingkoof Section */}

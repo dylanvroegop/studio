@@ -144,11 +144,13 @@ export function OpeningCard({
                                     <SelectItem value="frame-outer">Buiten kozijn</SelectItem>
                                     <SelectItem value="door">Deur</SelectItem>
                                     <SelectItem value="opening">Sparing</SelectItem>
+                                    <SelectItem value="nis">Nis</SelectItem>
                                     <SelectItem value="other">Overig</SelectItem>
                                 </>
                             ) : isCeilingCategory || categorySlug === 'vloeren' ? (
                                 <>
                                     <SelectItem value="opening">Sparing</SelectItem>
+                                    <SelectItem value="vlizotrap">Vlizotrap</SelectItem>
                                     <SelectItem value="hatch">Luik</SelectItem>
                                     <SelectItem value="pillar">Pilaar</SelectItem>
                                     <SelectItem value="other">Overig</SelectItem>

@@ -206,15 +206,15 @@ const HSB_VOORZETWAND_FIELDS: MeasurementField[] = [
 
 const CEILLING_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
-  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 700, group: 'spacing' },
+  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', group: 'spacing', optional: true },
   { key: 'latafstand', label: 'Latafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
 ]
 
 const METAL_STUD_CEILING_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
-  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
+  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', group: 'spacing', optional: true },
   { key: 'latafstand', label: 'Profielafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
 ]
 
@@ -1490,41 +1490,6 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           Deuren: { title: 'Buitendeuren & Hang- en Sluitwerk', order: 8 },
           Dagkant: { title: 'Dagkanten', order: 9 },
           Vensterbank: { title: 'Vensterbanken', order: 10 },
-        }
-      },
-
-      {
-        title: 'Knieschotten',
-        description: 'Aftimmeren schuine zijde (schuif/vast)',
-        slug: 'knieschotten',
-        measurementLabel: 'Wand',
-        measurements: WALL_FIELDS,
-        materialSections: KNIESCHOTTEN_MATS,
-        categoryConfig: {
-          hout: { title: 'Framewerk', order: 1 },
-          isolatie: { title: 'Isolatie & Folies', order: 2 },
-          beplating: { title: 'Beplating', order: 3 },
-          afwerking: { title: 'Afwerken', order: 4 },
-          gips_afwerking: { title: 'Naden & Stucwerk', order: 5 },
-          schuifdeuren: { title: 'Schuifdeuren', order: 6 },
-          koof: { title: 'Leidingkoof / Omkasting', order: 7 },
-        }
-      },
-      {
-        title: 'Cinewall / TV-wand',
-        description: 'Met nissen en kabelmanagement',
-        slug: 'cinewall-tv-wand',
-        measurementLabel: 'Wand',
-        measurements: WALL_FIELDS,
-        materialSections: CINEWALL_TV_WAND_MATS,
-        categoryConfig: {
-          hout: { title: 'Framewerk', order: 1 },
-          isolatie: { title: 'Isolatie & Folies', order: 4 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 5 },
-          beplating: { title: 'Beplating', order: 6 },
-          afwerking: { title: 'Afwerken', order: 7 },
-          gips_afwerking: { title: 'Naden & Stucwerk', order: 8 },
-          Cinewall: { title: 'Cinewall Elementen', order: 9 },
         }
       },
 

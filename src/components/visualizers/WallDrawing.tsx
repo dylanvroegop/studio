@@ -78,6 +78,7 @@ export function WallDrawing({
     onOpeningsChange,
     fitContainer,
     isMagnifier,
+    startFromRight = false,
     title,
     doubleTopPlate = false,
     doubleBottomPlate = false,
@@ -203,7 +204,10 @@ export function WallDrawing({
 
             const numIntervals = Math.floor(seg.length / balkafstandNum);
             for (let i = 1; i <= numIntervals; i++) {
-                const gridX = seg.startX + (i * balkafstandNum) - HALF_STUD;
+                const center = startFromRight
+                    ? (seg.startX + seg.length - (i * balkafstandNum))
+                    : (seg.startX + (i * balkafstandNum));
+                const gridX = center - HALF_STUD;
                 if (!(gridX < seg.startX + STUD_W - 1) && !(gridX + STUD_W > endStudX + 1)) segBeams.push(gridX);
             }
 
@@ -345,7 +349,7 @@ export function WallDrawing({
         });
 
         return { beams: b, gaps: g };
-    }, [lengteNum, balkafstandNum, shape, doubleEndBeams, doubleTopPlate, doubleBottomPlate, openings, getWallTopMm, getWallBottomMm, l1, l2]);
+    }, [lengteNum, balkafstandNum, shape, doubleEndBeams, doubleTopPlate, doubleBottomPlate, openings, getWallTopMm, getWallBottomMm, l1, l2, startFromRight]);
 
     // Area Calculation
     const areaStats = useMemo(() => {
@@ -679,7 +683,8 @@ export function WallDrawing({
                                         typeName={
                                             op.type === 'door-frame' ? 'Deurkozijn' :
                                                 op.type === 'door' ? 'Deur' :
-                                                    op.type === 'window' ? 'Raamkozijn' : 'Sparing'
+                                                    op.type === 'window' ? 'Raamkozijn' :
+                                                        op.type === 'nis' ? 'Nis' : 'Sparing'
                                         }
                                         width={op.width}
                                         height={op.height}

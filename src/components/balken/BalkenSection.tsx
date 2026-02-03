@@ -50,6 +50,9 @@ export function BalkenSection({
 }: BalkenSectionProps) {
     const [localIsCollapsed, setLocalIsCollapsed] = useState(true);
     const isCollapsed = propsIsCollapsed !== undefined ? propsIsCollapsed : localIsCollapsed;
+    const showWallOptions = isWallCategory && (optionsConfig.dblEindbalk || optionsConfig.dblBovenbalk || optionsConfig.dblOnderbalk);
+    const showSurrounding = !jobSlug.includes('hellend-dak') && !isWallCategory && optionsConfig.surroundingBeams;
+    const showOptions = showWallOptions || showSurrounding;
 
     const handleToggle = () => {
         if (onToggleCollapsed) {
@@ -118,40 +121,42 @@ export function BalkenSection({
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <Label className="text-xs">Opties</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {isWallCategory && (
-                                    <>
-                                        {optionsConfig.dblEindbalk && (
-                                            <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                                <Label className="text-[10px] text-zinc-400">Dbl. Eindbalk</Label>
-                                                <Switch checked={doubleEndBeams || false} onCheckedChange={(c) => onUpdate('doubleEndBeams', c)} className="scale-75 origin-right" />
-                                            </div>
-                                        )}
-                                        {optionsConfig.dblBovenbalk && (
-                                            <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                                <Label className="text-[10px] text-zinc-400">Dbl. Bovenbalk</Label>
-                                                <Switch checked={doubleTopPlate || false} onCheckedChange={(c) => onUpdate('doubleTopPlate', c)} className="scale-75 origin-right" />
-                                            </div>
-                                        )}
-                                        {optionsConfig.dblOnderbalk && (
-                                            <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                                <Label className="text-[10px] text-zinc-400">Dbl. Onderbalk</Label>
-                                                <Switch checked={doubleBottomPlate || false} onCheckedChange={(c) => onUpdate('doubleBottomPlate', c)} className="scale-75 origin-right" />
-                                            </div>
-                                        )}
-                                    </>
-                                )}
+                        {showOptions && (
+                            <div className="space-y-3">
+                                <Label className="text-xs">Opties</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {isWallCategory && (
+                                        <>
+                                            {optionsConfig.dblEindbalk && (
+                                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                                    <Label className="text-[10px] text-zinc-400">Dbl. Eindbalk</Label>
+                                                    <Switch checked={doubleEndBeams || false} onCheckedChange={(c) => onUpdate('doubleEndBeams', c)} className="scale-75 origin-right" />
+                                                </div>
+                                            )}
+                                            {optionsConfig.dblBovenbalk && (
+                                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                                    <Label className="text-[10px] text-zinc-400">Dbl. Bovenbalk</Label>
+                                                    <Switch checked={doubleTopPlate || false} onCheckedChange={(c) => onUpdate('doubleTopPlate', c)} className="scale-75 origin-right" />
+                                                </div>
+                                            )}
+                                            {optionsConfig.dblOnderbalk && (
+                                                <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                                    <Label className="text-[10px] text-zinc-400">Dbl. Onderbalk</Label>
+                                                    <Switch checked={doubleBottomPlate || false} onCheckedChange={(c) => onUpdate('doubleBottomPlate', c)} className="scale-75 origin-right" />
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
 
-                                {!jobSlug.includes('hellend-dak') && !isWallCategory && (
-                                    <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
-                                        <Label className="text-[10px] text-zinc-400">Kader (Rondom)</Label>
-                                        <Switch checked={surroundingBeams || false} onCheckedChange={(c) => onUpdate('surroundingBeams', c)} className="scale-75 origin-right" />
-                                    </div>
-                                )}
+                                    {showSurrounding && (
+                                        <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                            <Label className="text-[10px] text-zinc-400">Kader (Rondom)</Label>
+                                            <Switch checked={surroundingBeams || false} onCheckedChange={(c) => onUpdate('surroundingBeams', c)} className="scale-75 origin-right" />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             )}

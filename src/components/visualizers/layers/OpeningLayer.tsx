@@ -27,7 +27,7 @@ export const OpeningLayer: React.FC<OpeningLayerProps> = ({ openings, onPointerD
                 const strokeWidth = isDragging ? 2 : 1;
 
                 // Label Logic
-                const label = op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : 'Sparing';
+                const label = op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Kozijn' : op.type === 'nis' ? 'Nis' : 'Sparing';
 
                 return (
                     <g

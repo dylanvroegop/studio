@@ -211,6 +211,7 @@ export function VisualizerController({
                 fitContainer={fitContainer}
                 className={className}
                 onOpeningsChange={onOpeningsChange}
+                onLeidingkoofChange={onLeidingkoofChange}
                 onDataGenerated={props.onDataGenerated}
                 {...props}
             />

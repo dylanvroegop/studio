@@ -709,7 +709,7 @@ export function CeilingWoodDrawing({
                                     <OpeningLabels
                                         centerX={x + w / 2}
                                         centerY={y + h / 2}
-                                        typeName={op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Lichtkoepel' : 'Sparing'}
+                                        typeName={op.type === 'door' ? 'Deur' : op.type === 'window' ? 'Lichtkoepel' : op.type === 'nis' ? 'Nis' : 'Sparing'}
                                         width={op.width}
                                         height={op.height}
                                     />

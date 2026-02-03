@@ -21,7 +21,8 @@ const labelMap: Record<string, string> = {
     'schoorsteen': 'Schoorsteen',
     'pijp': 'Pijp',
     'afvoer': 'HWA',
-    'opening': 'Sparing'
+    'opening': 'Sparing',
+    'nis': 'Nis'
 };
 
 export function EPDMDrawing({

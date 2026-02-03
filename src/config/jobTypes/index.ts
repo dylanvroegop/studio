@@ -98,6 +98,16 @@ export const jobTypeConfigs: Record<string, JobTypeConfig> = {
     'hsb-voorzetwand': hsbVoorzetwand as JobTypeConfig,
     'hsb-tussenwand': hsbVoorzetwand as JobTypeConfig,
     'metalstud-tussenwand': metalstudTussenwand as JobTypeConfig,
+    'plafond-metalstud': {
+        ...defaultJobConfig,
+        balkenConfig: {
+            ...defaultJobConfig.balkenConfig,
+            options: {
+                ...defaultJobConfig.balkenConfig.options,
+                surroundingBeams: false
+            }
+        }
+    },
     'HBS-buiten-wand': {
         ...defaultJobConfig,
         balkenConfig: {
