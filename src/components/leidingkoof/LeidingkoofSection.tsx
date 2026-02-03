@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff, Trash2, PlusCircle } from 'lucide-react';
@@ -32,12 +32,26 @@ export function LeidingkoofSection({
     onAdd,
     onDelete,
     onUpdate,
-    isCollapsed = true,
+    isCollapsed = false,
     onToggleCollapsed,
     wallLength = 0,
     wallHeight = 0,
 }: LeidingkoofSectionProps) {
     const addedRef = useRef(false);
+    const filledKoofCount = leidingkofen.filter((koof) => {
+        const hasValue = (value: number | string | undefined) => {
+            if (value === undefined || value === null) return false;
+            if (typeof value === 'number') return value > 0;
+            return value.trim() !== '' && Number(value) > 0;
+        };
+        return (
+            hasValue(koof.lengte) ||
+            hasValue(koof.hoogte) ||
+            hasValue(koof.diepte) ||
+            hasValue(koof.vanLinks) ||
+            hasValue(koof.vanOnder)
+        );
+    }).length;
 
     const ensureFirstItem = () => {
         if (leidingkofen.length === 0 && !addedRef.current) {
@@ -47,6 +61,12 @@ export function LeidingkoofSection({
         }
     };
 
+    useEffect(() => {
+        if (!isCollapsed && leidingkofen.length === 0) {
+            ensureFirstItem();
+        }
+    }, [isCollapsed, leidingkofen.length]);
+
     return (
         <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
             <div
@@ -55,9 +75,9 @@ export function LeidingkoofSection({
             >
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-zinc-200">Leidingkoof</span>
-                    {isCollapsed && leidingkofen.length > 0 && (
+                    {isCollapsed && filledKoofCount > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                            {leidingkofen.length} {leidingkofen.length === 1 ? 'koof' : 'koven'}
+                            {filledKoofCount} {filledKoofCount === 1 ? 'koof' : 'koven'}
                         </span>
                     )}
                 </div>
@@ -127,14 +147,11 @@ export function LeidingkoofSection({
                                                 const rectWMm = orientation === 'side' ? kH : kL;
                                                 const rectHMm = orientation === 'side' ? kL : kH;
 
-                                                if (orientation === 'side') {
-                                                    if (vL === 0 || (wallLength > 0 && Math.abs(vL + rectWMm - wallLength) < 2)) {
-                                                        sides = 2;
-                                                    }
-                                                } else {
-                                                    if (vO === 0 || (wallHeight > 0 && Math.abs(vO + rectHMm - wallHeight) < 2)) {
-                                                        sides = 2;
-                                                    }
+                                                if (wallLength > 0 && (vL === 0 || Math.abs(vL + rectWMm - wallLength) < 2)) {
+                                                    sides = 2;
+                                                }
+                                                if (wallHeight > 0 && (vO === 0 || Math.abs(vO + rectHMm - wallHeight) < 2)) {
+                                                    sides = 2;
                                                 }
 
                                                 // Update item if sides changed

@@ -20,6 +20,7 @@ export interface OpeningData {
     height: number;
     fromLeft: number;
     fromBottom: number;
+    requires_raveelwerk?: boolean;
     dubbeleStijlLinks?: boolean;
     dubbeleStijlRechts?: boolean;
     trimmer?: boolean;

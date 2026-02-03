@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff, Trash2, PlusCircle } from 'lucide-react';
@@ -27,10 +27,23 @@ export function VensterbankSection({
     onAdd,
     onDelete,
     onUpdate,
-    isCollapsed = true,
+    isCollapsed = false,
     onToggleCollapsed,
 }: VensterbankSectionProps) {
     const addedRef = useRef(false);
+    const filledVensterbankCount = vensterbanken.filter((vb) => {
+        const hasValue = (value: number | string | undefined) => {
+            if (value === undefined || value === null) return false;
+            if (typeof value === 'number') return value > 0;
+            return value.trim() !== '' && Number(value) > 0;
+        };
+        return (
+            hasValue(vb.lengte) ||
+            hasValue(vb.diepte) ||
+            hasValue(vb.uitstekLinks) ||
+            hasValue(vb.uitstekRechts)
+        );
+    }).length;
 
     const ensureFirstItem = () => {
         if (vensterbanken.length === 0 && !addedRef.current) {
@@ -40,6 +53,12 @@ export function VensterbankSection({
         }
     };
 
+    useEffect(() => {
+        if (!isCollapsed && vensterbanken.length === 0) {
+            ensureFirstItem();
+        }
+    }, [isCollapsed, vensterbanken.length]);
+
     return (
         <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
             <div
@@ -48,9 +67,9 @@ export function VensterbankSection({
             >
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-zinc-200">Vensterbanken</span>
-                    {isCollapsed && vensterbanken.length > 0 && (
+                    {isCollapsed && filledVensterbankCount > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                            {vensterbanken.length} vensterbank{vensterbanken.length !== 1 ? 'en' : ''}
+                            {filledVensterbankCount} vensterbank{filledVensterbankCount !== 1 ? 'en' : ''}
                         </span>
                     )}
                 </div>

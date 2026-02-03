@@ -10,6 +10,11 @@ export interface LeidingkoofOverlayProps {
     pxPerMm: number;
     wallLength: number;
     wallHeight: number;
+    onPointerDown?: (event: React.PointerEvent, koof: LeidingkoofItem) => void;
+    onPointerMove?: (event: React.PointerEvent) => void;
+    onPointerUp?: (event: React.PointerEvent) => void;
+    draggingId?: string | null;
+    isDraggable?: boolean;
 }
 
 /**
@@ -25,6 +30,11 @@ export function LeidingkoofOverlay({
     pxPerMm,
     wallLength,
     wallHeight,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    draggingId,
+    isDraggable
 }: LeidingkoofOverlayProps) {
     if (!leidingkofen || leidingkofen.length === 0) return null;
 
@@ -52,8 +62,16 @@ export function LeidingkoofOverlay({
                 const koofW = rectWMm * pxPerMm;
                 const koofH = rectHMm * pxPerMm;
 
+                const isDragging = draggingId === koof.id;
+
                 return (
-                    <g key={koof.id}>
+                    <g
+                        key={koof.id}
+                        onPointerDown={onPointerDown ? (e) => onPointerDown(e, koof) : undefined}
+                        onPointerMove={onPointerMove}
+                        onPointerUp={onPointerUp}
+                        style={{ cursor: isDraggable ? 'move' : 'default' }}
+                    >
                         {/* Opaque background to hide structure behind */}
                         <rect
                             x={koofX}
@@ -69,8 +87,8 @@ export function LeidingkoofOverlay({
                             width={koofW}
                             height={koofH}
                             fill="rgba(59, 130, 246, 0.15)"
-                            stroke="rgba(59, 130, 246, 0.5)"
-                            strokeWidth="1"
+                            stroke={isDragging ? "rgba(16, 185, 129, 0.7)" : "rgba(59, 130, 246, 0.5)"}
+                            strokeWidth={isDragging ? "2" : "1"}
                             strokeDasharray="4,2"
                         />
                         <text

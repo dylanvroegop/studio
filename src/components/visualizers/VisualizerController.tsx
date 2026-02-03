@@ -22,6 +22,7 @@ interface VisualizerControllerProps {
     onOpeningsChange?: (newOpenings: any[]) => void;
     onEdgeChange?: (side: string, value: string) => void;
     onDataGenerated?: (data: any) => void;
+    onLeidingkoofChange?: (updated: any[]) => void;
     // ... allow other props
     [key: string]: any;
 }
@@ -36,6 +37,7 @@ export function VisualizerController({
     className,
     onOpeningsChange,
     onEdgeChange,
+    onLeidingkoofChange,
     ...props
 }: VisualizerControllerProps) {
 
@@ -58,6 +60,7 @@ export function VisualizerController({
                     startFromRight={item.startFromRight}
                     startLattenFromBottom={item.startLattenFromBottom}
                     onOpeningsChange={onOpeningsChange}
+                    onLeidingkoofChange={onLeidingkoofChange}
                     title={props.title}
                 />
             );
@@ -70,6 +73,7 @@ export function VisualizerController({
                 startFromRight={item.startFromRight}
                 startLattenFromBottom={item.startLattenFromBottom}
                 onOpeningsChange={onOpeningsChange}
+                onLeidingkoofChange={onLeidingkoofChange}
                 gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag') || slug.includes('vliering')) ? 'Vloer Vlak' : undefined)}
                 title={props.title}
             />

@@ -96,6 +96,7 @@ export interface CeilingDrawingProps {
     startFromRight?: boolean;
     startLattenFromBottom?: boolean;
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
+    onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
     gridLabel?: string;
     title?: string;
 }
@@ -107,6 +108,7 @@ export function CeilingWoodDrawing({
     fitContainer = false,
     className = "",
     onOpeningsChange,
+    onLeidingkoofChange,
     gridLabel,
     title
 }: CeilingDrawingProps) {
@@ -207,6 +209,98 @@ export function CeilingWoodDrawing({
         isMagnifier: false
     });
 
+    const [draggingKoofId, setDraggingKoofId] = React.useState<string | null>(null);
+    const koofDragStartRef = React.useRef<{
+        x: number;
+        y: number;
+        id: string;
+        origLeft: number;
+        origBottom: number;
+    } | null>(null);
+
+    const handleKoofPointerDown = React.useCallback((e: React.PointerEvent, koof: LeidingkoofItem) => {
+        if (!onLeidingkoofChange) return;
+        e.preventDefault();
+        e.stopPropagation();
+        (e.target as Element).setPointerCapture(e.pointerId);
+        setDraggingKoofId(koof.id);
+        koofDragStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            id: koof.id,
+            origLeft: Number(koof.vanLinks) || 0,
+            origBottom: Number(koof.vanOnder) || 0
+        };
+    }, [onLeidingkoofChange]);
+
+    const handleKoofPointerMove = React.useCallback((e: React.PointerEvent) => {
+        if (!draggingKoofId || !koofDragStartRef.current || !onLeidingkoofChange) return;
+        if (!pxPerMmState) return;
+
+        const start = koofDragStartRef.current;
+        const dxPx = e.clientX - start.x;
+        const dyPx = e.clientY - start.y;
+
+        const dxMm = dxPx / pxPerMmState;
+        const dyMm = -(dyPx / pxPerMmState);
+
+        const newLeft = Math.max(0, Math.round(start.origLeft + dxMm));
+        const newBottom = Math.max(0, Math.round(start.origBottom + dyMm));
+
+        const SNAP_THRESHOLD = 50; // mm
+        const updatedKofen = (item.leidingkofen || []).map(k => {
+            if (k.id !== draggingKoofId) return k;
+
+            const orientation = k.orientation || 'side';
+            const koofLengte = Number(k.lengte) || 0;
+            const koofHoogte = Number(k.hoogte) || 0;
+            const rectWMm = orientation === 'side' ? koofHoogte : koofLengte;
+            const rectHMm = orientation === 'side' ? koofLengte : koofHoogte;
+
+            let finalLeft = newLeft;
+            let finalBottom = newBottom;
+
+            if (finalLeft < SNAP_THRESHOLD) finalLeft = 0;
+            if (lengte > 0 && (finalLeft + rectWMm) > (lengte - SNAP_THRESHOLD)) {
+                finalLeft = Math.max(0, lengte - rectWMm);
+            }
+            if (finalBottom < SNAP_THRESHOLD) finalBottom = 0;
+            if (effectiveHeight > 0 && (finalBottom + rectHMm) > (effectiveHeight - SNAP_THRESHOLD)) {
+                finalBottom = Math.max(0, effectiveHeight - rectHMm);
+            }
+
+            let sides = 3;
+            if (lengte > 0 && (finalLeft === 0 || Math.abs(finalLeft + rectWMm - lengte) < 2)) {
+                sides = 2;
+            }
+            if (effectiveHeight > 0 && (finalBottom === 0 || Math.abs(finalBottom + rectHMm - effectiveHeight) < 2)) {
+                sides = 2;
+            }
+
+            return { ...k, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides };
+        });
+
+        onLeidingkoofChange(updatedKofen);
+    }, [draggingKoofId, onLeidingkoofChange, pxPerMmState, item.leidingkofen, lengte, effectiveHeight]);
+
+    const handleKoofPointerUp = React.useCallback((e: React.PointerEvent) => {
+        if (draggingKoofId) {
+            (e.target as Element).releasePointerCapture(e.pointerId);
+            setDraggingKoofId(null);
+            koofDragStartRef.current = null;
+        }
+    }, [draggingKoofId]);
+
+    const handleCombinedPointerMove = React.useCallback((e: React.PointerEvent) => {
+        handlePointerMove(e);
+        handleKoofPointerMove(e);
+    }, [handlePointerMove, handleKoofPointerMove]);
+
+    const handleCombinedPointerUp = React.useCallback((e: React.PointerEvent) => {
+        handlePointerUp(e);
+        handleKoofPointerUp(e);
+    }, [handlePointerUp, handleKoofPointerUp]);
+
     // 4. GENERATE DRAWING DATA (Dimensions & Openings)
     const generateDrawingData = (): DrawingData => {
         return {
@@ -268,8 +362,8 @@ export function CeilingWoodDrawing({
             startFromRight={startFromRight}
             suppressTotalDimensions={true} // Suppress default ones, we use our own now!
             drawingData={drawingData}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
+            onPointerMove={handleCombinedPointerMove}
+            onPointerUp={handleCombinedPointerUp}
         >
             {(ctx) => {
                 metricsRef.current = ctx;
@@ -364,7 +458,8 @@ export function CeilingWoodDrawing({
 
                     // Render Standard Beams (with interruption for openings)
                     const STUD_WIDTH_MM = 70;
-                    const HEADER_THICKNESS = 70; // Same as beam width for headers
+                    const TOP_HEADER_THICKNESS_MM = 70; // Same as beam width for headers
+                    const BOTTOM_HEADER_THICKNESS_MM = 70; // Same as beam width for headers
 
                     framing.beamCenters.forEach(cx => {
                         const drawX = startX + (cx * pxPerMmW);
@@ -391,8 +486,8 @@ export function CeilingWoodDrawing({
                             // Convert to SVG Y (remember SVG Y is inverted)
                             // vStartY is at top of beam area, vEndY is at bottom
                             // Opening fromBottom is from the floor (bottom of rect)
-                            const svgOpTop = (startY + rectH) - opTopMm * pxPerMm - HEADER_THICKNESS * pxPerMm;
-                            const svgOpBottom = (startY + rectH) - opBottomMm * pxPerMm + HEADER_THICKNESS * pxPerMm;
+                            const svgOpTop = (startY + rectH) - opTopMm * pxPerMm - TOP_HEADER_THICKNESS_MM * pxPerMm;
+                            const svgOpBottom = (startY + rectH) - opBottomMm * pxPerMm + BOTTOM_HEADER_THICKNESS_MM * pxPerMm;
 
                             // Draw top segment (from vStartY to top of opening header)
                             if (svgOpTop > vStartY) {
@@ -633,6 +728,11 @@ export function CeilingWoodDrawing({
                             pxPerMm={pxPerMm}
                             wallLength={lengte}
                             wallHeight={effectiveHeight}
+                            onPointerDown={handleKoofPointerDown}
+                            onPointerMove={handleKoofPointerMove}
+                            onPointerUp={handleKoofPointerUp}
+                            draggingId={draggingKoofId}
+                            isDraggable={Boolean(onLeidingkoofChange)}
                         />
 
                         {/* UNIVERSAL DIMENSIONS OVERLAY */}

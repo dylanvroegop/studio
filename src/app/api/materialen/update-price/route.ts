@@ -26,19 +26,19 @@ export async function POST(req: Request) {
         }
 
         // 2. Parse Body
-        const { materiaalnaam, prijs_incl_btw } = await req.json();
+        const { materiaalnaam, prijs_incl_btw, row_id } = await req.json();
 
-        if (!materiaalnaam || prijs_incl_btw === undefined) {
+        if ((!materiaalnaam && !row_id) || prijs_incl_btw === undefined) {
             return NextResponse.json({ ok: false, message: 'Missing fields' }, { status: 400 });
         }
 
         // 3. Update Supabase
         // main_material_list uses 'materiaalnaam' to identify the product
-        const { data, error } = await supabaseAdmin
-            .from('main_material_list')
-            .update({ prijs_incl_btw: String(prijs_incl_btw) })
-            .eq('materiaalnaam', materiaalnaam)
-            .select();
+        const updatePayload = { prijs_incl_btw: Number(prijs_incl_btw) };
+        const query = supabaseAdmin.from('main_material_list').update(updatePayload);
+        const { data, error } = row_id
+            ? await query.eq('row_id', row_id).select()
+            : await query.eq('materiaalnaam', materiaalnaam).select();
 
         if (error) {
             console.error('Supabase update error:', error);

@@ -130,10 +130,10 @@ export default function GenericMeasurementPage() {
     fetchPrefs();
   }, [user, firestore]);
 
-  const toggleCollapsed = useCallback((key: string) => {
+  const toggleCollapsed = useCallback((key: string, defaultCollapsed = true) => {
     setCollapsedSections(prev => {
-      // Logic: if undefined, it means it's in its' default state (collapsed = true)
-      const currentIsCollapsed = prev[key] === undefined ? true : prev[key];
+      // Logic: if undefined, it means it's in its' default state
+      const currentIsCollapsed = prev[key] === undefined ? defaultCollapsed : prev[key];
       const nextVal = !currentIsCollapsed;
       const next = { ...prev, [key]: nextVal };
 
@@ -794,7 +794,7 @@ export default function GenericMeasurementPage() {
                         isWallCategory={isWallCategory}
                         jobSlug={jobSlug}
                         // Collapse default: true (collapsed)
-                        isCollapsed={collapsedSections[`balken-${index}`] !== false}
+                        isCollapsed={collapsedSections[`balken-${index}`] === true}
                         onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
                       />
                     )}
@@ -809,18 +809,18 @@ export default function GenericMeasurementPage() {
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-medium text-zinc-200">Latten</span>
                             {/* Collapse default: true (collapsed) */}
-                            {collapsedSections[`latten-${index}`] !== false && (
+                            {collapsedSections[`latten-${index}`] === true && (
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                                 {item.latafstand}mm h.o.h
                               </span>
                             )}
                           </div>
                           <div className="text-zinc-500">
-                            {collapsedSections[`latten-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            {collapsedSections[`latten-${index}`] === true ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </div>
                         </div>
 
-                        {collapsedSections[`latten-${index}`] === false && (
+                        {collapsedSections[`latten-${index}`] !== true && (
                           <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
                             <div className="pt-2 border-t border-white/5 space-y-4">
                               <DynamicInput field={fields.find(f => f.key === 'latafstand')!} value={item.latafstand} onChange={v => updateItem(index, 'latafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
@@ -869,8 +869,8 @@ export default function GenericMeasurementPage() {
                         onAdd={() => onAddLeidingkoof(index)}
                         onDelete={(id) => onDeleteLeidingkoof(index, id)}
                         onUpdate={(id, updates) => onUpdateLeidingkoof(index, id, updates)}
-                        isCollapsed={collapsedSections[`koof-${index}`] !== false}
-                        onToggleCollapsed={() => toggleCollapsed(`koof-${index}`)}
+                        isCollapsed={collapsedSections[`koof-${index}`] === true}
+                        onToggleCollapsed={() => toggleCollapsed(`koof-${index}`, false)}
                         wallLength={Number(item.lengte) || 0}
                         wallHeight={Number(item.hoogte) || 0}
                       />
@@ -883,8 +883,8 @@ export default function GenericMeasurementPage() {
                         onAdd={() => onAddVensterbank(index)}
                         onDelete={(id) => onDeleteVensterbank(index, id)}
                         onUpdate={(id, updates) => onUpdateVensterbank(index, id, updates)}
-                        isCollapsed={collapsedSections[`vensterbank-${index}`] !== false}
-                        onToggleCollapsed={() => toggleCollapsed(`vensterbank-${index}`)}
+                        isCollapsed={collapsedSections[`vensterbank-${index}`] === true}
+                        onToggleCollapsed={() => toggleCollapsed(`vensterbank-${index}`, false)}
                       />
                     )}
 

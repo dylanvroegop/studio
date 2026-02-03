@@ -492,14 +492,11 @@ export function WallDrawing({
 
                 // Calculate sides logic
                 let sides = 3;
-                if (orientation === 'side') {
-                    if (finalLeft === 0 || (lengteNum > 0 && Math.abs(finalLeft + rectWMm - lengteNum) < 2)) {
-                        sides = 2;
-                    }
-                } else {
-                    if (finalBottom === 0 || (maxH > 0 && Math.abs(finalBottom + rectHMm - maxH) < 2)) {
-                        sides = 2;
-                    }
+                if (lengteNum > 0 && (finalLeft === 0 || Math.abs(finalLeft + rectWMm - lengteNum) < 2)) {
+                    sides = 2;
+                }
+                if (maxH > 0 && (finalBottom === 0 || Math.abs(finalBottom + rectHMm - maxH) < 2)) {
+                    sides = 2;
                 }
 
                 return { ...k, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides };
@@ -716,6 +713,8 @@ export function WallDrawing({
                                 <g
                                     key={koof.id}
                                     onPointerDown={(e) => handleKoofPointerDown(e, koof)}
+                                    onPointerMove={handlePointerMove}
+                                    onPointerUp={handlePointerUp}
                                     style={{ cursor: onLeidingkoofChange ? 'move' : 'default' }}
                                 >
                                     {/* Opaque background to hide beams */}

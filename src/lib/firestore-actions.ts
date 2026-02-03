@@ -58,8 +58,12 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
     try {
         const userDocRef = doc(firestore, 'users', userId);
         const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists() && userSnap.data().settings) {
-            settings = { ...settings, ...userSnap.data().settings };
+        if (userSnap.exists()) {
+            const data = userSnap.data() as any;
+            const legacySettings = data?.settings ?? {};
+            const nieuweInstellingen = data?.instellingen ?? {};
+            // Prefer explicit `instellingen`, fallback to legacy `settings`
+            settings = { ...settings, ...legacySettings, ...nieuweInstellingen };
         }
     } catch (e) {
         console.error("Error fetching user settings for new quote defaults:", e);

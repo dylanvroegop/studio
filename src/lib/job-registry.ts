@@ -495,8 +495,7 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
 const HSB_BUITENWAND_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
   { label: 'Staanders & Liggers', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk_hoofd', category_ultra_filter: '' },
-  { label: 'Regelwerk (Leidingspouw)', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk_inst', category_ultra_filter: '' },
-  { label: 'Ventilatielatten', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk_vent', category_ultra_filter: '' },
+  { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk_inst', category_ultra_filter: '' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folie Buiten', categoryFilter: 'Folieën, Dpc', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
@@ -511,13 +510,13 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'gips_binnen', category_ultra_filter: '' },
 
   // 4. AFWERKEN (TIMMERWERK - BINNEN)
-  { label: 'Dagkanten', categoryFilter: 'Interieur Platen', category: 'afwerking_binnen', key: 'dagkant_binnen', category_ultra_filter: '' },
-  { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'afwerking_binnen', key: 'vensterbank', category_ultra_filter: '' },
+  { label: 'Dagkanten', categoryFilter: 'Interieur Platen', category: 'Dagkant', key: 'dagkant_binnen', category_ultra_filter: '' },
+  { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'Vensterbank', key: 'vensterbank', category_ultra_filter: '' },
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking_binnen', key: 'plinten', category_ultra_filter: '' },
+  { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking_binnen', key: 'plinten_plafond', category_ultra_filter: '' },
 
   // 5. AFWERKEN (BUITEN)
   { label: 'Waterslagen', categoryFilter: 'Lood, Loodvervanger, Overig', category: 'afwerking_buiten', key: 'waterslag', category_ultra_filter: '' },
-  { label: 'Dagkanten (Buiten)', categoryFilter: 'Rockpanel, Exterieur platen', category: 'afwerking_buiten', key: 'dagkant_buiten', category_ultra_filter: '' },
   { label: 'Gevelhoeken', categoryFilter: 'Exterieur platen, Overig', category: 'afwerking_buiten', key: 'hoek_buiten', category_ultra_filter: '' },
 
   // 6. AFWERKEN (GIPS & WAND)
@@ -1481,14 +1480,16 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurements: WALL_FIELDS,
         materialSections: HSB_BUITENWAND_MATS,
         categoryConfig: {
-          hout: { title: 'Constructie & Regelwerk', order: 1 },
-          isolatie: { title: 'Isolatie, Folies & Spouw', order: 2 },
-          beplating: { title: 'Beplating & Gevelbekleding', order: 3 },
+          hout: { title: 'Framewerk', order: 1 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          beplating: { title: 'Beplating', order: 3 },
           afwerking_buiten: { title: 'Buitenafwerking', order: 4 },
           afwerking_binnen: { title: 'Binnenafwerking', order: 5 },
           gips_afwerking: { title: 'Stucwerk', order: 6 },
           Kozijnen: { title: 'Kozijnen & Ramen', order: 7 },
           Deuren: { title: 'Buitendeuren & Hang- en Sluitwerk', order: 8 },
+          Dagkant: { title: 'Dagkanten', order: 9 },
+          Vensterbank: { title: 'Vensterbanken', order: 10 },
         }
       },
 

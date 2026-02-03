@@ -436,7 +436,10 @@ export default function OverzichtPage() {
       if (!snap.exists()) return {};
       const data = snap.data() as any;
       const instellingen = (data?.instellingen ?? {}) as GebruikerInstellingen;
-      return instellingen ?? {};
+      const settings = (data?.settings ?? {}) as GebruikerInstellingen;
+      // Merge: prefer explicit `instellingen`, fallback to legacy `settings`
+      const merged = { ...settings, ...instellingen };
+      return merged ?? {};
     } catch (e: any) {
       console.warn('Kon users/{uid} instellingen niet lezen (waarschijnlijk rules):', e?.message || e);
       return {};
@@ -452,6 +455,7 @@ export default function OverzichtPage() {
     const updates: any = {};
     for (const [k, v] of Object.entries(partial)) {
       updates[`instellingen.${k}`] = v;
+      updates[`settings.${k}`] = v; // keep legacy settings in sync
     }
     updates.updatedAt = serverTimestamp();
 
@@ -469,6 +473,7 @@ export default function OverzichtPage() {
           ref,
           {
             instellingen: { ...partial },
+            settings: { ...partial },
             updatedAt: serverTimestamp(),
           },
           { merge: true }

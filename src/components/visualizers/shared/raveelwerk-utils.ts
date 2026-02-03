@@ -23,6 +23,10 @@ export interface RaveelwerkParams {
     beamWidth?: number;
     /** Total height of the wall/ceiling (mm) */
     totalHeight: number;
+    /** Render a top header above the opening */
+    includeTopHeader?: boolean;
+    /** Render a bottom header below the opening */
+    includeBottomHeader?: boolean;
 }
 
 export interface RaveelwerkBeam {
@@ -106,7 +110,9 @@ export function calculateRaveelwerk(params: RaveelwerkParams): RaveelwerkGeometr
         openingHeight,
         openingFromBottom,
         existingBeamCenters,
-        beamWidth = 70
+        beamWidth = 70,
+        includeTopHeader = true,
+        includeBottomHeader = true
     } = params;
 
     const beams: RaveelwerkBeam[] = [];
@@ -134,29 +140,33 @@ export function calculateRaveelwerk(params: RaveelwerkParams): RaveelwerkGeometr
 
     // Only add beams if there's actually space for them
     if (headerLength > 0) {
-        // === TOP HEADER ===
-        // Positioned just above the opening
-        beams.push({
-            type: 'header',
-            position: 'top',
-            x: headerStartX,
-            y: openingTop, // Top of opening, header starts here going up
-            length: headerLength,
-            width: beamWidth,
-            isHorizontal: true
-        });
+        if (includeTopHeader) {
+            // === TOP HEADER ===
+            // Positioned just above the opening
+            beams.push({
+                type: 'header',
+                position: 'top',
+                x: headerStartX,
+                y: openingTop, // Top of opening, header starts here going up
+                length: headerLength,
+                width: beamWidth,
+                isHorizontal: true
+            });
+        }
 
-        // === BOTTOM HEADER ===
-        // Positioned just below the opening
-        beams.push({
-            type: 'header',
-            position: 'bottom',
-            x: headerStartX,
-            y: openingBottom - beamWidth, // Header is below the opening
-            length: headerLength,
-            width: beamWidth,
-            isHorizontal: true
-        });
+        if (includeBottomHeader) {
+            // === BOTTOM HEADER ===
+            // Positioned just below the opening
+            beams.push({
+                type: 'header',
+                position: 'bottom',
+                x: headerStartX,
+                y: openingBottom - beamWidth, // Header is below the opening
+                length: headerLength,
+                width: beamWidth,
+                isHorizontal: true
+            });
+        }
     }
 
     // === VERTICAL TRIMMERS ===

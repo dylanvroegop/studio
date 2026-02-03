@@ -19,7 +19,7 @@ have on boeiboorden extra drawings that actually give it a 'downside' as well. s
 this must be done in the drawing itself, so that the user can see it clearly.
 and that the drawing is one drawing, but its split up into 2 rows. since the drawing mostly is not high for boeiboorden since its mostly '500mm max high' then it perfectly fits 2 drawings. this means the boeiboorden drawing, whatever that is must be a 'new component drawing' just like walldrawing.tsx is. make sure that theres also some form of 'kopkant L or R' add toggle button so they can easily add those as well if needed. 
 
-- make sure the ceillingdrawing has its 'raveling balken' correctly added when the opening is placed. so the opening doesnt just float in the air with no beams supporting it.
+- [DONE] make sure the ceillingdrawing has its 'raveling balken' correctly added when the opening is placed. so the opening doesnt just float in the air with no beams supporting it.
 
 - add a quick 'switch measurements' inside the measurement page. for example in between the 2 boxes 'lengte and breedte' a simple switch toggle. 
 
@@ -51,3 +51,30 @@ within this maatwerk, there could be multiple 'maatwerk' items, but they all nee
 
 - fix popup at 'materiaal lijst maken' on the overzicht page. issues here.
 
+
+## 2026-01-30
+- Add profit calculator to the app entirely
+- Make a professional email with “proposition on how I solve this problem”
+- Voeg een mirror button voor boei boorden voor als ze 2 zijde hetzelfde hebben.
+- Voeg na opslaan op materialen pagina een snelle “deze heeft geen prijs, voeg toe?” Met een lijst van die materialen. Wordt automatisch opgeslagen in het prijzen bestand.
+- Have latafstand also hidden forever in fire tore stored so the user doesn’t have to keep clicking this.
+- Add to boeiboorden some form of auto calculator with “count pannen, its likely this long” auto search the moment they choose that specific pannen”
+- Make sure everything gets stored into firestore instantly and not only on “opslaan” so that when they leave the page, it doesn’t just delete all information.
+- Make sure on drawings “kopshout” is shown with diagonal lines
+
+## 2026-01-31
+- make sure the Fout: Failed to fetch quote data Terug naar Dashboard is different, this is not okay for the user. make sure that even if no return was made, the user still sees everything, but just fully blank.
+- Make it so the user has the function to add their logo onto the pdf quote
+- Make pdf on the quote page the first page they land on.
+- Add hide toggle still “add” so for example they fill in the “beplating” any constructie or afwerkplaat, then this must show the same way on the measurement page “hoh 600mm” this way if it’s always the same they can simply hide that forever and focus on things that matter. Make sure that the hide toggle is on/off always and not just per job. If another job has the same “beplating” and is hidden but has no preset materials filled in there, make it expand.
+- For first time users, force to set pdf instellingen pop-up the way they prefer.
+- In the price edit pop-up, make sure there is another option to fill out “sold per amount quantity”
+
+## 2026-02-01
+- Switch measurement page and the material page, then they are still able to go next after the measurement page but this should show instantly “measurement missing”
+- Add voorschot option in quote
+- Onder voorbehoud option for quote
+
+## 2026-02-02
+- Test how you implement rk gips for wanden liggend VS staand in app decision.
+- Have notes be separate showing 4 boxes, and an add button.

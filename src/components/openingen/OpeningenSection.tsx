@@ -72,6 +72,7 @@ export function OpeningenSection({
     };
 
     const handleAdd = () => {
+        const enableRaveelwerk = isCeilingCategory || categorySlug === 'vloeren';
         const newOpening: OpeningData = {
             id: crypto.randomUUID(),
             type: isWallCategory ? 'window' : 'opening',
@@ -79,6 +80,7 @@ export function OpeningenSection({
             height: isWallCategory ? 1000 : 600,
             fromLeft: 1000,
             fromBottom: 1000,
+            requires_raveelwerk: enableRaveelwerk || undefined,
             // Default to defaults?
         };
         onChange([...openings, newOpening]);
