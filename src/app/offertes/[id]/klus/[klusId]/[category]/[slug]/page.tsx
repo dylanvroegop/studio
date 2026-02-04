@@ -60,6 +60,170 @@ import { DagkantSection } from '@/components/dagkant/DagkantSection';
 import { getJobConfig } from '@/config/jobTypes/index';
 import { DynamicInput } from '@/components/DynamicInput';
 
+
+interface VakInputCardProps {
+  index: number; // For uniqueness in collapse keys
+  title: string;
+  type: string;
+  width: number | string;
+  height: number | string;
+  // Specifics
+  doorPosition?: 'left' | 'right';
+  hasBorstwering?: boolean;
+  borstweringHeight?: number | string;
+
+  // Callbacks
+  onTypeChange?: (type: string) => void;
+  onWidthChange: (val: string | number) => void;
+  onHeightChange: (val: string | number) => void;
+  onUpdateFull?: (updates: any) => void; // Generic update used for complex props
+
+  // UI State
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+  disabled?: boolean;
+
+  // Context
+  displayHeight?: number; // fallback height for display
+  displayWidth?: number; // fallback width for display
+}
+
+function VakInputCard({
+  index,
+  title,
+  type,
+  width,
+  height,
+  doorPosition,
+  hasBorstwering,
+  borstweringHeight,
+  onTypeChange,
+  onWidthChange,
+  onHeightChange,
+  onUpdateFull,
+  isCollapsed,
+  onToggleCollapse,
+  disabled,
+  displayHeight,
+  displayWidth
+}: VakInputCardProps) {
+  return (
+    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+      <div
+        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+        onClick={onToggleCollapse}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-zinc-200">{title}</span>
+          {/* Badge? */}
+        </div>
+        <div className="text-zinc-500">
+          {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </div>
+      </div>
+
+      {!isCollapsed && (
+        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+          <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3">
+            {/* Type Dropdown */}
+            <div className="col-span-2">
+              <Label className="text-xs mb-1.5 block">Type</Label>
+              <Select
+                value={type}
+                onValueChange={(v) => onTypeChange && onTypeChange(v)}
+                disabled={disabled}
+              >
+                <SelectTrigger className="h-8 text-xs bg-black/20 border-white/10">
+                  <SelectValue placeholder="Selecteer type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deur">Deur</SelectItem>
+                  <SelectItem value="glas">Glas</SelectItem>
+                  <SelectItem value="paneel">Paneel</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Breedte</Label>
+              <MeasurementInput
+                value={width !== undefined && width !== '' ? width : (displayWidth && displayWidth > 0 ? Math.round(displayWidth) : '')}
+                onChange={onWidthChange}
+                disabled={disabled}
+                placeholder={displayWidth && displayWidth > 0 ? String(Math.round(displayWidth)) : ''}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Hoogte</Label>
+              <MeasurementInput
+                value={height !== undefined && height !== '' ? height : (displayHeight && displayHeight > 0 ? Math.round(displayHeight) : '')}
+                onChange={onHeightChange}
+                disabled={disabled}
+                placeholder={displayHeight && displayHeight > 0 ? String(Math.round(displayHeight)) : ''}
+              />
+            </div>
+          </div>
+
+          {/* Door Specifics */}
+          {type === 'deur' && onUpdateFull && (
+            <div className="space-y-3 pt-3 border-t border-white/5">
+              <Label className="text-xs">Startpositie</Label>
+              <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => onUpdateFull({ doorPosition: 'left' })}
+                  className={cn(
+                    "flex-1 text-xs py-1.5 rounded transition-colors",
+                    doorPosition !== 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  Links
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateFull({ doorPosition: 'right' })}
+                  className={cn(
+                    "flex-1 text-xs py-1.5 rounded transition-colors",
+                    doorPosition === 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  Rechts
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Glas Specifics (Borstwering) */}
+          {type === 'glas' && onUpdateFull && (
+            <div className="pt-2 border-t border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Borstwering</Label>
+                <Switch
+                  checked={!!hasBorstwering}
+                  onCheckedChange={(checked) => onUpdateFull({ hasBorstwering: checked })}
+                  disabled={disabled}
+                />
+              </div>
+              {hasBorstwering && (
+                <div className="space-y-2">
+                  <Label className="text-xs">Hoogte (mm)</Label>
+                  <MeasurementInput
+                    value={borstweringHeight}
+                    onChange={(v) => onUpdateFull({ borstweringHeight: v })}
+                    disabled={disabled}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GenericMeasurementPage() {
   const params = useParams();
   const router = useRouter();
@@ -958,40 +1122,13 @@ export default function GenericMeasurementPage() {
                     {isMaatwerkKozijn && (
                       <>
                         {/* Deur */}
-                        <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                          <div
-                            className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                            onClick={() => toggleCollapsed(`vak-deur-${index}`)}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm font-medium text-zinc-200">Deur 1</span>
-                            </div>
-                            <div className="text-zinc-500">
-                              {collapsedSections[`vak-deur-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </div>
-                          </div>
-                          {collapsedSections[`vak-deur-${index}`] === false && (
-                            <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                              <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3">
-                                <div className="space-y-2">
-                                  <Label className="text-xs">Breedte</Label>
-                                  <MeasurementInput value={item.deur_breedte} onChange={(v) => updateItem(index, 'deur_breedte', v)} disabled={disabledAll} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-xs">Hoogte</Label>
-                                  <MeasurementInput value={item.deur_hoogte} onChange={(v) => updateItem(index, 'deur_hoogte', v)} disabled={disabledAll} />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
                         {(() => {
                           const vakken = Array.isArray(item.vakken) ? item.vakken : [];
                           const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
                           const frameMm = kozijnhoutFrameThicknessMm || 0;
                           const tussenstijlMm = hasTussenstijl ? (tussenstijlThicknessMm ?? frameMm) : 0;
-                          const innerWidthMm = Math.max(0, num(item.breedte) - (2 * frameMm));
+                          const innerWidthMm = Math.max(0, num(item.breedte)); // - (2 * frameMm));
+                          const innerHeightMm = Math.max(0, num(item.hoogte)); // - (2 * frameMm));
                           const doorWidthMm = num(item.deur_breedte);
                           const doorHeightMm = num(item.deur_hoogte);
                           const hasDoor = doorHeightMm > 0;
@@ -1000,11 +1137,32 @@ export default function GenericMeasurementPage() {
                           const leftColWidth = hasColumns ? (doorWidthMm > 0 ? doorWidthMm : (num(item.tussenstijl_van_links) || fallbackLeft)) : innerWidthMm;
                           const rightColWidth = hasColumns ? Math.max(0, innerWidthMm - leftColWidth - tussenstijlMm) : Math.max(0, innerWidthMm - doorWidthMm);
                           const pairStart = hasDoor ? 1 : 0;
+
                           return (
                             <>
+                              {/* Slot 1: Deur */}
+                              <VakInputCard
+                                index={-1}
+                                title="Deur"
+                                type="deur"
+                                width={item.deur_breedte}
+                                height={item.deur_hoogte}
+                                doorPosition={item.doorPosition}
+                                isCollapsed={collapsedSections[`vak-deur-${index}`] !== false}
+                                onToggleCollapse={() => toggleCollapsed(`vak-deur-${index}`)}
+                                disabled={disabledAll}
+                                displayHeight={innerHeightMm}
+                                onWidthChange={(v) => updateItem(index, 'deur_breedte', v)}
+                                onHeightChange={(v) => updateItem(index, 'deur_hoogte', v)}
+                                onUpdateFull={(updates) => {
+                                  if (updates.doorPosition) updateItem(index, 'doorPosition', updates.doorPosition);
+                                }}
+                              />
+
+                              {/* Slot 2+: Vakken */}
                               {vakken.map((vak: any, vakIdx: number) => {
-                                const vakTitle = `${vakTypeLabel(vak.type || 'open')} ${vakIdx + 2}`;
-                                const collapseKey = `vak-${index}-${vakIdx}`;
+                                const vakTitle = `${vak.type ? vak.type.charAt(0).toUpperCase() + vak.type.slice(1) : 'Vak'} ${vakIdx + 2}`;
+
                                 const isSideVak = hasDoor && vakIdx === 0;
                                 const pairIndex = hasColumns && !isSideVak ? vakIdx - pairStart : -1;
                                 const rowStart = pairIndex >= 0 ? (pairStart + Math.floor(pairIndex / 2) * 2) : -1;
@@ -1014,89 +1172,48 @@ export default function GenericMeasurementPage() {
                                 const leftHeight = leftIdx >= 0 ? num(vakken[leftIdx]?.hoogte) : 0;
                                 const rightHeight = rightIdx >= 0 ? num(vakken[rightIdx]?.hoogte) : 0;
                                 const rowHeight = hasColumns && !isSideVak ? (leftHeight || rightHeight) : num(vak.hoogte);
-                                const displayHeight = isSideVak ? doorHeightMm : rowHeight;
+
+                                // Subtract horizontal bar if applicable (logic matches Drawing)
+                                const horizontalBarHeight = (hasDoor && (doorHeightMm + frameMm) < innerHeightMm) ? frameMm : 0;
+                                const fallbackHeight = hasDoor ? Math.max(0, innerHeightMm - doorHeightMm - horizontalBarHeight) : innerHeightMm;
+
+                                const displayHeight = isSideVak ? doorHeightMm : (rowHeight > 0 ? rowHeight : fallbackHeight);
                                 const displayWidth = hasColumns
-                                  ? (isRight ? rightColWidth : leftColWidth)
+                                  ? ((isRight || isSideVak) ? rightColWidth : leftColWidth)
                                   : (isSideVak ? rightColWidth : (num(vak.breedte) || innerWidthMm));
-                                const lockWidth = hasColumns || isSideVak;
-                                const lockHeight = isSideVak || (hasColumns && !isSideVak && isRight);
-                                const widthValue = lockWidth ? (displayWidth > 0 ? Math.round(displayWidth) : '') : vak.breedte;
-                                const heightValue = lockHeight ? (displayHeight > 0 ? Math.round(displayHeight) : '') : vak.hoogte;
-                                const handleHeightChange = (value: any) => {
-                                  if (hasColumns && !isSideVak && leftIdx >= 0) {
-                                    updateVak(index, leftIdx, { hoogte: value });
-                                    if (rightIdx < vakken.length) updateVak(index, rightIdx, { hoogte: value });
-                                  } else {
-                                    updateVak(index, vakIdx, { hoogte: value });
-                                  }
-                                };
+
                                 return (
-                                  <div key={vak.id || collapseKey} className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                                    <div
-                                      className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                                      onClick={() => toggleCollapsed(collapseKey)}
+                                  <div key={vak.id || `vak-${vakIdx}`} className="relative group">
+                                    <VakInputCard
+                                      index={vakIdx}
+                                      title={vakTitle}
+                                      type={vak.type || 'open'}
+                                      width={vak.breedte ?? vak.width}
+                                      height={vak.hoogte ?? vak.height}
+                                      hasBorstwering={vak.hasBorstwering}
+                                      borstweringHeight={vak.borstweringHeight}
+                                      isCollapsed={collapsedSections[`vak-${index}-${vakIdx}`] !== false}
+                                      onToggleCollapse={() => toggleCollapsed(`vak-${index}-${vakIdx}`)}
+                                      disabled={disabledAll}
+                                      displayHeight={displayHeight}
+                                      displayWidth={displayWidth}
+
+                                      onTypeChange={(t) => updateVak(index, vakIdx, { type: t })}
+                                      onWidthChange={(v) => updateVak(index, vakIdx, { breedte: v, width: v })}
+                                      onHeightChange={(v) => updateVak(index, vakIdx, { hoogte: v, height: v })}
+                                      onUpdateFull={(updates) => updateVak(index, vakIdx, updates)}
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="absolute top-8 right-12 h-6 w-6 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 z-10"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeVak(index, vakIdx);
+                                      }}
                                     >
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-sm font-medium text-zinc-200">{vakTitle}</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          type="button"
-                                          className="text-zinc-500 hover:text-red-400 transition-colors"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            removeVak(index, vakIdx);
-                                          }}
-                                          disabled={disabledAll}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </button>
-                                        <div className="text-zinc-500">
-                                          {collapsedSections[collapseKey] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {collapsedSections[collapseKey] === false && (
-                                      <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                                        <div className="pt-2 border-t border-white/5 space-y-3">
-                                          <div className="space-y-2">
-                                            <Label className="text-xs">Type</Label>
-                                            <Select
-                                              value={vak.type || (hasGlas ? 'glas' : 'open')}
-                                              onValueChange={(value) => updateVak(index, vakIdx, { type: value })}
-                                              disabled={disabledAll}
-                                            >
-                                              <SelectTrigger className="h-9 bg-black/20 border border-white/10 text-xs">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="glas" disabled={!hasGlas}>Glas</SelectItem>
-                                                <SelectItem value="paneel">Paneel</SelectItem>
-                                                <SelectItem value="open">Open</SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                          <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-2">
-                                              <Label className="text-xs">Breedte</Label>
-                                              <MeasurementInput
-                                                value={widthValue}
-                                                onChange={(v) => updateVak(index, vakIdx, { breedte: v })}
-                                                disabled={disabledAll || lockWidth}
-                                              />
-                                            </div>
-                                            <div className="space-y-2">
-                                              <Label className="text-xs">Hoogte</Label>
-                                              <MeasurementInput
-                                                value={heightValue}
-                                                onChange={handleHeightChange}
-                                                disabled={disabledAll || lockHeight}
-                                              />
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
                                   </div>
                                 );
                               })}

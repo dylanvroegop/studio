@@ -241,6 +241,7 @@ export function VisualizerController({
                 fitContainer={fitContainer}
                 className={className}
                 title={props.title}
+                doorPosition={item.doorPosition}
             />
         );
     }
