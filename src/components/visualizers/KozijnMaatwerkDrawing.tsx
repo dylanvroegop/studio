@@ -124,6 +124,14 @@ export function KozijnMaatwerkDrawing({
           : [];
         let stijlGap: { value: number; c1: number; c2: number }[] = [];
 
+        const doorWidthVal = toNum(doorWidth);
+        const doorHeightVal = toNum(doorHeight);
+        const hasDoorHeight = doorHeightVal > 0;
+        const doorVakIndex = Array.isArray(vakkenProp)
+          ? vakkenProp.findIndex((v: any) => String(v?.type || '').toLowerCase() === 'deur')
+          : -1;
+        const doorLabelNumber = doorVakIndex >= 0 ? doorVakIndex + 1 : 1;
+
         const fallbackVakken = [
           { type: 'glas', width: toNum(glasWidth), height: toNum(glasHeight), enabled: !!showGlas },
           { type: 'paneel', width: toNum(paneelWidth), height: toNum(paneelHeight), enabled: true },
@@ -131,28 +139,30 @@ export function KozijnMaatwerkDrawing({
         ].filter(v => (v.enabled !== false) && (v.width > 0 || v.height > 0));
 
         const vakInputs = (Array.isArray(vakkenProp) && vakkenProp.length > 0)
-          ? vakkenProp.map((v, idx) => ({
-            id: v.id || `vak-${idx}`,
-            type: v.type || 'open',
-            width: toNum(v.breedte ?? v.width),
-            height: toNum(v.hoogte ?? v.height),
-            labelNumber: idx + 2,
-            hasBorstwering: v.hasBorstwering,
-            borstweringHeight: toNum(v.borstweringHeight)
-          }))
+          ? vakkenProp
+              .map((v, idx) => ({ v, idx }))
+              .filter(({ v }) => !(hasDoorHeight && String(v?.type || '').toLowerCase() === 'deur'))
+              .map(({ v, idx }) => ({
+                id: v.id || `vak-${idx}`,
+                type: v.type || 'open',
+                width: toNum(v.breedte ?? v.width),
+                height: toNum(v.hoogte ?? v.height),
+                labelNumber: idx + 1,
+                hasBorstwering: v.hasBorstwering,
+                borstweringHeight: toNum(v.borstweringHeight)
+              }))
           : fallbackVakken.map((v, idx) => ({
             id: `vak-fallback-${idx}`,
             type: v.type,
             width: v.width,
             height: v.height,
-            labelNumber: idx + 2
+            labelNumber: idx + 1
           }));
 
         const vakken: { id: string; type: string; width: number; height: number; fromLeft: number; fromBottom: number; labelNumber: number }[] = [];
+        const extraBars: { bottom: number; height: number }[] = [];
+        let autoLabelCounter = (Array.isArray(vakkenProp) ? vakkenProp.length : vakInputs.length) + 1;
 
-        const doorWidthVal = toNum(doorWidth);
-        const doorHeightVal = toNum(doorHeight);
-        const hasDoorHeight = doorHeightVal > 0;
         const doorBarHeight = hasDoorHeight && thickness > 0 && (doorHeightVal + thickness) < innerHeight ? thickness : 0;
         const doorBarHeightPx = doorBarHeight * pxPerMm;
         const doorBarY = innerY + innerH - (doorHeightVal * pxPerMm) - doorBarHeightPx;
@@ -285,7 +295,7 @@ export function KozijnMaatwerkDrawing({
           const doorColIndex = isDoorLeft ? 0 : Math.max(0, colCount - 1);
           const doorWidthActual = colWidths[doorColIndex] || innerWidth;
           const doorLeft = thickness + (colStarts[doorColIndex] || 0);
-          addVak('deur', 'door', doorWidthActual, Math.min(doorHeightVal, innerHeight), doorLeft, thickness, 1, {});
+          addVak('deur', 'door', doorWidthActual, Math.min(doorHeightVal, innerHeight), doorLeft, thickness, doorLabelNumber, {});
 
           const doorRowCols = colCount > 1
             ? Array.from({ length: colCount }, (_, i) => i).filter(i => i !== doorColIndex)
@@ -305,9 +315,18 @@ export function KozijnMaatwerkDrawing({
           let index = doorRowCols.length;
           while (index < vakInputs.length && cursorBottom < (innerHeight + thickness)) {
             const rowEntries = vakInputs.slice(index, index + colCount);
-            let rowHeight = Math.max(...rowEntries.map(v => v?.height || 0), 0);
-            if (rowHeight <= 0) {
-              rowHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
+            const remainingHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
+            const explicitHeights = rowEntries.map(v => v?.height || 0).filter(v => v > 0);
+            let rowHeight = explicitHeights.length > 0
+              ? Math.min(...explicitHeights)
+              : Math.max(...rowEntries.map(v => v?.height || 0), 0);
+            const isLastRow = (index + colCount) >= vakInputs.length;
+            if (isLastRow) {
+              if (explicitHeights.length === 0) {
+                rowHeight = remainingHeight;
+              }
+            } else if (rowHeight <= 0) {
+              rowHeight = remainingHeight;
             }
             if (rowHeight <= 0) break;
             rowEntries.forEach((entry, colIdx) => {
@@ -319,15 +338,51 @@ export function KozijnMaatwerkDrawing({
             });
             cursorBottom += rowHeight;
             index += colCount;
+
+            if (isLastRow && explicitHeights.length > 0) {
+              const leftover = Math.max(0, (innerHeight + thickness) - cursorBottom);
+              if (leftover > (thickness + 1)) {
+                extraBars.push({ bottom: cursorBottom, height: thickness });
+                cursorBottom += thickness;
+                const autoHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
+                if (autoHeight > 0) {
+                  for (let colIdx = 0; colIdx < colCount; colIdx++) {
+                    const colWidth = colWidths[colIdx] || 0;
+                    if (colWidth <= 0) continue;
+                    const left = thickness + (colStarts[colIdx] || 0);
+                    addVak(
+                      `auto-row-${autoLabelCounter}-${colIdx}`,
+                      showGlas ? 'glas' : 'open',
+                      colWidth,
+                      autoHeight,
+                      left,
+                      cursorBottom,
+                      autoLabelCounter,
+                      {}
+                    );
+                  }
+                  autoLabelCounter += 1;
+                }
+              }
+            }
           }
         } else if (vakInputs.length > 0) {
           let cursorBottom = thickness;
           let index = 0;
           while (index < vakInputs.length && cursorBottom < (innerHeight + thickness)) {
             const rowEntries = vakInputs.slice(index, index + colCount);
-            let rowHeight = Math.max(...rowEntries.map(v => v?.height || 0), 0);
-            if (rowHeight <= 0) {
-              rowHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
+            const remainingHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
+            const explicitHeights = rowEntries.map(v => v?.height || 0).filter(v => v > 0);
+            let rowHeight = explicitHeights.length > 0
+              ? Math.min(...explicitHeights)
+              : Math.max(...rowEntries.map(v => v?.height || 0), 0);
+            const isLastRow = (index + colCount) >= vakInputs.length;
+            if (isLastRow) {
+              if (explicitHeights.length === 0) {
+                rowHeight = remainingHeight;
+              }
+            } else if (rowHeight <= 0) {
+              rowHeight = remainingHeight;
             }
             if (rowHeight <= 0) break;
             rowEntries.forEach((entry, colIdx) => {
@@ -339,6 +394,33 @@ export function KozijnMaatwerkDrawing({
             });
             cursorBottom += rowHeight;
             index += colCount;
+
+            if (isLastRow && explicitHeights.length > 0) {
+              const leftover = Math.max(0, (innerHeight + thickness) - cursorBottom);
+              if (leftover > (thickness + 1)) {
+                extraBars.push({ bottom: cursorBottom, height: thickness });
+                cursorBottom += thickness;
+                const autoHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
+                if (autoHeight > 0) {
+                  for (let colIdx = 0; colIdx < colCount; colIdx++) {
+                    const colWidth = colWidths[colIdx] || 0;
+                    if (colWidth <= 0) continue;
+                    const left = thickness + (colStarts[colIdx] || 0);
+                    addVak(
+                      `auto-row-${autoLabelCounter}-${colIdx}`,
+                      showGlas ? 'glas' : 'open',
+                      colWidth,
+                      autoHeight,
+                      left,
+                      cursorBottom,
+                      autoLabelCounter,
+                      {}
+                    );
+                  }
+                  autoLabelCounter += 1;
+                }
+              }
+            }
           }
         }
 
@@ -367,6 +449,7 @@ export function KozijnMaatwerkDrawing({
         };
 
         const vakLabelMap: Record<string, string> = {
+          deur: 'Deur',
           door: 'Deur',
           glas: 'Glas',
           paneel: 'Paneel',
@@ -460,35 +543,38 @@ export function KozijnMaatwerkDrawing({
                     // Calculate doorknob position
                     // doorSwing: 'left' = links draaiend (deur opent naar links) = kruk zit LINKS
                     // doorSwing: 'right' = rechts draaiend (deur opent naar rechts) = kruk zit RECHTS
-                    const knobRadius = Math.min(5, w / 12, h / 30); // Smaller knob
-                    const knobY = drawY + h / 2; // Middle height
-                    // Kruk positie: links draaiend = links, rechts draaiend = rechts
-                    const knobX = doorSwing === 'left' 
-                      ? drawX + w * 0.15  // Links draaiend: kruk links (15% vanaf links)
-                      : drawX + w * 0.85; // Rechts draaiend: kruk rechts (85% vanaf links)
-                    
+                    const clipId = `door-clip-${v.id}`;
+                    const hingeX = doorSwing === 'left' ? drawX + w : drawX;
+                    const midX = doorSwing === 'left' ? drawX : drawX + w;
+                    const midY = drawY + (h / 2);
                     return (
                       <g key={v.id}>
+                        <defs>
+                          <clipPath id={clipId}>
+                            <rect x={drawX} y={drawY} width={w} height={h} />
+                          </clipPath>
+                        </defs>
                         <rect x={drawX} y={drawY} width={w} height={h} fill="#09090b" stroke="rgb(55, 60, 70)" strokeWidth="1" />
-                        {/* Door swing arc indication */}
-                        <path 
-                          d={doorSwing === 'left' 
-                            ? `M ${drawX} ${drawY} A ${w} ${w} 0 0 0 ${drawX} ${drawY + h}`  // Links draaiend: boog links
-                            : `M ${drawX + w} ${drawY} A ${w} ${w} 0 0 1 ${drawX + w} ${drawY + h}` // Rechts draaiend: boog rechts
-                          }
-                          fill="none"
+                        {/* Door swing arc indication (clipped to door panel) */}
+                        <line
+                          x1={hingeX}
+                          y1={drawY}
+                          x2={midX}
+                          y2={midY}
                           stroke="rgba(100, 116, 139, 0.3)"
                           strokeWidth="1"
                           strokeDasharray="4,4"
+                          clipPath={`url(#${clipId})`}
                         />
-                        {/* Doorknob */}
-                        <circle 
-                          cx={knobX} 
-                          cy={knobY} 
-                          r={knobRadius} 
-                          fill="#64748b" 
-                          stroke="#94a3b8" 
-                          strokeWidth="1" 
+                        <line
+                          x1={hingeX}
+                          y1={drawY + h}
+                          x2={midX}
+                          y2={midY}
+                          stroke="rgba(100, 116, 139, 0.3)"
+                          strokeWidth="1"
+                          strokeDasharray="4,4"
+                          clipPath={`url(#${clipId})`}
                         />
                         {renderVakLabel(drawX, drawY, w, h, label, v.width, v.height, v.type)}
                       </g>
@@ -516,6 +602,22 @@ export function KozijnMaatwerkDrawing({
                     strokeWidth="0.5"
                   />
                 )}
+                {extraBars.map((bar, idx) => {
+                  const barHeightPx = bar.height * pxPerMm;
+                  const barY = innerY + innerH - (bar.bottom * pxPerMm) - barHeightPx;
+                  return (
+                    <rect
+                      key={`extra-bar-${idx}`}
+                      x={innerX}
+                      y={barY}
+                      width={innerW}
+                      height={barHeightPx}
+                      fill="rgb(70, 75, 85)"
+                      stroke={colors.TIMBER_STROKE}
+                      strokeWidth="0.5"
+                    />
+                  );
+                })}
 
                 {stijlRects.length > 0 && stijlRects.map((r, idx) => (
                   <rect
@@ -546,23 +648,11 @@ export function KozijnMaatwerkDrawing({
                   const lineColor = '#10b981';
                   const dimX = startX + rectW + 40; // Right side
                   const segments = [
-                    // thickness, // Remove frame
                     doorHeightVal,
-                    // doorBarHeight, // Usually frame thickness (66), remove it? User said "remove 66".
                     Math.max(0, innerHeight - doorHeightVal - doorBarHeight),
-                    // thickness, // Remove frame
                   ].filter(v => v > 0 && v !== thickness && v !== doorBarHeight);
 
-                  let currentY = startY + rectH - (thickness * pxPerMm); // Start inside the frame? 
-                  // Wait, original started at `startY + rectH` (Bottom outer edge).
-                  // If we remove thickness, we should start at `startY + rectH - frameThicknessPx`. (Inner Bottom).
-                  // Vertical goes UP. `currentY` is starting Y.
-                  // Original: `currentY = startY + rectH;` (Total Bottom).
-                  // Segment 1 was `thickness`. So `y2` became `TotalBottom - thickness`.
-                  // If we skip thickness, we should start `currentY` at `TotalBottom - thickness`.
-
-                  currentY = startY + rectH - (thickness * pxPerMm);
-
+                  let currentY = startY + rectH - (thickness * pxPerMm);
                   return (
                     <g className="pointer-events-none">
                       {segments.map((segment, idx) => {
@@ -570,32 +660,40 @@ export function KozijnMaatwerkDrawing({
                         const y1 = currentY;
                         const y2 = currentY - segPx;
                         const midY = (y1 + y2) / 2;
-
-                        // If there is a door bar (transom) gap, we need to skip it in drawing?
-                        // `segments` logic above is consecutive. If we removed `doorBarHeight` from array, 
-                        // the next segment will visually append immediately to the previous one in the loop.
-                        // BUT spatially, there is a gap of `doorBarHeight`.
-                        // So `currentY` for the NEXT segment needs to jump by the gap.
-                        // This implies I cannot just filter the array. I need to iterate the FULL array but only DRAW the non-frame segments.
-
-                        return null; // Logic rewrite below
+                        currentY = y2;
+                        if (segment <= 0) return null;
+                        return (
+                          <g key={`vseg-right-${idx}`}>
+                            <line x1={dimX} y1={y1} x2={dimX} y2={y2} stroke={lineColor} strokeWidth="0.5" />
+                            <circle cx={dimX} cy={y1} r="1.5" fill={lineColor} />
+                            <circle cx={dimX} cy={y2} r="1.5" fill={lineColor} />
+                            <line x1={dimX} y1={y1} x2={startX + rectW} y2={y1} stroke={lineColor} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
+                            <line x1={dimX} y1={y2} x2={startX + rectW} y2={y2} stroke={lineColor} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
+                            <g transform={`translate(${dimX}, ${midY}) rotate(-90)`}>
+                              <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
+                              <text textAnchor="middle" dominantBaseline="middle" fill={lineColor} className="text-[12px] font-mono select-none font-medium">
+                                {Math.round(segment)}
+                              </text>
+                            </g>
+                          </g>
+                        );
                       })}
                     </g>
                   );
                 })()}
+              </>
+            )}
 
+            {thickness > 0 && (
+              <>
                 {/* Rewritten Vertical Logic (Left Side) */}
                 {(() => {
                   const lineColor = '#10b981';
                   const dimX = startX - 40; // Left side
 
-                  // If Door is Left: Show Door Layout.
-                  // If Door is Right: Show Left Column (Vak) Layout.
-
                   let segments: { val: number; show: boolean }[] = [];
 
-                  if (isDoorLeft) {
-                    // Door Logic
+                  if (hasDoorHeight && isDoorLeft) {
                     segments = [
                       { val: thickness, show: false },
                       { val: doorHeightVal, show: true },
@@ -604,10 +702,7 @@ export function KozijnMaatwerkDrawing({
                       { val: thickness, show: false },
                     ];
                   } else {
-                    // Vak Logic (Left Column)
-                    // Filter vakken that are in the left column
                     const leftStart = thickness;
-                    // Use small tolerance for float matching
                     const leftVaks = vakken.filter(v => Math.abs(v.fromLeft - leftStart) < 1);
                     leftVaks.sort((a, b) => a.fromBottom - b.fromBottom);
 
@@ -718,8 +813,6 @@ export function KozijnMaatwerkDrawing({
                     </g>
                   );
                 })()}
-
-                
               </>
             )}
 
@@ -738,8 +831,8 @@ export function KozijnMaatwerkDrawing({
                 svgBaseX={startX}
                 svgBaseY={yBottom}
                 pxPerMm={pxPerMm}
-                showVertical={showOpeningVertical}
-                showHorizontal={showOpeningHorizontal}
+                showVertical={false}
+                showHorizontal={false}
               />
             )}
 

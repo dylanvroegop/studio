@@ -24,6 +24,7 @@ interface VisualizerControllerProps {
     onEdgeChange?: (side: string, value: string) => void;
     onDataGenerated?: (data: any) => void;
     onLeidingkoofChange?: (updated: any[]) => void;
+    doorEnabled?: boolean;
     // ... allow other props
     [key: string]: any;
 }
@@ -221,6 +222,12 @@ export function VisualizerController({
 
     // 3b. KOZIJN MAATWERK
     if (slug.includes('maatwerk-kozijnen')) {
+        const doorVak = Array.isArray(item?.vakken)
+          ? item.vakken.find((v: any) => String(v?.type || '').toLowerCase() === 'deur')
+          : null;
+        const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
+        const doorWidth = num(doorVak?.breedte ?? doorVak?.width);
+        const doorHeight = num(doorVak?.hoogte ?? doorVak?.height);
         return (
             <KozijnMaatwerkDrawing
                 breedte={item.breedte}
@@ -231,8 +238,8 @@ export function VisualizerController({
                 tussenstijlen={item.tussenstijlen}
                 showGlas={props.showGlas}
                 vakken={item.vakken}
-                doorWidth={item.deur_breedte}
-                doorHeight={item.deur_hoogte}
+                doorWidth={doorWidth}
+                doorHeight={doorHeight}
                 glasWidth={item.glas_breedte}
                 glasHeight={item.glas_hoogte}
                 paneelWidth={item.paneel_breedte}
