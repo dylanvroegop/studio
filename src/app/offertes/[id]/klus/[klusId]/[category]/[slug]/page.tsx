@@ -69,6 +69,7 @@ interface VakInputCardProps {
   height: number | string;
   // Specifics
   doorPosition?: 'left' | 'right';
+  doorSwing?: 'left' | 'right'; // Deur draairichting
   hasBorstwering?: boolean;
   borstweringHeight?: number | string;
 
@@ -97,6 +98,7 @@ function VakInputCard({
   width,
   height,
   doorPosition,
+  doorSwing,
   hasBorstwering,
   borstweringHeight,
   onTypeChange,
@@ -193,6 +195,30 @@ function VakInputCard({
                   )}
                 >
                   Rechts
+                </button>
+              </div>
+              
+              <Label className="text-xs">Draairichting</Label>
+              <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => onUpdateFull({ doorSwing: 'left' })}
+                  className={cn(
+                    "flex-1 text-xs py-1.5 rounded transition-colors",
+                    doorSwing === 'left' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  Links draaiend
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateFull({ doorSwing: 'right' })}
+                  className={cn(
+                    "flex-1 text-xs py-1.5 rounded transition-colors",
+                    doorSwing === 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  Rechts draaiend
                 </button>
               </div>
             </div>
@@ -789,6 +815,85 @@ export default function GenericMeasurementPage() {
       });
     });
   };
+
+  // Helper to calculate expected vakken count based on layout
+  const calculateExpectedVakkenCount = (item: any): number => {
+    if (!item || !item.breedte || !item.hoogte) return 0;
+    
+    const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
+    const sponning = 17;
+    const frameMm = Math.max(0, (kozijnhoutFrameThicknessMm || 0) - sponning);
+    const tussenstijlMm = hasTussenstijl ? Math.max(0, ((tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm) || 0) - (2 * sponning)) : 0;
+    const innerWidthMm = Math.max(0, num(item.breedte) - (2 * frameMm));
+    const doorHeightMm = num(item.deur_hoogte);
+    const hasDoor = doorHeightMm > 0;
+    
+    // Calculate columns
+    const rawPositions = Array.isArray(item.tussenstijlen) ? item.tussenstijlen.map(num).filter((v: number) => v > 0) : [];
+    const isDoorLeft = item.doorPosition !== 'right';
+    const autoDoorPos = (hasTussenstijl && num(item.deur_breedte) > 0 && num(item.deur_breedte) < innerWidthMm)
+      ? (isDoorLeft ? num(item.deur_breedte) : Math.max(0, innerWidthMm - num(item.deur_breedte) - tussenstijlMm))
+      : null;
+    
+    let basePositions = [...rawPositions];
+    if (autoDoorPos !== null) {
+      const eps = 1;
+      basePositions = [autoDoorPos, ...basePositions.filter((p: number) => Math.abs(p - autoDoorPos) > eps)];
+    }
+    
+    const positions = hasTussenstijl 
+      ? basePositions.sort((a: number, b: number) => a - b).map((p: number) => Math.min(Math.max(0, p), Math.max(0, innerWidthMm - tussenstijlMm)))
+      : [];
+    
+    const colCount = positions.length + 1;
+    
+    if (!hasDoor) {
+      // Without door: just one row with all columns
+      return colCount;
+    }
+    
+    // With door: door row (colCount - 1 vakken) + bottom row (colCount vakken)
+    const doorColIndex = isDoorLeft ? 0 : Math.max(0, colCount - 1);
+    const doorRowVakken = Math.max(0, colCount - 1);
+    
+    // Check if there's a bottom row
+    const horizontalBarHeight = (doorHeightMm + frameMm) < (num(item.hoogte) - (2 * frameMm)) ? frameMm : 0;
+    const innerHeightMm = Math.max(0, num(item.hoogte) - (2 * frameMm));
+    const bottomRowHeight = Math.max(0, innerHeightMm - doorHeightMm - horizontalBarHeight);
+    const hasBottomRow = bottomRowHeight > 0;
+    
+    return doorRowVakken + (hasBottomRow ? colCount : 0);
+  };
+
+  // Auto-sync vakken when layout changes (tussenstijlen, dimensions)
+  useEffect(() => {
+    if (!isMaatwerkKozijn || loading) return;
+    
+    items.forEach((item, itemIdx) => {
+      const expectedCount = calculateExpectedVakkenCount(item);
+      const currentVakken = Array.isArray(item.vakken) ? item.vakken : [];
+      
+      if (expectedCount > currentVakken.length) {
+        // Need to add more vakken
+        const toAdd = expectedCount - currentVakken.length;
+        const defaultType = hasGlas ? 'glas' : 'open';
+        const newVakken = Array.from({ length: toAdd }, () => createVak(defaultType));
+        
+        // Set new vakken to be expanded
+        const newCollapsedState: Record<string, boolean> = {};
+        for (let i = 0; i < toAdd; i++) {
+          newCollapsedState[`vak-${itemIdx}-${currentVakken.length + i}`] = false;
+        }
+        setCollapsedSections(prev => ({ ...prev, ...newCollapsedState }));
+        
+        // Update item with new vakken
+        setItems(prev => prev.map((it, i) => {
+          if (i !== itemIdx) return it;
+          return { ...it, vakken: [...currentVakken, ...newVakken] };
+        }));
+      }
+    });
+  }, [items.map((item, idx) => `${idx}-${item.breedte}-${item.hoogte}-${item.deur_breedte}-${item.deur_hoogte}-${item.doorPosition}-${JSON.stringify(item.tussenstijlen)}`).join(','), isMaatwerkKozijn, loading, hasGlas, hasTussenstijl, kozijnhoutFrameThicknessMm, tussenstijlThicknessMm]);
 
   const removeVak = (itemIdx: number, vakIdx: number) => {
     setItems(prev => prev.map((item, i) => {
@@ -1442,6 +1547,7 @@ export default function GenericMeasurementPage() {
                                 width={item.deur_breedte}
                                 height={item.deur_hoogte}
                                 doorPosition={item.doorPosition}
+                                doorSwing={item.doorSwing}
                                 isCollapsed={collapsedSections[`vak-deur-${index}`] === true}
                                 onToggleCollapse={() => toggleCollapsed(`vak-deur-${index}`)}
                                 disabled={disabledAll}
@@ -1450,6 +1556,7 @@ export default function GenericMeasurementPage() {
                                 onHeightChange={(v) => updateItem(index, 'deur_hoogte', v)}
                                 onUpdateFull={(updates) => {
                                   if (updates.doorPosition) updateItem(index, 'doorPosition', updates.doorPosition);
+                                  if (updates.doorSwing) updateItem(index, 'doorSwing', updates.doorSwing);
                                 }}
                               />
 
@@ -1479,10 +1586,9 @@ export default function GenericMeasurementPage() {
 
                                 const displayHeight = rowIndex === 0 && hasDoor ? doorHeightMm : (rowHeight > 0 ? rowHeight : fallbackHeight);
                                 const displayWidth = hasColumns ? (colWidths[colIndex] || innerWidthMm) : (num(vak.breedte) || innerWidthMm);
-                                const lockWidth = hasColumns || (rowIndex === 0 && hasDoor);
-                                const lockHeight = rowIndex === 0 && hasDoor;
-                                const widthValue = lockWidth ? (displayWidth > 0 ? Math.round(displayWidth) : '') : (vak.breedte ?? vak.width);
-                                const heightValue = lockHeight ? (displayHeight > 0 ? Math.round(displayHeight) : '') : (vak.hoogte ?? vak.height);
+                                // Fields are always editable now - show calculated values as placeholders
+                                const widthValue = vak.breedte ?? vak.width ?? (displayWidth > 0 ? Math.round(displayWidth) : '');
+                                const heightValue = vak.hoogte ?? vak.height ?? (displayHeight > 0 ? Math.round(displayHeight) : '');
                                 const handleHeightChange = (value: any) => {
                                   if (rowIndex > 0) {
                                     rowEntries.forEach((entry: any, idx: number) => {
@@ -1509,8 +1615,8 @@ export default function GenericMeasurementPage() {
                                       disabled={disabledAll}
                                       displayHeight={displayHeight}
                                       displayWidth={displayWidth}
-                                      disableWidth={lockWidth}
-                                      disableHeight={lockHeight}
+                                      disableWidth={false}
+                                      disableHeight={false}
 
                                       onTypeChange={(t) => updateVak(index, vakIdx, { type: t })}
                                       onWidthChange={(v) => updateVak(index, vakIdx, { breedte: v, width: v })}
@@ -1890,6 +1996,8 @@ export default function GenericMeasurementPage() {
                         tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
                         tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
                         showGlas={isMaatwerkKozijn && hasGlas}
+                        doorPosition={item.doorPosition}
+                        doorSwing={item.doorSwing}
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                         onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
@@ -1926,6 +2034,8 @@ export default function GenericMeasurementPage() {
                             tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
                             tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
                             showGlas={isMaatwerkKozijn && hasGlas}
+                            doorPosition={item.doorPosition}
+                            doorSwing={item.doorSwing}
                             onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                             onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                             onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}

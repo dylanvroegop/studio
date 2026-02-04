@@ -243,6 +243,7 @@ export function VisualizerController({
                 className={className}
                 title={props.title}
                 doorPosition={item.doorPosition}
+                doorSwing={item.doorSwing || 'left'}
             />
         );
     }

@@ -36,6 +36,7 @@ interface KozijnMaatwerkDrawingProps {
   fitContainer?: boolean;
   title?: string;
   doorPosition?: 'left' | 'right';
+  doorSwing?: 'left' | 'right';
 }
 
 const toNum = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
@@ -61,6 +62,7 @@ export function KozijnMaatwerkDrawing({
   fitContainer,
   title,
   doorPosition = 'left',
+  doorSwing = 'left',
 }: KozijnMaatwerkDrawingProps) {
   const width = toNum(breedte);
   const height = toNum(hoogte);
@@ -448,7 +450,46 @@ export function KozijnMaatwerkDrawing({
                   if (v.type === 'paneel') {
                     return (
                       <g key={v.id}>
-                        <rect x={drawX} y={drawY} width={w} height={h} fill="rgb(70, 75, 85)" opacity="0.8" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        <rect x={drawX} y={drawY} width={w} height={h} fill="#2D343E" opacity="0.8" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        {renderVakLabel(drawX, drawY, w, h, label, v.width, v.height, v.type)}
+                      </g>
+                    );
+                  }
+
+                  if (v.type === 'door') {
+                    // Calculate doorknob position
+                    // doorSwing: 'left' = links draaiend (deur opent naar links) = kruk zit LINKS
+                    // doorSwing: 'right' = rechts draaiend (deur opent naar rechts) = kruk zit RECHTS
+                    const knobRadius = Math.min(5, w / 12, h / 30); // Smaller knob
+                    const knobY = drawY + h / 2; // Middle height
+                    // Kruk positie: links draaiend = links, rechts draaiend = rechts
+                    const knobX = doorSwing === 'left' 
+                      ? drawX + w * 0.15  // Links draaiend: kruk links (15% vanaf links)
+                      : drawX + w * 0.85; // Rechts draaiend: kruk rechts (85% vanaf links)
+                    
+                    return (
+                      <g key={v.id}>
+                        <rect x={drawX} y={drawY} width={w} height={h} fill="#09090b" stroke="rgb(55, 60, 70)" strokeWidth="1" />
+                        {/* Door swing arc indication */}
+                        <path 
+                          d={doorSwing === 'left' 
+                            ? `M ${drawX} ${drawY} A ${w} ${w} 0 0 0 ${drawX} ${drawY + h}`  // Links draaiend: boog links
+                            : `M ${drawX + w} ${drawY} A ${w} ${w} 0 0 1 ${drawX + w} ${drawY + h}` // Rechts draaiend: boog rechts
+                          }
+                          fill="none"
+                          stroke="rgba(100, 116, 139, 0.3)"
+                          strokeWidth="1"
+                          strokeDasharray="4,4"
+                        />
+                        {/* Doorknob */}
+                        <circle 
+                          cx={knobX} 
+                          cy={knobY} 
+                          r={knobRadius} 
+                          fill="#64748b" 
+                          stroke="#94a3b8" 
+                          strokeWidth="1" 
+                        />
                         {renderVakLabel(drawX, drawY, w, h, label, v.width, v.height, v.type)}
                       </g>
                     );
