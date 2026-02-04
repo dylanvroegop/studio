@@ -13,7 +13,6 @@ interface KozijnMaatwerkDrawingProps {
   tussenstijlThickness?: number | null;
   tussenstijlOffset?: number | null;
   tussenstijlen?: (number | string)[];
-  showGlas?: boolean;
   vakken?: {
     id?: string;
     type?: string;
@@ -48,7 +47,6 @@ export function KozijnMaatwerkDrawing({
   tussenstijlThickness,
   tussenstijlOffset,
   tussenstijlen,
-  showGlas,
   vakken: vakkenProp,
   doorWidth,
   doorHeight,
@@ -133,10 +131,10 @@ export function KozijnMaatwerkDrawing({
         const doorLabelNumber = doorVakIndex >= 0 ? doorVakIndex + 1 : 1;
 
         const fallbackVakken = [
-          { type: 'glas', width: toNum(glasWidth), height: toNum(glasHeight), enabled: !!showGlas },
-          { type: 'paneel', width: toNum(paneelWidth), height: toNum(paneelHeight), enabled: true },
-          { type: 'open', width: toNum(openWidth), height: toNum(openHeight), enabled: true },
-        ].filter(v => (v.enabled !== false) && (v.width > 0 || v.height > 0));
+          { type: 'glas', width: toNum(glasWidth), height: toNum(glasHeight) },
+          { type: 'paneel', width: toNum(paneelWidth), height: toNum(paneelHeight) },
+          { type: 'open', width: toNum(openWidth), height: toNum(openHeight) },
+        ].filter(v => (v.width > 0 || v.height > 0));
 
         const vakInputs = (Array.isArray(vakkenProp) && vakkenProp.length > 0)
           ? vakkenProp
@@ -307,7 +305,7 @@ export function KozijnMaatwerkDrawing({
             const colWidth = colWidths[colIdx] || 0;
             if (entry && colWidth > 0) {
               const left = thickness + (colStarts[colIdx] || 0);
-              addVak(entry.id, entry.type || (showGlas ? 'glas' : 'open'), colWidth, Math.min(doorHeightVal, innerHeight), left, thickness, entry.labelNumber, entry);
+              addVak(entry.id, entry.type || 'open', colWidth, Math.min(doorHeightVal, innerHeight), left, thickness, entry.labelNumber, entry);
             }
           }
 
@@ -352,7 +350,7 @@ export function KozijnMaatwerkDrawing({
                     const left = thickness + (colStarts[colIdx] || 0);
                     addVak(
                       `auto-row-${autoLabelCounter}-${colIdx}`,
-                      showGlas ? 'glas' : 'open',
+                      'open',
                       colWidth,
                       autoHeight,
                       left,
@@ -408,7 +406,7 @@ export function KozijnMaatwerkDrawing({
                     const left = thickness + (colStarts[colIdx] || 0);
                     addVak(
                       `auto-row-${autoLabelCounter}-${colIdx}`,
-                      showGlas ? 'glas' : 'open',
+                      'open',
                       colWidth,
                       autoHeight,
                       left,

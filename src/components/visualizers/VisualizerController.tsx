@@ -236,7 +236,6 @@ export function VisualizerController({
                 tussenstijlThickness={props.tussenstijlThickness}
                 tussenstijlOffset={props.tussenstijlOffset}
                 tussenstijlen={item.tussenstijlen}
-                showGlas={props.showGlas}
                 vakken={item.vakken}
                 doorWidth={doorWidth}
                 doorHeight={doorHeight}

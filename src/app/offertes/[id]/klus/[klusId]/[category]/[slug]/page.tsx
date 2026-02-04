@@ -78,6 +78,7 @@ interface VakInputCardProps {
   onWidthChange: (val: string | number) => void;
   onHeightChange: (val: string | number) => void;
   onUpdateFull?: (updates: any) => void; // Generic update used for complex props
+  onDelete?: () => void;
 
   // UI State
   isCollapsed: boolean;
@@ -106,6 +107,7 @@ function VakInputCard({
   onWidthChange,
   onHeightChange,
   onUpdateFull,
+  onDelete,
   isCollapsed,
   onToggleCollapse,
   disabled,
@@ -145,7 +147,7 @@ function VakInputCard({
                   <SelectValue placeholder="Selecteer type" />
                 </SelectTrigger>
                 <SelectContent>
-                <SelectItem value="deur" disabled={!allowDoor}>Deur</SelectItem>
+                  <SelectItem value="deur" disabled={!allowDoor}>Deur</SelectItem>
                   <SelectItem value="glas">Glas</SelectItem>
                   <SelectItem value="paneel">Paneel</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
@@ -207,7 +209,7 @@ function VakInputCard({
                   onClick={() => onUpdateFull({ doorSwing: 'left' })}
                   className={cn(
                     "flex-1 text-xs py-1.5 rounded transition-colors",
-                    doorSwing === 'left' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                    doorSwing !== 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
                   )}
                 >
                   Links draaiend
@@ -248,6 +250,23 @@ function VakInputCard({
                   />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Delete Button */}
+          {onDelete && (
+            <div className="pt-3 border-t border-white/5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2 text-xs text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Verwijderen</span>
+              </button>
             </div>
           )}
         </div>
@@ -300,6 +319,7 @@ export default function GenericMeasurementPage() {
   const showLeidingkoofSection = specificJobConfig.sections.includes('leidingkoof');
   const showVensterbankSection = specificJobConfig.sections.includes('vensterbanken');
   const showDagkantSection = specificJobConfig.sections.includes('dagkanten');
+  const GLAS_MAATWERK_OFFSET_MM = 5;
 
   // 3. State: Array of Item Objects
   const [items, setItems] = useState<Record<string, any>[]>([]);
@@ -311,8 +331,8 @@ export default function GenericMeasurementPage() {
   const [kozijnhoutFrameThicknessMm, setKozijnhoutFrameThicknessMm] = useState<number | null>(null);
   const [tussenstijlThicknessMm, setTussenstijlThicknessMm] = useState<number | null>(null);
   const [hasTussenstijl, setHasTussenstijl] = useState(false);
-  const [hasDeur, setHasDeur] = useState(false);
   const prevVakIdsRef = useRef<Record<number, Set<string>>>({});
+  const [manualVakkenOverride, setManualVakkenOverride] = useState<Record<number, boolean>>({});
 
   // Auto-open vak cards (always open)
   useEffect(() => {
@@ -328,7 +348,7 @@ export default function GenericMeasurementPage() {
       return next;
     });
   }, [items, isMaatwerkKozijn]);
-  const [hasGlas, setHasGlas] = useState(false);
+
 
   const parseDimToMm = (raw: any): number | null => {
     if (raw === null || raw === undefined || raw === '') return null;
@@ -360,6 +380,289 @@ export default function GenericMeasurementPage() {
       }
     }
     return parseDimToMm(raw);
+  };
+
+  const computeVakLayout = (item: any) => {
+    const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
+    const sponning = 17;
+    const frameMm = Math.max(0, (kozijnhoutFrameThicknessMm || 0) - sponning);
+    const tussenstijlMm = hasTussenstijl ? Math.max(0, ((tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm) || 0) - (2 * sponning)) : 0;
+    const innerWidthMm = Math.max(0, num(item.breedte) - (2 * frameMm));
+    const innerHeightMm = Math.max(0, num(item.hoogte) - (2 * frameMm));
+
+    const vakken = Array.isArray(item.vakken) ? item.vakken : [];
+    const doorInfo = getDoorVakInfo(item);
+    const doorVakIndex = doorInfo.index;
+    const doorWidthMm = doorInfo.width;
+    const doorHeightMm = doorInfo.height;
+    const hasDoor = doorHeightMm > 0;
+
+    const rawPositions = Array.isArray(item.tussenstijlen) ? item.tussenstijlen.map(num).filter((v: number) => v > 0) : [];
+    const isDoorLeft = item.doorPosition !== 'right';
+    const autoDoorPos = (hasDoor && hasTussenstijl && doorWidthMm > 0 && doorWidthMm < innerWidthMm)
+      ? (isDoorLeft ? doorWidthMm : Math.max(0, innerWidthMm - doorWidthMm - tussenstijlMm))
+      : null;
+
+    let basePositions = rawPositions.length > 0 ? rawPositions : [];
+    if (autoDoorPos !== null) {
+      const eps = 1;
+      basePositions = [autoDoorPos, ...basePositions.filter((p: number) => Math.abs(p - autoDoorPos) > eps)];
+    }
+
+    const normalizePositions = (positions: number[]) => {
+      const maxPos = Math.max(0, innerWidthMm - tussenstijlMm);
+      const sorted = positions
+        .map(p => Math.min(Math.max(0, p), maxPos))
+        .sort((a, b) => a - b);
+      const clamped: number[] = [];
+      let cursor = 0;
+      sorted.forEach(pos => {
+        const next = Math.max(cursor, pos);
+        const clampedPos = Math.min(next, maxPos);
+        clamped.push(clampedPos);
+        cursor = clampedPos + tussenstijlMm;
+      });
+      return clamped;
+    };
+
+    const hasColumns = hasTussenstijl && tussenstijlMm > 0;
+    const tussenstijlPositions = hasColumns ? normalizePositions(basePositions) : [];
+
+    const colStarts: number[] = [];
+    const colWidths: number[] = [];
+    let cursor = 0;
+    tussenstijlPositions.forEach(pos => {
+      colStarts.push(cursor);
+      colWidths.push(Math.max(0, pos - cursor));
+      cursor = pos + tussenstijlMm;
+    });
+    colStarts.push(cursor);
+    colWidths.push(Math.max(0, innerWidthMm - cursor));
+    const colCount = Math.max(1, colWidths.length);
+
+    const doorColIndex = (item.doorPosition === 'right') ? Math.max(0, colCount - 1) : 0;
+    const doorRowCols = colCount > 1
+      ? Array.from({ length: colCount }, (_, i) => i).filter(i => i !== doorColIndex)
+      : [];
+
+    const layoutVakken = doorVakIndex >= 0 ? vakken.filter((_: any, idx: number) => idx !== doorVakIndex) : vakken;
+
+    const results = new Map<number, {
+      displayWidth: number;
+      displayHeight: number;
+      rowIndex: number;
+      colIndex: number;
+      colCount: number;
+      rowCount: number;
+    }>();
+
+    const doorRowSlots = hasDoor ? doorRowCols.length : 0;
+    const nonDoorCount = layoutVakken.length;
+    const rowCount = colCount > 0
+      ? (hasDoor
+        ? (doorRowSlots > 0 ? Math.ceil(Math.max(0, nonDoorCount - doorRowSlots) / colCount) + 1 : 1)
+        : Math.ceil(Math.max(0, nonDoorCount) / colCount))
+      : 0;
+
+    vakken.forEach((vak: any, vakIdx: number) => {
+      const isDoorVak = (doorVakIndex === vakIdx) || (String(vak?.type || '').toLowerCase() === 'deur');
+      const layoutIndex = isDoorVak
+        ? -1
+        : (doorVakIndex >= 0 && vakIdx > doorVakIndex ? vakIdx - 1 : vakIdx);
+
+      const rowIndex = isDoorVak
+        ? 0
+        : (hasDoor
+          ? (layoutIndex < doorRowSlots ? 0 : Math.floor((layoutIndex - doorRowSlots) / colCount) + 1)
+          : Math.floor(layoutIndex / colCount));
+
+      const colIndex = isDoorVak
+        ? (hasDoor ? doorColIndex : 0)
+        : (hasDoor
+          ? (layoutIndex < doorRowSlots ? doorRowCols[layoutIndex] : (layoutIndex - doorRowSlots) % colCount)
+          : (layoutIndex % colCount));
+
+      const rowStartIdx = hasDoor
+        ? (rowIndex === 0 ? 0 : doorRowSlots + ((rowIndex - 1) * colCount))
+        : (rowIndex * colCount);
+      const rowEntries = hasDoor && rowIndex === 0
+        ? layoutVakken.slice(0, doorRowSlots)
+        : layoutVakken.slice(rowStartIdx, rowStartIdx + colCount);
+
+      const rowHeight = rowIndex === 0 && hasDoor
+        ? doorHeightMm
+        : Math.max(...rowEntries.map((v: any) => num(v?.hoogte ?? v?.height)), 0);
+
+      const horizontalBarHeight = (hasDoor && (doorHeightMm + frameMm) < innerHeightMm) ? frameMm : 0;
+      const fallbackHeight = hasDoor ? Math.max(0, innerHeightMm - doorHeightMm - horizontalBarHeight) : innerHeightMm;
+
+      const displayHeight = isDoorVak
+        ? (doorHeightMm > 0 ? doorHeightMm : innerHeightMm)
+        : (rowIndex === 0 && hasDoor ? doorHeightMm : (rowHeight > 0 ? rowHeight : fallbackHeight));
+
+      const displayWidth = isDoorVak
+        ? (hasColumns ? (colWidths[doorColIndex] || innerWidthMm) : innerWidthMm)
+        : (hasColumns ? (colWidths[colIndex] || innerWidthMm) : innerWidthMm);
+
+      results.set(vakIdx, {
+        displayWidth,
+        displayHeight,
+        rowIndex,
+        colIndex,
+        colCount,
+        rowCount,
+      });
+    });
+
+    return {
+      innerWidthMm,
+      innerHeightMm,
+      frameMm,
+      tussenstijlMm,
+      positions: tussenstijlPositions,
+      layout: results,
+    };
+  };
+
+  const buildTussenstijlenForSave = (item: any) => {
+    const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
+    const layout = computeVakLayout(item);
+    const positions = Array.isArray(item.tussenstijlen)
+      ? item.tussenstijlen.map(num).filter((v: number) => Number.isFinite(v) && v > 0)
+      : [];
+
+    const posObjects = positions.map((pos: number, idx: number) => ({
+      id: crypto.randomUUID(),
+      label: `Tussenstijl ${idx + 1}`,
+      positie_mm: pos,
+      referentie: 'binnenmaat_vanaf_links',
+      eenheid: 'mm',
+      source: 'manual_or_auto',
+    }));
+
+    return {
+      positions: posObjects,
+      meta: {
+        referentie: 'binnenmaat_vanaf_links',
+        eenheid: 'mm',
+        frame_mm: layout.frameMm,
+        tussenstijl_mm: layout.tussenstijlMm,
+        inner_width_mm: layout.innerWidthMm,
+        door_position: item.doorPosition ?? 'left',
+        door_breedte_mm: parseDimToMm(item.deur_breedte) ?? null,
+      }
+    };
+  };
+
+  const sanitizeItemBySections = (rawItem: any) => {
+    const item = { ...rawItem };
+
+    if (showOpeningsSection) {
+      if (!Array.isArray(item.openings)) item.openings = [];
+    } else {
+      delete item.openings;
+    }
+
+    if (showLeidingkoofSection) {
+      if (!Array.isArray(item.leidingkofen)) item.leidingkofen = [];
+    } else {
+      delete item.leidingkofen;
+      delete item.koof_lengte;
+      delete item.koof_hoogte;
+      delete item.koof_diepte;
+    }
+
+    if (showDagkantSection) {
+      if (!Array.isArray(item.dagkanten)) item.dagkanten = [];
+    } else {
+      delete item.dagkanten;
+      delete item.dagkant_diepte;
+      delete item.dagkant_lengte;
+    }
+
+    if (showVensterbankSection) {
+      if (!Array.isArray(item.vensterbanken)) item.vensterbanken = [];
+    } else {
+      delete item.vensterbanken;
+      delete item.vensterbank_diepte;
+      delete item.vensterbank_lengte;
+    }
+
+    if (isMaatwerkKozijn) {
+      delete item.openings;
+      delete item.leidingkofen;
+      delete item.dagkanten;
+      delete item.vensterbanken;
+      delete item.koof_lengte;
+      delete item.koof_hoogte;
+      delete item.koof_diepte;
+      delete item.dagkant_diepte;
+      delete item.dagkant_lengte;
+      delete item.vensterbank_diepte;
+      delete item.vensterbank_lengte;
+    }
+
+    return item;
+  };
+
+  const enrichVakkenForSave = (item: any) => {
+    const vakken = Array.isArray(item.vakken) ? item.vakken : [];
+    const doorPosition = item.doorPosition ?? 'left';
+    const doorSwing = item.doorSwing ?? 'left';
+
+    return vakken.map((vak: any, idx: number) => {
+      const typeRaw = String(vak?.type || '').toLowerCase();
+      const type = typeRaw || 'glas';
+      const openingWidth = parseDimToMm(vak?.breedte ?? vak?.width ?? vak?.opening_breedte ?? vak?.openingWidth);
+      const openingHeight = parseDimToMm(vak?.hoogte ?? vak?.height ?? vak?.opening_hoogte ?? vak?.openingHeight);
+
+      const cleaned: any = {
+        ...vak,
+        id: vak?.id || crypto.randomUUID(),
+        type,
+        index: vak?.index ?? idx,
+      };
+
+      if (openingWidth !== null) {
+        cleaned.breedte = openingWidth;
+        cleaned.width = openingWidth;
+        cleaned.opening_breedte = openingWidth;
+        cleaned.openingWidth = openingWidth;
+      }
+      if (openingHeight !== null) {
+        cleaned.hoogte = openingHeight;
+        cleaned.height = openingHeight;
+        cleaned.opening_hoogte = openingHeight;
+        cleaned.openingHeight = openingHeight;
+      }
+      if (openingWidth !== null && openingHeight !== null && openingWidth > 0 && openingHeight > 0) {
+        cleaned.opening_oppervlak_m2 = (openingWidth * openingHeight) / 1_000_000;
+      }
+
+      if (type === 'glas' && (openingWidth !== null || openingHeight !== null)) {
+        const gW = openingWidth !== null ? Math.max(0, openingWidth - GLAS_MAATWERK_OFFSET_MM) : null;
+        const gH = openingHeight !== null ? Math.max(0, openingHeight - GLAS_MAATWERK_OFFSET_MM) : null;
+        if (gW !== null) cleaned.glas_maatwerk_breedte = gW;
+        if (gH !== null) cleaned.glas_maatwerk_hoogte = gH;
+        cleaned.glas_maatwerk_offset = GLAS_MAATWERK_OFFSET_MM;
+        if (gW !== null && gH !== null && gW > 0 && gH > 0) {
+          cleaned.glas_maatwerk_oppervlak_m2 = (gW * gH) / 1_000_000;
+        }
+      }
+
+      if (type === 'deur') {
+        cleaned.doorPosition = vak?.doorPosition ?? doorPosition;
+        cleaned.doorSwing = vak?.doorSwing ?? doorSwing;
+      }
+
+      if (vak?.hasBorstwering !== undefined) cleaned.hasBorstwering = !!vak.hasBorstwering;
+      if (vak?.borstweringHeight !== undefined && vak?.borstweringHeight !== null && vak?.borstweringHeight !== '') {
+        const bh = parseDimToMm(vak.borstweringHeight);
+        if (bh !== null) cleaned.borstweringHeight = bh;
+      }
+
+      return cleaned;
+    });
   };
 
   const findVlizotrapMaterial = (container: any) => {
@@ -400,34 +703,10 @@ export default function GenericMeasurementPage() {
     return found;
   };
 
-  const hasGlasMaterial = (container: any) => {
-    const materialenLijst = container?.materialen?.materialen_lijst || {};
-    return Object.values(materialenLijst).some((entry: any) => {
-      if (!entry || !entry.material) return false;
-      const sectionKey = entry.sectionKey || entry.material?.sectionKey || '';
-      if (typeof sectionKey === 'string' && sectionKey.toLowerCase().includes('glas')) return true;
-      const categorie = entry.material?.categorie;
-      if (typeof categorie === 'string' && categorie.toLowerCase().includes('glas')) return true;
-      return false;
-    });
-  };
 
-  const hasDeurMaterial = (container: any) => {
-    const materialenLijst = container?.materialen?.materialen_lijst || {};
-    return Object.values(materialenLijst).some((entry: any) => {
-      if (!entry || !entry.material) return false;
-      const sectionKey = String(entry.sectionKey || entry.material?.sectionKey || '').toLowerCase();
-      const categorie = String(entry.material?.categorie || '').toLowerCase();
-      const naam = String(entry.material?.naam || entry.material?.name || '').toLowerCase();
-      return (
-        sectionKey.includes('deur') ||
-        categorie.includes('deur') ||
-        naam.includes('deur')
-      );
-    });
-  };
 
   const syncVlizotrapOpening = (item: any, material: any) => {
+    if (!showOpeningsSection) return item;
     const openings = Array.isArray(item.openings) ? [...item.openings] : [];
     const autoIndex = openings.findIndex((op: any) => op?.autoSource === 'vlizotrap_material');
     const widthMm = parseDimToMm(material?.breedte);
@@ -526,15 +805,10 @@ export default function GenericMeasurementPage() {
           const tussenstijlMaterial = isMaatwerkKozijn ? findTussenstijlMaterial(container) : null;
           const kozijnhoutThickness = kozijnhoutMaterial ? parseDikteToMm(kozijnhoutMaterial?.dikte) : null;
           const tussenstijlThickness = tussenstijlMaterial ? parseDikteToMm(tussenstijlMaterial?.dikte) : null;
-          const glasSelected = isMaatwerkKozijn ? hasGlasMaterial(container) : false;
-          const deurSelected = isMaatwerkKozijn ? hasDeurMaterial(container) : false;
-
           if (isMaatwerkKozijn) {
             setKozijnhoutFrameThicknessMm(kozijnhoutThickness);
             setTussenstijlThicknessMm(tussenstijlThickness ?? kozijnhoutThickness);
-            setHasTussenstijl(Boolean(tussenstijlMaterial));
-            setHasGlas(glasSelected);
-            setHasDeur(deurSelected);
+            setHasTussenstijl(true);
           }
 
           // 1. Try new structure, then specific slug key, then legacy 'maatwerk' array
@@ -557,66 +831,63 @@ export default function GenericMeasurementPage() {
                 });
               }
 
-              // Initialize arrays for all items
-              if (!item.leidingkofen) item.leidingkofen = [];
-              if (!item.dagkanten) item.dagkanten = [];
-              if (!item.vensterbanken) item.vensterbanken = [];
+              // Initialize/remove arrays based on job config
+              let normalizedItem = sanitizeItemBySections(item);
 
               // Data Migration for HSB Voorzetwand
               if (jobSlug === 'hsb-voorzetwand') {
 
                 // Move single objects to arrays if they exist
-                if (item.koof_lengte !== undefined && item.leidingkofen.length === 0) {
-                  item.leidingkofen.push({
+                if (normalizedItem.koof_lengte !== undefined && normalizedItem.leidingkofen.length === 0) {
+                  normalizedItem.leidingkofen.push({
                     id: crypto.randomUUID(),
-                    lengte: Number(item.koof_lengte) || 0,
-                    hoogte: Number(item.koof_hoogte) || 0,
-                    diepte: Number(item.koof_diepte) || 0
+                    lengte: Number(normalizedItem.koof_lengte) || 0,
+                    hoogte: Number(normalizedItem.koof_hoogte) || 0,
+                    diepte: Number(normalizedItem.koof_diepte) || 0
                   });
-                  delete item.koof_lengte; delete item.koof_hoogte; delete item.koof_diepte;
+                  delete normalizedItem.koof_lengte; delete normalizedItem.koof_hoogte; delete normalizedItem.koof_diepte;
                 }
 
-                if (item.dagkant_diepte !== undefined && item.dagkanten.length === 0) {
-                  const firstOpening = item.openings?.[0]?.id || null;
-                  item.dagkanten.push({
+                if (normalizedItem.dagkant_diepte !== undefined && normalizedItem.dagkanten.length === 0) {
+                  const firstOpening = normalizedItem.openings?.[0]?.id || null;
+                  normalizedItem.dagkanten.push({
                     id: crypto.randomUUID(),
                     openingId: firstOpening,
-                    diepte: Number(item.dagkant_diepte) || 0
+                    diepte: Number(normalizedItem.dagkant_diepte) || 0
                   });
-                  delete item.dagkant_diepte; delete item.dagkant_lengte;
+                  delete normalizedItem.dagkant_diepte; delete normalizedItem.dagkant_lengte;
                 }
 
-                if (item.vensterbank_diepte !== undefined && item.vensterbanken.length === 0) {
-                  const firstOpening = item.openings?.[0]?.id || null;
-                  item.vensterbanken.push({
+                if (normalizedItem.vensterbank_diepte !== undefined && normalizedItem.vensterbanken.length === 0) {
+                  const firstOpening = normalizedItem.openings?.[0]?.id || null;
+                  normalizedItem.vensterbanken.push({
                     id: crypto.randomUUID(),
                     openingId: firstOpening,
-                    diepte: Number(item.vensterbank_diepte) || 0,
+                    diepte: Number(normalizedItem.vensterbank_diepte) || 0,
                     uitstekLinks: 50,
                     uitstekRechts: 50
                   });
-                  delete item.vensterbank_diepte; delete item.vensterbank_lengte;
+                  delete normalizedItem.vensterbank_diepte; delete normalizedItem.vensterbank_lengte;
                 }
               }
 
               if (isMaatwerkKozijn) {
-                const existingVakken = Array.isArray(item.vakken) ? item.vakken : [];
+                const existingVakken = Array.isArray(normalizedItem.vakken) ? normalizedItem.vakken : [];
                 const migratedVakken: any[] = [];
                 if (existingVakken.length > 0) {
                   migratedVakken.push(...existingVakken);
                 } else {
                   // Check for legacy fields
-                  if (item.glas_breedte || item.glas_hoogte) migratedVakken.push({ type: 'glas', breedte: item.glas_breedte, hoogte: item.glas_hoogte });
-                  if (item.paneel_breedte || item.paneel_hoogte) migratedVakken.push({ type: 'paneel', breedte: item.paneel_breedte, hoogte: item.paneel_hoogte });
-                  if (item.open_breedte || item.open_hoogte) migratedVakken.push({ type: 'open', breedte: item.open_breedte, hoogte: item.open_hoogte });
+                  if (normalizedItem.glas_breedte || normalizedItem.glas_hoogte) migratedVakken.push({ type: 'glas', breedte: normalizedItem.glas_breedte, hoogte: normalizedItem.glas_hoogte });
+                  if (normalizedItem.paneel_breedte || normalizedItem.paneel_hoogte) migratedVakken.push({ type: 'paneel', breedte: normalizedItem.paneel_breedte, hoogte: normalizedItem.paneel_hoogte });
+                  if (normalizedItem.open_breedte || normalizedItem.open_hoogte) migratedVakken.push({ type: 'open', breedte: normalizedItem.open_breedte, hoogte: normalizedItem.open_hoogte });
 
                   // Do not auto-generate vakken here; user adds them manually via "Vak toevoegen".
                 }
 
-                item.vakken = migratedVakken.map((vak: any) => {
-                  const rawType = String(vak.type || 'open').toLowerCase();
-                  const normalized = rawType === 'deur' ? 'open' : rawType;
-                  const finalType = (normalized === 'glas' && !glasSelected) ? 'open' : normalized;
+                normalizedItem.vakken = migratedVakken.map((vak: any) => {
+                  const rawType = String(vak.type || 'glas').toLowerCase();
+                  const finalType = rawType || 'glas';
                   return {
                     id: vak.id || crypto.randomUUID(),
                     type: finalType,
@@ -625,17 +896,26 @@ export default function GenericMeasurementPage() {
                   };
                 });
 
-                const existingStijlen = Array.isArray(item.tussenstijlen) ? item.tussenstijlen : [];
+                const existingStijlenRaw = Array.isArray(normalizedItem.tussenstijlen) ? normalizedItem.tussenstijlen : [];
+                const existingStijlen = existingStijlenRaw
+                  .map((v: any) => {
+                    if (typeof v === 'object' && v !== null) {
+                      return v.positie_mm ?? v.positie ?? v.value ?? v.mm ?? v.pos;
+                    }
+                    return v;
+                  })
+                  .map((v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? ''))))
+                  .filter((v: any) => Number.isFinite(v));
                 if (existingStijlen.length > 0) {
-                  item.tussenstijlen = existingStijlen;
-                } else if (item.tussenstijl_van_links) {
-                  item.tussenstijlen = [item.tussenstijl_van_links];
+                  normalizedItem.tussenstijlen = existingStijlen;
+                } else if (normalizedItem.tussenstijl_van_links) {
+                  normalizedItem.tussenstijlen = [normalizedItem.tussenstijl_van_links];
                 } else {
-                  item.tussenstijlen = [];
+                  normalizedItem.tussenstijlen = [];
                 }
               }
 
-              return item;
+              return sanitizeItemBySections(normalizedItem);
             });
             const withVlizotrap = vlizotrapMaterial
               ? normalizedItems.map((item: any) => syncVlizotrapOpening(item, vlizotrapMaterial))
@@ -675,14 +955,14 @@ export default function GenericMeasurementPage() {
     fields.forEach(f => {
       newItem[f.key] = f.defaultValue !== undefined ? f.defaultValue : '';
     });
-    newItem.leidingkofen = [];
-    newItem.dagkanten = [];
-    newItem.vensterbanken = [];
+    if (showLeidingkoofSection) newItem.leidingkofen = [];
+    if (showDagkantSection) newItem.dagkanten = [];
+    if (showVensterbankSection) newItem.vensterbanken = [];
     if (isMaatwerkKozijn) {
       newItem.vakken = [];
       newItem.tussenstijlen = [];
     }
-    return newItem;
+    return sanitizeItemBySections(newItem);
   };
 
   const addItem = () => {
@@ -739,8 +1019,9 @@ export default function GenericMeasurementPage() {
   };
 
   const addVak = (itemIdx: number) => {
-    const defaultType = hasGlas ? 'glas' : 'open';
+    const defaultType = 'glas';
     const newVak = createVak(defaultType);
+    setManualVakkenOverride(prev => ({ ...prev, [itemIdx]: true }));
 
     setItems(prev => {
       const item = prev[itemIdx];
@@ -838,6 +1119,7 @@ export default function GenericMeasurementPage() {
     setItems(prev => {
       let changed = false;
       const next = prev.map((item, itemIdx) => {
+        if (manualVakkenOverride[itemIdx]) return item;
         const expected = calculateExpectedVakkenCount(item);
         const vakken = Array.isArray(item.vakken) ? [...item.vakken] : [];
         const isDoor = (v: any) => String(v?.type || '').toLowerCase() === 'deur';
@@ -845,21 +1127,11 @@ export default function GenericMeasurementPage() {
 
         if (expected > nonDoor.length) {
           const toAdd = expected - nonDoor.length;
-          const defaultType = hasGlas ? 'glas' : 'open';
+          const defaultType = 'glas';
           const newVakken = Array.from({ length: toAdd }, () => createVak(defaultType));
           // append new non-door vakken at end
           vakken.push(...newVakken);
           changed = true;
-        } else if (expected < nonDoor.length) {
-          const toRemove = nonDoor.length - expected;
-          let removed = 0;
-          for (let i = vakken.length - 1; i >= 0 && removed < toRemove; i--) {
-            if (!isDoor(vakken[i])) {
-              vakken.splice(i, 1);
-              removed += 1;
-              changed = true;
-            }
-          }
         }
 
         if (!changed) return item;
@@ -871,13 +1143,14 @@ export default function GenericMeasurementPage() {
     items.map((item, idx) => `${idx}-${item.breedte}-${item.hoogte}-${item.doorPosition}-${JSON.stringify(item.tussenstijlen)}-${JSON.stringify(item.vakken?.map((v: any) => v?.hoogte))}`).join(','),
     isMaatwerkKozijn,
     loading,
-    hasGlas,
     hasTussenstijl,
+    manualVakkenOverride,
     kozijnhoutFrameThicknessMm,
     tussenstijlThicknessMm
   ]);
 
   const removeVak = (itemIdx: number, vakIdx: number) => {
+    setManualVakkenOverride(prev => ({ ...prev, [itemIdx]: true }));
     setItems(prev => prev.map((item, i) => {
       if (i !== itemIdx) return item;
       const vakken = Array.isArray(item.vakken) ? item.vakken : [];
@@ -1074,6 +1347,16 @@ export default function GenericMeasurementPage() {
             if (processed.hoogte) processed.hoogte = Number(processed.hoogte);
             if (processed.deur_breedte) processed.deur_breedte = Number(processed.deur_breedte);
             if (processed.deur_hoogte) processed.deur_hoogte = Number(processed.deur_hoogte);
+
+            // Normalize tussenstijlen values
+            if (Array.isArray(processed.tussenstijlen)) {
+              processed.tussenstijlen = processed.tussenstijlen
+                .map((v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? ''))))
+                .filter((v: any) => Number.isFinite(v));
+            }
+
+            // Enrich vakken with extra calculation data (glas maatwerk, opening, etc.)
+            processed.vakken = enrichVakkenForSave(processed);
           }
 
           if (processed.openings && Array.isArray(processed.openings)) {
@@ -1086,7 +1369,8 @@ export default function GenericMeasurementPage() {
               };
             });
           }
-          return processed;
+
+          return sanitizeItemBySections(processed);
         });
 
         const rawMeta = {
@@ -1471,8 +1755,8 @@ export default function GenericMeasurementPage() {
                                         for (let i = 0; i < count; i++) {
                                           const pos = hasDoorSplit
                                             ? (isDoorLeft
-                                                ? (doorWidthMm + tussenstijlMm + ((i + 1) * vakWidth) + (i * tussenstijlMm))
-                                                : (((i + 1) * vakWidth) + (i * tussenstijlMm)))
+                                              ? (doorWidthMm + tussenstijlMm + ((i + 1) * vakWidth) + (i * tussenstijlMm))
+                                              : (((i + 1) * vakWidth) + (i * tussenstijlMm)))
                                             : (((i + 1) * vakWidth) + (i * tussenstijlMm));
                                           updateTussenstijl(index, i, Math.round(pos));
                                         }
@@ -1559,7 +1843,7 @@ export default function GenericMeasurementPage() {
                                 const layoutIndex = isDoorVak
                                   ? -1
                                   : (doorVakIndex >= 0 && vakIdx > doorVakIndex ? vakIdx - 1 : vakIdx);
-                                const vakTitle = `${vakTypeLabel(String(vak.type || ''))} ${vakIdx + 1}`;
+                                const vakTitle = `${vakTypeLabel(String(vak.type || 'glas'))} ${vakIdx + 1}`;
 
                                 const doorRowSlots = hasDoor ? doorRowCols.length : 0;
                                 const rowIndex = isDoorVak
@@ -1622,9 +1906,11 @@ export default function GenericMeasurementPage() {
                                     <VakInputCard
                                       index={vakIdx}
                                       title={vakTitle}
-                                      type={vak.type || (hasGlas ? 'glas' : 'open')}
+                                      type={vak.type || 'glas'}
                                       width={widthValue}
                                       height={heightValue}
+                                      doorPosition={vak.doorPosition}
+                                      doorSwing={vak.doorSwing}
                                       hasBorstwering={vak.hasBorstwering}
                                       borstweringHeight={vak.borstweringHeight}
                                       isCollapsed={collapsedSections[`vak-${index}-${vakIdx}`] === true}
@@ -1635,19 +1921,39 @@ export default function GenericMeasurementPage() {
                                       displayWidth={displayWidth}
                                       disableWidth={false}
                                       disableHeight={false}
+                                      onDelete={() => removeVak(index, vakIdx)}
 
                                       onTypeChange={(t) => {
                                         setItems(prev => prev.map((it, i) => {
                                           if (i !== index) return it;
                                           const list = Array.isArray(it.vakken) ? it.vakken : [];
+                                          const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
+                                          let doorBreedte: any = it.deur_breedte;
+                                          let doorHoogte: any = it.deur_hoogte;
                                           const next = list.map((v: any, idx: number) => {
-                                            if (idx === vakIdx) return { ...v, type: t };
+                                            if (idx === vakIdx) {
+                                              if (t === 'deur') {
+                                                const currentBreedte = num(v.breedte ?? v.width);
+                                                const currentHoogte = num(v.hoogte ?? v.height);
+                                                const nextBreedte = currentBreedte > 0 ? (v.breedte ?? v.width) : 835;
+                                                const nextHoogte = currentHoogte > 0 ? (v.hoogte ?? v.height) : 2025;
+                                                doorBreedte = nextBreedte;
+                                                doorHoogte = nextHoogte;
+                                                return { ...v, type: t, breedte: nextBreedte, hoogte: nextHoogte };
+                                              }
+                                              return { ...v, type: t };
+                                            }
                                             if (t === 'deur' && String(v?.type || '').toLowerCase() === 'deur') {
-                                              return { ...v, type: (hasGlas ? 'glas' : 'open') };
+                                              return { ...v, type: 'open' };
                                             }
                                             return v;
                                           });
-                                          return { ...it, vakken: next };
+                                          const nextItem: any = { ...it, vakken: next };
+                                          if (t === 'deur') {
+                                            nextItem.deur_breedte = doorBreedte;
+                                            nextItem.deur_hoogte = doorHoogte;
+                                          }
+                                          return nextItem;
                                         }));
                                       }}
                                       onWidthChange={(v) => {
@@ -1670,17 +1976,6 @@ export default function GenericMeasurementPage() {
                                         }
                                       }}
                                     />
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="absolute top-8 right-12 h-6 w-6 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 z-10"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeVak(index, vakIdx);
-                                      }}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
                                   </div>
                                 );
                               })}
@@ -2042,7 +2337,6 @@ export default function GenericMeasurementPage() {
                         frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
                         tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
                         tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
-                        showGlas={isMaatwerkKozijn && hasGlas}
                         doorPosition={item.doorPosition}
                         doorSwing={item.doorSwing}
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
@@ -2080,7 +2374,6 @@ export default function GenericMeasurementPage() {
                             frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
                             tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
                             tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
-                            showGlas={isMaatwerkKozijn && hasGlas}
                             doorPosition={item.doorPosition}
                             doorSwing={item.doorSwing}
                             onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}

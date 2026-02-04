@@ -15,6 +15,8 @@ import {
   Settings,
   Star,
   Pencil,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -259,6 +261,7 @@ type GebruikerInstellingen = {
   standaardWinstMarge?: StandaardWinstMarge | null;
   bouwplaatsKostenPakketten?: BouwplaatsKostenPakket[];
   bouwplaatsKostenStandaardId?: string | null;
+  collapsedSections?: Record<string, boolean>;
 };
 
 /* ---------------------------------------------
@@ -414,6 +417,19 @@ export default function OverzichtPage() {
   // Bouwplaats beheer
   const [nieuwPakketNaam, setNieuwPakketNaam] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Section collapse state (persisted to Firestore)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const toggleSection = async (key: string) => {
+    const newState = { ...collapsedSections, [key]: !collapsedSections[key] };
+    setCollapsedSections(newState);
+    // Persist to Firestore
+    try {
+      await schrijfGebruikerInstellingen({ collapsedSections: newState });
+    } catch (e) {
+      console.warn('Kon collapsed state niet opslaan:', e);
+    }
+  };
 
   // Auto-save control
   const isHydratingRef = useRef(true);
@@ -596,6 +612,11 @@ export default function OverzichtPage() {
         setDefaultsConfirmed(!!instellingen.defaultsConfirmed);
         setStandaardTransport((instellingen.standaardTransport as any) ?? null);
         setStandaardWinstMarge((instellingen.standaardWinstMarge as any) ?? null);
+
+        // Load collapsed sections state
+        if (instellingen.collapsedSections && typeof instellingen.collapsedSections === 'object') {
+          setCollapsedSections(instellingen.collapsedSections);
+        }
 
         const packs = Array.isArray(instellingen.bouwplaatsKostenPakketten)
           ? (instellingen.bouwplaatsKostenPakketten as BouwplaatsKostenPakket[])
@@ -2039,290 +2060,338 @@ export default function OverzichtPage() {
           {/* Bouwplaatskosten */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Bouwplaatskosten</h2>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={() => setBouwplaatsBeheerOpen(true)}
-                aria-label="Bouwplaatskosten pakketten beheren"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
-              {/* Pakket Selector */}
-              <div className="px-4 py-3 border-b border-white/5">
-                <Select
-                  value={geselecteerdPakketId || 'LEEG'}
-                  onValueChange={(v) => {
-                    if (!v || v === 'LEEG') {
-                      setGeselecteerdPakketId('');
-                      setBouwplaatskosten(defaultBouwplaatskosten());
-                      return;
-                    }
-                    handleSelectPakket(v);
-                  }}
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Bouwplaatskosten</h2>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={() => setBouwplaatsBeheerOpen(true)}
+                  aria-label="Bouwplaatskosten pakketten beheren"
                 >
-                  <SelectTrigger className="bg-black/20 border-white/5 rounded-lg">
-                    <SelectValue placeholder="Leeg (handmatig)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
-                    {pakketten.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.naam}
-                        {p.id === standaardPakketId ? ' (standaard)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleSection('bouwplaats')}
+                  aria-label={collapsedSections['bouwplaats'] ? 'Tonen' : 'Verbergen'}
+                >
+                  {collapsedSections['bouwplaats'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
-
-              {/* Items List */}
-              <div className="divide-y divide-white/5">
-                {bouwplaatskosten.map((item) => (
-                  <div key={item.id} className="group flex items-center gap-2 py-3 px-4 hover:bg-white/5 transition-colors">
-                    {/* Name */}
-                    <div className="flex-1 min-w-0">
-                      {item.isVast ? (
-                        <span className="text-sm text-foreground">{item.naam}</span>
-                      ) : (
-                        <Input
-                          value={item.naam}
-                          onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
-                          placeholder="Bijv. Hoogwerker / Gereedschap huur"
-                          className="bg-transparent border-0 px-0 h-7 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
-                        />
-                      )}
-                    </div>
-
-                    {/* Price */}
-                    <div className="w-24 shrink-0">
-                      <EuroInput
-                        value={item.prijs}
-                        onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
-                        inputClassName="bg-black/20 border-white/5 rounded-lg h-8 text-sm"
-                        placeholder="0,00"
-                      />
-                    </div>
-
-                    {/* Per */}
-                    <div className="w-20 shrink-0">
-                      <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
-                        <SelectTrigger className="bg-black/20 border-white/5 rounded-lg h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="dag">dag</SelectItem>
-                          <SelectItem value="week">week</SelectItem>
-                          <SelectItem value="klus">klus</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Delete - aligned with unit dropdown */}
-                    <div className="w-8 shrink-0 flex justify-center">
-                      {!item.isVast ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
-                          onClick={() => handleRemoveBouwplaats(item.id)}
-                          aria-label="Verwijderen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      ) : (
-                        <div className="w-7 h-7" />
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add Button */}
-              <button
-                type="button"
-                onClick={handleAddExtraBouwplaats}
-                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Toevoegen</span>
-              </button>
             </div>
+
+            {!collapsedSections['bouwplaats'] && (
+              <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
+                {/* Pakket Selector */}
+                <div className="px-4 py-3 border-b border-white/5">
+                  <Select
+                    value={geselecteerdPakketId || 'LEEG'}
+                    onValueChange={(v) => {
+                      if (!v || v === 'LEEG') {
+                        setGeselecteerdPakketId('');
+                        setBouwplaatskosten(defaultBouwplaatskosten());
+                        return;
+                      }
+                      handleSelectPakket(v);
+                    }}
+                  >
+                    <SelectTrigger className="bg-black/20 border-white/5 rounded-lg">
+                      <SelectValue placeholder="Leeg (handmatig)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
+                      {pakketten.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.naam}
+                          {p.id === standaardPakketId ? ' (standaard)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Items List */}
+                <div className="divide-y divide-white/5">
+                  {bouwplaatskosten.map((item) => (
+                    <div key={item.id} className="group flex items-center gap-2 py-3 px-4 hover:bg-white/5 transition-colors">
+                      {/* Name */}
+                      <div className="flex-1 min-w-0">
+                        {item.isVast ? (
+                          <span className="text-sm text-foreground">{item.naam}</span>
+                        ) : (
+                          <Input
+                            value={item.naam}
+                            onChange={(e) => handleBouwplaatsChange(item.id, 'naam', e.target.value)}
+                            placeholder="Bijv. Hoogwerker / Gereedschap huur"
+                            className="bg-transparent border-0 px-0 h-7 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                          />
+                        )}
+                      </div>
+
+                      {/* Price */}
+                      <div className="w-24 shrink-0">
+                        <EuroInput
+                          value={item.prijs}
+                          onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
+                          inputClassName="bg-black/20 border-white/5 rounded-lg h-8 text-sm"
+                          placeholder="0,00"
+                        />
+                      </div>
+
+                      {/* Per */}
+                      <div className="w-20 shrink-0">
+                        <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
+                          <SelectTrigger className="bg-black/20 border-white/5 rounded-lg h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="dag">dag</SelectItem>
+                            <SelectItem value="week">week</SelectItem>
+                            <SelectItem value="klus">klus</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Delete - aligned with unit dropdown */}
+                      <div className="w-8 shrink-0 flex justify-center">
+                        {!item.isVast ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
+                            onClick={() => handleRemoveBouwplaats(item.id)}
+                            aria-label="Verwijderen"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <div className="w-7 h-7" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Button */}
+                <button
+                  type="button"
+                  onClick={handleAddExtraBouwplaats}
+                  className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Toevoegen</span>
+                </button>
+              </div>
+            )}
           </section>
 
           {/* Transport */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Transport</h2>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={() => setTransportInstellingenOpen(true)}
-                aria-label="Transport instellingen"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Transport</h2>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={() => setTransportInstellingenOpen(true)}
+                  aria-label="Transport instellingen"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleSection('transport')}
+                  aria-label={collapsedSections['transport'] ? 'Tonen' : 'Verbergen'}
+                >
+                  {collapsedSections['transport'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-              <SegmentedToggle
-                options={[
-                  { id: 'perKm', label: 'Per km', subtitle: 'Automatisch' },
-                  { id: 'fixed', label: 'Vast bedrag' },
-                  { id: 'none', label: 'Geen' }
-                ]}
-                value={transportMode}
-                onChange={(id) => setTransportMode(id as TransportMode)}
-                error={!transportIsValid}
-              />
+            {!collapsedSections['transport'] && (
+              <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                <SegmentedToggle
+                  options={[
+                    { id: 'perKm', label: 'Per km', subtitle: 'Automatisch' },
+                    { id: 'fixed', label: 'Vast bedrag' },
+                    { id: 'none', label: 'Geen' }
+                  ]}
+                  value={transportMode}
+                  onChange={(id) => setTransportMode(id as TransportMode)}
+                  error={!transportIsValid}
+                />
 
-              {/* DYNAMIC INPUTS ROW */}
-              {transportMode === 'perKm' && (
-                <div className="animate-in fade-in slide-in-from-top-1">
-                  <div className="flex items-center gap-3">
-                    <EuroInput
-                      value={prijsPerKm}
-                      onChange={setPrijsPerKm}
-                      inputClassName={cn(
-                        "bg-black/20 border-white/5 rounded-lg",
-                        !transportIsValid && "border-red-500 focus-visible:ring-red-500"
-                      )}
-                      placeholder="0,00"
-                    />
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">per km</span>
+                {/* DYNAMIC INPUTS ROW */}
+                {transportMode === 'perKm' && (
+                  <div className="animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-3">
+                      <EuroInput
+                        value={prijsPerKm}
+                        onChange={setPrijsPerKm}
+                        inputClassName={cn(
+                          "bg-black/20 border-white/5 rounded-lg",
+                          !transportIsValid && "border-red-500 focus-visible:ring-red-500"
+                        )}
+                        placeholder="0,00"
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">per km</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {transportMode === 'fixed' && (
-                <div className="animate-in fade-in slide-in-from-top-1">
-                  <div className="flex items-center gap-3">
-                    <EuroInput
-                      value={vasteTransportkosten}
-                      onChange={setVasteTransportkosten}
-                      inputClassName={cn(
-                        "bg-black/20 border-white/5 rounded-lg",
-                        !transportIsValid && "border-red-500 focus-visible:ring-red-500"
-                      )}
-                      placeholder="0,00"
-                    />
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
+                {transportMode === 'fixed' && (
+                  <div className="animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-3">
+                      <EuroInput
+                        value={vasteTransportkosten}
+                        onChange={setVasteTransportkosten}
+                        inputClassName={cn(
+                          "bg-black/20 border-white/5 rounded-lg",
+                          !transportIsValid && "border-red-500 focus-visible:ring-red-500"
+                        )}
+                        placeholder="0,00"
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Winstmarge */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Winstmarge</h2>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={() => setWinstInstellingenOpen(true)}
-                aria-label="Winstmarge instellingen"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Winstmarge</h2>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={() => setWinstInstellingenOpen(true)}
+                  aria-label="Winstmarge instellingen"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleSection('winstmarge')}
+                  aria-label={collapsedSections['winstmarge'] ? 'Tonen' : 'Verbergen'}
+                >
+                  {collapsedSections['winstmarge'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-              <SegmentedToggle
-                options={[
-                  { id: 'percentage', label: 'Percentage', subtitle: '% van totaal' },
-                  { id: 'fixed', label: 'Vast bedrag' },
-                  { id: 'none', label: 'Geen' }
-                ]}
-                value={winstMode}
-                onChange={(id) => {
-                  if (id === 'none') {
-                    setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null, basis: 'totaal' });
-                  } else {
-                    setWinstMarge((p) => ({ ...p, mode: id as WinstMargeMode }));
-                  }
-                }}
-                error={!winstMargeIsValid}
-              />
+            {!collapsedSections['winstmarge'] && (
+              <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                <SegmentedToggle
+                  options={[
+                    { id: 'percentage', label: 'Percentage', subtitle: '% van totaal' },
+                    { id: 'fixed', label: 'Vast bedrag' },
+                    { id: 'none', label: 'Geen' }
+                  ]}
+                  value={winstMode}
+                  onChange={(id) => {
+                    if (id === 'none') {
+                      setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null, basis: 'totaal' });
+                    } else {
+                      setWinstMarge((p) => ({ ...p, mode: id as WinstMargeMode }));
+                    }
+                  }}
+                  error={!winstMargeIsValid}
+                />
 
-              {winstMode === 'percentage' && (
-                <div className="animate-in fade-in slide-in-from-top-1 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex-1">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        placeholder="0"
-                        className={cn(
-                          "pr-8 bg-black/20 border-white/5 rounded-lg",
-                          !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
-                        )}
-                        value={winstMarge.percentage ?? ''}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          if (raw.trim() === '') {
-                            setWinstMarge((p) => ({ ...p, percentage: null }));
-                            return;
-                          }
-                          const n = Number(raw);
-                          setWinstMarge((p) => ({ ...p, percentage: Number.isFinite(n) ? n : null }));
-                        }}
-                        inputMode="decimal"
-                      />
-                      <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground pointer-events-none">%</span>
+                {winstMode === 'percentage' && (
+                  <div className="animate-in fade-in slide-in-from-top-1 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-1">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          placeholder="0"
+                          className={cn(
+                            "pr-8 bg-black/20 border-white/5 rounded-lg",
+                            !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
+                          )}
+                          value={winstMarge.percentage ?? ''}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw.trim() === '') {
+                              setWinstMarge((p) => ({ ...p, percentage: null }));
+                              return;
+                            }
+                            const n = Number(raw);
+                            setWinstMarge((p) => ({ ...p, percentage: Number.isFinite(n) ? n : null }));
+                          }}
+                          inputMode="decimal"
+                        />
+                        <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground pointer-events-none">%</span>
+                      </div>
+                    </div>
+
+                    {/* Basis Selector */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-zinc-400 ml-1">Berekenen over:</Label>
+                      <Select
+                        value={winstMarge.basis || 'totaal'}
+                        onValueChange={(v: any) => setWinstMarge(prev => ({ ...prev, basis: v }))}
+                      >
+                        <SelectTrigger className="w-full bg-black/20 border-white/5 rounded-lg h-9 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="totaal">Totaal (alles inbegrepen)</SelectItem>
+                          <SelectItem value="materialen">Alleen materialen</SelectItem>
+                          <SelectItem value="materialen_arbeid">Materialen + Arbeid</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
+                )}
 
-                  {/* Basis Selector */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-zinc-400 ml-1">Berekenen over:</Label>
-                    <Select
-                      value={winstMarge.basis || 'totaal'}
-                      onValueChange={(v: any) => setWinstMarge(prev => ({ ...prev, basis: v }))}
-                    >
-                      <SelectTrigger className="w-full bg-black/20 border-white/5 rounded-lg h-9 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="totaal">Totaal (alles inbegrepen)</SelectItem>
-                        <SelectItem value="materialen">Alleen materialen</SelectItem>
-                        <SelectItem value="materialen_arbeid">Materialen + Arbeid</SelectItem>
-                      </SelectContent>
-                    </Select>
+                {winstMode === 'fixed' && (
+                  <div className="animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-3">
+                      <EuroInput
+                        value={numberToEuroInputString(winstMarge.fixedAmount)}
+                        onChange={(v) => {
+                          const n = euroNLToNumberOrNull(v);
+                          setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
+                        }}
+                        inputClassName={cn(
+                          "bg-black/20 border-white/5 rounded-lg",
+                          !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
+                        )}
+                        placeholder="0,00"
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {winstMode === 'fixed' && (
-                <div className="animate-in fade-in slide-in-from-top-1">
-                  <div className="flex items-center gap-3">
-                    <EuroInput
-                      value={numberToEuroInputString(winstMarge.fixedAmount)}
-                      onChange={(v) => {
-                        const n = euroNLToNumberOrNull(v);
-                        setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
-                      }}
-                      inputClassName={cn(
-                        "bg-black/20 border-white/5 rounded-lg",
-                        !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
-                      )}
-                      placeholder="0,00"
-                    />
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Sticky bottom bar - matching HSB editor footer */}
