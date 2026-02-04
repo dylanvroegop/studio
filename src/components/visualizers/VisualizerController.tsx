@@ -228,6 +228,7 @@ export function VisualizerController({
                 frameThickness={props.frameThickness}
                 tussenstijlThickness={props.tussenstijlThickness}
                 tussenstijlOffset={props.tussenstijlOffset}
+                tussenstijlen={item.tussenstijlen}
                 showGlas={props.showGlas}
                 vakken={item.vakken}
                 doorWidth={item.deur_breedte}

@@ -12,6 +12,7 @@ interface KozijnMaatwerkDrawingProps {
   frameThickness?: number | null;
   tussenstijlThickness?: number | null;
   tussenstijlOffset?: number | null;
+  tussenstijlen?: (number | string)[];
   showGlas?: boolean;
   vakken?: {
     id?: string;
@@ -45,6 +46,7 @@ export function KozijnMaatwerkDrawing({
   frameThickness,
   tussenstijlThickness,
   tussenstijlOffset,
+  tussenstijlen,
   showGlas,
   vakken: vakkenProp,
   doorWidth,
@@ -219,121 +221,122 @@ export function KozijnMaatwerkDrawing({
 
         const isDoorLeft = doorPosition !== 'right';
 
-        let tussenstijlX = tussenstijlXDefault;
-        if (tussenstijlPx > 0 && !hasOffset && hasDoorHeight && doorWidthVal > 0 && doorWidthVal < innerWidth) {
-          // Calculate separation line based on door width and position
-          tussenstijlX = isDoorLeft
-            ? innerX + (doorWidthVal * pxPerMm)
-            : innerX + ((innerWidth - doorWidthVal) * pxPerMm) - tussenstijlPx;
-        }
-        if (tussenstijlPx > 0) {
-          stijlGap = [{ value: tussenstijl, c1: tussenstijlX, c2: tussenstijlX + tussenstijlPx }];
+        const normalizePositions = (positions: number[]) => {
+          const maxPos = Math.max(0, innerWidth - tussenstijl);
+          const sorted = positions
+            .map(p => Math.min(Math.max(0, p), maxPos))
+            .sort((a, b) => a - b);
+          const clamped: number[] = [];
+          let cursor = 0;
+          sorted.forEach(pos => {
+            const next = Math.max(cursor, pos);
+            const clampedPos = Math.min(next, maxPos);
+            clamped.push(clampedPos);
+            cursor = clampedPos + tussenstijl;
+          });
+          return clamped;
+        };
+
+        const rawPositions = Array.isArray(tussenstijlen)
+          ? tussenstijlen.map(v => toNum(v)).filter(v => v > 0)
+          : [];
+
+        const autoDoorPos = (tussenstijlPx > 0 && hasDoorHeight && doorWidthVal > 0 && doorWidthVal < innerWidth)
+          ? (isDoorLeft ? doorWidthVal : Math.max(0, innerWidth - doorWidthVal - tussenstijl))
+          : null;
+
+        let basePositions = rawPositions.length > 0
+          ? rawPositions
+          : (hasOffset ? [clampedOffset ?? 0] : []);
+
+        if (autoDoorPos !== null) {
+          const eps = 1;
+          const withoutDup = basePositions.filter(p => Math.abs(p - autoDoorPos) > eps);
+          basePositions = [autoDoorPos, ...withoutDup];
+        } else if (basePositions.length === 0 && tussenstijlPx > 0 && !hasOffset && doorWidthVal > 0 && doorWidthVal < innerWidth) {
+          basePositions = [isDoorLeft ? doorWidthVal : Math.max(0, innerWidth - doorWidthVal - tussenstijl)];
         }
 
-        const hasColumns = tussenstijlPx > 0;
-        const leftColWidth = hasColumns ? Math.max(0, (tussenstijlX - innerX) / pxPerMm) : innerWidth;
-        const rightColWidth = hasColumns ? Math.max(0, innerWidth - leftColWidth - tussenstijl) : innerWidth;
+        const tussenstijlPositions = tussenstijlPx > 0 ? normalizePositions(basePositions) : [];
+        const stijlRects = tussenstijlPositions.map(pos => ({
+          x: innerX + (pos * pxPerMm),
+          w: tussenstijlPx
+        }));
+
+        if (stijlRects.length > 0) {
+          stijlGap = stijlRects.map(r => ({ value: tussenstijl, c1: r.x, c2: r.x + r.w }));
+        }
+
+        const colStarts: number[] = [];
+        const colWidths: number[] = [];
+        let cursor = 0;
+        tussenstijlPositions.forEach(pos => {
+          colStarts.push(cursor);
+          colWidths.push(Math.max(0, pos - cursor));
+          cursor = pos + tussenstijl;
+        });
+        colStarts.push(cursor);
+        colWidths.push(Math.max(0, innerWidth - cursor));
+        const colCount = colWidths.length;
 
         if (hasDoorHeight) {
-          const doorWidthActual = hasColumns
-            ? (isDoorLeft ? leftColWidth : rightColWidth)
-            : Math.min(doorWidthVal || innerWidth, innerWidth);
-
-          const doorLeft = isDoorLeft ? thickness : (thickness + leftColWidth + tussenstijl);
-
-          // Add Door
+          const doorColIndex = isDoorLeft ? 0 : Math.max(0, colCount - 1);
+          const doorWidthActual = colWidths[doorColIndex] || innerWidth;
+          const doorLeft = thickness + (colStarts[doorColIndex] || 0);
           addVak('deur', 'door', doorWidthActual, Math.min(doorHeightVal, innerHeight), doorLeft, thickness, 1, {});
 
-          if (vakInputs.length > 0) {
-            const side = vakInputs[0];
-            const sideType = side.type || (showGlas ? 'glas' : 'open');
-            // Side Vak takes the column opposite to the door
-            const sideWidth = hasColumns
-              ? (isDoorLeft ? rightColWidth : leftColWidth)
-              : Math.max(0, innerWidth - doorWidthActual);
+          const doorRowCols = colCount > 1
+            ? Array.from({ length: colCount }, (_, i) => i).filter(i => i !== doorColIndex)
+            : [];
 
-            if (sideWidth > 0) {
-              const sideLeft = isDoorLeft ? (thickness + leftColWidth + tussenstijl) : thickness;
-              addVak(side.id, sideType, sideWidth, Math.min(doorHeightVal, innerHeight), sideLeft, thickness, side.labelNumber, side);
+          for (let i = 0; i < Math.min(vakInputs.length, doorRowCols.length); i++) {
+            const entry = vakInputs[i];
+            const colIdx = doorRowCols[i];
+            const colWidth = colWidths[colIdx] || 0;
+            if (entry && colWidth > 0) {
+              const left = thickness + (colStarts[colIdx] || 0);
+              addVak(entry.id, entry.type || (showGlas ? 'glas' : 'open'), colWidth, Math.min(doorHeightVal, innerHeight), left, thickness, entry.labelNumber, entry);
             }
           }
 
           let cursorBottom = thickness + doorHeightVal + doorBarHeight;
-          let index = 1;
+          let index = doorRowCols.length;
           while (index < vakInputs.length && cursorBottom < (innerHeight + thickness)) {
-            if (hasColumns) {
-              const leftEntry = vakInputs[index];
-              const rightEntry = vakInputs[index + 1];
-              let rowHeight = Math.max(leftEntry?.height || 0, rightEntry?.height || 0);
-
-              // Auto-fill height if 0
-              if (rowHeight <= 0) {
-                rowHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
-              }
-
-              if (rowHeight > 0) {
-                if (leftEntry) {
-                  addVak(leftEntry.id, leftEntry.type, leftColWidth, rowHeight, thickness, cursorBottom, leftEntry.labelNumber, leftEntry);
-                }
-                if (rightEntry) {
-                  addVak(rightEntry.id, rightEntry.type, rightColWidth, rowHeight, thickness + leftColWidth + tussenstijl, cursorBottom, rightEntry.labelNumber, rightEntry);
-                }
-                cursorBottom += rowHeight;
-              }
-              index += 2;
-            } else {
-              const entry = vakInputs[index];
-              if (entry) {
-                const w = entry.width > 0 ? Math.min(entry.width, innerWidth) : innerWidth;
-                let h = entry.height;
-                if (h <= 0) h = Math.max(0, (innerHeight + thickness) - cursorBottom);
-
-                if (h > 0) {
-                  addVak(entry.id, entry.type, w, h, thickness + Math.max(0, (innerWidth - w) / 2), cursorBottom, entry.labelNumber, entry);
-                  cursorBottom += h;
-                }
-              }
-              index += 1;
+            const rowEntries = vakInputs.slice(index, index + colCount);
+            let rowHeight = Math.max(...rowEntries.map(v => v?.height || 0), 0);
+            if (rowHeight <= 0) {
+              rowHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
             }
+            if (rowHeight <= 0) break;
+            rowEntries.forEach((entry, colIdx) => {
+              if (!entry) return;
+              const colWidth = colWidths[colIdx] || 0;
+              if (colWidth <= 0) return;
+              const left = thickness + (colStarts[colIdx] || 0);
+              addVak(entry.id, entry.type, colWidth, rowHeight, left, cursorBottom, entry.labelNumber, entry);
+            });
+            cursorBottom += rowHeight;
+            index += colCount;
           }
         } else if (vakInputs.length > 0) {
           let cursorBottom = thickness;
           let index = 0;
           while (index < vakInputs.length && cursorBottom < (innerHeight + thickness)) {
-            if (hasColumns) {
-              const leftEntry = vakInputs[index];
-              const rightEntry = vakInputs[index + 1];
-              let rowHeight = Math.max(leftEntry?.height || 0, rightEntry?.height || 0);
-
-              // Auto-fill height if 0
-              if (rowHeight <= 0) {
-                rowHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
-              }
-
-              if (rowHeight > 0) {
-                if (leftEntry) {
-                  addVak(leftEntry.id, leftEntry.type, leftColWidth, rowHeight, thickness, cursorBottom, leftEntry.labelNumber, leftEntry);
-                }
-                if (rightEntry) {
-                  addVak(rightEntry.id, rightEntry.type, rightColWidth, rowHeight, thickness + leftColWidth + tussenstijl, cursorBottom, rightEntry.labelNumber, rightEntry);
-                }
-                cursorBottom += rowHeight;
-              }
-              index += 2;
-            } else {
-              const entry = vakInputs[index];
-              if (entry) {
-                const w = entry.width > 0 ? Math.min(entry.width, innerWidth) : innerWidth;
-                let h = entry.height;
-                if (h <= 0) h = Math.max(0, (innerHeight + thickness) - cursorBottom);
-
-                if (h > 0) {
-                  addVak(entry.id, entry.type, w, h, thickness + Math.max(0, (innerWidth - w) / 2), cursorBottom, entry.labelNumber, entry);
-                  cursorBottom += h;
-                }
-              }
-              index += 1;
+            const rowEntries = vakInputs.slice(index, index + colCount);
+            let rowHeight = Math.max(...rowEntries.map(v => v?.height || 0), 0);
+            if (rowHeight <= 0) {
+              rowHeight = Math.max(0, (innerHeight + thickness) - cursorBottom);
             }
+            if (rowHeight <= 0) break;
+            rowEntries.forEach((entry, colIdx) => {
+              if (!entry) return;
+              const colWidth = colWidths[colIdx] || 0;
+              if (colWidth <= 0) return;
+              const left = thickness + (colStarts[colIdx] || 0);
+              addVak(entry.id, entry.type, colWidth, rowHeight, left, cursorBottom, entry.labelNumber, entry);
+            });
+            cursorBottom += rowHeight;
+            index += colCount;
           }
         }
 
@@ -473,17 +476,18 @@ export function KozijnMaatwerkDrawing({
                   />
                 )}
 
-                {tussenstijlPx > 0 && (
+                {stijlRects.length > 0 && stijlRects.map((r, idx) => (
                   <rect
-                    x={tussenstijlX}
+                    key={`stijl-${idx}`}
+                    x={r.x}
                     y={innerY}
-                    width={tussenstijlPx}
+                    width={r.w}
                     height={innerH}
                     fill="rgb(70, 75, 85)"
                     stroke={colors.TIMBER_STROKE}
                     strokeWidth="0.5"
                   />
-                )}
+                ))}
               </>
             )}
 
@@ -621,17 +625,17 @@ export function KozijnMaatwerkDrawing({
                 {(() => {
                   const lineColor = '#10b981';
                   const dimY = yBottom + 40; // Bottom side
-                  const leftSegment = hasColumns ? leftColWidth : Math.min((doorWidthVal || innerWidth), innerWidth);
-                  const middleSegment = hasColumns ? tussenstijl : 0;
-                  const remainingWidth = hasColumns ? rightColWidth : Math.max(0, innerWidth - leftSegment);
-
-                  const rawSegments = [
-                    { val: thickness, show: false },
-                    { val: leftSegment, show: true },
-                    { val: middleSegment, show: false },
-                    { val: remainingWidth, show: true },
-                    { val: thickness, show: false },
-                  ];
+                  const rawSegments: { val: number; show: boolean }[] = [];
+                  if (thickness > 0) rawSegments.push({ val: thickness, show: false });
+                  if (colWidths.length > 0) {
+                    colWidths.forEach((w, idx) => {
+                      if (w > 0) rawSegments.push({ val: w, show: true });
+                      if (idx < colWidths.length - 1 && tussenstijl > 0) rawSegments.push({ val: tussenstijl, show: false });
+                    });
+                  } else if (innerWidth > 0) {
+                    rawSegments.push({ val: innerWidth, show: true });
+                  }
+                  if (thickness > 0) rawSegments.push({ val: thickness, show: false });
 
                   let currentX = startX;
                   return (
@@ -674,86 +678,7 @@ export function KozijnMaatwerkDrawing({
                   );
                 })()}
 
-                {/* Right Column Measurements (Breakdown) */}
-                {(() => {
-                  if (!hasColumns) return null;
-
-                  const lineColor = '#10b981';
-                  const dimX = startX + rectW + 40; // Right side
-
-                  // If Door is Right: Show Door Layout.
-                  // If Door is Left: Show Right Column (Vak) Layout.
-
-                  let segments: { val: number; show: boolean }[] = [];
-
-                  if (!isDoorLeft) {
-                    // Door Logic (Right Side)
-                    segments = [
-                      { val: thickness, show: false },
-                      { val: doorHeightVal, show: true },
-                      { val: doorBarHeight, show: false },
-                      { val: Math.max(0, innerHeight - doorHeightVal - doorBarHeight), show: true },
-                      { val: thickness, show: false },
-                    ];
-                  } else {
-                    // Vak Logic (Right Column)
-                    const rightStart = thickness + leftColWidth + tussenstijl;
-                    const rightVaks = vakken.filter(v => Math.abs(v.fromLeft - rightStart) < 1);
-                    rightVaks.sort((a, b) => a.fromBottom - b.fromBottom);
-
-                    let currentH = 0;
-                    segments.push({ val: thickness, show: false });
-                    currentH += thickness;
-
-                    rightVaks.forEach(v => {
-                      const gap = v.fromBottom - currentH;
-                      if (gap > 1) {
-                        segments.push({ val: gap, show: false });
-                        currentH += gap;
-                      }
-                      segments.push({ val: v.height, show: v.type !== 'stijl' });
-                      currentH += v.height;
-                    });
-                    const remaining = height - currentH;
-                    if (remaining > 0) segments.push({ val: remaining, show: false });
-                  }
-
-                  let currentY = startY + rectH;
-
-                  return (
-                    <g className="pointer-events-none">
-                      {segments.map((seg, idx) => {
-                        const segPx = seg.val * pxPerMm;
-                        const y1 = currentY;
-                        const y2 = currentY - segPx;
-                        const midY = (y1 + y2) / 2;
-                        currentY = y2;
-
-                        if (!seg.show || seg.val <= 0) return null;
-
-                        return (
-                          <g key={`rseg-${idx}`}>
-                            <line x1={dimX} y1={y1} x2={dimX} y2={y2} stroke={lineColor} strokeWidth="0.5" />
-                            <circle cx={dimX} cy={y1} r="1.5" fill={lineColor} />
-                            <circle cx={dimX} cy={y2} r="1.5" fill={lineColor} />
-
-                            <line x1={dimX} y1={y1} x2={startX + rectW} y2={y1} stroke={lineColor} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
-                            <line x1={dimX} y1={y2} x2={startX + rectW} y2={y2} stroke={lineColor} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
-
-                            <g transform={`translate(${dimX + 15}, ${midY})`}>
-                              <g transform="rotate(-90)">
-                                <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
-                                <text textAnchor="middle" dominantBaseline="middle" fill={lineColor} className="text-[12px] font-mono select-none font-medium">
-                                  {Math.round(seg.val)}
-                                </text>
-                              </g>
-                            </g>
-                          </g>
-                        );
-                      })}
-                    </g>
-                  );
-                })()}
+                
               </>
             )}
 
