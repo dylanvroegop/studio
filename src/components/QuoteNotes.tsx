@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     collection,
     query,
@@ -78,6 +78,19 @@ const QUOTE_NOTE_TAGS = [
     { label: 'Onderzoeken', icon: <Search className="w-3.5 h-3.5" />, value: 'research', color: 'bg-orange-500/15 text-orange-600 border-orange-500/20' },
 ] as const;
 
+const PLACEHOLDER_MESSAGES = [
+    'Voorbeeld: 2x extra balken 50x70 toevoegen',
+    'Voorbeeld: Check prijs voor eiken plaat 18 mm',
+    "Voorbeeld: Optie 'olie-afwerking' toevoegen",
+    "Voorbeeld: Alternatief: vuren i.p.v. eiken",
+    'Voorbeeld: Klant wil extra schroeven opnemen',
+] as const;
+
+const PLACEHOLDER_TYPING_MS = 48;
+const PLACEHOLDER_DELETE_MS = 26;
+const PLACEHOLDER_HOLD_MS = 1100;
+const PLACEHOLDER_START_DELAY_MS = 350;
+
 export function QuoteNotes({ quoteId }: QuoteNotesProps) {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -95,6 +108,19 @@ export function QuoteNotes({ quoteId }: QuoteNotesProps) {
 
     const [isSaving, setIsSaving] = useState(false);
     const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
+    const [placeholderIndex, setPlaceholderIndex] = useState(0);
+    const [placeholderCursor, setPlaceholderCursor] = useState(0);
+    const [placeholderPhase, setPlaceholderPhase] = useState<'typing' | 'holding' | 'deleting'>('typing');
+    const [reduceMotion, setReduceMotion] = useState(false);
+    const wasEmptyRef = useRef(true);
+
+    const placeholderMessage = PLACEHOLDER_MESSAGES[placeholderIndex % PLACEHOLDER_MESSAGES.length];
+    const shouldAnimatePlaceholder = !reduceMotion && newNoteContent.trim().length === 0;
+    const placeholderText = reduceMotion
+        ? PLACEHOLDER_MESSAGES[0]
+        : shouldAnimatePlaceholder
+            ? placeholderMessage.slice(0, placeholderCursor)
+            : placeholderMessage;
 
     // Real-time subscription to notes
     useEffect(() => {
@@ -135,6 +161,59 @@ export function QuoteNotes({ quoteId }: QuoteNotesProps) {
 
         return () => unsubscribe();
     }, [user, firestore, quoteId]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const update = () => setReduceMotion(media.matches);
+        update();
+        if (media.addEventListener) {
+            media.addEventListener('change', update);
+            return () => media.removeEventListener('change', update);
+        }
+        media.addListener(update);
+        return () => media.removeListener(update);
+    }, []);
+
+    useEffect(() => {
+        const isEmpty = newNoteContent.trim().length === 0;
+        if (isEmpty && !wasEmptyRef.current) {
+            setPlaceholderIndex(0);
+            setPlaceholderCursor(0);
+            setPlaceholderPhase('typing');
+        }
+        wasEmptyRef.current = isEmpty;
+    }, [newNoteContent]);
+
+    useEffect(() => {
+        if (!shouldAnimatePlaceholder) return;
+
+        let timeout: ReturnType<typeof setTimeout>;
+        if (placeholderPhase === 'typing') {
+            if (placeholderCursor < placeholderMessage.length) {
+                const delay = placeholderCursor === 0 ? PLACEHOLDER_START_DELAY_MS : PLACEHOLDER_TYPING_MS;
+                timeout = setTimeout(() => setPlaceholderCursor((prev) => prev + 1), delay);
+            } else {
+                timeout = setTimeout(() => setPlaceholderPhase('holding'), PLACEHOLDER_HOLD_MS);
+            }
+        } else if (placeholderPhase === 'holding') {
+            timeout = setTimeout(() => setPlaceholderPhase('deleting'), PLACEHOLDER_HOLD_MS);
+        } else {
+            if (placeholderCursor > 0) {
+                timeout = setTimeout(() => setPlaceholderCursor((prev) => prev - 1), PLACEHOLDER_DELETE_MS);
+            } else {
+                setPlaceholderPhase('typing');
+                setPlaceholderIndex((prev) => (prev + 1) % PLACEHOLDER_MESSAGES.length);
+            }
+        }
+
+        return () => clearTimeout(timeout);
+    }, [
+        shouldAnimatePlaceholder,
+        placeholderPhase,
+        placeholderCursor,
+        placeholderMessage,
+    ]);
 
     // Add new note
     const handleAddNote = async () => {
@@ -322,7 +401,7 @@ export function QuoteNotes({ quoteId }: QuoteNotesProps) {
                         )}
 
                         <Textarea
-                            placeholder="Beschrijf hier het extra materiaal, de optie of de prijsaanvraag..."
+                            placeholder={placeholderText}
                             value={newNoteContent}
                             onChange={(e) => setNewNoteContent(e.target.value)}
                             className="min-h-[100px] border-0 focus-visible:ring-0 rounded-none shadow-none resize-none bg-transparent placeholder:text-muted-foreground/50 selection:bg-amber-500/20"

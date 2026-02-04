@@ -33,7 +33,15 @@ export async function GET(req: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, data });
+    const normalized = Array.isArray(data)
+      ? data.map((row: any) => ({
+          ...row,
+          prijs: row?.prijs ?? row?.prijs_incl_btw ?? null,
+          subsectie: row?.subsectie ?? row?.categorie ?? null,
+        }))
+      : data;
+
+    return NextResponse.json({ ok: true, data: normalized });
   } catch (error: any) {
     console.error("Fetch Error:", error.message);
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

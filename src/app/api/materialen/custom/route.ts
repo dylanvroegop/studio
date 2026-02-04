@@ -10,15 +10,15 @@ type Body = {
   materiaalnaam?: unknown;
   eenheid?: unknown;
   prijs?: unknown;
+  prijs_incl_btw?: unknown;
 
-  // UI gebruikt "categorie" (frontend)
-  categorie?: unknown;
-
-  // DB gebruikt "subsectie" (supabase)
+  // UI gebruikt "subsectie" (frontend)
   subsectie?: unknown;
 
+  // DB gebruikt "categorie" (supabase)
+  categorie?: unknown;
+
   leverancier?: unknown;
-  volgorde?: unknown;
 };
 
 function isNonEmptyString(v: unknown): v is string {
@@ -60,15 +60,6 @@ function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function toInt(v: unknown, fallback: number): number {
-  if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
-  if (typeof v === 'string') {
-    const n = parseInt(v.trim(), 10);
-    if (Number.isFinite(n)) return Math.trunc(n);
-  }
-  return fallback;
-}
-
 function jsonOk(data: unknown, status = 200) {
   return NextResponse.json(data, { status });
 }
@@ -104,17 +95,16 @@ export async function POST(req: Request) {
 
     const naam = normalizeString(body.materiaalnaam);
     const eenheid = normalizeString(body.eenheid);
-    const prijsNum = toNumber(body.prijs);
+    const prijsNum = toNumber(body.prijs_incl_btw ?? body.prijs);
 
     // Belangrijk: UI = categorie, DB = subsectie
     // We accepteren beide als input, maar schrijven ALTIJD naar subsectie in Supabase.
-    const subsectieInput =
-      normalizeString(body.subsectie) ??
+    const categorieInput =
       normalizeString(body.categorie) ??
+      normalizeString(body.subsectie) ??
       'Overig';
 
     const leverancier = normalizeString(body.leverancier); // mag null zijn
-    const volgorde = toInt(body.volgorde, 999999);
 
     // 4) Validaties
     if (!naam) return jsonError('Materiaalnaam is verplicht.', 400);
@@ -141,14 +131,13 @@ export async function POST(req: Request) {
       gebruikerid: uid,
       materiaalnaam: naam,
       eenheid: eenheid,
-      prijs: prijsNum,
-      subsectie: subsectieInput,
+      prijs_incl_btw: prijsNum,
+      categorie: categorieInput,
       leverancier: leverancier, // null toegestaan
-      volgorde: volgorde,
     };
 
     const { data, error } = await supabaseAdmin
-      .from('materialen')
+      .from('main_material_list')
       .insert(payload)
       .select('*')
       .single();
@@ -159,7 +148,22 @@ export async function POST(req: Request) {
       return jsonError(error.message || 'Insert failed', 500);
     }
 
-    return jsonOk({ success: true, data }, 200);
+    const normalized =
+      data && typeof data === 'object'
+        ? {
+            ...data,
+            prijs:
+              (data as any).prijs ??
+              (data as any).prijs_incl_btw ??
+              null,
+            subsectie:
+              (data as any).subsectie ??
+              (data as any).categorie ??
+              null,
+          }
+        : data;
+
+    return jsonOk({ success: true, data: normalized }, 200);
   } catch (e) {
     console.error('Server error /api/materialen/custom:', e);
     return jsonError('Server error', 500);

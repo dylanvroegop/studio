@@ -23,9 +23,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 interface Material {
     id: string;
     materiaalnaam: string;
-    subsectie: string;
-    categorie: string;
+    subsectie?: string;
+    categorie?: string;
     prijs: number;
+    prijs_incl_btw?: number | string;
     eenheid: string;
 }
 
@@ -196,10 +197,12 @@ function randomInt(min: number, max: number) {
 }
 
 function mapMaterial(m: Material) {
+    const rawPrijs = (m as any).prijs ?? (m as any).prijs_incl_btw;
+    const prijs = typeof rawPrijs === 'number' ? rawPrijs : Number(rawPrijs);
     return {
         id: m.id,
         naam: m.materiaalnaam,
-        prijs: m.prijs,
+        prijs: Number.isFinite(prijs) ? prijs : 0,
         eenheid: m.eenheid
     };
 }
@@ -213,7 +216,7 @@ async function main() {
     // 1. Fetch Materials
     console.error('Fetching database materials...');
     const { data: materials, error } = await supabase
-        .from('materialen')
+        .from('main_material_list')
         .select('*')
         .eq('gebruikerid', USER_ID);
 

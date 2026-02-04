@@ -117,16 +117,18 @@ export async function POST(req: Request) {
           );
 
           const { data: materials, error } = await supabase
-            .from('materialen')
+            .from('main_material_list')
             .select('*')
             .in('row_id', Array.from(materialIdsToBeFetched));
 
           if (!error && materials) {
             materials.forEach((m: any) => {
-              const pr = typeof m.prijs === 'number' ? m.prijs : Number(m.prijs);
+              const rawPrijs = m.prijs ?? m.prijs_incl_btw;
+              const pr = typeof rawPrijs === 'number' ? rawPrijs : Number(rawPrijs);
               const prStuk = typeof m.prijs_per_stuk === 'number' ? m.prijs_per_stuk : Number(m.prijs_per_stuk);
               materialMap.set(m.row_id, {
                 ...m,
+                subsectie: m.subsectie ?? m.categorie ?? null,
                 prijs: isNaN(pr) ? 0 : pr,
                 prijs_per_stuk: isNaN(prStuk) ? 0 : prStuk
               });

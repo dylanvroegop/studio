@@ -24,6 +24,8 @@ interface OpeningMeasurementsProps {
     svgBaseX: number;  // WALL_X - Left edge of wall
     svgBaseY: number;  // Y_BOTTOM - Bottom edge of wall (floor line)
     pxPerMm: number;
+    showVertical?: boolean;
+    showHorizontal?: boolean;
 
     // Optional: For complex shapes that need dynamic height calculation
     getWallTopMm?: (xMm: number) => number;
@@ -36,7 +38,9 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
     svgBaseX,
     svgBaseY,
     pxPerMm,
-    getWallTopMm
+    getWallTopMm,
+    showVertical = true,
+    showHorizontal = true
 }) => {
     if (!openings || openings.length === 0) return null;
 
@@ -77,20 +81,42 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
 
                 return (
                     <g key={`dim-${op.id}`}>
-
-
-                        {/* 3. VERTICAL DIMENSIONS - 3 segments */}
-                        {/* Segment 1: Floor to Opening Bottom */}
-                        {op.fromBottom > 0 && (
+                        {showVertical && (
                             <>
+                                {/* 3. VERTICAL DIMENSIONS - 3 segments */}
+                                {/* Segment 1: Floor to Opening Bottom */}
+                                {op.fromBottom > 0 && (
+                                    <>
+                                        <line
+                                            x1={dimX} y1={svgBaseY}
+                                            x2={dimX} y2={openingBottomY}
+                                            stroke="#10b981" strokeWidth="0.5"
+                                        />
+                                        <circle cx={dimX} cy={svgBaseY} r="1.5" fill="#10b981" />
+                                        <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />
+                                        <g transform={`translate(${dimX}, ${(svgBaseY + openingBottomY) / 2}) rotate(-90)`}>
+                                            <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
+                                            <text
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                fill="#10b981"
+                                                className="text-[12px] font-mono select-none font-medium"
+                                            >
+                                                {op.fromBottom}
+                                            </text>
+                                        </g>
+                                    </>
+                                )}
+
+                                {/* Segment 2: Opening Height */}
                                 <line
-                                    x1={dimX} y1={svgBaseY}
-                                    x2={dimX} y2={openingBottomY}
+                                    x1={dimX} y1={openingBottomY}
+                                    x2={dimX} y2={openingTopY}
                                     stroke="#10b981" strokeWidth="0.5"
                                 />
-                                <circle cx={dimX} cy={svgBaseY} r="1.5" fill="#10b981" />
-                                <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />
-                                <g transform={`translate(${dimX}, ${(svgBaseY + openingBottomY) / 2}) rotate(-90)`}>
+                                <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
+                                {op.fromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
+                                <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
                                     <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
                                     <text
                                         textAnchor="middle"
@@ -98,142 +124,126 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                         fill="#10b981"
                                         className="text-[12px] font-mono select-none font-medium"
                                     >
-                                        {op.fromBottom}
+                                        {op.height}
                                     </text>
                                 </g>
+
+                                {/* Segment 3: Opening Top to Wall Top */}
+                                {topSegmentHeight > 0 && (
+                                    <>
+                                        <line
+                                            x1={dimX} y1={openingTopY}
+                                            x2={dimX} y2={wallTopY}
+                                            stroke="#10b981" strokeWidth="0.5"
+                                        />
+                                        <circle cx={dimX} cy={wallTopY} r="1.5" fill="#10b981" />
+                                        <g transform={`translate(${dimX}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
+                                            <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
+                                            <text
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                fill="#10b981"
+                                                className="text-[12px] font-mono select-none font-medium"
+                                            >
+                                                {topSegmentHeight}
+                                            </text>
+                                        </g>
+                                    </>
+                                )}
+
+                                {/* Extension lines to wall (vertical measurements) */}
+                                <line x1={dimX} y1={svgBaseY} x2={svgBaseX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
+                                <line x1={dimX} y1={openingBottomY} x2={svgBaseX} y2={openingBottomY} stroke="#10b981" strokeWidth="0.5" />
+                                <line x1={dimX} y1={openingTopY} x2={svgBaseX} y2={openingTopY} stroke="#10b981" strokeWidth="0.5" />
+                                {topSegmentHeight > 0 && <line x1={dimX} y1={wallTopY} x2={svgBaseX} y2={wallTopY} stroke="#10b981" strokeWidth="0.5" />}
                             </>
                         )}
 
-                        {/* Segment 2: Opening Height */}
-                        <line
-                            x1={dimX} y1={openingBottomY}
-                            x2={dimX} y2={openingTopY}
-                            stroke="#10b981" strokeWidth="0.5"
-                        />
-                        <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
-                        {op.fromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
-                        <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
-                            <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
-                            <text
-                                textAnchor="middle"
-                                dominantBaseline="middle"
-                                fill="#10b981"
-                                className="text-[12px] font-mono select-none font-medium"
-                            >
-                                {op.height}
-                            </text>
-                        </g>
-
-                        {/* Segment 3: Opening Top to Wall Top */}
-                        {topSegmentHeight > 0 && (
+                        {showHorizontal && (
                             <>
+                                {/* 4. HORIZONTAL DIMENSIONS - 3 segments */}
+                                {/* Segment 1: Wall Left to Opening Left */}
+                                {op.fromLeft > 0 && (
+                                    <>
+                                        <line
+                                            x1={svgBaseX} y1={dimY}
+                                            x2={drawX} y2={dimY}
+                                            stroke="#10b981" strokeWidth="0.5"
+                                        />
+                                        <circle cx={svgBaseX} cy={dimY} r="1.5" fill="#10b981" />
+                                        <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
+                                        <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                        <text
+                                            x={(svgBaseX + drawX) / 2}
+                                            y={dimY + 0.5}
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            fill="#10b981"
+                                            className="text-[12px] font-mono select-none font-medium"
+                                        >
+                                            {op.fromLeft}
+                                        </text>
+                                    </>
+                                )}
+
+                                {/* Segment 2: Opening Width */}
                                 <line
-                                    x1={dimX} y1={openingTopY}
-                                    x2={dimX} y2={wallTopY}
+                                    x1={drawX} y1={dimY}
+                                    x2={drawX + wPx} y2={dimY}
                                     stroke="#10b981" strokeWidth="0.5"
                                 />
-                                <circle cx={dimX} cy={wallTopY} r="1.5" fill="#10b981" />
-                                <g transform={`translate(${dimX}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
-                                    <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
-                                    <text
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fill="#10b981"
-                                        className="text-[12px] font-mono select-none font-medium"
-                                    >
-                                        {topSegmentHeight}
-                                    </text>
-                                </g>
-                            </>
-                        )}
-
-                        {/* Extension lines to wall (vertical measurements) */}
-                        <line x1={dimX} y1={svgBaseY} x2={svgBaseX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                        <line x1={dimX} y1={openingBottomY} x2={svgBaseX} y2={openingBottomY} stroke="#10b981" strokeWidth="0.5" />
-                        <line x1={dimX} y1={openingTopY} x2={svgBaseX} y2={openingTopY} stroke="#10b981" strokeWidth="0.5" />
-                        {topSegmentHeight > 0 && <line x1={dimX} y1={wallTopY} x2={svgBaseX} y2={wallTopY} stroke="#10b981" strokeWidth="0.5" />}
-
-                        {/* 4. HORIZONTAL DIMENSIONS - 3 segments */}
-                        {/* Segment 1: Wall Left to Opening Left */}
-                        {op.fromLeft > 0 && (
-                            <>
-                                <line
-                                    x1={svgBaseX} y1={dimY}
-                                    x2={drawX} y2={dimY}
-                                    stroke="#10b981" strokeWidth="0.5"
-                                />
-                                <circle cx={svgBaseX} cy={dimY} r="1.5" fill="#10b981" />
                                 <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
-                                <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                {op.fromLeft === 0 && <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />}
+                                <circle cx={drawX + wPx} cy={dimY} r="1.5" fill="#10b981" />
+                                <rect x={(drawX + drawX + wPx) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
                                 <text
-                                    x={(svgBaseX + drawX) / 2}
+                                    x={(drawX + drawX + wPx) / 2}
                                     y={dimY + 0.5}
                                     textAnchor="middle"
                                     dominantBaseline="middle"
                                     fill="#10b981"
                                     className="text-[12px] font-mono select-none font-medium"
                                 >
-                                    {op.fromLeft}
+                                    {op.width}
                                 </text>
+
+                                {/* Segment 3: Opening Right to Wall Right */}
+                                {(() => {
+                                    const rightSegmentWidth = wallLength - op.fromLeft - op.width;
+                                    const midX = (drawX + wPx + svgBaseX + wallLength * pxPerMm) / 2;
+
+                                    if (rightSegmentWidth <= 1) return null; // Hide if 0 (or close to 0 due to rounding)
+
+                                    return (
+                                        <>
+                                            <line
+                                                x1={drawX + wPx} y1={dimY}
+                                                x2={svgBaseX + wallLength * pxPerMm} y2={dimY}
+                                                stroke="#10b981" strokeWidth="0.5"
+                                            />
+                                            <circle cx={svgBaseX + wallLength * pxPerMm} cy={dimY} r="1.5" fill="#10b981" />
+                                            <rect x={midX - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                            <text
+                                                x={midX}
+                                                y={dimY + 0.5}
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                fill="#10b981"
+                                                className="text-[12px] font-mono select-none font-medium"
+                                            >
+                                                {Math.round(rightSegmentWidth)}
+                                            </text>
+                                        </>
+                                    );
+                                })()}
+
+                                {/* Extension lines down to wall (horizontal measurements) */}
+                                <line x1={svgBaseX} y1={dimY} x2={svgBaseX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
+                                <line x1={drawX} y1={dimY} x2={drawX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
+                                <line x1={drawX + wPx} y1={dimY} x2={drawX + wPx} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
+                                <line x1={svgBaseX + wallLength * pxPerMm} y1={dimY} x2={svgBaseX + wallLength * pxPerMm} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
                             </>
                         )}
-
-                        {/* Segment 2: Opening Width */}
-                        <line
-                            x1={drawX} y1={dimY}
-                            x2={drawX + wPx} y2={dimY}
-                            stroke="#10b981" strokeWidth="0.5"
-                        />
-                        <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
-                        {op.fromLeft === 0 && <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />}
-                        <circle cx={drawX + wPx} cy={dimY} r="1.5" fill="#10b981" />
-                        <rect x={(drawX + drawX + wPx) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
-                        <text
-                            x={(drawX + drawX + wPx) / 2}
-                            y={dimY + 0.5}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill="#10b981"
-                            className="text-[12px] font-mono select-none font-medium"
-                        >
-                            {op.width}
-                        </text>
-
-                        {/* Segment 3: Opening Right to Wall Right */}
-                        {(() => {
-                            const rightSegmentWidth = wallLength - op.fromLeft - op.width;
-                            const midX = (drawX + wPx + svgBaseX + wallLength * pxPerMm) / 2;
-
-                            if (rightSegmentWidth <= 1) return null; // Hide if 0 (or close to 0 due to rounding)
-
-                            return (
-                                <>
-                                    <line
-                                        x1={drawX + wPx} y1={dimY}
-                                        x2={svgBaseX + wallLength * pxPerMm} y2={dimY}
-                                        stroke="#10b981" strokeWidth="0.5"
-                                    />
-                                    <circle cx={svgBaseX + wallLength * pxPerMm} cy={dimY} r="1.5" fill="#10b981" />
-                                    <rect x={midX - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
-                                    <text
-                                        x={midX}
-                                        y={dimY + 0.5}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fill="#10b981"
-                                        className="text-[12px] font-mono select-none font-medium"
-                                    >
-                                        {Math.round(rightSegmentWidth)}
-                                    </text>
-                                </>
-                            );
-                        })()}
-
-                        {/* Extension lines down to wall (horizontal measurements) */}
-                        <line x1={svgBaseX} y1={dimY} x2={svgBaseX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                        <line x1={drawX} y1={dimY} x2={drawX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                        <line x1={drawX + wPx} y1={dimY} x2={drawX + wPx} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                        <line x1={svgBaseX + wallLength * pxPerMm} y1={dimY} x2={svgBaseX + wallLength * pxPerMm} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
                     </g>
                 );
             })}

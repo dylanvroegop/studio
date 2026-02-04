@@ -45,7 +45,6 @@ type Material = {
   eenheid: string | null;
   leverancier: string | null;
   gebruikerid: string;
-  volgorde: number | null;
   order_id?: number | null;
 };
 

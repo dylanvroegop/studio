@@ -27,7 +27,7 @@ async function checkConnections() {
     // 1. Check Supabase
     try {
         const supabase = createClient(supabaseUrl!, supabaseKey!);
-        const { data, error } = await supabase.from('materialen').select('count', { count: 'exact', head: true });
+        const { data, error } = await supabase.from('main_material_list').select('count', { count: 'exact', head: true });
         if (error) throw error;
         console.log('✅ Supabase: Connected (Materials table accessible)');
     } catch (e) {

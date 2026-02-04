@@ -11,17 +11,20 @@ type Body = {
   materiaalnaam?: unknown;
   eenheid?: unknown;
   prijs?: unknown;
+  prijs_incl_btw?: unknown;
   leverancier?: unknown;
-  volgorde?: unknown;
+  lengte?: unknown;
+  breedte?: unknown;
+  dikte?: unknown;
+  hoogte?: unknown;
 
   // UI vs DB
-  categorie?: unknown;  // UI
-  subsectie?: unknown;  // DB
+  categorie?: unknown;  // DB
+  subsectie?: unknown;  // UI (legacy)
 
   // Frontend stuurt soms beide mee; in jouw DB bestaat alleen row_id
   row_id?: unknown;
   id?: unknown;
-  wastePercentage?: unknown;
 };
 
 function isNonEmptyString(v: unknown): v is string {
@@ -34,15 +37,6 @@ function normalizeString(v: unknown): string | null {
   return s.length ? s : null;
 }
 
-
-function toInt(v: unknown, fallback: number): number {
-  if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
-  if (typeof v === 'string') {
-    const n = parseInt(v.trim(), 10);
-    if (Number.isFinite(n)) return Math.trunc(n);
-  }
-  return fallback;
-}
 
 function jsonOk(payload: unknown, status = 200) {
   return NextResponse.json(payload, { status });
@@ -74,21 +68,18 @@ export async function POST(req: Request) {
     const naam = typeof body.materiaalnaam === 'string' ? body.materiaalnaam.trim() : null;
 
     const eenheid = normalizeString(body.eenheid);
-    const prijsNum = parsePriceToNumber(body.prijs);
+    const prijsNum = parsePriceToNumber(body.prijs_incl_btw ?? body.prijs);
 
-    // NEW: Handle Waste Percentage (allow decimals)
-    const wastePercentage = typeof body.wastePercentage === 'number'
-      ? body.wastePercentage
-      : (typeof body.wastePercentage === 'string' ? parseFloat(body.wastePercentage) : 0);
-    const validWaste = isNaN(wastePercentage) ? 0 : wastePercentage;
-
-    const subsectie =
-      normalizeString(body.subsectie) ??
+    const categorie =
       normalizeString(body.categorie) ??
+      normalizeString(body.subsectie) ??
       'Overig';
 
     const leverancier = normalizeString(body.leverancier);
-    const volgorde = toInt(body.volgorde, 999999);
+    const lengte = normalizeString(body.lengte);
+    const breedte = normalizeString(body.breedte);
+    const dikte = normalizeString(body.dikte);
+    const hoogte = normalizeString(body.hoogte);
 
     // LET OP: jouw DB heeft GEEN 'id' kolom.
     // We accepteren 'id' alleen als alias voor row_id (frontend stuurt soms payload.id).
@@ -103,16 +94,18 @@ export async function POST(req: Request) {
     // supabaseAdmin is already initialized
 
     // 5) Payload (nooit id/categorie meesturen)
-    const payload = {
+    const payload: Record<string, unknown> = {
       gebruikerid: uid,
       materiaalnaam: naam, // This now contains the full string correctly
       eenheid,
-      prijs: prijsNum,
-      subsectie,
+      prijs_incl_btw: prijsNum,
+      categorie,
       leverancier,
-      volgorde,
-      waste_percentage: validWaste, // Save to DB
     };
+    if (lengte) payload.lengte = lengte;
+    if (breedte) payload.breedte = breedte;
+    if (dikte) payload.dikte = dikte;
+    if (hoogte) payload.hoogte = hoogte;
 
     let data: any = null;
 
@@ -120,11 +113,11 @@ export async function POST(req: Request) {
     if (incomingRowId) {
       // SECURITY: altijd ownership check
       const upd = await supabaseAdmin
-        .from('materialen')
+        .from('main_material_list')
         .update(payload)
         .eq('row_id', incomingRowId)
         .eq('gebruikerid', uid)
-        .select('row_id,materiaalnaam,eenheid,prijs,subsectie,leverancier,volgorde,waste_percentage')
+        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,categorie,leverancier')
         .single();
 
       if (upd.error) return jsonFail(upd.error.message || 'Update failed', 500);
@@ -135,9 +128,9 @@ export async function POST(req: Request) {
       }
     } else {
       const ins = await supabaseAdmin
-        .from('materialen')
+        .from('main_material_list')
         .insert(payload)
-        .select('row_id,materiaalnaam,eenheid,prijs,subsectie,leverancier,volgorde,waste_percentage')
+        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,categorie,leverancier')
         .single();
 
       if (ins.error) return jsonFail(ins.error.message || 'Insert failed', 500);
@@ -147,7 +140,22 @@ export async function POST(req: Request) {
     const realRowId = data?.row_id ?? incomingRowId ?? null;
     if (!realRowId) return jsonFail('Geen ID ontvangen van server.', 500);
 
-    return jsonOk({ ok: true, data, row_id: realRowId }, 200);
+    const normalized =
+      data && typeof data === 'object'
+        ? {
+            ...data,
+            prijs:
+              (data as any).prijs ??
+              (data as any).prijs_incl_btw ??
+              null,
+            subsectie:
+              (data as any).subsectie ??
+              (data as any).categorie ??
+              null,
+          }
+        : data;
+
+    return jsonOk({ ok: true, data: normalized, row_id: realRowId }, 200);
   } catch (e: any) {
     console.error('Server error /api/materialen/upsert:', e);
     return jsonFail(e?.message || 'Server error', 500);

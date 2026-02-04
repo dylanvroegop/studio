@@ -220,12 +220,24 @@ export function VisualizerController({
     }
 
     // 3b. KOZIJN MAATWERK
-    if (slug.includes('raamkozijn-maatwerk') || slug.includes('deurkozijn-maatwerk')) {
+    if (slug.includes('maatwerk-kozijnen')) {
         return (
             <KozijnMaatwerkDrawing
                 breedte={item.breedte}
                 hoogte={item.hoogte}
                 frameThickness={props.frameThickness}
+                tussenstijlThickness={props.tussenstijlThickness}
+                tussenstijlOffset={props.tussenstijlOffset}
+                showGlas={props.showGlas}
+                vakken={item.vakken}
+                doorWidth={item.deur_breedte}
+                doorHeight={item.deur_hoogte}
+                glasWidth={item.glas_breedte}
+                glasHeight={item.glas_hoogte}
+                paneelWidth={item.paneel_breedte}
+                paneelHeight={item.paneel_hoogte}
+                openWidth={item.open_breedte}
+                openHeight={item.open_hoogte}
                 fitContainer={fitContainer}
                 className={className}
                 title={props.title}

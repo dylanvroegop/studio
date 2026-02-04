@@ -183,6 +183,19 @@ function getDefaultWastePercentage(sectionKey: string | null, label?: string, co
   return DEFAULT_WASTE_PERCENTAGE;
 }
 
+const NOTES_PLACEHOLDER_MESSAGES = [
+  "Bijv: 2x extra balken 50x70 toevoegen",
+  "Bijv: Check prijs voor eiken plaat 18 mm",
+  "Bijv: Optie 'olie-afwerking' toevoegen",
+  "Bijv: Alternatief: vuren i.p.v. eiken",
+  "Bijv: Klant wil extra schroeven opnemen",
+] as const;
+
+const NOTES_PLACEHOLDER_TYPING_MS = 48;
+const NOTES_PLACEHOLDER_DELETE_MS = 26;
+const NOTES_PLACEHOLDER_HOLD_MS = 1100;
+const NOTES_PLACEHOLDER_START_DELAY_MS = 350;
+
 function cleanMaterialData(v: any) {
   if (!v) return null;
   const source = v._raw || v;
@@ -817,6 +830,72 @@ export default function GenericMaterialsPageRedesigned() {
 
   const [klus, setKlus] = useState<Job | null>(null);
   const [notities, setNotities] = useState('');
+  const [notesPlaceholderIndex, setNotesPlaceholderIndex] = useState(0);
+  const [notesPlaceholderCursor, setNotesPlaceholderCursor] = useState(0);
+  const [notesPlaceholderPhase, setNotesPlaceholderPhase] = useState<'typing' | 'holding' | 'deleting'>('typing');
+  const [notesReduceMotion, setNotesReduceMotion] = useState(false);
+  const notesWasEmptyRef = useRef(true);
+
+  const notesPlaceholderMessage = NOTES_PLACEHOLDER_MESSAGES[notesPlaceholderIndex % NOTES_PLACEHOLDER_MESSAGES.length];
+  const notesShouldAnimatePlaceholder = !notesReduceMotion && notities.trim().length === 0;
+  const notesPlaceholderText = notesReduceMotion
+    ? NOTES_PLACEHOLDER_MESSAGES[0]
+    : notesShouldAnimatePlaceholder
+      ? notesPlaceholderMessage.slice(0, notesPlaceholderCursor)
+      : notesPlaceholderMessage;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setNotesReduceMotion(media.matches);
+    update();
+    if (media.addEventListener) {
+      media.addEventListener('change', update);
+      return () => media.removeEventListener('change', update);
+    }
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
+
+  useEffect(() => {
+    const isEmpty = notities.trim().length === 0;
+    if (isEmpty && !notesWasEmptyRef.current) {
+      setNotesPlaceholderIndex(0);
+      setNotesPlaceholderCursor(0);
+      setNotesPlaceholderPhase('typing');
+    }
+    notesWasEmptyRef.current = isEmpty;
+  }, [notities]);
+
+  useEffect(() => {
+    if (!notesShouldAnimatePlaceholder) return;
+
+    let timeout: ReturnType<typeof setTimeout>;
+    if (notesPlaceholderPhase === 'typing') {
+      if (notesPlaceholderCursor < notesPlaceholderMessage.length) {
+        const delay = notesPlaceholderCursor === 0 ? NOTES_PLACEHOLDER_START_DELAY_MS : NOTES_PLACEHOLDER_TYPING_MS;
+        timeout = setTimeout(() => setNotesPlaceholderCursor((prev) => prev + 1), delay);
+      } else {
+        timeout = setTimeout(() => setNotesPlaceholderPhase('holding'), NOTES_PLACEHOLDER_HOLD_MS);
+      }
+    } else if (notesPlaceholderPhase === 'holding') {
+      timeout = setTimeout(() => setNotesPlaceholderPhase('deleting'), NOTES_PLACEHOLDER_HOLD_MS);
+    } else {
+      if (notesPlaceholderCursor > 0) {
+        timeout = setTimeout(() => setNotesPlaceholderCursor((prev) => prev - 1), NOTES_PLACEHOLDER_DELETE_MS);
+      } else {
+        setNotesPlaceholderPhase('typing');
+        setNotesPlaceholderIndex((prev) => (prev + 1) % NOTES_PLACEHOLDER_MESSAGES.length);
+      }
+    }
+
+    return () => clearTimeout(timeout);
+  }, [
+    notesShouldAnimatePlaceholder,
+    notesPlaceholderPhase,
+    notesPlaceholderCursor,
+    notesPlaceholderMessage,
+  ]);
 
   // === BEAM HEIGHT WARNING ===
   // Calculate warning when selected beam length is too close to wall height
@@ -2873,7 +2952,7 @@ export default function GenericMaterialsPageRedesigned() {
             <Textarea
               value={notities}
               onChange={(e) => setNotities(e.target.value)}
-              placeholder="Bijv: '12 hoekankers voor €1,50 per stuk' of 'extra uurtje werk à €60,-"
+              placeholder={notesPlaceholderText}
               className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
             />
           </div>

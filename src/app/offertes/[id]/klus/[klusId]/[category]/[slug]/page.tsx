@@ -71,7 +71,7 @@ export default function GenericMeasurementPage() {
   const klusId = params.klusId as string;
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
-  const isMaatwerkKozijn = jobSlug === 'raamkozijn-maatwerk' || jobSlug === 'deurkozijn-maatwerk';
+  const isMaatwerkKozijn = jobSlug === 'maatwerk-kozijnen';
   const specificJobConfig = getJobConfig(jobSlug);
 
   const [loading, setLoading] = useState(true);
@@ -113,6 +113,9 @@ export default function GenericMeasurementPage() {
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [kozijnhoutFrameThicknessMm, setKozijnhoutFrameThicknessMm] = useState<number | null>(null);
+  const [tussenstijlThicknessMm, setTussenstijlThicknessMm] = useState<number | null>(null);
+  const [hasTussenstijl, setHasTussenstijl] = useState(false);
+  const [hasGlas, setHasGlas] = useState(false);
 
   const parseDimToMm = (raw: any): number | null => {
     if (raw === null || raw === undefined || raw === '') return null;
@@ -126,6 +129,24 @@ export default function GenericMeasurementPage() {
     if (unit === 'cm') return num * 10;
     if (unit === 'm') return num * 1000;
     return num;
+  };
+
+  const parseDikteToMm = (raw: any): number | null => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    const s = String(raw).trim().toLowerCase();
+    if (s.includes('x')) {
+      const unitMatch = s.match(/\b(mm|cm|m)\b/);
+      const unit = unitMatch?.[1];
+      const nums = s.match(/[\d.,]+/g)?.map(n => parseFloat(n.replace(',', '.'))).filter(n => Number.isFinite(n));
+      if (nums && nums.length > 0) {
+        const val = Math.min(...nums);
+        if (unit === 'cm') return val * 10;
+        if (unit === 'm') return val * 1000;
+        return val;
+      }
+    }
+    return parseDimToMm(raw);
   };
 
   const findVlizotrapMaterial = (container: any) => {
@@ -153,6 +174,29 @@ export default function GenericMeasurementPage() {
       if (sectionKey === 'kozijnhout_buiten') found = entry.material;
     });
     return found;
+  };
+
+  const findTussenstijlMaterial = (container: any) => {
+    const materialenLijst = container?.materialen?.materialen_lijst || {};
+    let found: any = null;
+    Object.values(materialenLijst).forEach((entry: any) => {
+      if (!entry || !entry.material) return;
+      const sectionKey = entry.sectionKey || entry.material?.sectionKey;
+      if (sectionKey === 'tussenstijl') found = entry.material;
+    });
+    return found;
+  };
+
+  const hasGlasMaterial = (container: any) => {
+    const materialenLijst = container?.materialen?.materialen_lijst || {};
+    return Object.values(materialenLijst).some((entry: any) => {
+      if (!entry || !entry.material) return false;
+      const sectionKey = entry.sectionKey || entry.material?.sectionKey || '';
+      if (typeof sectionKey === 'string' && sectionKey.toLowerCase().includes('glas')) return true;
+      const categorie = entry.material?.categorie;
+      if (typeof categorie === 'string' && categorie.toLowerCase().includes('glas')) return true;
+      return false;
+    });
   };
 
   const syncVlizotrapOpening = (item: any, material: any) => {
@@ -251,10 +295,16 @@ export default function GenericMeasurementPage() {
           const maatwerk = container.maatwerk;
           const vlizotrapMaterial = findVlizotrapMaterial(container);
           const kozijnhoutMaterial = isMaatwerkKozijn ? findKozijnhoutMaterial(container) : null;
-          const kozijnhoutThickness = kozijnhoutMaterial ? parseDimToMm(kozijnhoutMaterial?.breedte) : null;
+          const tussenstijlMaterial = isMaatwerkKozijn ? findTussenstijlMaterial(container) : null;
+          const kozijnhoutThickness = kozijnhoutMaterial ? parseDikteToMm(kozijnhoutMaterial?.dikte) : null;
+          const tussenstijlThickness = tussenstijlMaterial ? parseDikteToMm(tussenstijlMaterial?.dikte) : null;
+          const glasSelected = isMaatwerkKozijn ? hasGlasMaterial(container) : false;
 
           if (isMaatwerkKozijn) {
             setKozijnhoutFrameThicknessMm(kozijnhoutThickness);
+            setTussenstijlThicknessMm(tussenstijlThickness ?? kozijnhoutThickness);
+            setHasTussenstijl(Boolean(tussenstijlMaterial));
+            setHasGlas(glasSelected);
           }
 
           // 1. Try new structure, then specific slug key, then legacy 'maatwerk' array
@@ -319,6 +369,25 @@ export default function GenericMeasurementPage() {
                 }
               }
 
+              if (isMaatwerkKozijn) {
+                const existingVakken = Array.isArray(item.vakken) ? item.vakken : [];
+                const migratedVakken: any[] = [];
+                if (existingVakken.length > 0) {
+                  migratedVakken.push(...existingVakken);
+                } else {
+                  if (item.glas_breedte || item.glas_hoogte) migratedVakken.push({ type: 'glas', breedte: item.glas_breedte, hoogte: item.glas_hoogte });
+                  if (item.paneel_breedte || item.paneel_hoogte) migratedVakken.push({ type: 'paneel', breedte: item.paneel_breedte, hoogte: item.paneel_hoogte });
+                  if (item.open_breedte || item.open_hoogte) migratedVakken.push({ type: 'open', breedte: item.open_breedte, hoogte: item.open_hoogte });
+                }
+
+                item.vakken = migratedVakken.map((vak: any) => ({
+                  id: vak.id || crypto.randomUUID(),
+                  type: (vak.type === 'glas' && !glasSelected) ? 'open' : (vak.type || 'open'),
+                  breedte: vak.breedte ?? vak.width ?? '',
+                  hoogte: vak.hoogte ?? vak.height ?? ''
+                }));
+              }
+
               return item;
             });
             const withVlizotrap = vlizotrapMaterial
@@ -362,6 +431,9 @@ export default function GenericMeasurementPage() {
     newItem.leidingkofen = [];
     newItem.dagkanten = [];
     newItem.vensterbanken = [];
+    if (isMaatwerkKozijn) {
+      newItem.vakken = [];
+    }
     return newItem;
   };
 
@@ -387,6 +459,46 @@ export default function GenericMeasurementPage() {
       const newItem = { ...item, [key]: value };
       return newItem;
     }));
+  };
+
+  const createVak = (type: string) => ({
+    id: crypto.randomUUID(),
+    type,
+    breedte: '',
+    hoogte: ''
+  });
+
+  const updateVak = (itemIdx: number, vakIdx: number, updates: any) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== itemIdx) return item;
+      const vakken = Array.isArray(item.vakken) ? item.vakken : [];
+      const next = vakken.map((vak: any, idx: number) => idx === vakIdx ? { ...vak, ...updates } : vak);
+      return { ...item, vakken: next };
+    }));
+  };
+
+  const addVak = (itemIdx: number) => {
+    const defaultType = hasGlas ? 'glas' : 'open';
+    setItems(prev => prev.map((item, i) => {
+      if (i !== itemIdx) return item;
+      const vakken = Array.isArray(item.vakken) ? item.vakken : [];
+      return { ...item, vakken: [...vakken, createVak(defaultType)] };
+    }));
+  };
+
+  const removeVak = (itemIdx: number, vakIdx: number) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== itemIdx) return item;
+      const vakken = Array.isArray(item.vakken) ? item.vakken : [];
+      return { ...item, vakken: vakken.filter((_: any, idx: number) => idx !== vakIdx) };
+    }));
+  };
+
+  const vakTypeLabel = (type: string) => {
+    if (type === 'glas') return 'Glas';
+    if (type === 'paneel') return 'Paneel';
+    if (type === 'open') return 'Open';
+    return 'Vak';
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -842,6 +954,164 @@ export default function GenericMeasurementPage() {
                       />
                     )}
 
+                    {/* Vak Cards (maatwerk kozijnen) */}
+                    {isMaatwerkKozijn && (
+                      <>
+                        {/* Deur */}
+                        <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                          <div
+                            className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                            onClick={() => toggleCollapsed(`vak-deur-${index}`)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium text-zinc-200">Deur 1</span>
+                            </div>
+                            <div className="text-zinc-500">
+                              {collapsedSections[`vak-deur-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </div>
+                          </div>
+                          {collapsedSections[`vak-deur-${index}`] === false && (
+                            <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                              <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3">
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Breedte</Label>
+                                  <MeasurementInput value={item.deur_breedte} onChange={(v) => updateItem(index, 'deur_breedte', v)} disabled={disabledAll} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Hoogte</Label>
+                                  <MeasurementInput value={item.deur_hoogte} onChange={(v) => updateItem(index, 'deur_hoogte', v)} disabled={disabledAll} />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {(() => {
+                          const vakken = Array.isArray(item.vakken) ? item.vakken : [];
+                          const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
+                          const frameMm = kozijnhoutFrameThicknessMm || 0;
+                          const tussenstijlMm = hasTussenstijl ? (tussenstijlThicknessMm ?? frameMm) : 0;
+                          const innerWidthMm = Math.max(0, num(item.breedte) - (2 * frameMm));
+                          const doorWidthMm = num(item.deur_breedte);
+                          const doorHeightMm = num(item.deur_hoogte);
+                          const hasDoor = doorHeightMm > 0;
+                          const hasColumns = hasTussenstijl && tussenstijlMm > 0;
+                          const fallbackLeft = innerWidthMm > 0 ? innerWidthMm / 2 : 0;
+                          const leftColWidth = hasColumns ? (doorWidthMm > 0 ? doorWidthMm : (num(item.tussenstijl_van_links) || fallbackLeft)) : innerWidthMm;
+                          const rightColWidth = hasColumns ? Math.max(0, innerWidthMm - leftColWidth - tussenstijlMm) : Math.max(0, innerWidthMm - doorWidthMm);
+                          const pairStart = hasDoor ? 1 : 0;
+                          return (
+                            <>
+                              {vakken.map((vak: any, vakIdx: number) => {
+                                const vakTitle = `${vakTypeLabel(vak.type || 'open')} ${vakIdx + 2}`;
+                                const collapseKey = `vak-${index}-${vakIdx}`;
+                                const isSideVak = hasDoor && vakIdx === 0;
+                                const pairIndex = hasColumns && !isSideVak ? vakIdx - pairStart : -1;
+                                const rowStart = pairIndex >= 0 ? (pairStart + Math.floor(pairIndex / 2) * 2) : -1;
+                                const leftIdx = rowStart;
+                                const rightIdx = rowStart + 1;
+                                const isRight = pairIndex >= 0 ? (pairIndex % 2 === 1) : false;
+                                const leftHeight = leftIdx >= 0 ? num(vakken[leftIdx]?.hoogte) : 0;
+                                const rightHeight = rightIdx >= 0 ? num(vakken[rightIdx]?.hoogte) : 0;
+                                const rowHeight = hasColumns && !isSideVak ? (leftHeight || rightHeight) : num(vak.hoogte);
+                                const displayHeight = isSideVak ? doorHeightMm : rowHeight;
+                                const displayWidth = hasColumns
+                                  ? (isRight ? rightColWidth : leftColWidth)
+                                  : (isSideVak ? rightColWidth : (num(vak.breedte) || innerWidthMm));
+                                const lockWidth = hasColumns || isSideVak;
+                                const lockHeight = isSideVak || (hasColumns && !isSideVak && isRight);
+                                const widthValue = lockWidth ? (displayWidth > 0 ? Math.round(displayWidth) : '') : vak.breedte;
+                                const heightValue = lockHeight ? (displayHeight > 0 ? Math.round(displayHeight) : '') : vak.hoogte;
+                                const handleHeightChange = (value: any) => {
+                                  if (hasColumns && !isSideVak && leftIdx >= 0) {
+                                    updateVak(index, leftIdx, { hoogte: value });
+                                    if (rightIdx < vakken.length) updateVak(index, rightIdx, { hoogte: value });
+                                  } else {
+                                    updateVak(index, vakIdx, { hoogte: value });
+                                  }
+                                };
+                                return (
+                                  <div key={vak.id || collapseKey} className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                                    <div
+                                      className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                      onClick={() => toggleCollapsed(collapseKey)}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-sm font-medium text-zinc-200">{vakTitle}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          className="text-zinc-500 hover:text-red-400 transition-colors"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeVak(index, vakIdx);
+                                          }}
+                                          disabled={disabledAll}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                        <div className="text-zinc-500">
+                                          {collapsedSections[collapseKey] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {collapsedSections[collapseKey] === false && (
+                                      <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                        <div className="pt-2 border-t border-white/5 space-y-3">
+                                          <div className="space-y-2">
+                                            <Label className="text-xs">Type</Label>
+                                            <Select
+                                              value={vak.type || (hasGlas ? 'glas' : 'open')}
+                                              onValueChange={(value) => updateVak(index, vakIdx, { type: value })}
+                                              disabled={disabledAll}
+                                            >
+                                              <SelectTrigger className="h-9 bg-black/20 border border-white/10 text-xs">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="glas" disabled={!hasGlas}>Glas</SelectItem>
+                                                <SelectItem value="paneel">Paneel</SelectItem>
+                                                <SelectItem value="open">Open</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-2">
+                                              <Label className="text-xs">Breedte</Label>
+                                              <MeasurementInput
+                                                value={widthValue}
+                                                onChange={(v) => updateVak(index, vakIdx, { breedte: v })}
+                                                disabled={disabledAll || lockWidth}
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs">Hoogte</Label>
+                                              <MeasurementInput
+                                                value={heightValue}
+                                                onChange={handleHeightChange}
+                                                disabled={disabledAll || lockHeight}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              <div className="mt-4">
+                                <Button type="button" variant="secondary" size="sm" onClick={() => addVak(index)} disabled={disabledAll}>
+                                  <PlusCircle className="h-4 w-4 mr-2" />
+                                  Vak toevoegen
+                                </Button>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
+
                     {/* Dakrand Configuration */}
                     {fields.find(f => f.key === 'dakrand_breedte') && (
                       <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
@@ -1117,12 +1387,48 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
+                    {/* Aantal Card */}
+                    {fields.find(f => f.key === 'aantal') && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                          onClick={() => toggleCollapsed(`aantal-${index}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Aantal</span>
+                            {collapsedSections[`aantal-${index}`] !== false && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                {item.aantal ?? 1} stuks
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-zinc-500">
+                            {collapsedSections[`aantal-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </div>
+                        </div>
+
+                        {collapsedSections[`aantal-${index}`] === false && (
+                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                            <div className="pt-2 border-t border-white/5">
+                              <DynamicInput
+                                field={fields.find(f => f.key === 'aantal')!}
+                                value={item.aantal}
+                                onChange={v => updateItem(index, 'aantal', v)}
+                                onKeyDown={handleKeyDown}
+                                disabled={disabledAll}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Extra Fields - NO SLICE, just filter out known keys and grouped fields */}
-                    {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
+                    {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
                       <div className="space-y-3 pt-4 border-t border-white/5">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
                         <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                          {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
+                          {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
                             <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                           ))}
                         </div>
@@ -1150,6 +1456,9 @@ export default function GenericMeasurementPage() {
                         isMagnifier={false}
                         fitContainer={false}
                         frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
+                        tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
+                        tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
+                        showGlas={isMaatwerkKozijn && hasGlas}
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                         onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
@@ -1183,6 +1492,9 @@ export default function GenericMeasurementPage() {
                             isMagnifier={false}
                             fitContainer={true}
                             frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
+                            tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
+                            tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
+                            showGlas={isMaatwerkKozijn && hasGlas}
                             onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                             onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                             onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}

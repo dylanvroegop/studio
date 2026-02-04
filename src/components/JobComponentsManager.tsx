@@ -296,7 +296,6 @@ export function JobComponentsManager({
                                     { title: 'Buiten kozijn (Kunststof)', desc: 'Kant-en-klaar element' },
                                     { title: 'Zelf gemaakte houtkozijnen', desc: 'Productie in eigen werkplaats' },
                                     { title: 'Overig Kozijnen', desc: 'Renovatie of reparatie' },
-                                    { title: 'Waterslagen / Dorpels', desc: 'Vervangen van waterslagen of...' }
                                 ] : [
                                     { title: 'Binnendeuren', desc: 'Stomp of opdek' },
                                     { title: 'Buitendeuren', desc: 'Voordeur/Achterdeur' },
