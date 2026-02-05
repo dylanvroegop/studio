@@ -13,9 +13,10 @@ interface MaterialEditorProps {
     onAddItem?: (item: MaterialItem) => void;
     subtotal: number;
     vatRate?: number;
+    onAddClick?: () => void;
 }
 
-export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtotal, vatRate = 21 }: MaterialEditorProps) {
+export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtotal, vatRate = 21, onAddClick }: MaterialEditorProps) {
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editValue, setEditValue] = useState<string>('');
 
@@ -63,6 +64,14 @@ export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtota
 
         setIsAdding(false);
         setNewItem({ aantal: 1, product: '', prijs_per_stuk: 0 });
+    };
+
+    const handleAddButtonClick = () => {
+        if (onAddClick) {
+            onAddClick();
+        } else {
+            setIsAdding(true);
+        }
     };
 
     return (
@@ -230,7 +239,7 @@ export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtota
                 <div className="p-2 border-t border-zinc-800 bg-zinc-900/50">
                     <Button
                         variant="ghost"
-                        onClick={() => setIsAdding(true)}
+                        onClick={handleAddButtonClick}
                         className="w-full h-9 text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center gap-2 justify-center border border-dashed border-zinc-800 hover:border-zinc-700"
                     >
                         <Plus size={14} /> Rij toevoegen

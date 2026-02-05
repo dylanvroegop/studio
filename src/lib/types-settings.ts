@@ -19,6 +19,14 @@ export interface StandaardWinstMarge {
     fixedAmount?: number;
 }
 
+export interface PlanningSettings {
+    defaultWorkdayHours: number;
+    allowAutoSplit: boolean;
+    defaultStartTime: string;
+    defaultEndTime: string;
+    workDays: number[];
+}
+
 export interface UserSettings {
     // 1. Bedrijfsgegevens
     bedrijfsnaam: string;
@@ -59,6 +67,9 @@ export interface UserSettings {
         naam: string;
         items: BouwplaatsItem[];
     }[];
+
+    // 5. Planning Instellingen
+    planningSettings: PlanningSettings;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -84,5 +95,12 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     standaardGeldigheidDagen: 30,
     standaardIntroTekst: 'Hierbij ontvangt u de offerte voor de besproken werkzaamheden.',
     standaardSluitTekst: 'Wij hopen u hiermee van dienst te zijn en horen graag van u.',
-    bouwplaatsKostenPakketten: []
+    bouwplaatsKostenPakketten: [],
+    planningSettings: {
+        defaultWorkdayHours: 8,
+        allowAutoSplit: true,
+        defaultStartTime: '08:00',
+        defaultEndTime: '17:00',
+        workDays: [1, 2, 3, 4, 5]
+    }
 };

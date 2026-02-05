@@ -13,7 +13,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool, CalendarDays } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -22,7 +22,11 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
-
+import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
+import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
+import { ScheduleModal } from '@/components/planning/ScheduleModal';
+import { useEmployees } from '@/hooks/useEmployees';
+import { DEFAULT_PLANNING_SETTINGS, PlanningSettings } from '@/lib/types-planning';
 
 import { Quote } from "@/lib/types";
 
@@ -55,7 +59,21 @@ export default function QuotePage() {
         verbruik: MaterialItem[];
     }>({ groot: [], verbruik: [] });
 
+    // State for Material Selection Modal
+    const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
+    const [activeCategory, setActiveCategory] = useState<'groot' | 'verbruik' | null>(null);
+
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+
+    // Planning Modal State
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+    const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
+    const { employees } = useEmployees();
+
+    // PDF Generation State
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+    const [capturedDrawings, setCapturedDrawings] = useState<string[]>([]);
+    const [pendingPDFAction, setPendingPDFAction] = useState<((images: string[]) => void) | null>(null);
 
 
     const [userProfile, setUserProfile] = useState<any>(null);
@@ -90,6 +108,36 @@ export default function QuotePage() {
         };
         fetchUserData();
     }, [user, firestore]);
+
+    // Fetch Materials for Modal
+    useEffect(() => {
+        const fetchMaterials = async () => {
+            if (!user) return;
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch('/api/materialen/get', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const json = await res.json();
+
+                if (res.ok && json.ok) {
+                    const materialenData = (json.data || []).map((m: any) => ({
+                        ...m,
+                        id: m.row_id || m.id,
+                        prijs: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : 0),
+                        prijs_per_stuk: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : 0),
+                        // Standardization for the modal
+                        materiaalnaam: m.materiaalnaam || m.naam,
+                        categorie: m.categorie || m.subsectie || 'Overig',
+                    }));
+                    setAlleMaterialen(materialenData);
+                }
+            } catch (err) {
+                console.error("Error fetching materials:", err);
+            }
+        };
+        fetchMaterials();
+    }, [user]);
 
     // Initialize state from calculation data (Supabase)
     useEffect(() => {
@@ -318,7 +366,6 @@ export default function QuotePage() {
         }
     };
 
-    // Handler for adding new material items
     const handleAddItem = async (category: 'groot' | 'verbruik', item: MaterialItem) => {
         const listKey = category === 'groot' ? 'groot' : 'verbruik';
         const jsonKey = category === 'groot' ? 'grootmaterialen' : 'verbruiksartikelen';
@@ -333,6 +380,19 @@ export default function QuotePage() {
                 [jsonKey]: updated,
             });
         }
+    };
+
+    const handleSelectMaterial = (material: any) => {
+        if (!activeCategory) return;
+
+        const newItem: MaterialItem = {
+            aantal: 1,
+            product: material.materiaalnaam,
+            prijs_per_stuk: material.prijs_per_stuk || material.prijs || 0
+        };
+
+        handleAddItem(activeCategory, newItem);
+        setActiveCategory(null);
     };
 
     // Calculate subtotals for display
@@ -466,6 +526,109 @@ export default function QuotePage() {
         };
     };
 
+    // Updated PDF Download Handler
+    const handleDownloadPDF = async () => {
+        setIsGeneratingPDF(true);
+        // The actual generation is triggered by the onReady callback of HiddenPDFDrawings
+        setPendingPDFAction(() => async (images: string[]) => {
+            const data = preparePDFData();
+            // Inject captured images
+            (data as any).drawingImages = images;
+
+            try {
+                const pdfBlob = await generateQuotePDF(data);
+                const url = window.URL.createObjectURL(pdfBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Offerte-${data.offerteNummer}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error("Error generating PDF:", err);
+                alert("Er ging iets mis bij het genereren van de PDF.");
+            } finally {
+                setIsGeneratingPDF(false);
+                setPendingPDFAction(null);
+            }
+        });
+    };
+
+    // Callback when drawings are captured
+    const handleDrawingsCaptured = (images: string[]) => {
+        if (pendingPDFAction) {
+            pendingPDFAction(images);
+        } else {
+            setIsGeneratingPDF(false);
+        }
+    };
+
+    const preparePDFData = (): PDFQuoteData => {
+        return {
+            offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
+            datum: new Date().toLocaleDateString('nl-NL'),
+            geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL'),
+            bedrijf: {
+                naam: userProfile?.bedrijfsnaam || userProfile?.companyName || businessData?.bedrijfsnaam || 'Mijn Bedrijf',
+                adres: businessData?.adres || '',
+                postcode: businessData?.postcode || '',
+                plaats: businessData?.plaats || '',
+                telefoon: businessData?.telefoon || '',
+                email: businessData?.email || user?.email || '',
+                kvk: businessData?.kvk || '',
+                btw: businessData?.btw || '',
+            },
+            klant: {
+                naam: klantInfo ? `${klantInfo.voornaam} ${klantInfo.achternaam}`.trim() : '',
+                adres: klantInfo?.straat ? `${klantInfo.straat} ${klantInfo.huisnummer}` : '',
+                postcode: klantInfo?.postcode || '',
+                plaats: klantInfo?.plaats || '',
+                telefoon: klantInfo?.telefoonnummer || '',
+                email: klantInfo?.emailadres || '',
+            },
+            projectLocatie: normalizedData?.projectLocatie || '',
+            korteTitel: normalizedData?.korteTitel,
+            korteBeschrijving: normalizedData?.korteBeschrijving,
+            werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving || []),
+            werkbeschrijvingFull: normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []),
+            grootmaterialen: materials.groot.map(m => ({
+                aantal: m.aantal,
+                product: m.product,
+                prijsPerStuk: m.prijs_per_stuk || 0,
+                totaal: m.aantal * (m.prijs_per_stuk || 0)
+            })),
+            verbruiksartikelen: materials.verbruik.map(m => ({
+                aantal: m.aantal,
+                product: m.product,
+                prijsPerStuk: m.prijs_per_stuk || 0,
+                totaal: m.aantal * (m.prijs_per_stuk || 0)
+            })),
+            urenSpecificatie: (normalizedData?.urenSpecificatie || []).map((u: any) => ({
+                taak: u.omschrijving,
+                uren: parseFloat(u.uren) || 0
+            })),
+            totals: {
+                materialenGroot: totals?.materialenGroot || 0,
+                materialenVerbruik: totals?.materialenVerbruik || 0,
+                materialenTotaal: totals?.materialenTotaal || 0,
+                arbeidTotaal: totals?.arbeidTotaal || 0,
+                transportTotaal: totals?.transportTotaal || 0,
+                subtotaalExclBtw: totals?.subtotaalExclBtw || 0,
+                winstMarge: totals?.winstMarge || 0,
+                totaalExclBtw: totals?.totaalExclBtw || 0,
+                btw: totals?.btw || 0,
+                totaalInclBtw: totals?.totaalInclBtw || 0,
+                // Add missing fields required by PDFQuoteData
+                totaalUren: normalizedData?.totaal_uren || 0,
+                uurTarief: quoteSettings?.uurTariefExclBtw || 0,
+                btwPercentage: quoteSettings?.btwTarief || 21,
+                margePercentage: quoteSettings?.extras?.winstMarge?.percentage || 0
+            },
+            settings: pdfSettings,
+        };
+    };
+
     // Handle PDF settings update with persistence
     const handlePdfSettingsChange = async (newSettings: QuotePDFSettings) => {
         setPdfSettings(newSettings);
@@ -482,25 +645,8 @@ export default function QuotePage() {
         }
     };
 
-    // Download handler
-    const handleDownloadPDF = async () => {
-        const pdfData = buildPDFData();
-        if (!pdfData) return;
-
-        try {
-            const blob = await generateQuotePDF(pdfData);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Offerte-${(quote as any)?.offerteNummer || 'concept'}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('PDF download failed:', err);
-        }
-    };
+    // Old handleDownloadPDF removed to fix duplicate declaration.
+    // The new one is defined above at line ~523.
 
     const loading = calculationLoading || firebaseLoading || isUserLoading;
     const error = calculationError || firebaseError;
@@ -552,6 +698,14 @@ export default function QuotePage() {
                         >
                             <Download size={16} />
                             Download
+                        </button>
+                        <button
+                            onClick={() => setIsScheduleModalOpen(true)}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700"
+                            disabled={!normalizedData?.totaal_uren}
+                        >
+                            <CalendarDays size={16} />
+                            Inplannen
                         </button>
                         <button
                             onClick={() => setIsSendModalOpen(true)}
@@ -681,6 +835,7 @@ export default function QuotePage() {
                                     onAddItem={(item) => handleAddItem('groot', item)}
                                     subtotal={grootSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
+                                    onAddClick={() => setActiveCategory('groot')}
                                 />
                                 <MaterialEditor
                                     title="VERBRUIKSARTIKELEN"
@@ -689,6 +844,7 @@ export default function QuotePage() {
                                     onAddItem={(item) => handleAddItem('verbruik', item)}
                                     subtotal={verbruikSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
+                                    onAddClick={() => setActiveCategory('verbruik')}
                                 />
 
                                 {/* Total materials summary */}
@@ -793,6 +949,32 @@ export default function QuotePage() {
                 korteTitel={normalizedData?.korteTitel}
                 korteBeschrijving={normalizedData?.korteBeschrijving}
             />
+
+            <ScheduleModal
+                isOpen={isScheduleModalOpen}
+                onClose={() => setIsScheduleModalOpen(false)}
+                employees={employees}
+                planningSettings={planningSettings}
+                preselectedQuote={quote ? { id: quote.id, titel: quote.titel, klantinformatie: quote.klantinformatie as any, offerteNummer: (quote as any).offerteNummer } : undefined}
+                preselectedHours={normalizedData?.totaal_uren}
+            />
+
+            <MaterialSelectionModal
+                open={!!activeCategory}
+                onOpenChange={(open) => !open && setActiveCategory(null)}
+                existingMaterials={alleMaterialen}
+                onSelectExisting={handleSelectMaterial}
+                onMaterialAdded={handleSelectMaterial} // Handle custom created materials same way
+                defaultCategory="all"
+            />
+
+            {/* Hidden Drawing Generator */}
+            {isGeneratingPDF && quote && (
+                <HiddenPDFDrawings
+                    quote={quote}
+                    onReady={handleDrawingsCaptured}
+                />
+            )}
         </div>
 
     );

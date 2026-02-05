@@ -16,8 +16,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal } from 'lucide-react';
+import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users } from 'lucide-react';
 import { UserSettings, DEFAULT_USER_SETTINGS, BouwplaatsItem } from '@/lib/types-settings';
+import { useEmployees } from '@/hooks/useEmployees';
+import { EMPLOYEE_COLORS } from '@/lib/types-planning';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed or use a simple random string generator if not available. I will use crypto.randomUUID for simplicity or a simple helper if uuid is not guaranteed. I'll use a simple Math.random fallback to avoid adding deps if I can't confirm. Actually, crypto.randomUUID() is widely supported in modern browsers.
 
@@ -38,6 +42,12 @@ export default function InstellingenPage() {
     const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
     const [currentPackageName, setCurrentPackageName] = useState('');
     const [currentPackageItems, setCurrentPackageItems] = useState<BouwplaatsItem[]>([]);
+
+    // Employee CRUD State
+    const { employees, addEmployee, updateEmployee, deleteEmployee } = useEmployees();
+    const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false);
+    const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+    const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', phone: '', color: EMPLOYEE_COLORS[0] });
 
     const openPackageDialog = (pkg?: { id: string, naam: string, items: BouwplaatsItem[] }) => {
         if (pkg) {
@@ -204,7 +214,7 @@ export default function InstellingenPage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto p-1">
+                    <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto p-1">
                         <TabsTrigger value="bedrijf" className="py-2.5">
                             <Building2 className="mr-2 h-4 w-4" />
                             Bedrijfsgegevens
@@ -220,6 +230,10 @@ export default function InstellingenPage() {
                         <TabsTrigger value="bouwplaats" className="py-2.5">
                             <HardHat className="mr-2 h-4 w-4" />
                             Bouwplaats
+                        </TabsTrigger>
+                        <TabsTrigger value="planning" className="py-2.5">
+                            <CalendarDays className="mr-2 h-4 w-4" />
+                            Planning
                         </TabsTrigger>
                     </TabsList>
 
@@ -538,6 +552,259 @@ export default function InstellingenPage() {
                             </CardContent>
                         </Card>
                     </TabsContent>
+
+                    {/* --- PLANNING --- */}
+                    <TabsContent value="planning" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Werkdag Instellingen</CardTitle>
+                                <CardDescription>Standaard werktijden voor de planning.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="grid gap-4 md:grid-cols-2 p-4 border rounded-lg">
+                                    <div className="space-y-2">
+                                        <Label className="font-semibold">Werkuren per dag</Label>
+                                        <p className="text-xs text-muted-foreground">Standaard aantal uur per werkdag voor automatische planning.</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Uren per dag</Label>
+                                        <Input
+                                            type="number"
+                                            value={settings.planningSettings?.defaultWorkdayHours ?? 8}
+                                            onChange={e => updateDeep('planningSettings', 'defaultWorkdayHours', Number(e.target.value))}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2 p-4 border rounded-lg">
+                                    <div className="space-y-2">
+                                        <Label className="font-semibold">Werktijden</Label>
+                                        <p className="text-xs text-muted-foreground">Standaard start- en eindtijd.</p>
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <div className="flex-1 space-y-2">
+                                            <Label>Start</Label>
+                                            <Input
+                                                type="time"
+                                                value={settings.planningSettings?.defaultStartTime ?? '08:00'}
+                                                onChange={e => updateDeep('planningSettings', 'defaultStartTime', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                            <Label>Eind</Label>
+                                            <Input
+                                                type="time"
+                                                value={settings.planningSettings?.defaultEndTime ?? '17:00'}
+                                                onChange={e => updateDeep('planningSettings', 'defaultEndTime', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2 p-4 border rounded-lg">
+                                    <div className="space-y-2">
+                                        <Label className="font-semibold">Werkdagen</Label>
+                                        <p className="text-xs text-muted-foreground">Selecteer welke dagen werkdagen zijn.</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-3">
+                                        {[
+                                            { day: 1, label: 'Ma' },
+                                            { day: 2, label: 'Di' },
+                                            { day: 3, label: 'Wo' },
+                                            { day: 4, label: 'Do' },
+                                            { day: 5, label: 'Vr' },
+                                            { day: 6, label: 'Za' },
+                                            { day: 7, label: 'Zo' },
+                                        ].map(({ day, label }) => (
+                                            <label key={day} className="flex items-center gap-2 cursor-pointer">
+                                                <Checkbox
+                                                    checked={(settings.planningSettings?.workDays ?? [1, 2, 3, 4, 5]).includes(day)}
+                                                    onCheckedChange={(checked) => {
+                                                        const current = settings.planningSettings?.workDays ?? [1, 2, 3, 4, 5];
+                                                        const updated = checked
+                                                            ? [...current, day].sort((a, b) => a - b)
+                                                            : current.filter(d => d !== day);
+                                                        updateDeep('planningSettings', 'workDays', updated);
+                                                    }}
+                                                />
+                                                <span className="text-sm">{label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 border rounded-lg">
+                                    <div className="space-y-1">
+                                        <Label className="font-semibold">Automatisch opdelen</Label>
+                                        <p className="text-xs text-muted-foreground">Splits grote klussen automatisch over meerdere werkdagen.</p>
+                                    </div>
+                                    <Switch
+                                        checked={settings.planningSettings?.allowAutoSplit ?? true}
+                                        onCheckedChange={(checked) => updateDeep('planningSettings', 'allowAutoSplit', checked)}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <div>
+                                    <CardTitle>Medewerkers</CardTitle>
+                                    <CardDescription>Beheer je team voor de planning.</CardDescription>
+                                </div>
+                                <Button onClick={() => {
+                                    setEditingEmployeeId(null);
+                                    setEmployeeForm({ name: '', email: '', phone: '', color: EMPLOYEE_COLORS[employees.length % EMPLOYEE_COLORS.length] });
+                                    setIsEmployeeDialogOpen(true);
+                                }} size="sm" variant="outline">
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Medewerker
+                                </Button>
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                                {employees.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg text-center bg-muted/10">
+                                        <Users className="h-10 w-10 text-muted-foreground mb-4" />
+                                        <p className="text-muted-foreground mb-4">Nog geen medewerkers toegevoegd.</p>
+                                        <Button onClick={() => {
+                                            setEditingEmployeeId(null);
+                                            setEmployeeForm({ name: '', email: '', phone: '', color: EMPLOYEE_COLORS[0] });
+                                            setIsEmployeeDialogOpen(true);
+                                        }} variant="outline">
+                                            Voeg medewerker toe
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {employees.map((emp) => (
+                                            <div key={emp.id} className="group flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                                <div
+                                                    className="w-4 h-4 rounded-full shrink-0"
+                                                    style={{ backgroundColor: emp.color }}
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium truncate">{emp.name}</p>
+                                                    {emp.email && <p className="text-xs text-muted-foreground truncate">{emp.email}</p>}
+                                                </div>
+                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8"
+                                                        onClick={() => {
+                                                            setEditingEmployeeId(emp.id);
+                                                            setEmployeeForm({
+                                                                name: emp.name,
+                                                                email: emp.email || '',
+                                                                phone: emp.phone || '',
+                                                                color: emp.color
+                                                            });
+                                                            setIsEmployeeDialogOpen(true);
+                                                        }}
+                                                    >
+                                                        <Edit2 className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 text-destructive/70 hover:text-destructive"
+                                                        onClick={() => deleteEmployee(emp.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* --- EMPLOYEE DIALOG --- */}
+                    <Dialog open={isEmployeeDialogOpen} onOpenChange={setIsEmployeeDialogOpen}>
+                        <DialogContent className="max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>{editingEmployeeId ? 'Medewerker Bewerken' : 'Nieuwe Medewerker'}</DialogTitle>
+                                <DialogDescription>Voeg een teamlid toe aan de planning.</DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label>Naam *</Label>
+                                    <Input
+                                        placeholder="Volledige naam"
+                                        value={employeeForm.name}
+                                        onChange={e => setEmployeeForm(prev => ({ ...prev, name: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>E-mail</Label>
+                                    <Input
+                                        type="email"
+                                        placeholder="email@voorbeeld.nl"
+                                        value={employeeForm.email}
+                                        onChange={e => setEmployeeForm(prev => ({ ...prev, email: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Telefoon</Label>
+                                    <Input
+                                        type="tel"
+                                        placeholder="06-12345678"
+                                        value={employeeForm.phone}
+                                        onChange={e => setEmployeeForm(prev => ({ ...prev, phone: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Kleur</Label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {EMPLOYEE_COLORS.map(color => (
+                                            <button
+                                                key={color}
+                                                type="button"
+                                                className={`w-8 h-8 rounded-full transition-all ${employeeForm.color === color ? 'ring-2 ring-offset-2 ring-offset-background ring-white scale-110' : 'hover:scale-105'}`}
+                                                style={{ backgroundColor: color }}
+                                                onClick={() => setEmployeeForm(prev => ({ ...prev, color }))}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="ghost" onClick={() => setIsEmployeeDialogOpen(false)}>Annuleren</Button>
+                                <Button
+                                    variant="success"
+                                    disabled={!employeeForm.name.trim()}
+                                    onClick={async () => {
+                                        try {
+                                            if (editingEmployeeId) {
+                                                await updateEmployee(editingEmployeeId, {
+                                                    name: employeeForm.name,
+                                                    email: employeeForm.email,
+                                                    phone: employeeForm.phone,
+                                                    color: employeeForm.color
+                                                });
+                                            } else {
+                                                await addEmployee({
+                                                    name: employeeForm.name,
+                                                    email: employeeForm.email,
+                                                    phone: employeeForm.phone,
+                                                    color: employeeForm.color
+                                                });
+                                            }
+                                            setIsEmployeeDialogOpen(false);
+                                            toast({ title: 'Opgeslagen', description: `Medewerker ${editingEmployeeId ? 'bijgewerkt' : 'toegevoegd'}.` });
+                                        } catch (err) {
+                                            console.error(err);
+                                            toast({ variant: 'destructive', title: 'Fout', description: 'Kon medewerker niet opslaan.' });
+                                        }
+                                    }}
+                                >
+                                    Opslaan
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
 
                     {/* --- PACKAGE DIALOG --- */}
                     <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Boxes, Settings, Clock } from 'lucide-react';
+import { LayoutDashboard, Users, Boxes, Settings, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function BottomNav() {
@@ -51,14 +51,14 @@ export function BottomNav() {
                 </Link>
 
                 <Link
-                    href="/urenregistratie"
+                    href="/planning"
                     className={cn(
                         "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/urenregistratie') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                        isActive('/planning') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
                     )}
                 >
-                    <Clock className="h-6 w-6" strokeWidth={isActive('/urenregistratie') ? 2.5 : 2} />
-                    <span className="text-[10px] font-medium tracking-wide">Uren</span>
+                    <CalendarDays className="h-6 w-6" strokeWidth={isActive('/planning') ? 2.5 : 2} />
+                    <span className="text-[10px] font-medium tracking-wide">Planning</span>
                 </Link>
 
                 <Link

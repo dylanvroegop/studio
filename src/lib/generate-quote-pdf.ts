@@ -62,6 +62,7 @@ export interface PDFQuoteData {
         margePercentage: number;
     };
     settings: QuotePDFSettings;
+    drawingImages?: string[];
 }
 
 export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
@@ -598,37 +599,82 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     // ═══════════════════════════════════════════════════════════════
 
     if (data.settings.showTekeningen) {
-        doc.addPage();
-        y = margin;
+        // If we have captured images, render them
+        if (data.drawingImages && data.drawingImages.length > 0) {
+            data.drawingImages.forEach((imgData, index) => {
+                doc.addPage();
+                y = margin;
 
-        // Header
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 30, 30);
-        doc.text('TEKENINGEN', margin, y);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+                // Header
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(30, 30, 30);
+                doc.text(`TEKENINGEN (${index + 1}/${data.drawingImages!.length})`, margin, y);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
 
-        y += 8;
-        drawLine(y);
-        y += 10;
+                y += 8;
+                drawLine(y);
+                y += 10;
 
-        // Placeholder content
-        doc.setFontSize(10);
-        doc.setTextColor(50, 50, 50);
-        doc.text('Zie bijlagen voor technische tekeningen en plattegronden.', margin, y);
+                try {
+                    // Calculate aspect ratio to fit page
+                    const imgProps = doc.getImageProperties(imgData);
+                    const availableWidth = pageWidth - (margin * 2);
+                    const availableHeight = pageHeight - y - margin;
 
-        // Example box to indicate where drawings would go
-        y += 20;
-        doc.setDrawColor(230, 230, 230);
-        doc.setFillColor(250, 250, 250);
-        doc.roundedRect(margin, y, pageWidth - (margin * 2), 150, 3, 3, 'FD');
+                    let imgWidth = availableWidth;
+                    let imgHeight = (imgProps.height * availableWidth) / imgProps.width;
 
-        doc.setTextColor(150, 150, 150);
-        doc.setFontSize(14);
-        doc.text('Ruimte voor tekeningen', pageWidth / 2, y + 75, { align: 'center' });
+                    if (imgHeight > availableHeight) {
+                        imgHeight = availableHeight;
+                        imgWidth = (imgProps.width * availableHeight) / imgProps.height;
+                    }
+
+                    doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+                } catch (err) {
+                    console.error("Error adding image to PDF:", err);
+                    doc.setFontSize(10);
+                    doc.setTextColor(255, 0, 0);
+                    doc.text("Fout bij laden van tekening.", margin, y + 10);
+                }
+            });
+        } else {
+            // Fallback: Placeholder if enabled but no images found (or legacy behavior)
+            doc.addPage();
+            y = margin;
+
+            // Header
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(30, 30, 30);
+            doc.text('TEKENINGEN', margin, y);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+
+            y += 8;
+            drawLine(y);
+            y += 10;
+
+            // Placeholder content
+            doc.setFontSize(10);
+            doc.setTextColor(50, 50, 50);
+            doc.text('Zie bijlagen voor technische tekeningen en plattegronden.', margin, y);
+
+            // Example box to indicate where drawings would go
+            y += 20;
+            doc.setDrawColor(230, 230, 230);
+            doc.setFillColor(250, 250, 250);
+            doc.roundedRect(margin, y, pageWidth - (margin * 2), 150, 3, 3, 'FD');
+
+            doc.setTextColor(150, 150, 150);
+            doc.setFontSize(14);
+            doc.text('Ruimte voor tekeningen', pageWidth / 2, y + 75, { align: 'center' });
+        }
     }
 
     // Return as blob

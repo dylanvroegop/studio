@@ -1769,41 +1769,79 @@ export default function GenericMeasurementPage() {
                                 </div>
                               </div>
 
-                              {/* Seam Thickness Input (Global User Preference) */}
-                              {(() => {
-                                const isTrespa = jobSlug.toLowerCase().includes('trespa');
-                                const isRockpanel = jobSlug.toLowerCase().includes('rockpanel');
+                              {/* Boeiboord Orientation Options */}
+                              <div className="pt-2 border-t border-white/5" />
+                              <div className="space-y-3 pb-4 mb-4">
+                                <Label className="text-xs uppercase text-zinc-500 tracking-wider">Boeiboord Richting</Label>
+                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'boeiboord_orientation', 'horizontal')}
+                                    className={cn(
+                                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                                      item.boeiboord_orientation !== 'slope'
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Horizontaal (standaard)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateItem(index, 'boeiboord_orientation', 'slope');
+                                      if (item.boeiboord_angle === undefined || item.boeiboord_angle === null || item.boeiboord_angle === '') {
+                                        updateItem(index, 'boeiboord_angle', 45);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                                      item.boeiboord_orientation === 'slope'
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Schuin (daklijn)
+                                  </button>
+                                </div>
 
-                                if (isTrespa || isRockpanel) {
-                                  const fieldKey = isTrespa ? 'trespa_seam_thickness' : 'rockpanel_seam_thickness';
-                                  const label = isTrespa ? 'Trespa naad dikte' : 'Rockpanel naad dikte';
-                                  const currentValue = userData?.[fieldKey] ?? 8;
+                                {item.boeiboord_orientation === 'slope' && (
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">Daklijn hoek</Label>
+                                    <div className="relative">
+                                      <Input
+                                        type="number"
+                                        className="bg-black/20 border-white/10 h-9 text-sm pr-8"
+                                        value={item.boeiboord_angle ?? 45}
+                                        placeholder="45"
+                                        onChange={(e) => {
+                                          const nextVal = e.target.value === '' ? '' : Number(e.target.value);
+                                          updateItem(index, 'boeiboord_angle', nextVal);
+                                        }}
+                                      />
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">°</span>
+                                    </div>
+                                  </div>
+                                )}
 
-                                  return (
-                                    <>
-                                      <div className="pt-2 border-t border-white/5" />
-                                      <div className="space-y-2">
-                                        <Label className="text-xs uppercase text-zinc-500 tracking-wider">{label}</Label>
-                                        <div className="relative">
-                                          <Input
-                                            type="number"
-                                            className="bg-black/20 border-white/10 h-9 text-sm pr-8"
-                                            value={currentValue}
-                                            placeholder="8"
-                                            onChange={(e) => {
-                                              if (userDocRef) {
-                                                updateDoc(userDocRef, { [fieldKey]: Number(e.target.value) }).catch(console.error);
-                                              }
-                                            }}
-                                          />
-                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
-                                        </div>
-                                      </div>
-                                    </>
-                                  );
-                                }
-                                return null;
-                              })()}
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Spiegeling</Label>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'boeiboord_mirror', !item.boeiboord_mirror)}
+                                    className={cn(
+                                      "w-full text-xs py-1.5 rounded transition-colors border border-white/10",
+                                      item.boeiboord_mirror
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "bg-black/20 text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Dubbel gespiegeld (2x)
+                                  </button>
+                                </div>
+                              </div>
+
+
 
                               {/* Kopkanten toggle */}
                               {fields.find(f => f.key === 'kopkanten') && (
@@ -2421,6 +2459,38 @@ export default function GenericMeasurementPage() {
                             <>
                               {lattenSection}
                               {balkenSection}
+
+                              {/* Seam Thickness (Moved to bottom) */}
+                              {(() => {
+                                const isTrespa = jobSlug.toLowerCase().includes('trespa');
+                                const isRockpanel = jobSlug.toLowerCase().includes('rockpanel');
+                                if (isTrespa || isRockpanel) {
+                                  const fieldKey = isTrespa ? 'trespa_seam_thickness' : 'rockpanel_seam_thickness';
+                                  const label = isTrespa ? 'Trespa naad dikte' : 'Rockpanel naad dikte';
+                                  const currentValue = userData?.[fieldKey] ?? 8;
+
+                                  return (
+                                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 p-4 space-y-2">
+                                      <Label className="text-xs uppercase text-zinc-500 tracking-wider">{label}</Label>
+                                      <div className="relative">
+                                        <Input
+                                          type="number"
+                                          className="bg-black/20 border-white/10 h-9 text-sm pr-8"
+                                          value={currentValue}
+                                          placeholder="8"
+                                          onChange={(e) => {
+                                            if (userDocRef) {
+                                              updateDoc(userDocRef, { [fieldKey]: Number(e.target.value) }).catch(console.error);
+                                            }
+                                          }}
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </>
                           );
                         }

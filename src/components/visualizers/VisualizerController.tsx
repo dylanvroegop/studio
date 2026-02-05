@@ -174,9 +174,12 @@ export function VisualizerController({
         const vzHoogte = toNum(item.hoogte);
         const ozLengte = toNum(item.lengte_onderzijde) || vzLengte;
         const ozBreedte = toNum(item.breedte);
-        const balkNum = toNum(item.balkafstand, 600);
+        const balkNum = toNum(item.balkafstand, 0);
         const latVz = toNum(item.latafstand, 300);
         const latOz = toNum(item.onderzijde_latafstand) || latVz;
+        const boeiOrientation = item.boeiboord_orientation === 'slope' ? 'slope' : 'horizontal';
+        const boeiAngle = toNum(item.boeiboord_angle, 45);
+        const boeiMirror = !!item.boeiboord_mirror;
 
         return (
             <div className="flex flex-col gap-4">
@@ -187,7 +190,11 @@ export function VisualizerController({
                     latafstand={latVz}
                     title="Voorzijde"
                     startLattenFromBottom={item.startLattenFromBottom}
+                    startFromRight={item.startFromRight}
                     doubleEndBattens={item.doubleEndBattens}
+                    boeiboordOrientation={boeiOrientation}
+                    boeiboordAngle={boeiAngle}
+                    boeiboordMirror={boeiMirror}
                 />
                 <BoeiboordDrawing
                     lengte={ozLengte}
@@ -196,7 +203,9 @@ export function VisualizerController({
                     latafstand={latOz}
                     title="Onderzijde"
                     startLattenFromBottom={item.startLattenFromBottom}
+                    startFromRight={item.startFromRight}
                     doubleEndBattens={item.doubleEndBattens}
+                    mirrorBadgeText={boeiMirror ? '2x' : undefined}
                 />
             </div>
         );
@@ -223,8 +232,8 @@ export function VisualizerController({
     // 3b. KOZIJN MAATWERK
     if (slug.includes('maatwerk-kozijnen')) {
         const doorVak = Array.isArray(item?.vakken)
-          ? item.vakken.find((v: any) => String(v?.type || '').toLowerCase() === 'deur')
-          : null;
+            ? item.vakken.find((v: any) => String(v?.type || '').toLowerCase() === 'deur')
+            : null;
         const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
         const doorWidth = num(doorVak?.breedte ?? doorVak?.width);
         const doorHeight = num(doorVak?.hoogte ?? doorVak?.height);
