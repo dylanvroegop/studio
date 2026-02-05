@@ -33,11 +33,22 @@ export function useQuoteData(quoteId: string) {
 
                 console.log('Supabase response:', { data, error });
 
-                if (error) throw error;
-                setCalculation(data);
+                if (error) {
+                    if (error.code === 'PGRST116') {
+                        // No rows found - this is fine, just means no calculation yet
+                        setCalculation(null);
+                    } else {
+                        throw error;
+                    }
+                } else {
+                    setCalculation(data);
+                }
             } catch (err) {
                 console.error('Fetch error:', err);
-                setError(err instanceof Error ? err.message : 'Failed to fetch quote data');
+                // Only set error if it wasn't handled above
+                if ((err as any)?.code !== 'PGRST116') {
+                    setError(err instanceof Error ? err.message : 'Failed to fetch quote data');
+                }
             } finally {
                 setLoading(false);
             }

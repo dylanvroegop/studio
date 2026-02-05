@@ -97,11 +97,11 @@ export type JobCategory =
   | "Vloeren & Vlieringen"
   | "Deuren"
   | "Kozijnen"
-  | "Dakkapellen"
+
   | "Dakrenovatie"
   | "Gevelbekleding"
   | "Schutting"
-  | "Overkapping & Houtbouw"
+
   | "Afwerkingen"
   | "Glas zetten"
   | "Trappen"
@@ -110,7 +110,7 @@ export type JobCategory =
   | "Inbouwkasten"
   | "Meubels Op Maat"
   | "Dakramen / Lichtkoepel"
-  | "Boeiboorden"
+  | "Boeidelen"
   | "Sloopwerk & Logistiek"
   | "Constructief"
   | "Beveiliging"

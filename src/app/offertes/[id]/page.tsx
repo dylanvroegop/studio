@@ -13,7 +13,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -21,6 +21,7 @@ import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
+import { DrawingsTab } from '@/components/quote/DrawingsTab';
 
 
 import { Quote } from "@/lib/types";
@@ -578,6 +579,9 @@ export default function QuotePage() {
                             <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
                                 <Euro size={16} /> Overzicht
                             </TabsTrigger>
+                            <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                                <PenTool size={16} /> Tekeningen
+                            </TabsTrigger>
                             <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
                                 <Package size={16} /> Materialen
                             </TabsTrigger>
@@ -652,6 +656,10 @@ export default function QuotePage() {
                                 <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
                             </div>
                         )}
+                    </TabsContent>
+
+                    <TabsContent value="tekeningen" className="mt-6 space-y-6">
+                        {quote && <DrawingsTab quote={quote} />}
                     </TabsContent>
 
                     {/* Materialen Tab */}

@@ -162,7 +162,7 @@ function formatNlMoneyFromNumber(n: number | null | undefined): string {
   const withDots = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${withDots},${d}`;
 }
-const BLOCKLIST = ['isFavorite', 'sectionKey', 'quantity', '_raw', 'created_at', 'id', 'wastePercentage'];
+const BLOCKLIST = ['isFavorite', 'sectionKey', 'quantity', '_raw', 'created_at', 'id', 'wastePercentage', 'savedAt', 'updatedAt', 'saved_at', 'updated_at', 'savedByUid', 'gebruikerid', 'row_id', 'order_id'];
 const DEFAULT_WASTE_PERCENTAGE = 10;
 const ZERO_WASTE_PATTERNS = [
   /(\bdeur\b|deuren|binnendeur|buitendeur)/i,
@@ -1064,19 +1064,18 @@ export default function GenericMaterialsPageRedesigned() {
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = snap.data();
-          const byJob = data.hidden_categories_by_job;
+          const hiddenByJob = data.hidden_categories_by_job;
+          const collapsedByJob = data.collapsed_sections_by_job;
 
-          if (byJob && typeof byJob === 'object' && byJob[jobSlug]) {
-            setHiddenCategories(prev => ({ ...prev, ...byJob[jobSlug] }));
-            return;
+          if (hiddenByJob && typeof hiddenByJob === 'object' && hiddenByJob[jobSlug]) {
+            setHiddenCategories(prev => ({ ...prev, ...hiddenByJob[jobSlug] }));
+          } else if (data.hidden_categories && (!hiddenByJob || typeof hiddenByJob !== 'object')) {
+            // Legacy fallback
+            setHiddenCategories(prev => ({ ...prev, ...data.hidden_categories }));
           }
 
-          // Legacy fallback: migrate global prefs into job-specific bucket
-          if (data.hidden_categories && (!byJob || typeof byJob !== 'object')) {
-            setHiddenCategories(prev => ({ ...prev, ...data.hidden_categories }));
-            setDoc(ref, {
-              [`hidden_categories_by_job.${jobSlug}`]: data.hidden_categories
-            }, { merge: true }).catch(console.error);
+          if (collapsedByJob && typeof collapsedByJob === 'object' && collapsedByJob[jobSlug]) {
+            setCollapsedSections(prev => ({ ...prev, ...collapsedByJob[jobSlug] }));
           }
         }
       } catch (e) {
@@ -1508,7 +1507,7 @@ export default function GenericMaterialsPageRedesigned() {
         }
         if (klusNode?.werkwijze?.workMethodId) setGekozenPresetId(klusNode.werkwijze.workMethodId);
         if (klusNode?.kleinMateriaal) setKleinMateriaalConfig(klusNode.kleinMateriaal);
-        if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections);
+        // if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections); // Removed: Loaded from user profile now
 
         // Auto-unhide categories if relevant components exist (Step Id: 181)
         let loadedHidden = klusNode?.uiState?.hiddenCategories || {};
@@ -1750,7 +1749,22 @@ export default function GenericMaterialsPageRedesigned() {
     setPendingPresetId(null);
   };
 
-  const toggleSection = (key: string) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleSection = (key: string) => {
+    setCollapsedSections(prev => {
+      const nextCollapsed = !prev[key];
+      const newState = { ...prev, [key]: nextCollapsed };
+
+      // Persist to Firestore if user is logged in
+      if (user && firestore) {
+        const ref = doc(firestore, 'users', user.uid);
+        setDoc(ref, {
+          [`collapsed_sections_by_job.${jobSlug}.${key}`]: nextCollapsed
+        }, { merge: true }).catch(console.error);
+      }
+
+      return newState;
+    });
+  };
 
   const toggleCategoryVisibility = (categoryKey: string) => {
     setHiddenCategories(prev => {
@@ -2279,8 +2293,9 @@ export default function GenericMaterialsPageRedesigned() {
           workMethodId: gekozenPresetId === 'default' ? null : gekozenPresetId,
           savedByUid: user.uid
         })),
-        [`klussen.${klusId}.uiState.collapsedSections`]: JSON.parse(JSON.stringify(collapsedSections ?? {})),
-        [`klussen.${klusId}.uiState.hiddenCategories`]: JSON.parse(JSON.stringify(hiddenCategories ?? {})),
+        // [`klussen.${klusId}.uiState.collapsedSections`]: JSON.parse(JSON.stringify(collapsedSections ?? {})),
+        // [`klussen.${klusId}.uiState.hiddenCategories`]: JSON.parse(JSON.stringify(hiddenCategories ?? {})),
+        [`klussen.${klusId}.uiState`]: deleteField(), // Remove legacy uiState object
         [`klussen.${klusId}.material_notities`]: notities ?? "",
         [`klussen.${klusId}.updatedAt`]: serverTimestamp()
       };

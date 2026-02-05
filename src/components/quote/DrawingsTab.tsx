@@ -1,0 +1,318 @@
+import React, { useMemo, useState, useEffect } from 'react';
+import { Quote, Job } from '@/lib/types';
+import { VisualizerController } from '@/components/visualizers/VisualizerController';
+import { JOB_REGISTRY } from '@/lib/job-registry';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { StickyNote, AlertCircle, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { useFirestore } from '@/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+
+interface DrawingsTabProps {
+    quote: Quote;
+}
+
+export function DrawingsTab({ quote }: DrawingsTabProps) {
+    const firestore = useFirestore();
+    const [jobs, setJobs] = useState<Job[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // 1. Fetch/Extract Jobs
+    useEffect(() => {
+        const loadJobs = async () => {
+            setIsLoading(true);
+
+            console.log("DrawingsTab loading for quote:", quote.id);
+
+            // Strategy A: Check 'klussen' map (Active Wizard / Modern Structure)
+            const klussenMap = (quote as any).klussen;
+            if (klussenMap && typeof klussenMap === 'object' && Object.keys(klussenMap).length > 0) {
+                console.log("Strategy A: Found klussen map", Object.keys(klussenMap));
+                const jobsFromMap = Object.entries(klussenMap).map(([key, data]: [string, any]) => ({
+                    id: key,
+                    ...data
+                }));
+                setJobs(jobsFromMap as Job[]);
+                setIsLoading(false);
+                return;
+            }
+
+            // Strategy B: Check 'jobs' array (if already populated on quote object)
+            if ((quote as any).jobs && Array.isArray((quote as any).jobs) && (quote as any).jobs.length > 0) {
+                console.log("Strategy B: Found jobs array", (quote as any).jobs.length);
+                setJobs((quote as any).jobs);
+                setIsLoading(false);
+                return;
+            }
+
+            // Strategy C: Fetch from Firestore subcollection (Legacy Structure)
+            if (firestore && quote.id) {
+                console.log("Strategy C: Fetching subcollection...");
+                try {
+                    const jobsRef = collection(firestore, `quotes/${quote.id}/jobs`);
+                    const snap = await getDocs(jobsRef);
+                    console.log("Strategy C: Fetched docs:", snap.size);
+                    const fetchedJobs = snap.docs.map(d => ({
+                        id: d.id,
+                        ...d.data()
+                    } as Job));
+                    setJobs(fetchedJobs);
+                } catch (err) {
+                    console.error("Error fetching jobs subcollection:", err);
+                }
+            }
+
+            setIsLoading(false);
+        };
+
+        if (quote) {
+            loadJobs();
+        }
+    }, [quote, firestore]);
+
+    // 2. Filter for Valid Drawing Jobs
+    const drawingJobs = useMemo(() => {
+        console.log("Filtering jobs:", jobs.length);
+        return jobs.filter(job => {
+            // Check for parametric data (Modern)
+            const hasMaatwerk = job.maatwerk && (
+                (Array.isArray(job.maatwerk) && job.maatwerk.length > 0) ||
+                (!Array.isArray(job.maatwerk) && (job.maatwerk as any).items && (job.maatwerk as any).items.length > 0) ||
+                false
+            );
+
+            // Check for static visual URL (Legacy)
+            // Ensure we check nested fields if necessary, though previously found at root.
+            const hasVisualUrl = !!(job as any).visualisatieUrl;
+
+            // Must identify as a job with visualization support
+            // We check if it has a known slug/category
+            const meta = (job as any).meta || {};
+            const slug = meta.slug;
+
+            // DEBUG LOG
+            console.log(`Job [${job.id?.substring(0, 6)}...]: Maatwerk=${hasMaatwerk}, VisualUrl=${hasVisualUrl}, Slug=${slug}`);
+
+            // Relaxed Filter: Allow Visual URL even if slug is missing
+            if (hasVisualUrl) return true;
+
+            // For Parametric, we generally need formatting info from the slug
+            return hasMaatwerk && slug;
+        });
+    }, [jobs]);
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800">
+                <Loader2 className="h-8 w-8 text-emerald-500 animate-spin mb-4" />
+                <h3 className="text-zinc-400 font-medium">Tekeningen laden en controleren...</h3>
+            </div>
+        );
+    }
+
+    if (drawingJobs.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800">
+                <StickyNote className="h-10 w-10 text-zinc-600 mb-4" />
+                <h3 className="text-zinc-400 font-medium">Geen tekeningen beschikbaar</h3>
+                <p className="text-zinc-600 text-sm mt-1 mb-4">Er zijn nog geen maatwerk onderdelen gevonden voor deze offerte.</p>
+
+                {/* Helper for Debugging */}
+                <div className="bg-zinc-900/50 p-4 rounded text-xs font-mono text-zinc-500 border border-zinc-800 max-w-sm">
+                    <p>Debug Info:</p>
+                    <p>Quote ID: {quote.id}</p>
+                    <p>Total Jobs Found: {jobs.length}</p>
+                    <p>Filtered Jobs: {drawingJobs.length}</p>
+                    {jobs.length > 0 && (
+                        <div className="mt-2 border-t border-zinc-800 pt-2">
+                            <p>Sample Job (0):</p>
+                            <p>ID: {(jobs[0] as any).id}</p>
+                            <p>Has Maatwerk: {!!jobs[0].maatwerk ? 'Yes' : 'No'}</p>
+                            <p>Visual URL: {!!(jobs[0] as any).visualisatieUrl ? 'Yes' : 'No'}</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-12 pb-20">
+            {drawingJobs.map((job, i) => (
+                <JobDrawingSection key={job.id || i} job={job} quote={quote} index={i} />
+            ))}
+        </div>
+    );
+}
+
+// Helper component to isolate config lookup and rendering logic per job
+function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; index: number }) {
+    const meta = (job as any).meta || {};
+    const categorySlug = meta.type || '';
+    const jobSlug = meta.slug || '';
+    const visualisatieUrl = (job as any).visualisatieUrl;
+
+    // Normalize items from maatwerk
+    const items = useMemo(() => {
+        if (Array.isArray(job.maatwerk)) return job.maatwerk;
+        if (job.maatwerk && (job.maatwerk as any).items && Array.isArray((job.maatwerk as any).items)) {
+            return (job.maatwerk as any).items;
+        }
+        return [];
+    }, [job.maatwerk]);
+
+    const hasItems = items.length > 0;
+
+    // Fetch config for fields
+    const categoryConfig = JOB_REGISTRY[categorySlug];
+    // Find specific job config
+    const jobConfig = categoryConfig?.items.find((item) => item.slug === jobSlug);
+    const fields = jobConfig?.measurements || [];
+
+    const title = (job as any).title || jobConfig?.title || 'Onderdeel';
+
+    // --- Material Logic for "Exact" Parity (Frame Thickness, etc.) ---
+    const materialenLijst = job.materialen?.materialen_lijst || {};
+
+    const parseDikteToMm = (raw: any): number | null => {
+        if (raw === null || raw === undefined || raw === '') return null;
+        if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+        const s = String(raw).trim().toLowerCase();
+        const match = s.match(/([\d.,]+)\s*(mm|cm|m)?/i);
+        if (!match) return null;
+        const num = parseFloat(match[1].replace(',', '.'));
+        const unit = match[2];
+        if (unit === 'cm') return num * 10;
+        if (unit === 'm') return num * 1000;
+        return num;
+    };
+
+    const getMaterialAttr = (key: string, sectionKeyCheck: string) => {
+        const found = Object.values(materialenLijst).find((entry: any) => {
+            const mat = entry.material;
+            if (!mat) return false;
+            const sk = entry.sectionKey || mat.sectionKey;
+            return sk === sectionKeyCheck;
+        });
+        return found ? (found as any).material?.[key] : null;
+    };
+
+    const kozijnhoutDikte = getMaterialAttr('dikte', 'kozijnhout_buiten');
+    const tussenstijlDikte = getMaterialAttr('dikte', 'tussenstijl');
+
+    const kozijnhoutFrameThicknessMm = parseDikteToMm(kozijnhoutDikte);
+    const tussenstijlThicknessMm = parseDikteToMm(tussenstijlDikte);
+
+    const isMaatwerkKozijn = jobSlug === 'maatwerk-kozijnen';
+    const hasTussenstijl = items.some((item: any) => item.tussenstijlen && item.tussenstijlen.length > 0);
+
+    // Fallback: If no parametric items but we have a URL, render just the image
+    if (!hasItems && visualisatieUrl) {
+        return (
+            <div className="space-y-6">
+                <div className="flex items-center gap-4 border-b border-white/5 pb-4">
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs px-2 py-0.5">
+                        {index + 1}
+                    </Badge>
+                    <h2 className="text-lg font-semibold text-zinc-200">{title}</h2>
+                    <span className="text-xs text-zinc-500 font-mono ml-auto opacity-50 capitalize">{categorySlug} / {jobSlug}</span>
+                </div>
+                <Card className="bg-black/20 border-white/5 overflow-hidden group">
+                    <CardContent className="p-0 relative aspect-[4/3] bg-[#09090b]">
+                        {/* Dot Pattern Background */}
+                        <div
+                            className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                            style={{
+                                backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                                backgroundSize: '24px 24px'
+                            }}
+                        />
+                        <div className="relative z-10 w-full h-full flex items-center justify-center p-6">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={visualisatieUrl}
+                                alt={title}
+                                className="max-w-full max-h-full object-contain drop-shadow-2xl"
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    if (!hasItems) return null;
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-4 border-b border-white/5 pb-4">
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs px-2 py-0.5">
+                    {index + 1}
+                </Badge>
+                <h2 className="text-lg font-semibold text-zinc-200">{title}</h2>
+                <span className="text-xs text-zinc-500 font-mono ml-auto opacity-50 capitalize">{categorySlug} / {jobSlug}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {items.map((item: any, itemIdx: number) => (
+                    <Card key={item.id || itemIdx} className="bg-black/20 border-white/5 overflow-hidden group">
+                        <CardContent className="p-0 relative aspect-[4/3] bg-[#09090b]">
+                            {/* Visualization Container */}
+                            <div className="absolute inset-0 flex items-center justify-center p-6">
+                                {/* Dot Pattern Background */}
+                                <div
+                                    className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                                    style={{
+                                        backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                                        backgroundSize: '24px 24px'
+                                    }}
+                                />
+
+                                <div className="relative z-10 w-full h-full flex items-center justify-center">
+                                    <VisualizerController
+                                        category={categorySlug}
+                                        slug={jobSlug}
+                                        item={item}
+                                        fields={fields}
+                                        title={`${title} ${itemIdx + 1}`}
+                                        isMagnifier={false}
+                                        fitContainer={true}
+                                        // Pass the material-derived props for "Exact Same" rendering
+                                        frameThickness={isMaatwerkKozijn ? (kozijnhoutFrameThicknessMm ?? undefined) : undefined}
+                                        tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? (tussenstijlThicknessMm ?? undefined) : undefined}
+
+                                        // Pass through other standard properties
+                                        tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
+                                        doorPosition={item.doorPosition}
+                                        doorSwing={item.doorSwing}
+
+                                        // We pass empty/noop handlers since this is read-only
+                                        onOpeningsChange={() => { }}
+                                        onEdgeChange={() => { }}
+                                        onDataGenerated={() => { }}
+                                        onLeidingkoofChange={() => { }}
+
+                                        className="w-full h-full"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Overlay Label */}
+                            <div className="absolute top-3 left-3 px-3 py-1.5 rounded-md bg-black/60 backdrop-blur border border-white/5 text-xs font-medium text-zinc-300">
+                                Item {itemIdx + 1} {item.aantal ? <span className="opacity-50 ml-1">({item.aantal}x)</span> : ''}
+                            </div>
+
+                            {/* Dimensions Overlay (Bottom) for quick reference */}
+                            <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent pt-10 flex gap-4 text-[10px] text-zinc-400 font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+                                {item.breedte && <div>B: {item.breedte}mm</div>}
+                                {item.hoogte && <div>H: {item.hoogte}mm</div>}
+                                {item.lengte && <div>L: {item.lengte}mm</div>}
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    );
+}

@@ -39,13 +39,13 @@ const categories: CategoryItem[] = [
   { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
   { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
   { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeidelen', slug: 'dakrenovatie' },
-  { name: 'Boeiboorden', description: 'Hout of kunststof boeidelen vervangen', slug: 'boeiboorden' },
+  { name: 'Boeidelen', description: 'Hout of kunststof boeidelen vervangen', slug: 'boeiboorden' },
 
   { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
-  { name: 'Dakkapellen', description: 'Plaatsen (prefab/maatwerk) en renovatie', slug: 'dakkapellen' },
+
 
   { name: 'Schutting', description: 'Hout, beton of composiet tuinafscheiding', slug: 'schutting' },
-  { name: 'Overkapping & Houtbouw', description: 'Veranda\'s, schuren & tuinhuizen', slug: 'overkapping' },
+
 
   { name: 'Afwerkingen', description: 'Plinten, vensterbanken & betimmering', slug: 'afwerkingen' },
   { name: 'Glas zetten', description: 'Isolatieglas (HR++)', slug: 'glas-zetten' },

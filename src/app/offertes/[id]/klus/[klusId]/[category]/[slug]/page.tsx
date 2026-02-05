@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities, react-hooks/exhaustive-deps */
 'use client';
 
-import React, { useEffect, useState, useTransition, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useTransition, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useDoc } from '@/firebase/firestore/use-doc'; // Added useDoc import
 import {
   AlertDialog,
   AlertDialogAction,
@@ -150,6 +151,7 @@ function VakInputCard({
                   <SelectItem value="deur" disabled={!allowDoor}>Deur</SelectItem>
                   <SelectItem value="glas">Glas</SelectItem>
                   <SelectItem value="paneel">Paneel</SelectItem>
+                  <SelectItem value="raamkozijn">Raamkozijn</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                 </SelectContent>
               </Select>
@@ -175,32 +177,36 @@ function VakInputCard({
             </div>
           </div>
 
-          {/* Door Specifics */}
-          {type === 'deur' && onUpdateFull && (
-            <div className="space-y-3 pt-3 border-t border-white/5">
-              <Label className="text-xs">Startpositie</Label>
-              <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                <button
-                  type="button"
-                  onClick={() => onUpdateFull({ doorPosition: 'left' })}
-                  className={cn(
-                    "flex-1 text-xs py-1.5 rounded transition-colors",
-                    doorPosition !== 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
-                  )}
-                >
-                  Links
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onUpdateFull({ doorPosition: 'right' })}
-                  className={cn(
-                    "flex-1 text-xs py-1.5 rounded transition-colors",
-                    doorPosition === 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
-                  )}
-                >
-                  Rechts
-                </button>
-              </div>
+          {/* Deur/Raamkozijn Specifics (Draairichting) */}
+          {(type === 'deur' || type === 'raamkozijn') && onUpdateFull && (
+            <div className="pt-2 border-t border-white/5 space-y-3">
+              {type === 'deur' && (
+                <>
+                  <Label className="text-xs">Positie (van buitenaf gezien)</Label>
+                  <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => onUpdateFull({ doorPosition: 'left' })}
+                      className={cn(
+                        "flex-1 text-xs py-1.5 rounded transition-colors",
+                        doorPosition !== 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                    >
+                      Links
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateFull({ doorPosition: 'right' })}
+                      className={cn(
+                        "flex-1 text-xs py-1.5 rounded transition-colors",
+                        doorPosition === 'right' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                    >
+                      Rechts
+                    </button>
+                  </div>
+                </>
+              )}
 
               <Label className="text-xs">Draairichting</Label>
               <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
@@ -228,8 +234,8 @@ function VakInputCard({
             </div>
           )}
 
-          {/* Glas Specifics (Borstwering) */}
-          {type === 'glas' && onUpdateFull && (
+          {/* Glas/Raamkozijn/Open/Paneel Specifics (Borstwering) */}
+          {['glas', 'raamkozijn', 'open', 'paneel'].includes(type) && onUpdateFull && (
             <div className="pt-2 border-t border-white/5 space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Borstwering</Label>
@@ -281,6 +287,10 @@ export default function GenericMeasurementPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+
+  // Custom hook for user preferences
+  const userDocRef = useMemo(() => user?.uid && firestore ? doc(firestore, 'users', user.uid) : null, [user?.uid, firestore]);
+  const { data: userData } = useDoc(userDocRef);
 
   const quoteId = params.id as string;
   const klusId = params.klusId as string;
@@ -398,9 +408,9 @@ export default function GenericMeasurementPage() {
     const hasDoor = doorHeightMm > 0;
 
     const rawPositions = Array.isArray(item.tussenstijlen) ? item.tussenstijlen.map(num).filter((v: number) => v > 0) : [];
-    const isDoorLeft = item.doorPosition !== 'right';
+    const layoutDoorLeft = true;
     const autoDoorPos = (hasDoor && hasTussenstijl && doorWidthMm > 0 && doorWidthMm < innerWidthMm)
-      ? (isDoorLeft ? doorWidthMm : Math.max(0, innerWidthMm - doorWidthMm - tussenstijlMm))
+      ? (layoutDoorLeft ? doorWidthMm : Math.max(0, innerWidthMm - doorWidthMm - tussenstijlMm))
       : null;
 
     let basePositions = rawPositions.length > 0 ? rawPositions : [];
@@ -440,7 +450,7 @@ export default function GenericMeasurementPage() {
     colWidths.push(Math.max(0, innerWidthMm - cursor));
     const colCount = Math.max(1, colWidths.length);
 
-    const doorColIndex = (item.doorPosition === 'right') ? Math.max(0, colCount - 1) : 0;
+    const doorColIndex = layoutDoorLeft ? 0 : Math.max(0, colCount - 1);
     const doorRowCols = colCount > 1
       ? Array.from({ length: colCount }, (_, i) => i).filter(i => i !== doorColIndex)
       : [];
@@ -514,6 +524,12 @@ export default function GenericMeasurementPage() {
       });
     });
 
+    let maxRow = -1;
+    results.forEach((v) => {
+      if (v.rowIndex > maxRow) maxRow = v.rowIndex;
+    });
+    const totalRows = maxRow >= 0 ? maxRow + 1 : 0;
+
     return {
       innerWidthMm,
       innerHeightMm,
@@ -521,35 +537,54 @@ export default function GenericMeasurementPage() {
       tussenstijlMm,
       positions: tussenstijlPositions,
       layout: results,
+      rowCount: totalRows,
     };
   };
 
   const buildTussenstijlenForSave = (item: any) => {
-    const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
     const layout = computeVakLayout(item);
-    const positions = Array.isArray(item.tussenstijlen)
-      ? item.tussenstijlen.map(num).filter((v: number) => Number.isFinite(v) && v > 0)
-      : [];
+    const count = layout.positions.length;
 
-    const posObjects = positions.map((pos: number, idx: number) => ({
-      id: crypto.randomUUID(),
-      label: `Tussenstijl ${idx + 1}`,
-      positie_mm: pos,
-      referentie: 'binnenmaat_vanaf_links',
+    if (count <= 0 || layout.innerHeightMm <= 0) {
+      return [];
+    }
+
+    return [{
+      type: 'tussenstijl',
+      aantal: count,
+      lengte_mm: Math.round(layout.innerHeightMm),
+      referentie: 'binnenmaat_hoogte',
       eenheid: 'mm',
-      source: 'manual_or_auto',
-    }));
+    }];
+  };
+
+  const buildStijlenForSave = (item: any) => {
+    const hoogteMm = parseDimToMm(item.hoogte);
+    const breedteMm = parseDimToMm(item.breedte);
+    const layout = computeVakLayout(item);
+
+    if (!hoogteMm || !breedteMm) {
+      return null;
+    }
+
+    const doorInfo = getDoorVakInfo(item);
+    const hasDoor = doorInfo.height > 0;
+    const hasTussendorpel = hasDoor && (doorInfo.height + layout.frameMm) < layout.innerHeightMm;
+    const tussendorpelAantal = hasTussendorpel ? 1 : 0;
+    const tussendorpelLengte = hasTussendorpel && layout.innerWidthMm > 0
+      ? Math.round(layout.innerWidthMm)
+      : null;
 
     return {
-      positions: posObjects,
-      meta: {
-        referentie: 'binnenmaat_vanaf_links',
-        eenheid: 'mm',
-        frame_mm: layout.frameMm,
-        tussenstijl_mm: layout.tussenstijlMm,
-        inner_width_mm: layout.innerWidthMm,
-        door_position: item.doorPosition ?? 'left',
-        door_breedte_mm: parseDimToMm(item.deur_breedte) ?? null,
+      zijstijl_lengte_mm: Math.round(hoogteMm),
+      bovendorpel_lengte_mm: Math.round(breedteMm),
+      onderdorpel_lengte_mm: Math.round(breedteMm),
+      tussendorpel_lengte_mm: tussendorpelLengte,
+      aantallen: {
+        zijstijl: 2,
+        bovendorpel: 1,
+        onderdorpel: 1,
+        tussendorpel: tussendorpelAantal,
       }
     };
   };
@@ -607,52 +642,71 @@ export default function GenericMeasurementPage() {
 
   const enrichVakkenForSave = (item: any) => {
     const vakken = Array.isArray(item.vakken) ? item.vakken : [];
+    const layoutData = computeVakLayout(item);
     const doorPosition = item.doorPosition ?? 'left';
     const doorSwing = item.doorSwing ?? 'left';
 
-    return vakken.map((vak: any, idx: number) => {
+    return vakken.flatMap((vak: any, idx: number) => {
       const typeRaw = String(vak?.type || '').toLowerCase();
       const type = typeRaw || 'glas';
-      const openingWidth = parseDimToMm(vak?.breedte ?? vak?.width ?? vak?.opening_breedte ?? vak?.openingWidth);
-      const openingHeight = parseDimToMm(vak?.hoogte ?? vak?.height ?? vak?.opening_hoogte ?? vak?.openingHeight);
+      const layout = layoutData.layout.get(idx);
 
+      const explicitWidth = parseDimToMm(vak?.breedte ?? vak?.width ?? vak?.opening_breedte ?? vak?.openingWidth);
+      const explicitHeight = parseDimToMm(vak?.hoogte ?? vak?.height ?? vak?.opening_hoogte ?? vak?.openingHeight);
+      const doorFallbackWidth = (type === 'deur') ? parseDimToMm(item?.deur_breedte ?? item?.doorWidth ?? item?.door_breedte) : null;
+      const doorFallbackHeight = (type === 'deur') ? parseDimToMm(item?.deur_hoogte ?? item?.doorHeight ?? item?.door_hoogte) : null;
+
+      const widthMm = explicitWidth ?? doorFallbackWidth ?? (layout?.displayWidth ? Math.round(layout.displayWidth) : null);
+      const heightMm = explicitHeight ?? doorFallbackHeight ?? (layout?.displayHeight ? Math.round(layout.displayHeight) : null);
       const cleaned: any = {
-        ...vak,
         id: vak?.id || crypto.randomUUID(),
-        type,
         index: vak?.index ?? idx,
+        type,
       };
 
-      if (openingWidth !== null) {
-        cleaned.breedte = openingWidth;
-        cleaned.width = openingWidth;
-        cleaned.opening_breedte = openingWidth;
-        cleaned.openingWidth = openingWidth;
-      }
-      if (openingHeight !== null) {
-        cleaned.hoogte = openingHeight;
-        cleaned.height = openingHeight;
-        cleaned.opening_hoogte = openingHeight;
-        cleaned.openingHeight = openingHeight;
-      }
-      if (openingWidth !== null && openingHeight !== null && openingWidth > 0 && openingHeight > 0) {
-        cleaned.opening_oppervlak_m2 = (openingWidth * openingHeight) / 1_000_000;
-      }
+      if (type === 'glas' && (widthMm !== null || heightMm !== null)) {
+        const totalOffset = GLAS_MAATWERK_OFFSET_MM * 2;
+        const gW = widthMm !== null ? Math.max(0, widthMm - totalOffset) : null;
+        const gH = heightMm !== null ? Math.max(0, heightMm - totalOffset) : null;
+        cleaned.glas_dagmaat_breedte_mm = widthMm ?? null;
+        cleaned.glas_dagmaat_hoogte_mm = heightMm ?? null;
+        cleaned.glasmaat_breedte_mm = gW;
+        cleaned.glasmaat_hoogte_mm = gH;
+        cleaned.glas_offset_per_zijde_mm = GLAS_MAATWERK_OFFSET_MM;
+        cleaned.glas_offset_totaal_mm = totalOffset;
+      } else if (type === 'deur' && (widthMm !== null || heightMm !== null)) {
+        cleaned.deur_breedte_mm = widthMm ?? null;
+        cleaned.deur_hoogte_mm = heightMm ?? null;
+        cleaned.deur_positie = vak?.doorPosition ?? doorPosition;
+        cleaned.deur_draairichting = vak?.doorSwing ?? doorSwing;
+      } else if (type === 'paneel' && (widthMm !== null || heightMm !== null)) {
+        cleaned.paneel_breedte_mm = widthMm ?? null;
+        cleaned.paneel_hoogte_mm = heightMm ?? null;
+      } else if (type === 'open' && (widthMm !== null || heightMm !== null)) {
+        cleaned.open_breedte_mm = widthMm ?? null;
+        cleaned.open_hoogte_mm = heightMm ?? null;
+      } else if (type === 'raamkozijn' && (widthMm !== null || heightMm !== null)) {
+        // Glasmaat calculation for Raamkozijn
+        // Sparingsmaat (widthMm) - 2x (Raamhout(67) - Sponning(17)) - 2x 5mm (Glas offset)
+        // = widthMm - 2x(50) - 2x(5) = widthMm - 100 - 10 = widthMm - 110mm
+        const raamhoutWidth = 67;
+        const sponning = 17;
+        const visibleFrame = raamhoutWidth - sponning; // 50
+        const glasOffset = 5;
+        const totalDeduction = (2 * visibleFrame) + (2 * glasOffset); // 100 + 10 = 110
 
-      if (type === 'glas' && (openingWidth !== null || openingHeight !== null)) {
-        const gW = openingWidth !== null ? Math.max(0, openingWidth - GLAS_MAATWERK_OFFSET_MM) : null;
-        const gH = openingHeight !== null ? Math.max(0, openingHeight - GLAS_MAATWERK_OFFSET_MM) : null;
-        if (gW !== null) cleaned.glas_maatwerk_breedte = gW;
-        if (gH !== null) cleaned.glas_maatwerk_hoogte = gH;
-        cleaned.glas_maatwerk_offset = GLAS_MAATWERK_OFFSET_MM;
-        if (gW !== null && gH !== null && gW > 0 && gH > 0) {
-          cleaned.glas_maatwerk_oppervlak_m2 = (gW * gH) / 1_000_000;
-        }
-      }
+        const gW = widthMm !== null ? Math.max(0, widthMm - totalDeduction) : null;
+        const gH = heightMm !== null ? Math.max(0, heightMm - totalDeduction) : null;
 
-      if (type === 'deur') {
-        cleaned.doorPosition = vak?.doorPosition ?? doorPosition;
-        cleaned.doorSwing = vak?.doorSwing ?? doorSwing;
+        cleaned.raamkozijn_breedte_mm = widthMm ?? null;
+        cleaned.raamkozijn_hoogte_mm = heightMm ?? null;
+        cleaned.glasmaat_breedte_mm = gW;
+        cleaned.glasmaat_hoogte_mm = gH;
+        cleaned.raamkozijn_positie = vak?.doorPosition ?? doorPosition;
+        cleaned.raamkozijn_draairichting = vak?.doorSwing ?? doorSwing;
+      } else if (widthMm !== null || heightMm !== null) {
+        cleaned.vak_breedte_mm = widthMm ?? null;
+        cleaned.vak_hoogte_mm = heightMm ?? null;
       }
 
       if (vak?.hasBorstwering !== undefined) cleaned.hasBorstwering = !!vak.hasBorstwering;
@@ -661,7 +715,52 @@ export default function GenericMeasurementPage() {
         if (bh !== null) cleaned.borstweringHeight = bh;
       }
 
-      return cleaned;
+      if (cleaned.hasBorstwering && cleaned.borstweringHeight && heightMm !== null) {
+        const sponning = 17;
+        const rawThickness = kozijnhoutFrameThicknessMm || 67;
+        // transomThickness = frame (visible) - sponning = (raw - sponning) - sponning = raw - 34
+        const transomThickness = Math.max(0, rawThickness - (2 * sponning));
+        const bwHeight = Number(cleaned.borstweringHeight) || 0;
+
+        if (bwHeight > 0 && heightMm > (bwHeight + transomThickness)) {
+          const newGlassHeight = Math.max(0, heightMm - bwHeight - transomThickness);
+
+          // 1. Update the original 'cleaned' vak (e.g. Glass)
+          delete cleaned.hasBorstwering;
+          delete cleaned.borstweringHeight;
+
+          if (type === 'glas') {
+            cleaned.glas_dagmaat_hoogte_mm = newGlassHeight;
+            const totalOffset = cleaned.glas_offset_totaal_mm || (GLAS_MAATWERK_OFFSET_MM * 2);
+            cleaned.glasmaat_hoogte_mm = Math.max(0, newGlassHeight - totalOffset);
+          } else if (type === 'raamkozijn') {
+            cleaned.raamkozijn_hoogte_mm = newGlassHeight;
+            const raamhoutWidth = 67;
+            const visibleFrame = raamhoutWidth - sponning;
+            const totalDeduction = (2 * visibleFrame) + (2 * 5);
+            cleaned.glasmaat_hoogte_mm = Math.max(0, newGlassHeight - totalDeduction);
+          } else if (type === 'paneel') {
+            cleaned.paneel_hoogte_mm = newGlassHeight;
+          } else if (type === 'open') {
+            cleaned.open_hoogte_mm = newGlassHeight;
+          } else {
+            cleaned.vak_hoogte_mm = newGlassHeight;
+          }
+
+          // 2. Create the Borstwering (Paneel) Vak
+          const bwVak: any = {
+            id: crypto.randomUUID(),
+            index: idx,
+            type: 'paneel',
+            paneel_breedte_mm: widthMm,
+            paneel_hoogte_mm: bwHeight
+          };
+
+          return [cleaned, bwVak];
+        }
+      }
+
+      return [cleaned];
     });
   };
 
@@ -888,19 +987,55 @@ export default function GenericMeasurementPage() {
                 normalizedItem.vakken = migratedVakken.map((vak: any) => {
                   const rawType = String(vak.type || 'glas').toLowerCase();
                   const finalType = rawType || 'glas';
+                  const doorPos = (finalType === 'deur')
+                    ? (vak?.deur_positie ?? vak?.deur?.positie ?? vak?.door?.position ?? vak?.doorPosition ?? normalizedItem.doorPosition)
+                    : undefined;
+                  const doorSwing = (finalType === 'deur' || finalType === 'raamkozijn')
+                    ? (vak?.deur_draairichting ?? vak?.deur?.draairichting ?? vak?.raamkozijn_draairichting ?? vak?.door?.swing ?? vak?.doorSwing ?? normalizedItem.doorSwing)
+                    : undefined;
                   return {
                     id: vak.id || crypto.randomUUID(),
                     type: finalType,
-                    breedte: (vak.breedte === '' ? undefined : (vak.breedte ?? vak.width)),
-                    hoogte: (vak.hoogte === '' ? undefined : (vak.hoogte ?? vak.height))
+                    breedte: (vak.breedte === '' ? undefined : (
+                      vak?.glas_dagmaat_breedte_mm ??
+                      vak?.glas?.dagmaat_breedte_mm ??
+                      vak?.paneel_breedte_mm ??
+                      vak?.open_breedte_mm ??
+                      vak?.dagmaat?.breedte_mm ??
+                      vak?.deur_breedte_mm ??
+                      vak?.maat?.breedte_mm ??
+                      vak?.vak_breedte_mm ??
+                      vak?.raamkozijn_breedte_mm ??
+                      vak?.opening?.breedte_mm ??
+                      vak.breedte ?? vak.width
+                    )),
+                    hoogte: (vak.hoogte === '' ? undefined : (
+                      vak?.glas_dagmaat_hoogte_mm ??
+                      vak?.glas?.dagmaat_hoogte_mm ??
+                      vak?.paneel_hoogte_mm ??
+                      vak?.open_hoogte_mm ??
+                      vak?.dagmaat?.hoogte_mm ??
+                      vak?.deur_hoogte_mm ??
+                      vak?.maat?.hoogte_mm ??
+                      vak?.vak_hoogte_mm ??
+                      vak?.raamkozijn_hoogte_mm ??
+                      vak?.opening?.hoogte_mm ??
+                      vak.hoogte ?? vak.height
+                    )),
+                    doorPosition: doorPos,
+                    doorSwing: doorSwing,
+                    hasBorstwering: vak?.hasBorstwering,
+                    borstweringHeight: vak?.borstweringHeight
                   };
                 });
 
-                const existingStijlenRaw = Array.isArray(normalizedItem.tussenstijlen) ? normalizedItem.tussenstijlen : [];
+                const existingStijlenRaw = Array.isArray(normalizedItem.tussenstijlen_posities)
+                  ? normalizedItem.tussenstijlen_posities
+                  : (Array.isArray(normalizedItem.tussenstijlen) ? normalizedItem.tussenstijlen : []);
                 const existingStijlen = existingStijlenRaw
                   .map((v: any) => {
                     if (typeof v === 'object' && v !== null) {
-                      return v.positie_mm ?? v.positie ?? v.value ?? v.mm ?? v.pos;
+                      return (v.positie_mm ?? v.positie) ?? (v.value ?? v.mm) ?? v.pos;
                     }
                     return v;
                   })
@@ -1000,12 +1135,18 @@ export default function GenericMeasurementPage() {
     const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
     const vakken = Array.isArray(item?.vakken) ? item.vakken : [];
     const idx = vakken.findIndex((v: any) => String(v?.type || '').toLowerCase() === 'deur');
-    if (idx === -1) return { index: -1, width: 0, height: 0 };
+    const fallbackWidth = num(item?.deur_breedte ?? item?.doorWidth ?? item?.door_breedte);
+    const fallbackHeight = num(item?.deur_hoogte ?? item?.doorHeight ?? item?.door_hoogte);
+    if (idx === -1) {
+      return { index: -1, width: fallbackWidth, height: fallbackHeight };
+    }
     const v = vakken[idx];
+    const width = num(v?.breedte ?? v?.width ?? v?.deur_breedte_mm ?? fallbackWidth);
+    const height = num(v?.hoogte ?? v?.height ?? v?.deur_hoogte_mm ?? fallbackHeight);
     return {
       index: idx,
-      width: num(v?.breedte ?? v?.width),
-      height: num(v?.hoogte ?? v?.height)
+      width,
+      height
     };
   };
 
@@ -1058,9 +1199,9 @@ export default function GenericMeasurementPage() {
 
     // Calculate columns
     const rawPositions = Array.isArray(item.tussenstijlen) ? item.tussenstijlen.map(num).filter((v: number) => v > 0) : [];
-    const isDoorLeft = item.doorPosition !== 'right';
+    const layoutDoorLeft = true;
     const autoDoorPos = (hasDoor && hasTussenstijl && doorWidthMm > 0 && doorWidthMm < innerWidthMm)
-      ? (isDoorLeft ? doorWidthMm : Math.max(0, innerWidthMm - doorWidthMm - tussenstijlMm))
+      ? (layoutDoorLeft ? doorWidthMm : Math.max(0, innerWidthMm - doorWidthMm - tussenstijlMm))
       : null;
 
     let basePositions = [...rawPositions];
@@ -1355,8 +1496,15 @@ export default function GenericMeasurementPage() {
                 .filter((v: any) => Number.isFinite(v));
             }
 
-            // Enrich vakken with extra calculation data (glas maatwerk, opening, etc.)
+            // Enrich vakken with extra calculation data (dagmaat, glasmaat, etc.)
             processed.vakken = enrichVakkenForSave(processed);
+
+            // Replace tussenstijlen with lengths/counts (position is not relevant for materials)
+            const tussenstijlPosities = Array.isArray(processed.tussenstijlen) ? processed.tussenstijlen : [];
+            processed.tussenstijlen_posities = tussenstijlPosities;
+            processed.tussenstijlen = buildTussenstijlenForSave(processed);
+            const stijlen = buildStijlenForSave(processed);
+            if (stijlen) processed.stijlen = stijlen;
           }
 
           if (processed.openings && Array.isArray(processed.openings)) {
@@ -1579,6 +1727,7 @@ export default function GenericMeasurementPage() {
                               {fields.find(f => f.key === 'hoogte') && (
                                 <DynamicInput field={fields.find(f => f.key === 'hoogte')!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
+
                               <div className="pt-2 border-t border-white/5" />
                               <Label className="text-xs uppercase text-zinc-500 tracking-wider">Onderzijde</Label>
                               {fields.find(f => f.key === 'lengte_onderzijde') && (
@@ -1587,6 +1736,74 @@ export default function GenericMeasurementPage() {
                               {fields.find(f => f.key === 'breedte') && (
                                 <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
+
+                              {/* Latten Orientation Options */}
+                              <div className="pt-2 border-t border-white/5" />
+                              <div className="space-y-3 pb-4 mb-4">
+                                <Label className="text-xs uppercase text-zinc-500 tracking-wider">Latten Richting</Label>
+                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'latten_orientation', 'vertical')}
+                                    className={cn(
+                                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                                      item.latten_orientation === 'vertical'
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Latten verticaal
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'latten_orientation', 'horizontal')}
+                                    className={cn(
+                                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                                      (item.latten_orientation === 'horizontal' || !item.latten_orientation)
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Latten horizontaal
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Seam Thickness Input (Global User Preference) */}
+                              {(() => {
+                                const isTrespa = jobSlug.toLowerCase().includes('trespa');
+                                const isRockpanel = jobSlug.toLowerCase().includes('rockpanel');
+
+                                if (isTrespa || isRockpanel) {
+                                  const fieldKey = isTrespa ? 'trespa_seam_thickness' : 'rockpanel_seam_thickness';
+                                  const label = isTrespa ? 'Trespa naad dikte' : 'Rockpanel naad dikte';
+                                  const currentValue = userData?.[fieldKey] ?? 8;
+
+                                  return (
+                                    <>
+                                      <div className="pt-2 border-t border-white/5" />
+                                      <div className="space-y-2">
+                                        <Label className="text-xs uppercase text-zinc-500 tracking-wider">{label}</Label>
+                                        <div className="relative">
+                                          <Input
+                                            type="number"
+                                            className="bg-black/20 border-white/10 h-9 text-sm pr-8"
+                                            value={currentValue}
+                                            placeholder="8"
+                                            onChange={(e) => {
+                                              if (userDocRef) {
+                                                updateDoc(userDocRef, { [fieldKey]: Number(e.target.value) }).catch(console.error);
+                                              }
+                                            }}
+                                          />
+                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
+                                        </div>
+                                      </div>
+                                    </>
+                                  );
+                                }
+                                return null;
+                              })()}
 
                               {/* Kopkanten toggle */}
                               {fields.find(f => f.key === 'kopkanten') && (
@@ -2116,9 +2333,8 @@ export default function GenericMeasurementPage() {
                     )}
 
                     {!isCeilingCategory && (
-                      <>
-                        {/* Balken Configuration */}
-                        {fields.find(f => f.key === 'balkafstand') && (
+                      (() => {
+                        const balkenSection = fields.find(f => f.key === 'balkafstand') && (
                           <BalkenSection
                             balkafstand={item.balkafstand}
                             startFromRight={item.startFromRight}
@@ -2134,10 +2350,9 @@ export default function GenericMeasurementPage() {
                             isCollapsed={collapsedSections[`balken-${index}`] === true}
                             onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
                           />
-                        )}
+                        );
 
-                        {/* Latten Configuration */}
-                        {fields.find(f => f.key === 'latafstand') && (
+                        const lattenSection = fields.find(f => f.key === 'latafstand') && (
                           <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                             <div
                               className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
@@ -2199,8 +2414,24 @@ export default function GenericMeasurementPage() {
                               </div>
                             )}
                           </div>
-                        )}
-                      </>
+                        );
+
+                        if (isBoeiboord) {
+                          return (
+                            <>
+                              {lattenSection}
+                              {balkenSection}
+                            </>
+                          );
+                        }
+
+                        return (
+                          <>
+                            {balkenSection}
+                            {lattenSection}
+                          </>
+                        );
+                      })()
                     )}
 
                     {/* Leidingkoof Section */}
@@ -2336,9 +2567,10 @@ export default function GenericMeasurementPage() {
                         fitContainer={false}
                         frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
                         tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
-                        tussenstijlOffset={isMaatwerkKozijn ? item.tussenstijl_van_links : undefined}
-                        doorPosition={item.doorPosition}
-                        doorSwing={item.doorSwing}
+                        tussenstijlOffset={item.tussenstijlen_posities}
+                        raamhoutWidth={67}
+                        vakken={item.vakken}
+                        doorWidth={item.deur_breedte}
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                         onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}

@@ -36,6 +36,7 @@ interface KozijnMaatwerkDrawingProps {
   title?: string;
   doorPosition?: 'left' | 'right';
   doorSwing?: 'left' | 'right';
+  raamhoutWidth?: number;
 }
 
 const toNum = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
@@ -61,6 +62,7 @@ export function KozijnMaatwerkDrawing({
   title,
   doorPosition = 'left',
   doorSwing = 'left',
+  raamhoutWidth = 67,
 }: KozijnMaatwerkDrawingProps) {
   const width = toNum(breedte);
   const height = toNum(hoogte);
@@ -138,17 +140,17 @@ export function KozijnMaatwerkDrawing({
 
         const vakInputs = (Array.isArray(vakkenProp) && vakkenProp.length > 0)
           ? vakkenProp
-              .map((v, idx) => ({ v, idx }))
-              .filter(({ v }) => !(hasDoorHeight && String(v?.type || '').toLowerCase() === 'deur'))
-              .map(({ v, idx }) => ({
-                id: v.id || `vak-${idx}`,
-                type: v.type || 'open',
-                width: toNum(v.breedte ?? v.width),
-                height: toNum(v.hoogte ?? v.height),
-                labelNumber: idx + 1,
-                hasBorstwering: v.hasBorstwering,
-                borstweringHeight: toNum(v.borstweringHeight)
-              }))
+            .map((v, idx) => ({ v, idx }))
+            .filter(({ v }) => !(hasDoorHeight && String(v?.type || '').toLowerCase() === 'deur'))
+            .map(({ v, idx }) => ({
+              id: v.id || `vak-${idx}`,
+              type: v.type || 'open',
+              width: toNum(v.breedte ?? v.width),
+              height: toNum(v.hoogte ?? v.height),
+              labelNumber: idx + 1,
+              hasBorstwering: v.hasBorstwering,
+              borstweringHeight: toNum(v.borstweringHeight)
+            }))
           : fallbackVakken.map((v, idx) => ({
             id: `vak-fallback-${idx}`,
             type: v.type,
@@ -157,7 +159,7 @@ export function KozijnMaatwerkDrawing({
             labelNumber: idx + 1
           }));
 
-        const vakken: { id: string; type: string; width: number; height: number; fromLeft: number; fromBottom: number; labelNumber: number }[] = [];
+        const vakken: { id: string; type: string; width: number; height: number; fromLeft: number; fromBottom: number; labelNumber: number; extraProps?: any }[] = [];
         const extraBars: { bottom: number; height: number }[] = [];
         let autoLabelCounter = (Array.isArray(vakkenProp) ? vakkenProp.length : vakInputs.length) + 1;
 
@@ -174,7 +176,7 @@ export function KozijnMaatwerkDrawing({
           if (clampedHeight <= 0) return;
 
           // Check for Borstwering
-          if (extraProps?.hasBorstwering && extraProps?.borstweringHeight > 0 && type === 'glas') {
+          if (extraProps?.hasBorstwering && extraProps?.borstweringHeight > 0 && ['glas', 'raamkozijn', 'open', 'paneel'].includes(type)) {
             const bwHeight = Math.min(extraProps.borstweringHeight, clampedHeight);
             const remainingHeight = clampedHeight - bwHeight - transomThickness; // Subtract thickness for the 'stijl' (transom)
 
@@ -187,7 +189,8 @@ export function KozijnMaatwerkDrawing({
                 height: bwHeight,
                 fromLeft,
                 fromBottom,
-                labelNumber // Use the same label number as the main vak
+                labelNumber, // Use the same label number as the main vak
+                extraProps
               });
             }
 
@@ -200,7 +203,8 @@ export function KozijnMaatwerkDrawing({
               height: transomThickness,
               fromLeft,
               fromBottom: fromBottom + bwHeight,
-              labelNumber: -1 // No label for transom
+              labelNumber: -1, // No label for transom
+              extraProps
             });
 
             // 3. Glas on top
@@ -212,7 +216,8 @@ export function KozijnMaatwerkDrawing({
                 height: remainingHeight,
                 fromLeft,
                 fromBottom: fromBottom + bwHeight + transomThickness,
-                labelNumber
+                labelNumber,
+                extraProps
               });
             }
           } else {
@@ -224,12 +229,15 @@ export function KozijnMaatwerkDrawing({
               height: clampedHeight,
               fromLeft,
               fromBottom,
-              labelNumber
+              labelNumber,
+              extraProps
             });
           }
         };
 
-        const isDoorLeft = doorPosition !== 'right';
+        const flipHorizontally = doorPosition === 'right';
+        const layoutDoorLeft = true;
+        const isDoorLeftForDims = !flipHorizontally;
 
         const normalizePositions = (positions: number[]) => {
           const maxPos = Math.max(0, innerWidth - tussenstijl);
@@ -252,7 +260,7 @@ export function KozijnMaatwerkDrawing({
           : [];
 
         const autoDoorPos = (tussenstijlPx > 0 && hasDoorHeight && doorWidthVal > 0 && doorWidthVal < innerWidth)
-          ? (isDoorLeft ? doorWidthVal : Math.max(0, innerWidth - doorWidthVal - tussenstijl))
+          ? (layoutDoorLeft ? doorWidthVal : Math.max(0, innerWidth - doorWidthVal - tussenstijl))
           : null;
 
         let basePositions = rawPositions.length > 0
@@ -264,11 +272,11 @@ export function KozijnMaatwerkDrawing({
           const withoutDup = basePositions.filter(p => Math.abs(p - autoDoorPos) > eps);
           basePositions = [autoDoorPos, ...withoutDup];
         } else if (basePositions.length === 0 && tussenstijlPx > 0 && !hasOffset && doorWidthVal > 0 && doorWidthVal < innerWidth) {
-          basePositions = [isDoorLeft ? doorWidthVal : Math.max(0, innerWidth - doorWidthVal - tussenstijl)];
+          basePositions = [layoutDoorLeft ? doorWidthVal : Math.max(0, innerWidth - doorWidthVal - tussenstijl)];
         }
 
         const tussenstijlPositions = tussenstijlPx > 0 ? normalizePositions(basePositions) : [];
-        const stijlRects = tussenstijlPositions.map(pos => ({
+        let stijlRects = tussenstijlPositions.map(pos => ({
           x: innerX + (pos * pxPerMm),
           w: tussenstijlPx
         }));
@@ -290,7 +298,7 @@ export function KozijnMaatwerkDrawing({
         const colCount = colWidths.length;
 
         if (hasDoorHeight) {
-          const doorColIndex = isDoorLeft ? 0 : Math.max(0, colCount - 1);
+          const doorColIndex = layoutDoorLeft ? 0 : Math.max(0, colCount - 1);
           const doorWidthActual = colWidths[doorColIndex] || innerWidth;
           const doorLeft = thickness + (colStarts[doorColIndex] || 0);
           addVak('deur', 'door', doorWidthActual, Math.min(doorHeightVal, innerHeight), doorLeft, thickness, doorLabelNumber, {});
@@ -422,6 +430,23 @@ export function KozijnMaatwerkDrawing({
           }
         }
 
+        if (flipHorizontally) {
+          vakken.forEach(v => {
+            v.fromLeft = Math.max(0, width - v.fromLeft - v.width);
+          });
+          stijlRects = stijlRects.map(r => ({
+            ...r,
+            x: (startX + rectW) - (r.x - startX) - r.w
+          }));
+          if (stijlRects.length > 0) {
+            stijlGap = stijlRects.map(r => ({ value: tussenstijl, c1: r.x, c2: r.x + r.w }));
+          } else {
+            stijlGap = [];
+          }
+        }
+
+        const colWidthsForMeasure = flipHorizontally ? [...colWidths].reverse() : colWidths;
+
         const renderGlassPane = (x: number, y: number, w: number, h: number) => {
           if (w <= 0 || h <= 0) return null;
           const bw = Math.min(10 * pxPerMm, h / 2, w / 2);
@@ -451,6 +476,7 @@ export function KozijnMaatwerkDrawing({
           door: 'Deur',
           glas: 'Glas',
           paneel: 'Paneel',
+          raamkozijn: 'Raamkozijn',
           open: 'Open'
         };
         const renderVakLabel = (x: number, y: number, w: number, h: number, label: string, widthMm: number, heightMm: number, type: string) => {
@@ -459,6 +485,13 @@ export function KozijnMaatwerkDrawing({
           if (h < 20) return null;
 
           const isGlas = type === 'glas';
+          const isRaamkozijn = type === 'raamkozijn';
+
+          // Raamkozijn glasmaat logic: width - 2*(67-17) - 2*5 = width - 110
+          const raamhoutWidthVal = toNum(raamhoutWidth) || 67;
+          const sponning = 17;
+          const visibleFrame = raamhoutWidthVal - sponning;
+          const totalDeduction = (2 * visibleFrame) + 10; // 100 + 10 = 110
 
           return (
             <text
@@ -475,6 +508,11 @@ export function KozijnMaatwerkDrawing({
               {isGlas && (
                 <tspan x={x + (w / 2)} dy="1.4em" fill="#3b82f6" fontSize="8px" fontWeight="normal" fontStyle="italic">
                   Glasmaat: {Math.round(widthMm - 10)} x {Math.round(heightMm - 10)}
+                </tspan>
+              )}
+              {isRaamkozijn && (
+                <tspan x={x + (w / 2)} dy="1.4em" fill="#3b82f6" fontSize="8px" fontWeight="normal" fontStyle="italic">
+                  Glasmaat: {Math.round(widthMm - totalDeduction)} x {Math.round(heightMm - totalDeduction)}
                 </tspan>
               )}
             </text>
@@ -532,6 +570,73 @@ export function KozijnMaatwerkDrawing({
                     return (
                       <g key={v.id}>
                         <rect x={drawX} y={drawY} width={w} height={h} fill="#2D343E" opacity="0.8" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        {renderVakLabel(drawX, drawY, w, h, label, v.width, v.height, v.type)}
+                      </g>
+                    );
+                  }
+
+                  if (v.type === 'raamkozijn') {
+                    // Raamkozijn Visualization
+                    // 1. Outer Frame (already drawn by default rect logic if we want, but let's be explicit like door)
+                    // Raamhout width (e.g. 67mm) - Sponning (17mm) = Visible width
+                    const raamhoutWidthVal = toNum(raamhoutWidth) || 67;
+                    const sponning = 17;
+                    const visibleFrame = Math.max(0, raamhoutWidthVal - sponning);
+                    const visibleFramePx = visibleFrame * pxPerMm;
+
+                    // Inner Glass Dimensions
+                    const glassX = drawX + visibleFramePx;
+                    const glassY = drawY - visibleFramePx; // drawY is top-left in our reversed coordinate system? Allow check: drawY is bottom-left?? No, wait.
+                    // drawY calculation: yBottom - ((v.fromBottom + v.height) * pxPerMm); --> This is Top-Left Y coordinate in SVG space.
+                    // Correct: drawY is the top Y coordinate of the vak.
+
+                    const glassW = Math.max(0, w - (2 * visibleFramePx));
+                    const glassH = Math.max(0, h - (2 * visibleFramePx));
+
+                    const swing = v?.extraProps?.raamkozijn_draairichting || 'left';
+                    const position = v?.extraProps?.raamkozijn_positie || 'left';
+
+                    // Swing Logic (Triangle pointing to handle)
+                    // Left Swing (Links draaiend) -> Hinge Left, Handle Right -> Lines meet at Right
+                    // Right Swing (Rechts draaiend) -> Hinge Right, Handle Left -> Lines meet at Left
+                    // Wait, standard european symbols:
+                    // Triangle point indicates the HINGE side in some standards, but often it points to the open side (handle).
+                    // Let's stick to the 'Door' logic if possible or standard 'NEN'.
+                    // NEN: Triangle point is the HINGE.
+                    // Let's look at door implementation:
+                    // hingeX = doorSwing === 'left' ? drawX + w : drawX; (Hinge is at text 'left' means hinge is right?)
+                    // Let's copy door visual style for consistency for now, or use standard triangle.
+                    // Common convention: Lines start from corners of hinge side and meet at center of closing side.
+
+                    // Implementation: Triangle lines.
+                    // Left Swing: Hinge Left. Lines from (LeftTop, LeftBottom) to (RightCenter).
+                    // Right Swing: Hinge Right. Lines from (RightTop, RightBottom) to (LeftCenter).
+
+                    const isLeftSwing = swing === 'left';
+                    const midY = drawY + (h / 2);
+
+                    return (
+                      <g key={v.id}>
+                        {/* Outer Frame Background (Wood) */}
+                        <rect x={drawX} y={drawY} width={w} height={h} fill="rgb(70, 75, 85)" stroke={colors.TIMBER_STROKE} strokeWidth="0.5" />
+
+                        {/* Inner Glass */}
+                        {renderGlassPane(drawX + visibleFramePx, drawY + visibleFramePx, glassW, glassH)}
+
+                        {/* Swing Lines (Dashed) */}
+                        {glassW > 0 && glassH > 0 && (
+                          <path
+                            d={isLeftSwing
+                              ? `M ${drawX} ${drawY} L ${drawX + w} ${midY} L ${drawX} ${drawY + h}`
+                              : `M ${drawX + w} ${drawY} L ${drawX} ${midY} L ${drawX + w} ${drawY + h}`
+                            }
+                            stroke="rgba(100, 116, 139, 0.3)"
+                            strokeWidth="1"
+                            strokeDasharray="4,4"
+                            fill="none"
+                          />
+                        )}
+
                         {renderVakLabel(drawX, drawY, w, h, label, v.width, v.height, v.type)}
                       </g>
                     );
@@ -645,21 +750,52 @@ export function KozijnMaatwerkDrawing({
                 {(() => {
                   const lineColor = '#10b981';
                   const dimX = startX + rectW + 40; // Right side
-                  const segments = [
-                    doorHeightVal,
-                    Math.max(0, innerHeight - doorHeightVal - doorBarHeight),
-                  ].filter(v => v > 0 && v !== thickness && v !== doorBarHeight);
 
-                  let currentY = startY + rectH - (thickness * pxPerMm);
+                  let segments: { val: number; show: boolean }[] = [];
+
+                  if (hasDoorHeight && !isDoorLeftForDims) {
+                    segments = [
+                      { val: thickness, show: false },
+                      { val: doorHeightVal, show: true },
+                      { val: doorBarHeight, show: false },
+                      { val: Math.max(0, innerHeight - doorHeightVal - doorBarHeight), show: true },
+                      { val: thickness, show: false },
+                    ];
+                  } else {
+                    const rightStart = width - thickness;
+                    const rightVaks = vakken.filter(v => Math.abs((v.fromLeft + v.width) - rightStart) < 1);
+                    rightVaks.sort((a, b) => a.fromBottom - b.fromBottom);
+
+                    let currentH = 0;
+                    segments.push({ val: thickness, show: false });
+                    currentH += thickness;
+
+                    rightVaks.forEach(v => {
+                      const gap = v.fromBottom - currentH;
+                      if (gap > 1) {
+                        segments.push({ val: gap, show: false });
+                        currentH += gap;
+                      }
+                      segments.push({ val: v.height, show: v.type !== 'stijl' });
+                      currentH += v.height;
+                    });
+
+                    const remaining = height - currentH;
+                    if (remaining > 0) segments.push({ val: remaining, show: false });
+                  }
+
+                  let currentY = startY + rectH;
                   return (
                     <g className="pointer-events-none">
-                      {segments.map((segment, idx) => {
-                        const segPx = segment * pxPerMm;
+                      {segments.map((seg, idx) => {
+                        const segPx = seg.val * pxPerMm;
                         const y1 = currentY;
                         const y2 = currentY - segPx;
                         const midY = (y1 + y2) / 2;
                         currentY = y2;
-                        if (segment <= 0) return null;
+
+                        if (!seg.show || seg.val <= 0) return null;
+
                         return (
                           <g key={`vseg-right-${idx}`}>
                             <line x1={dimX} y1={y1} x2={dimX} y2={y2} stroke={lineColor} strokeWidth="0.5" />
@@ -670,7 +806,7 @@ export function KozijnMaatwerkDrawing({
                             <g transform={`translate(${dimX}, ${midY}) rotate(-90)`}>
                               <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
                               <text textAnchor="middle" dominantBaseline="middle" fill={lineColor} className="text-[12px] font-mono select-none font-medium">
-                                {Math.round(segment)}
+                                {Math.round(seg.val)}
                               </text>
                             </g>
                           </g>
@@ -691,7 +827,7 @@ export function KozijnMaatwerkDrawing({
 
                   let segments: { val: number; show: boolean }[] = [];
 
-                  if (hasDoorHeight && isDoorLeft) {
+                  if (hasDoorHeight && isDoorLeftForDims) {
                     segments = [
                       { val: thickness, show: false },
                       { val: doorHeightVal, show: true },
@@ -761,10 +897,10 @@ export function KozijnMaatwerkDrawing({
                   const dimY = yBottom + 40; // Bottom side
                   const rawSegments: { val: number; show: boolean }[] = [];
                   if (thickness > 0) rawSegments.push({ val: thickness, show: false });
-                  if (colWidths.length > 0) {
-                    colWidths.forEach((w, idx) => {
+                  if (colWidthsForMeasure.length > 0) {
+                    colWidthsForMeasure.forEach((w, idx) => {
                       if (w > 0) rawSegments.push({ val: w, show: true });
-                      if (idx < colWidths.length - 1 && tussenstijl > 0) rawSegments.push({ val: tussenstijl, show: false });
+                      if (idx < colWidthsForMeasure.length - 1 && tussenstijl > 0) rawSegments.push({ val: tussenstijl, show: false });
                     });
                   } else if (innerWidth > 0) {
                     rawSegments.push({ val: innerWidth, show: true });

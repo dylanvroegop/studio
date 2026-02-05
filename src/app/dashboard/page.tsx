@@ -177,6 +177,16 @@ function getQuoteWorkStatus(quote: any, hasSupabaseData: boolean = false): WorkS
 
   // If currently being processed by n8n
   if (status === 'in_behandeling') {
+    // Heuristic: If we have an amount and it hasn't been updated in >60s, it's likely stuck/done
+    // This avoids showing "Wordt berekend..." for old quotes where Firestore wasn't updated correctly
+    const val = quote.updatedAtDate || (quote.updatedAt?.toDate ? quote.updatedAt.toDate() : null);
+    if (val && amount > 0) {
+      const diff = new Date().getTime() - val.getTime();
+      if (diff > 60000) {
+        return { type: 'calculated' };
+      }
+    }
+
     return { type: 'calculating' };
   }
 

@@ -92,6 +92,7 @@ export const MATERIAL_CATEGORY_INFO = {
   beveiliging: { title: 'Beveiliging', order: 1 },
   exterieur_details: { title: 'Exterieur Details', order: 1 },
   boeiboord: { title: 'Boeidelen', order: 15 },
+  daktrim: { title: 'Daktrim', order: 99 },
   Installatie: { title: 'Installatie', order: 20 },
   Schakelmateriaal: { title: 'Schakelmateriaal', order: 21 },
 } as const;
@@ -956,17 +957,92 @@ const DAK_GOLFPLAAT_MATS: MaterialSection[] = [
 ];
 
 //#region ========================================== MATERIAL SECTIONS - BOEIBOORDEN ==========================================
-const BOEIBOORD_MATS: MaterialSection[] = [
+const BOEIBOORD_ROCKPANEL_MATS: MaterialSection[] = [
   // 1. CONSTRUCTIE
   { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
 
-  // 2. BEKLEDING
-  { label: 'Boeiboord Plaat (Trespa/HPL)', categoryFilter: 'Trespa, Rockpanel, Exterieur platen', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },
-  { label: 'Boeiboord Hout (Meranti)', categoryFilter: 'Merantie, Hardhout geschaafd', category: 'beplating', key: 'boeiboord_hout', category_ultra_filter: '' },
+  // 2. ISOLATIE & FOLIES
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
 
-  // 3. AFWERKING
-  { label: 'Afwerkprofielen / Randen', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'afwerk_profiel', category_ultra_filter: '' },
-  { label: 'Schroeven & Bevestiging', categoryFilter: 'Golfplaten, Overig', category: 'afwerking', key: 'bevestiging', category_ultra_filter: '' },
+  // 3. BEKLEDING
+  { label: 'Rockpanel Plaat', categoryFilter: 'Rockpanel, Exterieur platen', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },
+
+  // 4. AFWERKING
+  { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Voegband', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'voegband', category_ultra_filter: '' },
+  { label: 'Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'eindprofiel', category_ultra_filter: '' },
+  { label: 'Afwerkprofielen', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'afwerk_profiel', category_ultra_filter: '' },
+  { label: 'Rockpanel schroeven', categoryFilter: 'Golfplaten, Overig', category: 'afwerking', key: 'bevestiging', category_ultra_filter: '' },
+
+  // 5. DAKTRIM
+  { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
+];
+
+const BOEIBOORD_TRESPA_MATS: MaterialSection[] = [
+  // 1. CONSTRUCTIE
+  { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+
+  // 2. ISOLATIE & FOLIES
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
+
+  // 3. BEKLEDING
+  { label: 'Trespa / HPL Plaat', categoryFilter: 'Trespa, Exterieur platen', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },
+
+  // 4. AFWERKING
+  { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Voegband', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'voegband', category_ultra_filter: '' },
+  { label: 'Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'eindprofiel', category_ultra_filter: '' },
+  { label: 'Afwerkprofielen', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'afwerk_profiel', category_ultra_filter: '' },
+  { label: 'Trespa schroeven', categoryFilter: 'Golfplaten, Overig', category: 'afwerking', key: 'bevestiging', category_ultra_filter: '' },
+
+  // 5. DAKTRIM
+  { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
+];
+
+const BOEIBOORD_HOUT_MATS: MaterialSection[] = [
+  // 1. CONSTRUCTIE
+  { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+
+  // 2. ISOLATIE & FOLIES
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
+
+  // 3. BEKLEDING
+  { label: 'Boeiboord Hout', categoryFilter: 'Merantie, Hardhout geschaafd, Vloer-rabat-vellingdelen', category: 'beplating', key: 'boeiboord_hout', category_ultra_filter: '' },
+
+  // 4. AFWERKING
+  { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Voegband', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'voegband', category_ultra_filter: '' },
+  { label: 'Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'eindprofiel', category_ultra_filter: '' },
+  { label: 'Afwerklatten', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'afwerking', key: 'afwerklatten', category_ultra_filter: '' },
+  { label: 'Houtschroeven', categoryFilter: 'Golfplaten, Overig', category: 'afwerking', key: 'bevestiging', category_ultra_filter: '' },
+
+  // 5. DAKTRIM
+  { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
+];
+
+const BOEIBOORD_KERALIT_MATS: MaterialSection[] = [
+  // 1. CONSTRUCTIE
+  { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+
+  // 2. ISOLATIE & FOLIES
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
+
+  // 3. BEKLEDING
+  { label: 'Keralit Panelen', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'beplating', key: 'keralit_panelen', category_ultra_filter: '' },
+
+  // 4. AFWERKING
+  { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Voegband', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'voegband', category_ultra_filter: '' },
+  { label: 'Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'eindprofiel', category_ultra_filter: '' },
+  { label: 'Keralit Profielen', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'keralit_profielen', category_ultra_filter: '' },
+  { label: 'Bolkop schroeven', categoryFilter: 'Golfplaten, Overig', category: 'afwerking', key: 'bevestiging', category_ultra_filter: '' },
+
+  // 5. DAKTRIM
+  { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
 ];
 
 //#endregion
@@ -1131,13 +1207,7 @@ const SCHUTTING_MATS: MaterialSection[] = [
 
 //#endregion
 
-//#region ========================================== MATERIAL SECTIONS - HOUTBOUW & OVERKAPPING ==========================================
 
-const HOUTBOUW_MATS: MaterialSection[] = [
-
-];
-
-//#endregion
 
 //#region ========================================== MATERIAL SECTIONS - TRAPPEN ==========================================
 
@@ -1252,16 +1322,7 @@ const MEUBEL_MATS: MaterialSection[] = [
 
 //#endregion
 
-//#region ========================================== MATERIAL SECTIONS - DAKKAPELLEN ==========================================
 
-const DAKKAPEL_NIEUW_MATS: MaterialSection[] = [
-
-];
-
-const DAKKAPEL_RENOVATIE_MATS: MaterialSection[] = [
-];
-
-//#endregion
 
 //#region ========================================== MATERIAL SECTIONS - GLAS ZETTEN ==========================================
 
@@ -1651,40 +1712,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     ],
   },
 
-  //#endregion
 
-  //#region --- DAKKAPELLEN ---
-  dakkapellen: {
-    title: 'Dakkapellen',
-    searchPlaceholder: 'Zoek dakkapelklus...',
-    items: [
-      {
-        title: 'Dakkapel – Nieuw plaatsen',
-        description: 'Prefab of maatwerk opbouw',
-        slug: 'dakkapel-nieuw',
-        measurementLabel: 'Dakkapel',
-        measurements: COUNT_FIELDS,
-        materialSections: DAKKAPEL_NIEUW_MATS,
-        categoryConfig: {
-          hout: { title: 'Constructie & Casco', order: 1 },
-          dak: { title: 'Dakwerk & Bedekking', order: 2 },
-          gevel: { title: 'Gevelbekleding', order: 3 },
-          isolatie: { title: 'Isolatie & Folies', order: 4 },
-          beplating: { title: 'Beplating', order: 5 },
-          afwerking: { title: 'Binnenafwerking', order: 6 },
-          Kozijnen: { title: 'Kozijnen', order: 7 },
-        }
-      },
-      {
-        title: 'Dakkapel – Renovatie',
-        description: 'Bekleding/Dakbedekking vervangen',
-        slug: 'dakkapel-renovatie',
-        measurementLabel: 'Dakkapel',
-        measurements: COUNT_FIELDS,
-        materialSections: DAKKAPEL_RENOVATIE_MATS
-      }
-    ]
-  },
 
   //#endregion
 
@@ -1694,16 +1722,63 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek boeiboordklus...',
     items: [
       {
-        title: 'Boeidelen Vervangen',
-        description: 'Hout of Kunststof (Trespa/Keralit)',
-        slug: 'boeiboorden-vervangen',
+        title: 'Boeidelen (Rockpanel)',
+        description: 'Vervangen door Rockpanel',
+        slug: 'boeiboorden-rockpanel',
         measurementLabel: 'Boeiboord',
         measurements: BOEIBOORD_FIELDS,
-        materialSections: BOEIBOORD_MATS,
+        materialSections: BOEIBOORD_ROCKPANEL_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
-          beplating: { title: 'Bekleding (Hout/Kunststof)', order: 2 },
-          afwerking: { title: 'Afwerking & Profielen', order: 3 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          beplating: { title: 'Bekleding (Rockpanel)', order: 3 },
+          afwerking: { title: 'Afwerking & Profielen', order: 4 },
+          daktrim: { title: 'Daktrim', order: 5 },
+        }
+      },
+      {
+        title: 'Boeidelen (Trespa/HPL)',
+        description: 'Vervangen door Trespa/HPL',
+        slug: 'boeiboorden-trespa',
+        measurementLabel: 'Boeiboord',
+        measurements: BOEIBOORD_FIELDS,
+        materialSections: BOEIBOORD_TRESPA_MATS,
+        categoryConfig: {
+          hout: { title: 'Regelwerk', order: 1 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          beplating: { title: 'Bekleding (Trespa/HPL)', order: 3 },
+          afwerking: { title: 'Afwerking & Profielen', order: 4 },
+          daktrim: { title: 'Daktrim', order: 5 },
+        }
+      },
+      {
+        title: 'Boeidelen (Hout)',
+        description: 'Vervangen door Hardhout/Meranti',
+        slug: 'boeiboorden-hout',
+        measurementLabel: 'Boeiboord',
+        measurements: BOEIBOORD_FIELDS,
+        materialSections: BOEIBOORD_HOUT_MATS,
+        categoryConfig: {
+          hout: { title: 'Regelwerk', order: 1 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          beplating: { title: 'Bekleding (Hout)', order: 3 },
+          afwerking: { title: 'Afwerking & Profielen', order: 4 },
+          daktrim: { title: 'Daktrim', order: 5 },
+        }
+      },
+      {
+        title: 'Boeidelen (Keralit)',
+        description: 'Vervangen door Keralit',
+        slug: 'boeiboorden-keralit',
+        measurementLabel: 'Boeiboord',
+        measurements: BOEIBOORD_FIELDS,
+        materialSections: BOEIBOORD_KERALIT_MATS,
+        categoryConfig: {
+          hout: { title: 'Regelwerk', order: 1 },
+          isolatie: { title: 'Isolatie & Folies', order: 2 },
+          beplating: { title: 'Bekleding (Keralit)', order: 3 },
+          afwerking: { title: 'Afwerking & Profielen', order: 4 },
+          daktrim: { title: 'Daktrim', order: 5 },
         }
       }
     ]
@@ -2077,20 +2152,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
   //#endregion
 
-  //#region --- OVERKAPPING ---
-  overkapping: {
-    title: 'Overkapping & Houtbouw',
-    searchPlaceholder: 'Zoek constructie...',
-    items: [
-      { title: 'Overkapping & Carport', description: 'Vrijstaand of aan huis', slug: 'overkapping-carport', measurementLabel: 'Overkapping', measurements: AREA_FIELDS, materialSections: HOUTBOUW_MATS },
-      { title: 'Veranda & Serre', description: 'Aanbouw met lichtstraten', slug: 'veranda-serre', measurementLabel: 'Veranda', measurements: AREA_FIELDS, materialSections: HOUTBOUW_MATS },
-      { title: 'Garage / Schuur (Houtbouw)', description: 'Volledig gesloten constructie', slug: 'garage-schuur', measurementLabel: 'Garage', measurements: AREA_FIELDS, materialSections: HOUTBOUW_MATS },
-      { title: 'Tuinhuis / Blokhut', description: 'Berging in de tuin', slug: 'tuinhuis-blokhut', measurementLabel: 'Tuinhuis', measurements: AREA_FIELDS, materialSections: HOUTBOUW_MATS },
-      { title: 'Pergola', description: 'Open constructie', slug: 'pergola', measurementLabel: 'Pergola', measurements: AREA_FIELDS, materialSections: VLONDER_MATS },
-    ],
-  },
 
-  //#endregion
 
   //#region --- GLAS ZETTEN ---
   'glas-zetten': {
