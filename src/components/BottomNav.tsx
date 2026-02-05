@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Boxes, Settings, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Users, Boxes, Settings, CalendarDays, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function BottomNav() {
@@ -26,6 +26,17 @@ export function BottomNav() {
                 >
                     <LayoutDashboard className="h-6 w-6" strokeWidth={isActive('/dashboard') ? 2.5 : 2} />
                     <span className="text-[10px] font-medium tracking-wide">Dashboard</span>
+                </Link>
+
+                <Link
+                    href="/offertes"
+                    className={cn(
+                        "flex flex-col items-center gap-1 p-2 transition-colors",
+                        isActive('/offertes') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                    )}
+                >
+                    <FileText className="h-6 w-6" strokeWidth={isActive('/offertes') ? 2.5 : 2} />
+                    <span className="text-[10px] font-medium tracking-wide">Offertes</span>
                 </Link>
 
                 <Link

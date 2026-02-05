@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { differenceInBusinessDays, addBusinessDays } from 'date-fns';
 import { useUser, useFirestore } from '@/firebase';
 import {
     collection,
@@ -13,7 +14,8 @@ import {
     deleteDoc,
     serverTimestamp,
     Timestamp,
-    writeBatch
+    writeBatch,
+    getDocs
 } from 'firebase/firestore';
 import { PlanningEntry, PlanningStatus } from '@/lib/types-planning';
 
@@ -230,6 +232,65 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         await batch.commit();
     }, [user, firestore, entries]);
 
+    const shiftQuoteEntries = useCallback(async (quoteId: string, referenceDate: Date, newStartDate: Date, newEmployeeId?: string) => {
+        if (!user || !firestore) throw new Error('Not authenticated');
+
+        // Helper to normalize dates to start of day for comparison
+        const normalize = (d: Date) => {
+            const n = new Date(d);
+            n.setHours(0, 0, 0, 0);
+            return n;
+        };
+
+        const oldRef = normalize(referenceDate);
+        const newRef = normalize(newStartDate);
+
+        if (oldRef.getTime() === newRef.getTime() && !newEmployeeId) return;
+
+        // Fetch all entries for this quote
+        const q = query(
+            collection(firestore, 'planning_entries'),
+            where('quoteId', '==', quoteId),
+            where('userId', '==', user.uid)
+        );
+
+        const snapshot = await getDocs(q);
+        const batch = writeBatch(firestore);
+
+        snapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            const currentStart = data.startDate.toDate();
+            const currentEnd = data.endDate.toDate(); // Keep duration
+            const duration = currentEnd.getTime() - currentStart.getTime();
+
+            const entryDate = normalize(currentStart);
+            const dist = differenceInBusinessDays(entryDate, oldRef);
+
+            // Preserve business-day spacing, but allow the dragged day to land on a weekend.
+            let newStart = dist === 0 ? new Date(newRef) : addBusinessDays(newRef, dist);
+
+            // Preserve original time-of-day.
+            newStart.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
+
+            const newEnd = new Date(newStart.getTime() + duration);
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const update: any = {
+                startDate: Timestamp.fromDate(newStart),
+                endDate: Timestamp.fromDate(newEnd),
+                updatedAt: serverTimestamp()
+            };
+
+            if (newEmployeeId) {
+                update.employeeId = newEmployeeId;
+            }
+
+            batch.update(doc.ref, update);
+        });
+
+        await batch.commit();
+    }, [user, firestore]);
+
     return {
         entries,
         isLoading,
@@ -238,6 +299,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         addMultipleEntries,
         updateEntry,
         deleteEntry,
-        deleteEntriesForQuote
+        deleteEntriesForQuote,
+        shiftQuoteEntries
     };
 }

@@ -7,6 +7,7 @@ import {
     startOfMonth,
     endOfMonth,
     eachDayOfInterval,
+    addMonths,
     format,
     getDay,
     setHours,
@@ -86,7 +87,7 @@ export function getDateRangeForView(view: TimelineView, currentDate: Date): { st
         case 'month':
             return {
                 start: startOfMonth(currentDate),
-                end: endOfMonth(currentDate)
+                end: endOfMonth(addMonths(currentDate, 7))
             };
     }
 }
@@ -143,53 +144,29 @@ export function calculateBlockPosition(
 export function calculateDayBlockPosition(
     entryStart: Date,
     entryEnd: Date,
-    dayDate: Date,
-    view: TimelineView
+    dayDate: Date
 ): { left: number; width: number } | null {
-    if (view === 'day') {
-        const dayStart = startOfDay(dayDate);
-        const startHour = 6;
-        const endHour = 20;
-        const totalHours = endHour - startHour;
+    const dayStart = startOfDay(dayDate);
+    // Use fixed hours matching the grid (6:00 - 20:00)
+    const startHour = 6;
+    const endHour = 20;
+    const totalHours = endHour - startHour;
 
-        const entryStartHour = entryStart.getHours() + entryStart.getMinutes() / 60;
-        const entryEndHour = entryEnd.getHours() + entryEnd.getMinutes() / 60;
+    const entryStartHour = entryStart.getHours() + entryStart.getMinutes() / 60;
+    const entryEndHour = entryEnd.getHours() + entryEnd.getMinutes() / 60;
 
-        const clampedStart = Math.max(entryStartHour, startHour);
-        const clampedEnd = Math.min(entryEndHour, endHour);
+    const clampedStart = Math.max(entryStartHour, startHour);
+    const clampedEnd = Math.min(entryEndHour, endHour);
 
-        if (clampedEnd <= clampedStart) return null;
+    if (clampedEnd <= clampedStart) return null;
 
-        const left = ((clampedStart - startHour) / totalHours) * 100;
-        const width = ((clampedEnd - clampedStart) / totalHours) * 100;
+    const left = ((clampedStart - startHour) / totalHours) * 100;
+    const width = ((clampedEnd - clampedStart) / totalHours) * 100;
 
-        return { left, width };
-    }
-
-    if (!isSameDay(entryStart, dayDate) && !isSameDay(entryEnd, dayDate)) {
-        if (isWithinInterval(dayDate, { start: entryStart, end: entryEnd })) {
-            return { left: 0, width: 100 };
-        }
-        return null;
-    }
-
-    if (isSameDay(entryStart, dayDate) && isSameDay(entryEnd, dayDate)) {
-        return { left: 0, width: 100 };
-    }
-
-    if (isSameDay(entryStart, dayDate)) {
-        const hoursFromStart = entryStart.getHours() + entryStart.getMinutes() / 60;
-        const left = (hoursFromStart / 24) * 100;
-        return { left, width: 100 - left };
-    }
-
-    if (isSameDay(entryEnd, dayDate)) {
-        const hoursToEnd = entryEnd.getHours() + entryEnd.getMinutes() / 60;
-        return { left: 0, width: (hoursToEnd / 24) * 100 };
-    }
-
-    return null;
+    return { left, width };
 }
+
+
 
 export function isWorkDay(date: Date, workDays: number[]): boolean {
     const dayOfWeek = getDay(date);

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
-import { formatHoursDisplay } from '@/lib/planning-utils';
+import { formatHoursDisplay, calculateDayBlockPosition } from '@/lib/planning-utils';
 import { format, isSameDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Timestamp } from 'firebase/firestore';
@@ -23,6 +23,7 @@ interface ScheduleBlockProps {
     hours: number[];
     stackIndex?: number;
     onClick: () => void;
+    onDragStart?: (e: React.PointerEvent, entryId: string, type: 'move' | 'resize-start' | 'resize-end') => void;
 }
 
 export function ScheduleBlock({
@@ -32,7 +33,8 @@ export function ScheduleBlock({
     day,
     hours,
     stackIndex = 0,
-    onClick
+    onClick,
+    onDragStart
 }: ScheduleBlockProps) {
     const startDate = entry.startDate instanceof Timestamp
         ? entry.startDate.toDate()
@@ -43,33 +45,22 @@ export function ScheduleBlock({
 
     const getBlockStyle = (): React.CSSProperties => {
         if (view === 'day') {
-            const startHour = hours[0];
-            const endHour = hours[hours.length - 1] + 1;
-            const totalHours = endHour - startHour;
-
-            const entryStartHour = startDate.getHours() + startDate.getMinutes() / 60;
-            const entryEndHour = endDate.getHours() + endDate.getMinutes() / 60;
-
-            const clampedStart = Math.max(entryStartHour, startHour);
-            const clampedEnd = Math.min(entryEndHour, endHour);
-
-            if (clampedEnd <= clampedStart) return { display: 'none' };
-
-            const left = ((clampedStart - startHour) / totalHours) * 100;
-            const width = ((clampedEnd - clampedStart) / totalHours) * 100;
-
+            const position = calculateDayBlockPosition(startDate, endDate, day);
+            if (!position) return { display: 'none' };
             return {
                 position: 'absolute',
-                left: `${left}%`,
-                width: `${width}%`,
+                left: `${position.left}%`,
+                width: `${position.width}%`,
                 top: '4px',
                 bottom: '4px',
+                touchAction: 'none', // Important for pointer events
             };
         }
 
         // Week/Month view - blocks stack vertically
         return {
             marginTop: stackIndex > 0 ? '2px' : '0',
+            touchAction: 'none',
         };
     };
 
@@ -77,14 +68,22 @@ export function ScheduleBlock({
         ? `${format(startDate, 'HH:mm')} - ${format(endDate, 'HH:mm')}`
         : formatHoursDisplay(entry.scheduledHours);
 
+    const handlePointerDown = (e: React.PointerEvent) => {
+        if (onDragStart) {
+            e.preventDefault();
+            e.stopPropagation();
+            onDragStart(e, entry.id, 'move');
+        }
+    };
+
     return (
         <TooltipProvider delayDuration={200}>
             <Tooltip>
                 <TooltipTrigger asChild>
                     <div
                         className={cn(
-                            "rounded-md px-2 py-1 cursor-pointer transition-all hover:opacity-90 hover:shadow-md",
-                            view === 'day' ? 'flex items-center gap-2' : 'text-xs'
+                            "rounded-md px-2 py-1 cursor-pointer transition-all hover:opacity-90 hover:shadow-md group relative box-border",
+                            view === 'day' ? 'flex items-center gap-2' : 'text-xs w-full'
                         )}
                         style={{
                             backgroundColor: employee.color + '20',
@@ -95,17 +94,40 @@ export function ScheduleBlock({
                             e.stopPropagation();
                             onClick();
                         }}
+                        onPointerDown={handlePointerDown}
                     >
-                        <span className="font-medium truncate text-white/90">
+                        {/* Resize Handles for Day View */}
+                        {view === 'day' && onDragStart && (
+                            <>
+                                <div
+                                    className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize hover:bg-white/20 z-10"
+                                    onPointerDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onDragStart(e, entry.id, 'resize-start');
+                                    }}
+                                />
+                                <div
+                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize hover:bg-white/20 z-10"
+                                    onPointerDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onDragStart(e, entry.id, 'resize-end');
+                                    }}
+                                />
+                            </>
+                        )}
+
+                        <span className="font-medium truncate text-white/90 select-none">
                             {entry.cache.projectTitle || 'Klus'}
                         </span>
                         {view === 'day' && (
-                            <span className="text-xs text-white/60 shrink-0">
+                            <span className="text-xs text-white/60 shrink-0 select-none">
                                 {timeLabel}
                             </span>
                         )}
                         {view !== 'day' && (
-                            <div className="text-white/60 truncate">
+                            <div className="text-white/60 truncate select-none">
                                 {timeLabel}
                             </div>
                         )}

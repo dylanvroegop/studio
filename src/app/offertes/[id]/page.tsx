@@ -13,7 +13,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool, CalendarDays } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool, CalendarDays, Eye } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -25,7 +25,9 @@ import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
+import { QuoteSwitcher } from '@/components/quote/QuoteSwitcher';
 import { useEmployees } from '@/hooks/useEmployees';
+import { BottomNav } from '@/components/BottomNav';
 import { DEFAULT_PLANNING_SETTINGS, PlanningSettings } from '@/lib/types-planning';
 
 import { Quote } from "@/lib/types";
@@ -52,7 +54,7 @@ export default function QuotePage() {
 
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
-    const [activeTab, setActiveTab] = useState('overzicht');
+    const [activeTab, setActiveTab] = useState('pdf');
 
     const [materials, setMaterials] = useState<{
         groot: MaterialItem[];
@@ -523,6 +525,7 @@ export default function QuotePage() {
                 margePercentage: quoteSettings.extras.winstMarge.percentage,
             },
             settings: pdfSettings,
+            drawingImages: capturedDrawings, // Include captured drawings for preview
         };
     };
 
@@ -557,6 +560,9 @@ export default function QuotePage() {
 
     // Callback when drawings are captured
     const handleDrawingsCaptured = (images: string[]) => {
+        // Always store the captured drawings for preview
+        setCapturedDrawings(images);
+
         if (pendingPDFAction) {
             pendingPDFAction(images);
         } else {
@@ -678,10 +684,13 @@ export default function QuotePage() {
                             <Link href="/dashboard"><ArrowLeft size={20} /></Link>
                         </Button>
                         <div>
-                            <h1 className="text-xl font-bold flex items-center gap-2">
-                                <span>{(quote as any)?.offerteNummer || 'Concept Offerte'}</span>
+                            <div className="flex items-center gap-2">
+                                <QuoteSwitcher
+                                    currentQuoteId={id}
+                                    currentQuoteNumber={(quote as any)?.offerteNummer || 'Concept'}
+                                />
                                 {quote?.titel && <span className="text-zinc-500 font-normal hidden sm:inline">• {quote.titel}</span>}
-                            </h1>
+                            </div>
                             {klantInfo && (
                                 <p className="text-zinc-400 text-sm">
                                     {klantInfo.voornaam} {klantInfo.achternaam} • {klantInfo.plaats}
@@ -714,6 +723,14 @@ export default function QuotePage() {
                             <Mail size={16} />
                             Versturen
                         </button>
+                        <button
+                            onClick={() => window.open(`/view/${id}`, '_blank')}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700"
+                            title="Bekijk hoe de klant deze offerte ziet"
+                        >
+                            <Eye size={16} />
+                            <span className="hidden sm:inline">Klantweergave</span>
+                        </button>
 
                         <Button asChild variant="secondary" className="gap-2 h-10 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-100 shadow-sm">
                             <Link href={`/offertes/${id}/klus`}>
@@ -730,6 +747,9 @@ export default function QuotePage() {
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900 border border-zinc-800 p-1 rounded-lg w-full sm:w-auto">
                         <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
+                            <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                                <FileText size={16} /> PDF Preview
+                            </TabsTrigger>
                             <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
                                 <Euro size={16} /> Overzicht
                             </TabsTrigger>
@@ -741,9 +761,6 @@ export default function QuotePage() {
                             </TabsTrigger>
                             <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
                                 <Clock size={16} /> Arbeid
-                            </TabsTrigger>
-                            <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
-                                <FileText size={16} /> PDF Preview
                             </TabsTrigger>
                             <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
                                 <MessageSquare size={16} /> Notities
@@ -968,13 +985,15 @@ export default function QuotePage() {
                 defaultCategory="all"
             />
 
-            {/* Hidden Drawing Generator */}
-            {isGeneratingPDF && quote && (
+            {/* Hidden Drawing Generator - render when on PDF tab OR during download */}
+            {(activeTab === 'pdf' || isGeneratingPDF) && quote && capturedDrawings.length === 0 && (
                 <HiddenPDFDrawings
                     quote={quote}
                     onReady={handleDrawingsCaptured}
                 />
             )}
+
+            <BottomNav />
         </div>
 
     );

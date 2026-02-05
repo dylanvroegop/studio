@@ -75,24 +75,24 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
     const drawingJobs = useMemo(() => {
         console.log("Filtering jobs:", jobs.length);
         return jobs.filter(job => {
-            // Check for parametric data (Modern)
-            const hasMaatwerk = job.maatwerk && (
-                (Array.isArray(job.maatwerk) && job.maatwerk.length > 0) ||
-                (!Array.isArray(job.maatwerk) && (job.maatwerk as any).items && (job.maatwerk as any).items.length > 0) ||
-                false
+            // Check for parametric data (Modern) - check multiple structures
+            const maatwerk = job.maatwerk as any;
+            const hasMaatwerk = maatwerk && (
+                (Array.isArray(maatwerk) && maatwerk.length > 0) ||
+                (maatwerk.items && Array.isArray(maatwerk.items) && maatwerk.items.length > 0) ||
+                (maatwerk.basis && Array.isArray(maatwerk.basis) && maatwerk.basis.length > 0)
             );
 
             // Check for static visual URL (Legacy)
-            // Ensure we check nested fields if necessary, though previously found at root.
             const hasVisualUrl = !!(job as any).visualisatieUrl;
 
-            // Must identify as a job with visualization support
-            // We check if it has a known slug/category
-            const meta = (job as any).meta || {};
-            const slug = meta.slug;
+            // Check both meta locations (top-level and inside maatwerk)
+            const topMeta = (job as any).meta || {};
+            const maatwerkMeta = (job.maatwerk as any)?.meta || {};
+            const slug = topMeta.slug || maatwerkMeta.slug;
 
             // DEBUG LOG
-            console.log(`Job [${job.id?.substring(0, 6)}...]: Maatwerk=${hasMaatwerk}, VisualUrl=${hasVisualUrl}, Slug=${slug}`);
+            console.log(`Job [${job.id?.substring(0, 6)}...]: Maatwerk=${hasMaatwerk}, VisualUrl=${hasVisualUrl}, TopMeta=${JSON.stringify(topMeta)}, MaatwerkMeta=${JSON.stringify(maatwerkMeta)}, Slug=${slug}`);
 
             // Relaxed Filter: Allow Visual URL even if slug is missing
             if (hasVisualUrl) return true;
@@ -148,16 +148,25 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
 
 // Helper component to isolate config lookup and rendering logic per job
 function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; index: number }) {
-    const meta = (job as any).meta || {};
+    // Try multiple sources for meta: top-level (klussen map) or inside maatwerk (legacy/subcollection)
+    const topMeta = (job as any).meta || {};
+    const maatwerkMeta = (job.maatwerk as any)?.meta || {};
+    const meta = topMeta.type ? topMeta : maatwerkMeta;
+
     const categorySlug = meta.type || '';
     const jobSlug = meta.slug || '';
     const visualisatieUrl = (job as any).visualisatieUrl;
 
-    // Normalize items from maatwerk
+    // Normalize items from maatwerk - check multiple possible structures
     const items = useMemo(() => {
         if (Array.isArray(job.maatwerk)) return job.maatwerk;
-        if (job.maatwerk && (job.maatwerk as any).items && Array.isArray((job.maatwerk as any).items)) {
-            return (job.maatwerk as any).items;
+
+        const maatwerk = job.maatwerk as any;
+        if (maatwerk?.items && Array.isArray(maatwerk.items)) {
+            return maatwerk.items;
+        }
+        if (maatwerk?.basis && Array.isArray(maatwerk.basis)) {
+            return maatwerk.basis;
         }
         return [];
     }, [job.maatwerk]);

@@ -35,7 +35,7 @@ export default function PlanningPage() {
 
     const dateRange = useMemo(() => getDateRangeForView(view, currentDate), [view, currentDate]);
 
-    const { entries, isLoading: isLoadingEntries, updateEntry } = usePlanningData({
+    const { entries, isLoading: isLoadingEntries, updateEntry, shiftQuoteEntries } = usePlanningData({
         startDate: dateRange.start,
         endDate: dateRange.end
     });
@@ -105,6 +105,55 @@ export default function PlanningPage() {
     const handleEntryDrop = async (entryId: string, newStart: Date, newEmployeeId: string) => {
         const entry = entries.find(e => e.id === entryId);
         if (!entry) return;
+        const effectiveEmployeeId = newEmployeeId || entry.employeeId;
+
+        // If in week/month view, we want to shift the entire schedule for this quote
+        if (view === 'week' || view === 'month') {
+            // Only shift the entire quote when dragging the earliest entry.
+            const quoteEntries = entries.filter(e => e.quoteId === entry.quoteId);
+            const earliestEntry = quoteEntries.reduce((earliest, current) => {
+                const earliestDate = earliest.startDate.toDate();
+                const currentDate = current.startDate.toDate();
+                return currentDate < earliestDate ? current : earliest;
+            }, quoteEntries[0]);
+
+            const isEarliest = earliestEntry?.id === entry.id;
+
+            if (!isEarliest) {
+                const duration = entry.endDate.toDate().getTime() - entry.startDate.toDate().getTime();
+                const newEnd = new Date(newStart.getTime() + duration);
+
+                await updateEntry(entryId, {
+                    startDate: newStart,
+                    endDate: newEnd,
+                    employeeId: effectiveEmployeeId
+                });
+                return;
+            }
+
+            // Calculate day difference
+            const currentStartStart = new Date(entry.startDate.toDate());
+            currentStartStart.setHours(0, 0, 0, 0);
+
+            const newStartStart = new Date(newStart);
+            newStartStart.setHours(0, 0, 0, 0);
+
+            const diffTime = newStartStart.getTime() - currentStartStart.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays !== 0 || newEmployeeId !== entry.employeeId) {
+                // If the employee changed, passing newEmployeeId updates all entries to that employee?
+                // The requirements say: "move 'maandag' to 'zaterdag'... automatically adjusts the last one that would be in dinsdag as well to maandag."
+                // This implies moving the whole group.
+                await shiftQuoteEntries(
+                    entry.quoteId,
+                    entry.startDate.toDate(),
+                    newStart,
+                    effectiveEmployeeId !== entry.employeeId ? effectiveEmployeeId : undefined
+                );
+            }
+            return;
+        }
 
         const duration = entry.endDate.toDate().getTime() - entry.startDate.toDate().getTime();
         const newEnd = new Date(newStart.getTime() + duration);
@@ -112,7 +161,14 @@ export default function PlanningPage() {
         await updateEntry(entryId, {
             startDate: newStart,
             endDate: newEnd,
-            employeeId: newEmployeeId
+            employeeId: effectiveEmployeeId
+        });
+    };
+
+    const handleEntryResize = async (entryId: string, newStart: Date, newEnd: Date) => {
+        await updateEntry(entryId, {
+            startDate: newStart,
+            endDate: newEnd
         });
     };
 
@@ -215,6 +271,7 @@ export default function PlanningPage() {
                         entries={entries}
                         onEntryClick={handleEntryClick}
                         onEntryDrop={handleEntryDrop}
+                        onEntryResize={handleEntryResize}
                         onEmptyCellClick={handleEmptyCellClick}
                     />
                 )}

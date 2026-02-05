@@ -66,21 +66,40 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
 
     // 2. Filter for Valid Drawing Jobs
     const drawingJobs = useMemo(() => {
-        return jobs.filter(job => {
-            const hasMaatwerk = job.maatwerk && (
-                (Array.isArray(job.maatwerk) && job.maatwerk.length > 0) ||
-                (!Array.isArray(job.maatwerk) && (job.maatwerk as any).items && (job.maatwerk as any).items.length > 0) ||
-                false
+        console.log("[HiddenPDFDrawings] Filtering jobs:", jobs.length, jobs);
+
+        const filtered = jobs.filter(job => {
+            const maatwerk = job.maatwerk as any;
+            const hasMaatwerk = maatwerk && (
+                (Array.isArray(maatwerk) && maatwerk.length > 0) ||
+                (maatwerk.items && Array.isArray(maatwerk.items) && maatwerk.items.length > 0) ||
+                (maatwerk.basis && Array.isArray(maatwerk.basis) && maatwerk.basis.length > 0)
             );
             const hasVisualUrl = !!(job as any).visualisatieUrl;
 
             // Allow Visual URL even if slug is missing
             if (hasVisualUrl) return true;
 
-            const meta = (job as any).meta || {};
-            const slug = meta.slug;
+            // Check both meta locations (top-level and inside maatwerk)
+            const topMeta = (job as any).meta || {};
+            const maatwerkMeta = (job.maatwerk as any)?.meta || {};
+            const slug = topMeta.slug || maatwerkMeta.slug;
+
+            console.log("[HiddenPDFDrawings] Job filter check:", {
+                jobId: job.id,
+                hasMaatwerk,
+                hasVisualUrl,
+                topMeta,
+                maatwerkMeta,
+                slug,
+                passes: !!(hasMaatwerk && slug)
+            });
+
             return hasMaatwerk && slug;
         });
+
+        console.log("[HiddenPDFDrawings] Filtered drawingJobs:", filtered.length);
+        return filtered;
     }, [jobs]);
 
     // 3. Render and Capture
@@ -164,18 +183,43 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
 
 // Minimal Version of JobDrawingSection optimized for PDF capture (White background, black text)
 function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; index: number }) {
-    const meta = (job as any).meta || {};
+    // Try multiple sources for meta: top-level (klussen map) or inside maatwerk (legacy/subcollection)
+    const topMeta = (job as any).meta || {};
+    const maatwerkMeta = (job.maatwerk as any)?.meta || {};
+    const meta = topMeta.type ? topMeta : maatwerkMeta;
+
     const categorySlug = meta.type || '';
     const jobSlug = meta.slug || '';
     const visualisatieUrl = (job as any).visualisatieUrl;
 
+    // DEBUG: Log the job data to understand structure
+    console.log("[HiddenPDFDrawings] JobDrawingSection - job data:", {
+        jobId: job.id,
+        topMeta,
+        maatwerkMeta,
+        usedMeta: meta,
+        categorySlug,
+        jobSlug,
+        hasMaatwerk: !!job.maatwerk,
+        maatwerk: job.maatwerk,
+        visualisatieUrl
+    });
+
     const items = useMemo(() => {
+        // Check multiple possible structures for maatwerk items
         if (Array.isArray(job.maatwerk)) return job.maatwerk;
-        if (job.maatwerk && (job.maatwerk as any).items && Array.isArray((job.maatwerk as any).items)) {
-            return (job.maatwerk as any).items;
+
+        const maatwerk = job.maatwerk as any;
+        if (maatwerk?.items && Array.isArray(maatwerk.items)) {
+            return maatwerk.items;
+        }
+        if (maatwerk?.basis && Array.isArray(maatwerk.basis)) {
+            return maatwerk.basis;
         }
         return [];
     }, [job.maatwerk]);
+
+    console.log("[HiddenPDFDrawings] items extracted:", items.length, items);
 
     const hasItems = items.length > 0;
     const categoryConfig = JOB_REGISTRY[categorySlug];
