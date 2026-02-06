@@ -6,6 +6,7 @@ import {
     OverallDimensions,
     GridMeasurements
 } from './shared/measurements';
+import { DEFAULT_MEASUREMENT_STYLE } from './shared/measurements/types';
 import { calculateGridGaps } from './shared/framing-utils';
 
 interface BoeiboordDrawingProps {
@@ -108,7 +109,7 @@ export function BoeiboordDrawing({
                     }}
                 >
                     {(ctx) => {
-                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT, drawH } = ctx;
+                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT, drawH, drawW } = ctx;
 
                         const structureColor = "rgb(70, 75, 85)";
                         const LAT_WIDTH_MM = 22;
@@ -134,7 +135,7 @@ export function BoeiboordDrawing({
                             // Simple approach: draw parallelograms directly
                             // Build a slope box inside the available draw area so the angle remains visible
                             const drawTop = startY - (drawH - rectH) / 2;
-                            const maxRise = Math.max(40, drawH * 0.7);
+                            const maxRise = Math.max(60, drawH * 0.9);
                             const baseY = drawTop + (drawH - maxRise) / 2 + maxRise;
 
                             // Board thickness (perpendicular to slope) based on input height
@@ -145,6 +146,11 @@ export function BoeiboordDrawing({
                             const desiredRise = Math.tan(angleRad) * spanBase;
                             const riseCap = Math.max(0, maxRise - boardThickness);
                             const rise = desiredRise <= 0 ? 0 : Math.min(riseCap, desiredRise);
+                            const effectiveSpan = desiredRise > 0
+                                ? Math.min(spanBase, riseCap / Math.tan(angleRad))
+                                : spanBase;
+                            const spanLeftX = midX - (mirrorLatten ? effectiveSpan : effectiveSpan / 2);
+                            const spanRightX = mirrorLatten ? midX + effectiveSpan : midX + effectiveSpan / 2;
                             const peakY = baseY - rise;
                             const lerpPoint = (a: Point, b: Point, t: number): Point => ({
                                 x: a.x + (b.x - a.x) * t,
@@ -182,6 +188,181 @@ export function BoeiboordDrawing({
                                 return lines;
                             };
 
+                            const renderAlignedDimension = (
+                                p1: Point,
+                                p2: Point,
+                                label: number | string,
+                                offset = 0
+                            ) => {
+                                const dx = p2.x - p1.x;
+                                const dy = p2.y - p1.y;
+                                const len = Math.hypot(dx, dy) || 1;
+                                const nx = -dy / len;
+                                const ny = dx / len;
+                                const x1 = p1.x + nx * offset;
+                                const y1 = p1.y + ny * offset;
+                                const x2 = p2.x + nx * offset;
+                                const y2 = p2.y + ny * offset;
+                                const cx = (x1 + x2) / 2;
+                                const cy = (y1 + y2) / 2;
+                                let angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+                                if (angle > 90 || angle < -90) angle += 180;
+
+                                return (
+                                    <g className="text-emerald-500" pointerEvents="none">
+                                        <line
+                                            x1={p1.x}
+                                            y1={p1.y}
+                                            x2={x1}
+                                            y2={y1}
+                                            stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
+                                            strokeWidth={DEFAULT_MEASUREMENT_STYLE.strokeWidth}
+                                            opacity="0.5"
+                                        />
+                                        <line
+                                            x1={p2.x}
+                                            y1={p2.y}
+                                            x2={x2}
+                                            y2={y2}
+                                            stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
+                                            strokeWidth={DEFAULT_MEASUREMENT_STYLE.strokeWidth}
+                                            opacity="0.5"
+                                        />
+                                        <line
+                                            x1={x1}
+                                            y1={y1}
+                                            x2={x2}
+                                            y2={y2}
+                                            stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
+                                            strokeWidth={DEFAULT_MEASUREMENT_STYLE.strokeWidth}
+                                        />
+                                        <circle cx={x1} cy={y1} r={DEFAULT_MEASUREMENT_STYLE.dotRadius} fill={DEFAULT_MEASUREMENT_STYLE.lineColor} />
+                                        <circle cx={x2} cy={y2} r={DEFAULT_MEASUREMENT_STYLE.dotRadius} fill={DEFAULT_MEASUREMENT_STYLE.lineColor} />
+                                        <g transform={`translate(${cx}, ${cy}) rotate(${angle})`}>
+                                            <rect x="-30" y="-10" width="60" height="20" fill="#09090b" opacity="1" />
+                                            <text
+                                                x="0"
+                                                y="0.5"
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                fill={DEFAULT_MEASUREMENT_STYLE.textColor}
+                                                className="text-[16px] font-mono select-none font-medium"
+                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                            >
+                                                {label}
+                                            </text>
+                                        </g>
+                                    </g>
+                                );
+                            };
+
+                            const renderMirrorLengthDimension = (
+                                outer: Point,
+                                inner: Point,
+                                label: number | string,
+                                offset: number,
+                                seamX: number
+                            ) => {
+                                const dx = inner.x - outer.x;
+                                const dy = inner.y - outer.y;
+                                const len = Math.hypot(dx, dy) || 1;
+                                const nx = -dy / len;
+                                const ny = dx / len;
+                                const outerOffset = { x: outer.x + nx * offset, y: outer.y + ny * offset };
+                                const innerOffset = { x: inner.x + nx * offset, y: inner.y + ny * offset };
+                                const seamOffset = pointAtX(outerOffset, innerOffset, seamX);
+
+                                const x1 = outerOffset.x;
+                                const y1 = outerOffset.y;
+                                const x2 = seamOffset.x;
+                                const y2 = seamOffset.y;
+                                const cx = (x1 + x2) / 2;
+                                const cy = (y1 + y2) / 2;
+                                let angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+                                if (angle > 90 || angle < -90) angle += 180;
+
+                                return (
+                                    <g className="text-emerald-500" pointerEvents="none">
+                                        <line
+                                            x1={outer.x}
+                                            y1={outer.y}
+                                            x2={x1}
+                                            y2={y1}
+                                            stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
+                                            strokeWidth={DEFAULT_MEASUREMENT_STYLE.strokeWidth}
+                                            opacity="0.5"
+                                        />
+                                        <line
+                                            x1={inner.x}
+                                            y1={inner.y}
+                                            x2={seamX}
+                                            y2={y2}
+                                            stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
+                                            strokeWidth={DEFAULT_MEASUREMENT_STYLE.strokeWidth}
+                                            opacity="0.5"
+                                        />
+                                        <line
+                                            x1={x1}
+                                            y1={y1}
+                                            x2={x2}
+                                            y2={y2}
+                                            stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
+                                            strokeWidth={DEFAULT_MEASUREMENT_STYLE.strokeWidth}
+                                        />
+                                        <circle cx={x1} cy={y1} r={DEFAULT_MEASUREMENT_STYLE.dotRadius} fill={DEFAULT_MEASUREMENT_STYLE.lineColor} />
+                                        <circle cx={x2} cy={y2} r={DEFAULT_MEASUREMENT_STYLE.dotRadius} fill={DEFAULT_MEASUREMENT_STYLE.lineColor} />
+                                        <g transform={`translate(${cx}, ${cy}) rotate(${angle})`}>
+                                            <rect x="-30" y="-10" width="60" height="20" fill="#09090b" opacity="1" />
+                                            <text
+                                                x="0"
+                                                y="0.5"
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                                fill={DEFAULT_MEASUREMENT_STYLE.textColor}
+                                                className="text-[16px] font-mono select-none font-medium"
+                                                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                                            >
+                                                {label}
+                                            </text>
+                                        </g>
+                                    </g>
+                                );
+                            };
+
+                            const lengthOffsetDown = (p1: Point, p2: Point, offset = 40) => {
+                                const dx = p2.x - p1.x;
+                                const dy = p2.y - p1.y;
+                                const len = Math.hypot(dx, dy) || 1;
+                                const ny = dx / len;
+                                return (ny < 0 ? -1 : 1) * offset;
+                            };
+
+                            const getBounds = (points: Point[]) => {
+                                const xs = points.map(p => p.x);
+                                const ys = points.map(p => p.y);
+                                const minX = Math.min(...xs);
+                                const maxX = Math.max(...xs);
+                                const minY = Math.min(...ys);
+                                const maxY = Math.max(...ys);
+                                return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+                            };
+
+                            const fitTransform = (points: Point[]) => {
+                                const bounds = getBounds(points);
+                                const pad = 24;
+                                const availW = Math.max(1, drawW - pad * 2);
+                                const availH = Math.max(1, drawH - pad * 2);
+                                const scale = Math.min(
+                                    availW / Math.max(1, bounds.width),
+                                    availH / Math.max(1, bounds.height)
+                                );
+                                const cx = (bounds.minX + bounds.maxX) / 2;
+                                const cy = (bounds.minY + bounds.maxY) / 2;
+                                const targetX = startX + drawW / 2;
+                                const targetY = startY + drawH / 2;
+                                return `translate(${targetX}, ${targetY}) scale(${scale}) translate(${-cx}, ${-cy})`;
+                            };
+
                             // For mirrored view: two boards meeting at center peak
                             // For single view: one board going from left to right
 
@@ -192,7 +373,7 @@ export function BoeiboordDrawing({
                                 // Two boards meeting at peak (gable look)
                                 const peakX = midX;
                                 // Left board (outer end = perpendicular, inner end = vertical seam)
-                                const leftBottomStart = { x: startX, y: baseY };
+                                const leftBottomStart = { x: spanLeftX, y: baseY };
                                 const leftBottomEnd = { x: peakX, y: peakY };
                                 const leftDir = { x: leftBottomEnd.x - leftBottomStart.x, y: leftBottomEnd.y - leftBottomStart.y };
                                 const leftNormal = normalize({ x: leftDir.y, y: -leftDir.x }); // upward & outward
@@ -216,7 +397,7 @@ export function BoeiboordDrawing({
 
                                 // Right board (outer end = perpendicular, inner end = vertical seam)
                                 const rightBottomStart = { x: peakX, y: peakY };
-                                const rightBottomEnd = { x: startX + rectW, y: baseY };
+                                const rightBottomEnd = { x: spanRightX, y: baseY };
                                 const rightDir = { x: rightBottomEnd.x - rightBottomStart.x, y: rightBottomEnd.y - rightBottomStart.y };
                                 const rightNormal = normalize({ x: rightDir.y, y: -rightDir.x }); // upward & outward
 
@@ -243,8 +424,25 @@ export function BoeiboordDrawing({
                                 const leftLatten = buildLattenLines(leftEdges);
                                 const rightLatten = buildLattenLines(rightEdges);
 
+                                const heightOffset = -40;
+                                const lengthOffsetLeft = lengthOffsetDown(leftEdges.bottomStart, leftEdges.bottomEnd, 40);
+                                const lengthOffsetRight = lengthOffsetDown(rightEdges.bottomEnd, rightEdges.bottomStart, 40);
+
+                                const fitPoints: Point[] = [
+                                    leftEdges.bottomStart,
+                                    leftEdges.bottomEnd,
+                                    leftEdges.topStart,
+                                    leftEdges.topEnd,
+                                    rightEdges.bottomStart,
+                                    rightEdges.bottomEnd,
+                                    rightEdges.topStart,
+                                    rightEdges.topEnd
+                                ];
+                                const transform = fitTransform(fitPoints);
+
                                 return (
                                     <>
+                                        <g transform={transform}>
                                         {/* Left board outline */}
                                         {leftPath && (
                                             <path
@@ -301,14 +499,28 @@ export function BoeiboordDrawing({
                                             opacity="0.35"
                                         />
 
-                                        {/* Overall dimensions */}
-                                        <OverallDimensions
-                                            wallLength={lengte}
-                                            wallHeight={hoogte}
-                                            svgBaseX={startX}
-                                            svgBaseY={startY + rectH}
-                                            pxPerMm={pxPerMm}
-                                        />
+                                        {/* Dimensions - height at kopkant, length per side */}
+                                        {renderAlignedDimension(
+                                            leftEdges.bottomStart,
+                                            leftEdges.topStart,
+                                            hoogte,
+                                            heightOffset
+                                        )}
+                                        {renderMirrorLengthDimension(
+                                            leftEdges.bottomStart,
+                                            leftEdges.bottomEnd,
+                                            lengte,
+                                            lengthOffsetLeft,
+                                            peakX
+                                        )}
+                                        {renderMirrorLengthDimension(
+                                            rightEdges.bottomEnd,
+                                            rightEdges.bottomStart,
+                                            lengte,
+                                            lengthOffsetRight,
+                                            peakX
+                                        )}
+                                        </g>
 
                                         {title && (
                                             <text
@@ -326,22 +538,24 @@ export function BoeiboordDrawing({
                                         {mirrorBadgeText && (
                                             <g>
                                                 <rect
-                                                    x={startX + rectW - 42}
-                                                    y={startY + 10}
-                                                    width={30}
-                                                    height={18}
+                                                    x={10}
+                                                    y={10}
+                                                    width={90}
+                                                    height={22}
                                                     rx={4}
                                                     fill="rgba(0,0,0,0.6)"
                                                     stroke="rgba(255,255,255,0.15)"
                                                     strokeWidth="0.5"
                                                 />
                                                 <text
-                                                    x={startX + rectW - 27}
-                                                    y={startY + 23}
-                                                    textAnchor="middle"
-                                                    fill="rgb(167, 243, 208)"
+                                                    x={55}
+                                                    y={22}
                                                     fontSize="11"
-                                                    style={{ fontFamily: 'monospace', fontWeight: 700 }}
+                                                    fontWeight="bold"
+                                                    fill="rgb(167, 243, 208)"
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    style={{ fontFamily: 'monospace' }}
                                                 >
                                                     {mirrorBadgeText}
                                                 </text>
@@ -351,8 +565,8 @@ export function BoeiboordDrawing({
                                 );
                             } else {
                                 // Single board going from bottom-left to top-right across width, scaled to fit height
-                                const bottomStart = { x: startX, y: baseY };
-                                const bottomEnd = { x: startX + rectW, y: peakY };
+                                const bottomStart = { x: spanLeftX, y: baseY };
+                                const bottomEnd = { x: spanRightX, y: peakY };
                                 const dir = { x: bottomEnd.x - bottomStart.x, y: bottomEnd.y - bottomStart.y };
                                 const normal = normalize({ x: dir.y, y: -dir.x });
                                 const topStart = {
@@ -375,8 +589,20 @@ export function BoeiboordDrawing({
 
                                 const leftLatten = buildLattenLines(edges);
 
+                                const heightOffset = -20;
+                                const lengthOffset = lengthOffsetDown(edges.bottomStart, edges.bottomEnd, 40);
+
+                                const fitPoints: Point[] = [
+                                    edges.bottomStart,
+                                    edges.bottomEnd,
+                                    edges.topStart,
+                                    edges.topEnd
+                                ];
+                                const transform = fitTransform(fitPoints);
+
                                 return (
                                     <>
+                                        <g transform={transform}>
                                         {leftPath && (
                                             <path
                                                 d={leftPath}
@@ -397,13 +623,19 @@ export function BoeiboordDrawing({
                                             />
                                         ))}
 
-                                        <OverallDimensions
-                                            wallLength={lengte}
-                                            wallHeight={hoogte}
-                                            svgBaseX={startX}
-                                            svgBaseY={startY + rectH}
-                                            pxPerMm={pxPerMm}
-                                        />
+                                        {renderAlignedDimension(
+                                            edges.bottomStart,
+                                            edges.topStart,
+                                            hoogte,
+                                            heightOffset
+                                        )}
+                                        {renderAlignedDimension(
+                                            edges.bottomStart,
+                                            edges.bottomEnd,
+                                            lengte,
+                                            lengthOffset
+                                        )}
+                                        </g>
 
                                         {title && (
                                             <text
@@ -586,22 +818,24 @@ export function BoeiboordDrawing({
                                 {mirrorBadgeText && (
                                     <g>
                                         <rect
-                                            x={startX + rectW - 42}
-                                            y={startY + 10}
-                                            width={30}
-                                            height={18}
+                                            x={10}
+                                            y={10}
+                                            width={90}
+                                            height={22}
                                             rx={4}
                                             fill="rgba(0,0,0,0.6)"
                                             stroke="rgba(255,255,255,0.15)"
                                             strokeWidth="0.5"
                                         />
                                         <text
-                                            x={startX + rectW - 27}
-                                            y={startY + 23}
-                                            textAnchor="middle"
-                                            fill="rgb(167, 243, 208)"
+                                            x={55}
+                                            y={22}
                                             fontSize="11"
-                                            style={{ fontFamily: 'monospace', fontWeight: 700 }}
+                                            fontWeight="bold"
+                                            fill="rgb(167, 243, 208)"
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            style={{ fontFamily: 'monospace' }}
                                         >
                                             {mirrorBadgeText}
                                         </text>
@@ -611,7 +845,7 @@ export function BoeiboordDrawing({
                         );
                     }}
                 </BaseDrawingFrame>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

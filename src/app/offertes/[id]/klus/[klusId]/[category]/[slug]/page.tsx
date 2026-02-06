@@ -2338,7 +2338,7 @@ export default function GenericMeasurementPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-zinc-200">
-                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : 'Latten'}
+                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : (jobSlug.includes('hellend-dak') ? 'Pan latten' : 'Latten')}
                                 </span>
                                 {/* Collapse default: true (collapsed) */}
                                 {collapsedSections[`latten-${index}`] === true && (
@@ -2443,10 +2443,10 @@ export default function GenericMeasurementPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-zinc-200">
-                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : 'Latten'}
+                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : (jobSlug.includes('hellend-dak') ? 'Pan latten' : 'Latten')}
                                 </span>
                                 {/* Collapse default: true (collapsed) */}
-                                {collapsedSections[`latten-${index}`] === true && (
+                                {collapsedSections[`latten-${index}`] === true && item.latafstand > 0 && (
                                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                                     {item.latafstand}mm h.o.h
                                   </span>
@@ -2515,22 +2515,45 @@ export default function GenericMeasurementPage() {
                                   const currentValue = userData?.[fieldKey] ?? 8;
 
                                   return (
-                                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 p-4 space-y-2">
-                                      <Label className="text-xs uppercase text-zinc-500 tracking-wider">{label}</Label>
-                                      <div className="relative">
-                                        <Input
-                                          type="number"
-                                          className="bg-black/20 border-white/10 h-9 text-sm pr-8"
-                                          value={currentValue}
-                                          placeholder="8"
-                                          onChange={(e) => {
-                                            if (userDocRef) {
-                                              updateDoc(userDocRef, { [fieldKey]: Number(e.target.value) }).catch(console.error);
-                                            }
-                                          }}
-                                        />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
+                                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                                      <div
+                                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                        onClick={() => toggleCollapsed(`trespa-${index}`)}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-sm font-medium text-zinc-200">{label}</span>
+                                          {collapsedSections[`trespa-${index}`] !== false && currentValue > 0 && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                              {currentValue}mm
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-zinc-500">
+                                          {collapsedSections[`trespa-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </div>
                                       </div>
+
+                                      {collapsedSections[`trespa-${index}`] === false && (
+                                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                          <div className="pt-2 border-t border-white/5 space-y-2">
+                                            <Label className="text-xs uppercase text-zinc-500 tracking-wider">Naad dikte</Label>
+                                            <div className="relative">
+                                              <Input
+                                                type="number"
+                                                className="bg-black/20 border-white/10 h-9 text-sm pr-8"
+                                                value={currentValue}
+                                                placeholder="8"
+                                                onChange={(e) => {
+                                                  if (userDocRef) {
+                                                    updateDoc(userDocRef, { [fieldKey]: Number(e.target.value) }).catch(console.error);
+                                                  }
+                                                }}
+                                              />
+                                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 }

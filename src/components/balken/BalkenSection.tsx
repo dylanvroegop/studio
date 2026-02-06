@@ -9,7 +9,7 @@ interface BalkenOptionsConfig {
     dblEindbalk?: boolean;
     dblBovenbalk?: boolean;
     dblOnderbalk?: boolean;
-    // potentially others
+    surroundingBeams?: boolean;
 }
 
 interface BalkenSectionProps {
@@ -69,8 +69,10 @@ export function BalkenSection({
                 onClick={handleToggle}
             >
                 <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-zinc-200">Balken</span>
-                    {isCollapsed && (
+                    <span className="text-sm font-medium text-zinc-200">
+                        {jobSlug.includes('hellend-dak') ? 'Tengel latten' : 'Balken'}
+                    </span>
+                    {isCollapsed && balkafstand > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                             {balkafstand}mm h.o.h
                         </span>
@@ -87,7 +89,7 @@ export function BalkenSection({
 
                         {/* Balkafstand Input */}
                         <div className="space-y-2">
-                            <Label>Balkafstand (h.o.h)</Label>
+                            <Label>{jobSlug.includes('hellend-dak') ? 'Tengelafstand (h.o.h)' : 'Balkafstand (h.o.h)'}</Label>
                             <MeasurementInput
                                 value={balkafstand}
                                 onChange={v => onUpdate('balkafstand', v)}
@@ -130,19 +132,19 @@ export function BalkenSection({
                                             {optionsConfig.dblEindbalk && (
                                                 <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                                     <Label className="text-[10px] text-zinc-400">Dbl. Eindbalk</Label>
-                                                    <Switch checked={doubleEndBeams || false} onCheckedChange={(c) => onUpdate('doubleEndBeams', c)} className="scale-75 origin-right" />
+                                                    <Switch checked={doubleEndBeams || false} onCheckedChange={(c: boolean) => onUpdate('doubleEndBeams', c)} className="scale-75 origin-right" />
                                                 </div>
                                             )}
                                             {optionsConfig.dblBovenbalk && (
                                                 <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                                     <Label className="text-[10px] text-zinc-400">Dbl. Bovenbalk</Label>
-                                                    <Switch checked={doubleTopPlate || false} onCheckedChange={(c) => onUpdate('doubleTopPlate', c)} className="scale-75 origin-right" />
+                                                    <Switch checked={doubleTopPlate || false} onCheckedChange={(c: boolean) => onUpdate('doubleTopPlate', c)} className="scale-75 origin-right" />
                                                 </div>
                                             )}
                                             {optionsConfig.dblOnderbalk && (
                                                 <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                                     <Label className="text-[10px] text-zinc-400">Dbl. Onderbalk</Label>
-                                                    <Switch checked={doubleBottomPlate || false} onCheckedChange={(c) => onUpdate('doubleBottomPlate', c)} className="scale-75 origin-right" />
+                                                    <Switch checked={doubleBottomPlate || false} onCheckedChange={(c: boolean) => onUpdate('doubleBottomPlate', c)} className="scale-75 origin-right" />
                                                 </div>
                                             )}
                                         </>
@@ -151,7 +153,7 @@ export function BalkenSection({
                                     {showSurrounding && (
                                         <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                             <Label className="text-[10px] text-zinc-400">Kader (Rondom)</Label>
-                                            <Switch checked={surroundingBeams || false} onCheckedChange={(c) => onUpdate('surroundingBeams', c)} className="scale-75 origin-right" />
+                                            <Switch checked={surroundingBeams || false} onCheckedChange={(c: boolean) => onUpdate('surroundingBeams', c)} className="scale-75 origin-right" />
                                         </div>
                                     )}
                                 </div>

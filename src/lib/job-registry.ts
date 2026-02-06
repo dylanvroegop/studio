@@ -1973,7 +1973,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
           { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
           { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
-          { key: 'latafstand', label: 'Rachelafstand (h.o.h.)', type: 'number', suffix: 'mm', placeholder: 'Berekend op basis dakpannen', group: 'spacing' },
+          { key: 'latafstand', label: 'Panlatafstand (h.o.h.)', type: 'number', suffix: 'mm', placeholder: 'Berekend op basis dakpannen', group: 'spacing' },
           { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
         ],
         materialSections: DAK_HELLEND_MATS,

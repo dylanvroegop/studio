@@ -2206,6 +2206,16 @@ export default function GenericMaterialsPageRedesigned() {
       // 2. No flattening of components (they have their own list).
       // 3. No ID saved (supabase row_id).
 
+      // === PREPARE BASE ITEMS & MIRROR CHECK ===
+      // Determine the final list of base items (maatwerk) to save
+      const maatwerkKey = `${jobSlug}_maatwerk`;
+      const baseItems = updatedMaatwerkData
+        ? updatedMaatwerkData.items
+        : ((klus as any)?.[maatwerkKey] || (klus as any)?.maatwerk?.basis || (klus as any)?.maatwerk?.items || []);
+
+      // Check if any item has the mirror flag (2x calculation)
+      const isBoeiboordMirrored = Array.isArray(baseItems) && baseItems.some((bi: any) => bi?.boeiboord_mirror === true);
+
       const materialenLijst: Record<string, any> = {};
 
       // 1. Unified Material Map Construction
@@ -2215,6 +2225,13 @@ export default function GenericMaterialsPageRedesigned() {
         if (k.startsWith('component_')) return;
         const cleaned = cleanMaterialData(v);
         if (cleaned) {
+          // Rule: If boeiboord is mirrored, double the quantity (aantal) for standard materials
+          // This applies to things like regelwerk, cladding, etc.
+          // We assume standard selections in a Boeiboord job should be doubled.
+          if (isBoeiboordMirrored) {
+            cleaned.aantal = 2;
+          }
+
           materialenLijst[k] = {
             sectionKey: k,
             material: cleaned,
@@ -2272,9 +2289,6 @@ export default function GenericMaterialsPageRedesigned() {
 
         return { ...c, materials: componentMaterials };
       });
-
-      const maatwerkKey = `${jobSlug}_maatwerk`;
-      const baseItems = updatedMaatwerkData ? updatedMaatwerkData.items : ((klus as any)?.[maatwerkKey] || (klus as any)?.maatwerk?.basis || (klus as any)?.maatwerk?.items || []);
 
       const updatePayload: any = {
         [`klussen.${klusId}.maatwerk`]: JSON.parse(JSON.stringify({

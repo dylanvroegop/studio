@@ -206,7 +206,7 @@ export function VisualizerController({
                     startLattenFromBottom={item.startLattenFromBottom}
                     startFromRight={item.startFromRight}
                     doubleEndBattens={item.doubleEndBattens}
-                    mirrorBadgeText={boeiMirror ? '2x' : undefined}
+                    mirrorBadgeText={boeiMirror ? '2x calculatie' : undefined}
                 />
             </div>
         );
