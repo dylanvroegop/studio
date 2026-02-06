@@ -61,6 +61,12 @@ export default function QuotePage() {
         verbruik: MaterialItem[];
     }>({ groot: [], verbruik: [] });
 
+    // Refresh captured drawings when entering the PDF tab or when data changes
+    useEffect(() => {
+        if (activeTab !== 'pdf') return;
+        setCapturedDrawings([]);
+    }, [activeTab, quote?.id, calculation?.data_json]);
+
     // State for Material Selection Modal
     const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
     const [activeCategory, setActiveCategory] = useState<'groot' | 'verbruik' | null>(null);
@@ -531,6 +537,7 @@ export default function QuotePage() {
 
     // Updated PDF Download Handler
     const handleDownloadPDF = async () => {
+        setCapturedDrawings([]);
         setIsGeneratingPDF(true);
         // The actual generation is triggered by the onReady callback of HiddenPDFDrawings
         setPendingPDFAction(() => async (images: string[]) => {
@@ -722,14 +729,6 @@ export default function QuotePage() {
                         >
                             <Mail size={16} />
                             Versturen
-                        </button>
-                        <button
-                            onClick={() => window.open(`/view/${id}`, '_blank')}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700"
-                            title="Bekijk hoe de klant deze offerte ziet"
-                        >
-                            <Eye size={16} />
-                            <span className="hidden sm:inline">Klantweergave</span>
                         </button>
 
                         <Button asChild variant="secondary" className="gap-2 h-10 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-100 shadow-sm">

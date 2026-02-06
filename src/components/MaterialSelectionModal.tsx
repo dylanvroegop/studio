@@ -249,8 +249,50 @@ export function MaterialSelectionModal({
     return uniqueLeveranciers.filter(lev => lev.toLowerCase().includes(lower));
   }, [uniqueLeveranciers, customLeverancier]);
 
+  // Pre-process: Deduplicate materials by name, prioritizing those with prices
+  const uniqueMaterials = useMemo(() => {
+    const map = new Map<string, ExistingMaterial>();
+
+    existingMaterials.forEach(mat => {
+      const name = (mat.materiaalnaam || '').trim();
+      if (!name) return;
+
+      const existing = map.get(name);
+      if (!existing) {
+        map.set(name, mat);
+        return;
+      }
+
+      // Logic to decide if 'mat' is better than 'existing'
+
+      const priceEx = parsePriceToNumber(existing.prijs) || 0;
+      const priceMat = parsePriceToNumber(mat.prijs) || 0;
+
+      const pricePieceEx = parsePriceToNumber(existing.prijs_per_stuk) || 0;
+      const pricePieceMat = parsePriceToNumber(mat.prijs_per_stuk) || 0;
+
+      const hasPriceEx = priceEx > 0 || pricePieceEx > 0;
+      const hasPriceMat = priceMat > 0 || pricePieceMat > 0;
+
+      // 1. If new one has price and old one doesn't -> swap
+      if (hasPriceMat && !hasPriceEx) {
+        map.set(name, mat);
+        return;
+      }
+
+      // 2. If both have price (or neither), prefer the one with a set unit
+      if (hasPriceMat === hasPriceEx) {
+        if (!existing.eenheid && mat.eenheid) {
+          map.set(name, mat);
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [existingMaterials]);
+
   const allFilteredMaterials = useMemo(() => {
-    let result = existingMaterials;
+    let result = uniqueMaterials;
 
     if (categoryFilter !== 'all') {
       if (Array.isArray(categoryFilter)) {
@@ -300,7 +342,7 @@ export function MaterialSelectionModal({
       const orderB = b.order_id ?? 999999;
       return orderA - orderB;
     });
-  }, [existingMaterials, searchTerm, categoryFilter]);
+  }, [uniqueMaterials, searchTerm, categoryFilter]);
 
   const visibleMaterials = useMemo(() => {
     return allFilteredMaterials.slice(0, displayLimit);

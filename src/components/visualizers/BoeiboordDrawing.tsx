@@ -23,6 +23,12 @@ interface BoeiboordDrawingProps {
     mirrorBadgeText?: string;
     fitContainer?: boolean;
     className?: string;
+    shape?: 'rectangle' | 'slope' | 'gable';
+}
+
+interface Point {
+    x: number;
+    y: number;
 }
 
 export function BoeiboordDrawing({
@@ -40,8 +46,11 @@ export function BoeiboordDrawing({
     mirrorBadgeText,
     fitContainer,
     className,
+    shape,
 }: BoeiboordDrawingProps) {
     const clipId = React.useId().replace(/:/g, '');
+    const clipIdRight = React.useId().replace(/:/g, '');
+
     const structure = useMemo(() => {
         if (lengte <= 0 || hoogte <= 0) return {
             beamCenters: [] as number[],
@@ -72,6 +81,9 @@ export function BoeiboordDrawing({
         };
     }, [lengte, hoogte, balkafstand, latafstand, startLattenFromBottom, startFromRight]);
 
+    // Determine if we should use rotated board view
+    const useRotatedView = shape === 'slope' || shape === 'gable' || boeiboordOrientation === 'slope';
+
     return (
         <div className={`bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative h-[340px] ${className ?? ''}`}>
             {/* Dot Pattern Background */}
@@ -96,12 +108,11 @@ export function BoeiboordDrawing({
                     }}
                 >
                     {(ctx) => {
-                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT } = ctx;
+                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT, drawH } = ctx;
 
                         const structureColor = "rgb(70, 75, 85)";
                         const LAT_WIDTH_MM = 22;
                         const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
-                        const orientation = boeiboordOrientation ?? 'horizontal';
                         const angleDegRaw = typeof boeiboordAngle === 'number'
                             ? boeiboordAngle
                             : parseFloat(String(boeiboordAngle ?? '')) || 45;
@@ -110,50 +121,254 @@ export function BoeiboordDrawing({
                         const midX = startX + rectW / 2;
                         const yBottom = startY + rectH;
 
-                        const outlinePath = (() => {
-                            if (orientation !== 'slope') return null;
-                            const angleRad = (angleDeg * Math.PI) / 180;
-                            const slope = Math.tan(angleRad);
-
-                            if (!mirrorLatten) {
-                                const maxSlope = rectW > 0 ? rectH / rectW : 0;
-                                const slopeEff = Math.min(slope, maxSlope);
-                                const leftHeight = rectH - (slopeEff * rectW);
-                                const yLeftTop = yBottom - Math.max(0, leftHeight);
-                                const yRightTop = startY;
-
-                                return [
-                                    `M ${startX} ${yBottom}`,
-                                    `L ${startX + rectW} ${yBottom}`,
-                                    `L ${startX + rectW} ${yRightTop}`,
-                                    `L ${startX} ${yLeftTop}`,
-                                    'Z'
-                                ].join(' ');
-                            }
-
-                            const halfW = rectW / 2;
-                            const maxSlope = halfW > 0 ? rectH / halfW : 0;
-                            const slopeEff = Math.min(slope, maxSlope);
-                            const sideHeight = rectH - (slopeEff * halfW);
-                            const ySideTop = yBottom - Math.max(0, sideHeight);
-                            const xMid = startX + halfW;
-
-                            return [
-                                `M ${startX} ${yBottom}`,
-                                `L ${startX + rectW} ${yBottom}`,
-                                `L ${startX + rectW} ${ySideTop}`,
-                                `L ${xMid} ${startY}`,
-                                `L ${startX} ${ySideTop}`,
-                                'Z'
-                            ].join(' ');
-                        })();
-
                         const dashProps = {
                             stroke: structureColor,
                             strokeWidth: 1,
                             strokeDasharray: "4,4" as string,
                         };
 
+                        // === ROTATED BOARD VIEW ===
+                        if (useRotatedView) {
+                            const angleRad = (angleDeg * Math.PI) / 180;
+
+                            // Simple approach: draw parallelograms directly
+                            // Build a slope box inside the available draw area so the angle remains visible
+                            const drawTop = startY - (drawH - rectH) / 2;
+                            const maxRise = Math.max(40, drawH * 0.7);
+                            const baseY = drawTop + (drawH - maxRise) / 2 + maxRise;
+
+                            // Board thickness (perpendicular to slope) based on input height
+                            const desiredThickness = Math.max(6, hoogte * pxPerMm);
+                            const boardThickness = Math.min(desiredThickness, maxRise * 0.9);
+
+                            const spanBase = mirrorLatten ? rectW / 2 : rectW;
+                            const desiredRise = Math.tan(angleRad) * spanBase;
+                            const riseCap = Math.max(0, maxRise - boardThickness);
+                            const rise = desiredRise <= 0 ? 0 : Math.min(riseCap, desiredRise);
+                            const peakY = baseY - rise;
+                            const lerpPoint = (a: Point, b: Point, t: number): Point => ({
+                                x: a.x + (b.x - a.x) * t,
+                                y: a.y + (b.y - a.y) * t,
+                            });
+
+                            type BoardEdges = {
+                                topStart: Point;
+                                topEnd: Point;
+                                bottomStart: Point;
+                                bottomEnd: Point;
+                            };
+
+                            const buildLattenLines = (edges: BoardEdges) => {
+                                if (latafstand <= 0) return [];
+                                const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+                                const spacingPx = latafstand * pxPerMm;
+                                const length = Math.hypot(edges.topEnd.x - edges.topStart.x, edges.topEnd.y - edges.topStart.y);
+                                const numLatten = Math.floor(length / spacingPx);
+                                for (let i = 0; i <= numLatten; i++) {
+                                    const t = i / Math.max(numLatten, 1);
+                                    const top = lerpPoint(edges.topStart, edges.topEnd, t);
+                                    const bottom = lerpPoint(edges.bottomStart, edges.bottomEnd, t);
+                                    lines.push({ x1: top.x, y1: top.y, x2: bottom.x, y2: bottom.y });
+                                }
+                                return lines;
+                            };
+
+                            // For mirrored view: two boards meeting at center peak
+                            // For single view: one board going from left to right
+
+                            let leftPath = '';
+                            let rightPath = '';
+
+                            if (mirrorLatten) {
+                                // Two boards meeting at peak (gable look)
+                                const peakX = midX;
+                                const leftEdges: BoardEdges = {
+                                    topStart: { x: startX, y: baseY - boardThickness },
+                                    topEnd: { x: peakX, y: peakY - boardThickness },
+                                    bottomStart: { x: startX, y: baseY },
+                                    bottomEnd: { x: peakX, y: peakY }
+                                };
+
+                                const rightEdges: BoardEdges = {
+                                    topStart: { x: peakX, y: peakY - boardThickness },
+                                    topEnd: { x: startX + rectW, y: baseY - boardThickness },
+                                    bottomStart: { x: peakX, y: peakY },
+                                    bottomEnd: { x: startX + rectW, y: baseY }
+                                };
+
+                                leftPath = `M ${leftEdges.topStart.x} ${leftEdges.topStart.y} L ${leftEdges.topEnd.x} ${leftEdges.topEnd.y} L ${leftEdges.bottomEnd.x} ${leftEdges.bottomEnd.y} L ${leftEdges.bottomStart.x} ${leftEdges.bottomStart.y} Z`;
+                                rightPath = `M ${rightEdges.topStart.x} ${rightEdges.topStart.y} L ${rightEdges.topEnd.x} ${rightEdges.topEnd.y} L ${rightEdges.bottomEnd.x} ${rightEdges.bottomEnd.y} L ${rightEdges.bottomStart.x} ${rightEdges.bottomStart.y} Z`;
+
+                                const leftLatten = buildLattenLines(leftEdges);
+                                const rightLatten = buildLattenLines(rightEdges);
+
+                                return (
+                                    <>
+                                        {/* Left board outline */}
+                                        {leftPath && (
+                                            <path
+                                                d={leftPath}
+                                                fill="rgba(70, 75, 85, 0.12)"
+                                                stroke={structureColor}
+                                                strokeWidth="1.5"
+                                            />
+                                        )}
+
+                                        {/* Right board outline (mirrored) */}
+                                        {rightPath && (
+                                            <path
+                                                d={rightPath}
+                                                fill="rgba(70, 75, 85, 0.12)"
+                                                stroke={structureColor}
+                                                strokeWidth="1.5"
+                                            />
+                                        )}
+
+                                        {/* Left board latten */}
+                                        {leftLatten.map((line, idx) => (
+                                            <line
+                                                key={`lat-left-${idx}`}
+                                                x1={line.x1}
+                                                y1={line.y1}
+                                                x2={line.x2}
+                                                y2={line.y2}
+                                                {...dashProps}
+                                            />
+                                        ))}
+
+                                        {/* Right board latten (mirrored) */}
+                                        {rightLatten.map((line, idx) => (
+                                            <line
+                                                key={`lat-right-${idx}`}
+                                                x1={line.x1}
+                                                y1={line.y1}
+                                                x2={line.x2}
+                                                y2={line.y2}
+                                                {...dashProps}
+                                            />
+                                        ))}
+
+                                        {/* Peak indicator for mirrored */}
+                                        <line
+                                            x1={midX}
+                                            y1={startY}
+                                            x2={midX}
+                                            y2={yBottom}
+                                            stroke={structureColor}
+                                            strokeWidth="0.5"
+                                            strokeDasharray="2,6"
+                                            opacity="0.35"
+                                        />
+
+                                        {/* Overall dimensions */}
+                                        <OverallDimensions
+                                            wallLength={lengte}
+                                            wallHeight={hoogte}
+                                            svgBaseX={startX}
+                                            svgBaseY={startY + rectH}
+                                            pxPerMm={pxPerMm}
+                                        />
+
+                                        {title && (
+                                            <text
+                                                x={25}
+                                                y={SVG_HEIGHT - 25}
+                                                textAnchor="start"
+                                                fill="rgb(100, 116, 139)"
+                                                fontSize="14"
+                                                style={{ fontFamily: 'monospace' }}
+                                            >
+                                                {title}
+                                            </text>
+                                        )}
+
+                                        {mirrorBadgeText && (
+                                            <g>
+                                                <rect
+                                                    x={startX + rectW - 42}
+                                                    y={startY + 10}
+                                                    width={30}
+                                                    height={18}
+                                                    rx={4}
+                                                    fill="rgba(0,0,0,0.6)"
+                                                    stroke="rgba(255,255,255,0.15)"
+                                                    strokeWidth="0.5"
+                                                />
+                                                <text
+                                                    x={startX + rectW - 27}
+                                                    y={startY + 23}
+                                                    textAnchor="middle"
+                                                    fill="rgb(167, 243, 208)"
+                                                    fontSize="11"
+                                                    style={{ fontFamily: 'monospace', fontWeight: 700 }}
+                                                >
+                                                    {mirrorBadgeText}
+                                                </text>
+                                            </g>
+                                        )}
+                                    </>
+                                );
+                            } else {
+                                // Single board going from bottom-left to top-right across width, scaled to fit height
+                                const edges: BoardEdges = {
+                                    topStart: { x: startX, y: baseY - boardThickness },
+                                    topEnd: { x: startX + rectW, y: peakY - boardThickness },
+                                    bottomStart: { x: startX, y: baseY },
+                                    bottomEnd: { x: startX + rectW, y: peakY }
+                                };
+
+                                leftPath = `M ${edges.topStart.x} ${edges.topStart.y} L ${edges.topEnd.x} ${edges.topEnd.y} L ${edges.bottomEnd.x} ${edges.bottomEnd.y} L ${edges.bottomStart.x} ${edges.bottomStart.y} Z`;
+
+                                const leftLatten = buildLattenLines(edges);
+
+                                return (
+                                    <>
+                                        {leftPath && (
+                                            <path
+                                                d={leftPath}
+                                                fill="rgba(70, 75, 85, 0.12)"
+                                                stroke={structureColor}
+                                                strokeWidth="1.5"
+                                            />
+                                        )}
+
+                                        {leftLatten.map((line, idx) => (
+                                            <line
+                                                key={`lat-single-${idx}`}
+                                                x1={line.x1}
+                                                y1={line.y1}
+                                                x2={line.x2}
+                                                y2={line.y2}
+                                                {...dashProps}
+                                            />
+                                        ))}
+
+                                        <OverallDimensions
+                                            wallLength={lengte}
+                                            wallHeight={hoogte}
+                                            svgBaseX={startX}
+                                            svgBaseY={startY + rectH}
+                                            pxPerMm={pxPerMm}
+                                        />
+
+                                        {title && (
+                                            <text
+                                                x={25}
+                                                y={SVG_HEIGHT - 25}
+                                                textAnchor="start"
+                                                fill="rgb(100, 116, 139)"
+                                                fontSize="14"
+                                                style={{ fontFamily: 'monospace' }}
+                                            >
+                                                {title}
+                                            </text>
+                                        )}
+                                    </>
+                                );
+                            }
+                        }
+
+                        // === HORIZONTAL (RECTANGLE) VIEW - Original code ===
                         const gridGaps = structure.gridGaps.map(g => ({
                             value: g.value,
                             c1: startX + g.c1 * pxPerMm,
@@ -168,27 +383,14 @@ export function BoeiboordDrawing({
 
                         return (
                             <>
-                                {/* Clip path for slope */}
-                                {outlinePath && (
-                                    <defs>
-                                        <clipPath id={clipId}>
-                                            <path d={outlinePath} />
-                                        </clipPath>
-                                    </defs>
-                                )}
+                                {/* Main outline - rectangle */}
+                                <rect
+                                    x={startX} y={startY}
+                                    width={rectW} height={rectH}
+                                    fill="none" stroke={structureColor} strokeWidth="1"
+                                />
 
-                                {/* Main outline */}
-                                {outlinePath ? (
-                                    <path d={outlinePath} fill="none" stroke={structureColor} strokeWidth="1" />
-                                ) : (
-                                    <rect
-                                        x={startX} y={startY}
-                                        width={rectW} height={rectH}
-                                        fill="none" stroke={structureColor} strokeWidth="1"
-                                    />
-                                )}
-
-                                <g clipPath={outlinePath ? `url(#${clipId})` : undefined}>
+                                <g>
                                     {/* Vertical beams */}
                                     {balkafstand > 0 && structure.beamCenters.map((cx, i) => {
                                         const drawX = startX + cx * pxPerMm;
@@ -204,18 +406,17 @@ export function BoeiboordDrawing({
                                         );
                                     })}
 
-                                {/* Latten / patroon */}
-                                {(() => {
-                                    if (latafstand <= 0) return null;
+                                    {/* Latten / patroon */}
+                                    {(() => {
+                                        if (latafstand <= 0) return null;
 
-                                    const renderHorizontalSegment = (centerY: number, x1: number, x2: number, key: string) => (
-                                        <g key={key}>
-                                            <line x1={x1} y1={centerY - halfWidthPx} x2={x2} y2={centerY - halfWidthPx} {...dashProps} />
-                                            <line x1={x1} y1={centerY + halfWidthPx} x2={x2} y2={centerY + halfWidthPx} {...dashProps} />
-                                        </g>
-                                    );
+                                        const renderHorizontalSegment = (centerY: number, x1: number, x2: number, key: string) => (
+                                            <g key={key}>
+                                                <line x1={x1} y1={centerY - halfWidthPx} x2={x2} y2={centerY - halfWidthPx} {...dashProps} />
+                                                <line x1={x1} y1={centerY + halfWidthPx} x2={x2} y2={centerY + halfWidthPx} {...dashProps} />
+                                            </g>
+                                        );
 
-                                    if (orientation === 'horizontal') {
                                         return (
                                             <>
                                                 {structure.latCenters.map((cy, i) => {
@@ -232,176 +433,55 @@ export function BoeiboordDrawing({
                                                 })}
                                             </>
                                         );
-                                    }
+                                    })()}
 
-                                    const buildAngledLatten = (rect: { x0: number; y0: number; x1: number; y1: number }, angle: number) => {
-                                        const theta = (angle * Math.PI) / 180;
-                                        const dir = { x: Math.cos(theta), y: -Math.sin(theta) };
-                                        const n = { x: -dir.y, y: dir.x };
+                                    {/* Double end battens */}
+                                    {doubleEndBattens && (() => {
+                                        const extraStart = (LAT_WIDTH_MM / 2) + LAT_WIDTH_MM;
+                                        const extraEnd = hoogte - ((LAT_WIDTH_MM / 2) + LAT_WIDTH_MM);
+                                        const els: React.ReactNode[] = [];
 
-                                        const corners = [
-                                            { x: rect.x0, y: rect.y0 },
-                                            { x: rect.x1, y: rect.y0 },
-                                            { x: rect.x1, y: rect.y1 },
-                                            { x: rect.x0, y: rect.y1 },
-                                        ];
-
-                                        const projections = corners.map(p => (p.x * n.x) + (p.y * n.y));
-                                        const minProj = Math.min(...projections);
-                                        const maxProj = Math.max(...projections);
-
-                                        const spacingPx = latafstand * pxPerMm;
-                                        if (spacingPx <= 0) return [];
-
-                                        const minCenter = minProj + halfWidthPx;
-                                        const maxCenter = maxProj - halfWidthPx;
-
-                                        const startFromMax = !!startLattenFromBottom;
-                                        const startCenter = startFromMax ? maxCenter : minCenter;
-                                        const endCenter = startFromMax ? minCenter : maxCenter;
-                                        const step = startFromMax ? -spacingPx : spacingPx;
-
-                                        const centers: number[] = [];
-                                        for (let d = startCenter; startFromMax ? d >= endCenter - 0.5 : d <= endCenter + 0.5; d += step) {
-                                            centers.push(d);
+                                        if (extraStart < hoogte) {
+                                            const y = startY + extraStart * pxPerMm;
+                                            els.push(
+                                                <g key="dbl-start">
+                                                    {mirrorLatten ? (
+                                                        <>
+                                                            <line x1={startX} y1={y - halfWidthPx} x2={midX} y2={y - halfWidthPx} {...dashProps} />
+                                                            <line x1={midX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
+                                                            <line x1={startX} y1={y + halfWidthPx} x2={midX} y2={y + halfWidthPx} {...dashProps} />
+                                                            <line x1={midX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <line x1={startX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
+                                                            <line x1={startX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
+                                                        </>
+                                                    )}
+                                                </g>
+                                            );
                                         }
-                                        if (centers.length === 0 || Math.abs(centers[centers.length - 1] - endCenter) > 0.5) {
-                                            centers.push(endCenter);
+                                        if (extraEnd > 0) {
+                                            const y = startY + extraEnd * pxPerMm;
+                                            els.push(
+                                                <g key="dbl-end">
+                                                    {mirrorLatten ? (
+                                                        <>
+                                                            <line x1={startX} y1={y - halfWidthPx} x2={midX} y2={y - halfWidthPx} {...dashProps} />
+                                                            <line x1={midX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
+                                                            <line x1={startX} y1={y + halfWidthPx} x2={midX} y2={y + halfWidthPx} {...dashProps} />
+                                                            <line x1={midX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <line x1={startX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
+                                                            <line x1={startX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
+                                                        </>
+                                                    )}
+                                                </g>
+                                            );
                                         }
-
-                                        if (doubleEndBattens) {
-                                            const extraStart = startCenter + (startFromMax ? -LAT_WIDTH_MM * pxPerMm : LAT_WIDTH_MM * pxPerMm);
-                                            const extraEnd = endCenter + (startFromMax ? LAT_WIDTH_MM * pxPerMm : -LAT_WIDTH_MM * pxPerMm);
-                                            if (extraStart >= minCenter - 0.5 && extraStart <= maxCenter + 0.5) centers.push(extraStart);
-                                            if (extraEnd >= minCenter - 0.5 && extraEnd <= maxCenter + 0.5) centers.push(extraEnd);
-                                        }
-
-                                        const uniqCenters = Array.from(new Set(centers.map(c => Math.round(c * 10) / 10))).sort((a, b) => a - b);
-
-                                        const getSegment = (d: number) => {
-                                            const pts: Array<{ x: number; y: number }> = [];
-                                            const pushPoint = (x: number, y: number) => {
-                                                const key = `${x.toFixed(2)},${y.toFixed(2)}`;
-                                                if (!pts.some(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}` === key)) {
-                                                    pts.push({ x, y });
-                                                }
-                                            };
-
-                                            if (Math.abs(n.y) > 1e-6) {
-                                                const yL = (d - n.x * rect.x0) / n.y;
-                                                if (yL >= rect.y0 - 0.5 && yL <= rect.y1 + 0.5) pushPoint(rect.x0, yL);
-                                                const yR = (d - n.x * rect.x1) / n.y;
-                                                if (yR >= rect.y0 - 0.5 && yR <= rect.y1 + 0.5) pushPoint(rect.x1, yR);
-                                            }
-                                            if (Math.abs(n.x) > 1e-6) {
-                                                const xT = (d - n.y * rect.y0) / n.x;
-                                                if (xT >= rect.x0 - 0.5 && xT <= rect.x1 + 0.5) pushPoint(xT, rect.y0);
-                                                const xB = (d - n.y * rect.y1) / n.x;
-                                                if (xB >= rect.x0 - 0.5 && xB <= rect.x1 + 0.5) pushPoint(xB, rect.y1);
-                                            }
-
-                                            if (pts.length < 2) return null;
-                                            const sorted = pts.sort((a, b) => (a.x - b.x) || (a.y - b.y));
-                                            return { p1: sorted[0], p2: sorted[sorted.length - 1] };
-                                        };
-
-                                        const segments: Array<{ p1: { x: number; y: number }; p2: { x: number; y: number } }> = [];
-                                        uniqCenters.forEach(center => {
-                                            const offsets = [center - halfWidthPx, center + halfWidthPx];
-                                            offsets.forEach((d) => {
-                                                const seg = getSegment(d);
-                                                if (seg) segments.push(seg);
-                                            });
-                                        });
-
-                                        return segments;
-                                    };
-
-                                    const baseRect = mirrorLatten
-                                        ? { x0: startX, y0: startY, x1: midX, y1: startY + rectH }
-                                        : { x0: startX, y0: startY, x1: startX + rectW, y1: startY + rectH };
-
-                                    const leftSegments = buildAngledLatten(baseRect, angleDeg);
-                                    const rightSegments = mirrorLatten
-                                        ? leftSegments.map(seg => ({
-                                            p1: { x: (2 * midX) - seg.p1.x, y: seg.p1.y },
-                                            p2: { x: (2 * midX) - seg.p2.x, y: seg.p2.y },
-                                        }))
-                                        : [];
-
-                                    return (
-                                        <>
-                                            {leftSegments.map((seg, idx) => (
-                                                <line
-                                                    key={`lat-angled-${idx}`}
-                                                    x1={seg.p1.x}
-                                                    y1={seg.p1.y}
-                                                    x2={seg.p2.x}
-                                                    y2={seg.p2.y}
-                                                    {...dashProps}
-                                                />
-                                            ))}
-                                            {mirrorLatten && rightSegments.map((seg, idx) => (
-                                                <line
-                                                    key={`lat-angled-mirror-${idx}`}
-                                                    x1={seg.p1.x}
-                                                    y1={seg.p1.y}
-                                                    x2={seg.p2.x}
-                                                    y2={seg.p2.y}
-                                                    {...dashProps}
-                                                />
-                                            ))}
-                                        </>
-                                    );
-                                })()}
-
-                                    {/* Double end battens (horizontal only) */}
-                                    {doubleEndBattens && orientation === 'horizontal' && (() => {
-                                    const extraStart = (LAT_WIDTH_MM / 2) + LAT_WIDTH_MM;
-                                    const extraEnd = hoogte - ((LAT_WIDTH_MM / 2) + LAT_WIDTH_MM);
-                                    const els: React.ReactNode[] = [];
-
-                                    if (extraStart < hoogte) {
-                                        const y = startY + extraStart * pxPerMm;
-                                        els.push(
-                                            <g key="dbl-start">
-                                                {mirrorLatten ? (
-                                                    <>
-                                                        <line x1={startX} y1={y - halfWidthPx} x2={midX} y2={y - halfWidthPx} {...dashProps} />
-                                                        <line x1={midX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
-                                                        <line x1={startX} y1={y + halfWidthPx} x2={midX} y2={y + halfWidthPx} {...dashProps} />
-                                                        <line x1={midX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <line x1={startX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
-                                                        <line x1={startX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
-                                                    </>
-                                                )}
-                                            </g>
-                                        );
-                                    }
-                                    if (extraEnd > 0) {
-                                        const y = startY + extraEnd * pxPerMm;
-                                        els.push(
-                                            <g key="dbl-end">
-                                                {mirrorLatten ? (
-                                                    <>
-                                                        <line x1={startX} y1={y - halfWidthPx} x2={midX} y2={y - halfWidthPx} {...dashProps} />
-                                                        <line x1={midX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
-                                                        <line x1={startX} y1={y + halfWidthPx} x2={midX} y2={y + halfWidthPx} {...dashProps} />
-                                                        <line x1={midX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <line x1={startX} y1={y - halfWidthPx} x2={startX + rectW} y2={y - halfWidthPx} {...dashProps} />
-                                                        <line x1={startX} y1={y + halfWidthPx} x2={startX + rectW} y2={y + halfWidthPx} {...dashProps} />
-                                                    </>
-                                                )}
-                                            </g>
-                                        );
-                                    }
-                                    return els;
+                                        return els;
                                     })()}
                                 </g>
 

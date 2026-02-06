@@ -285,6 +285,7 @@ export default function PlanningPage() {
                 }}
                 employees={employees}
                 planningSettings={planningSettings}
+                view={view}
                 existingEntry={selectedEntry}
             />
 

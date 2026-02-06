@@ -132,5 +132,15 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
             { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'gips_vuller', category_ultra_filter: '' },
             { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'gips_finish', category_ultra_filter: '' },
         ]
+    },
+    // 9. Isolatie
+    isolatie: {
+        title: 'Isolatie & Folies',
+        description: 'Isolatie en folies toevoegen',
+        measurements: [],
+        defaultMaterials: [
+            { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+            { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
+        ]
     }
 };

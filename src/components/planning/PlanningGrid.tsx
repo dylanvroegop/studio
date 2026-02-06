@@ -119,12 +119,11 @@ export function PlanningGrid({
                                     >
                                         {/* Day Label */}
                                         <div className={cn(
-                                            "p-3 border-r border-zinc-800 flex flex-col justify-center sticky left-0 z-[4] bg-zinc-900",
-                                            isToday(day) && "bg-emerald-500/5"
+                                            "p-3 border-r border-zinc-800 flex flex-col justify-center sticky left-0 z-[4] bg-zinc-900"
                                         )}>
                                             <span className={cn(
                                                 "text-sm font-medium",
-                                                isToday(day) ? "text-emerald-400" : "text-zinc-300"
+                                                "text-zinc-300"
                                             )}>
                                                 {format(day, 'EEE d MMM', { locale: nl })}
                                             </span>
@@ -153,7 +152,7 @@ export function PlanningGrid({
                                                 className="absolute inset-0 pointer-events-none"
                                                 style={{
                                                     backgroundImage: 'repeating-linear-gradient(to right, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 25%)',
-                                                    backgroundSize: 'calc(100% / 14) 100%'
+                                                    backgroundSize: `calc(100% / ${hours.length}) 100%`
                                                 }}
                                             />
 
@@ -329,6 +328,7 @@ export function PlanningGrid({
                                     <React.Fragment key={weekIdx}>
                                         {weekDays.map(day => {
                                             const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
+                                            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                             return (
                                                 <div
                                                     key={day.toISOString()}
@@ -336,8 +336,7 @@ export function PlanningGrid({
                                                         "relative min-h-[100px] border-r border-zinc-800 border-b border-zinc-800/50 p-1",
                                                         "last:border-r-0", // Last day of week
                                                         // weekIdx === weeks.length - 1 && "border-b-0", // Last week
-                                                        isToday(day) && "bg-emerald-500/5",
-                                                        !isWorkDay(day, employee.workDays) && "bg-zinc-800/30",
+                                                        isWeekend && !isToday(day) && "bg-zinc-800/30",
                                                         // If it's not the first week, we don't need to specify column because they flow naturally?
                                                         // Actually in CSS Grid, if we didn't use subgrid/nested, this works because the parent grid 
                                                         // defines the columns. 
@@ -353,10 +352,7 @@ export function PlanningGrid({
                                                     data-employee-id={employee.id}
                                                     data-role="week-slot"
                                                 >
-                                                    <div className={cn(
-                                                        "text-xs mb-1 text-right px-1",
-                                                        isToday(day) ? "text-emerald-400 font-bold" : "text-zinc-500"
-                                                    )}>
+                                                    <div className="text-xs mb-1 text-right px-1 text-zinc-500">
                                                         {format(day, 'd MMM', { locale: nl })}
                                                     </div>
 

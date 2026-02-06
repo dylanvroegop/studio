@@ -195,6 +195,7 @@ export function VisualizerController({
                     boeiboordOrientation={boeiOrientation}
                     boeiboordAngle={boeiAngle}
                     boeiboordMirror={boeiMirror}
+                    shape={item.shape as 'rectangle' | 'slope' | 'gable' | undefined}
                 />
                 <BoeiboordDrawing
                     lengte={ozLengte}

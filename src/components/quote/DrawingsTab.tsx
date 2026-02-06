@@ -210,14 +210,17 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
     const kozijnhoutDikte = getMaterialAttr('dikte', 'kozijnhout_buiten');
     const tussenstijlDikte = getMaterialAttr('dikte', 'tussenstijl');
 
-    const kozijnhoutFrameThicknessMm = parseDikteToMm(kozijnhoutDikte);
-    const tussenstijlThicknessMm = parseDikteToMm(tussenstijlDikte);
+    // Use 67mm as default frame thickness (common kozijnhout size) if not found in materials
+    const DEFAULT_FRAME_THICKNESS = 67;
+    const kozijnhoutFrameThicknessMm = parseDikteToMm(kozijnhoutDikte) ?? DEFAULT_FRAME_THICKNESS;
+    const tussenstijlThicknessMm = parseDikteToMm(tussenstijlDikte) ?? kozijnhoutFrameThicknessMm;
 
     const isMaatwerkKozijn = jobSlug === 'maatwerk-kozijnen';
     const hasTussenstijl = items.some((item: any) => item.tussenstijlen && item.tussenstijlen.length > 0);
 
-    // Fallback: If no parametric items but we have a URL, render just the image
-    if (!hasItems && visualisatieUrl) {
+    // PRIORITIZE: If we have a visualisatieUrl, always use the pre-rendered image
+    // This is simpler and shows the actual saved drawing without recreation
+    if (visualisatieUrl) {
         return (
             <div className="space-y-6">
                 <div className="flex items-center gap-4 border-b border-white/5 pb-4">
@@ -251,6 +254,7 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
         );
     }
 
+    // Fallback: If no visualisatieUrl and no items, don't render
     if (!hasItems) return null;
 
     return (

@@ -392,6 +392,85 @@ export default function GenericMeasurementPage() {
     return parseDimToMm(raw);
   };
 
+  const mergeLegacyBorstweringVakken = (vakken: any[]) => {
+    if (!Array.isArray(vakken) || vakken.length === 0) return vakken;
+
+    const grouped = new Map<number, any[]>();
+    const loose: any[] = [];
+
+    vakken.forEach((vak) => {
+      const rawIndex = (vak && (vak.index ?? vak.vakIndex)) ?? null;
+      const idx = typeof rawIndex === 'number'
+        ? rawIndex
+        : (rawIndex !== null && rawIndex !== undefined && rawIndex !== '' ? Number(rawIndex) : null);
+      if (idx === null || Number.isNaN(idx)) {
+        loose.push(vak);
+        return;
+      }
+      const list = grouped.get(idx) || [];
+      list.push(vak);
+      grouped.set(idx, list);
+    });
+
+    const merged: any[] = [];
+    const sponning = 17;
+    const rawThickness = kozijnhoutFrameThicknessMm || 67;
+    const transomThickness = Math.max(0, rawThickness - (2 * sponning));
+
+    grouped.forEach((group) => {
+      if (group.length <= 1) {
+        merged.push(group[0]);
+        return;
+      }
+
+      const paneel = group.find((v) => String(v?.type || '').toLowerCase() === 'paneel');
+      const mainVak = group.find((v) => String(v?.type || '').toLowerCase() !== 'paneel');
+
+      if (!paneel || !mainVak) {
+        merged.push(...group);
+        return;
+      }
+
+      const bwHeight = parseDimToMm(
+        paneel?.paneel_hoogte_mm ?? paneel?.hoogte ?? paneel?.height ?? paneel?.paneel_hoogte ?? paneel?.paneelHeight
+      );
+      const mainHeight = parseDimToMm(
+        mainVak?.glas_dagmaat_hoogte_mm ??
+        mainVak?.raamkozijn_hoogte_mm ??
+        mainVak?.paneel_hoogte_mm ??
+        mainVak?.open_hoogte_mm ??
+        mainVak?.vak_hoogte_mm ??
+        mainVak?.hoogte ??
+        mainVak?.height
+      );
+
+      const mergedVak = { ...mainVak };
+      if (bwHeight !== null && bwHeight > 0) {
+        mergedVak.hasBorstwering = true;
+        mergedVak.borstweringHeight = bwHeight;
+      }
+
+      if (bwHeight !== null && bwHeight > 0 && mainHeight !== null && mainHeight > 0) {
+        const restoredHeight = mainHeight + bwHeight + transomThickness;
+        if (mergedVak.glas_dagmaat_hoogte_mm !== undefined) mergedVak.glas_dagmaat_hoogte_mm = restoredHeight;
+        if (mergedVak.raamkozijn_hoogte_mm !== undefined) mergedVak.raamkozijn_hoogte_mm = restoredHeight;
+        if (mergedVak.paneel_hoogte_mm !== undefined) mergedVak.paneel_hoogte_mm = restoredHeight;
+        if (mergedVak.open_hoogte_mm !== undefined) mergedVak.open_hoogte_mm = restoredHeight;
+        if (mergedVak.vak_hoogte_mm !== undefined) mergedVak.vak_hoogte_mm = restoredHeight;
+        if (mergedVak.hoogte !== undefined) mergedVak.hoogte = restoredHeight;
+        if (mergedVak.height !== undefined) mergedVak.height = restoredHeight;
+        if (mergedVak.hoogte === undefined && mergedVak.height === undefined) mergedVak.hoogte = restoredHeight;
+      }
+
+      merged.push(mergedVak);
+      group.forEach((v) => {
+        if (v !== paneel && v !== mainVak) merged.push(v);
+      });
+    });
+
+    return [...merged, ...loose];
+  };
+
   const computeVakLayout = (item: any) => {
     const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
     const sponning = 17;
@@ -716,47 +795,12 @@ export default function GenericMeasurementPage() {
       }
 
       if (cleaned.hasBorstwering && cleaned.borstweringHeight && heightMm !== null) {
-        const sponning = 17;
-        const rawThickness = kozijnhoutFrameThicknessMm || 67;
-        // transomThickness = frame (visible) - sponning = (raw - sponning) - sponning = raw - 34
-        const transomThickness = Math.max(0, rawThickness - (2 * sponning));
         const bwHeight = Number(cleaned.borstweringHeight) || 0;
-
-        if (bwHeight > 0 && heightMm > (bwHeight + transomThickness)) {
-          const newGlassHeight = Math.max(0, heightMm - bwHeight - transomThickness);
-
-          // 1. Update the original 'cleaned' vak (e.g. Glass)
+        if (bwHeight <= 0 || heightMm <= bwHeight) {
           delete cleaned.hasBorstwering;
           delete cleaned.borstweringHeight;
-
-          if (type === 'glas') {
-            cleaned.glas_dagmaat_hoogte_mm = newGlassHeight;
-            const totalOffset = cleaned.glas_offset_totaal_mm || (GLAS_MAATWERK_OFFSET_MM * 2);
-            cleaned.glasmaat_hoogte_mm = Math.max(0, newGlassHeight - totalOffset);
-          } else if (type === 'raamkozijn') {
-            cleaned.raamkozijn_hoogte_mm = newGlassHeight;
-            const raamhoutWidth = 67;
-            const visibleFrame = raamhoutWidth - sponning;
-            const totalDeduction = (2 * visibleFrame) + (2 * 5);
-            cleaned.glasmaat_hoogte_mm = Math.max(0, newGlassHeight - totalDeduction);
-          } else if (type === 'paneel') {
-            cleaned.paneel_hoogte_mm = newGlassHeight;
-          } else if (type === 'open') {
-            cleaned.open_hoogte_mm = newGlassHeight;
-          } else {
-            cleaned.vak_hoogte_mm = newGlassHeight;
-          }
-
-          // 2. Create the Borstwering (Paneel) Vak
-          const bwVak: any = {
-            id: crypto.randomUUID(),
-            index: idx,
-            type: 'paneel',
-            paneel_breedte_mm: widthMm,
-            paneel_hoogte_mm: bwHeight
-          };
-
-          return [cleaned, bwVak];
+        } else {
+          cleaned.borstweringHeight = bwHeight;
         }
       }
 
@@ -971,7 +1015,8 @@ export default function GenericMeasurementPage() {
               }
 
               if (isMaatwerkKozijn) {
-                const existingVakken = Array.isArray(normalizedItem.vakken) ? normalizedItem.vakken : [];
+                const existingVakkenRaw = Array.isArray(normalizedItem.vakken) ? normalizedItem.vakken : [];
+                const existingVakken = mergeLegacyBorstweringVakken(existingVakkenRaw);
                 const migratedVakken: any[] = [];
                 if (existingVakken.length > 0) {
                   migratedVakken.push(...existingVakken);

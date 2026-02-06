@@ -344,6 +344,72 @@ function pakketNaarItems(
   return merged;
 }
 
+
+/* ---------------------------------------------
+ Reusable Collapsible Section (matching MaterialPage style)
+--------------------------------------------- */
+
+interface OverzichtSectionProps {
+  title: string;
+  isCollapsed: boolean;
+  onToggle: () => void;
+  onSettings?: () => void;
+  children: React.ReactNode;
+  color?: string;
+  className?: string;
+}
+
+function OverzichtSection({
+  title,
+  isCollapsed,
+  onToggle,
+  onSettings,
+  children,
+  color = "#10b981", // Emerald-500 default "green thing"
+  className
+}: OverzichtSectionProps) {
+  return (
+    <div className={cn("space-y-2", className)}>
+      <div
+        onClick={onToggle}
+        className="flex items-center justify-between px-3 py-3 hover:bg-white/5 active:bg-white/10 rounded-lg cursor-pointer transition-all group select-none border-l-2 border-b border-b-white/5 min-h-[44px]"
+        style={{ borderLeftColor: color }}
+      >
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">{title}</h2>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {onSettings && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSettings();
+              }}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          )}
+
+          <div className="p-1.5 rounded-md text-muted-foreground group-hover:text-foreground transition-colors">
+            {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </div>
+        </div>
+      </div>
+
+      {!isCollapsed && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------------------------------------------
  Page
 --------------------------------------------- */
@@ -2059,35 +2125,12 @@ export default function OverzichtPage() {
 
           {/* Bouwplaatskosten */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Bouwplaatskosten</h2>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => setBouwplaatsBeheerOpen(true)}
-                  aria-label="Bouwplaatskosten pakketten beheren"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => toggleSection('bouwplaats')}
-                  aria-label={collapsedSections['bouwplaats'] ? 'Tonen' : 'Verbergen'}
-                >
-                  {collapsedSections['bouwplaats'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {!collapsedSections['bouwplaats'] && (
+            <OverzichtSection
+              title="Bouwplaatskosten"
+              isCollapsed={!!collapsedSections['bouwplaats']}
+              onToggle={() => toggleSection('bouwplaats')}
+              onSettings={() => setBouwplaatsBeheerOpen(true)}
+            >
               <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
                 {/* Pakket Selector */}
                 <div className="px-4 py-3 border-b border-white/5">
@@ -2190,40 +2233,17 @@ export default function OverzichtPage() {
                   <span>Toevoegen</span>
                 </button>
               </div>
-            )}
+            </OverzichtSection>
           </section>
 
           {/* Transport */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Transport</h2>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => setTransportInstellingenOpen(true)}
-                  aria-label="Transport instellingen"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => toggleSection('transport')}
-                  aria-label={collapsedSections['transport'] ? 'Tonen' : 'Verbergen'}
-                >
-                  {collapsedSections['transport'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {!collapsedSections['transport'] && (
+            <OverzichtSection
+              title="Transport"
+              isCollapsed={!!collapsedSections['transport']}
+              onToggle={() => toggleSection('transport')}
+              onSettings={() => setTransportInstellingenOpen(true)}
+            >
               <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
                 <SegmentedToggle
                   options={[
@@ -2271,40 +2291,17 @@ export default function OverzichtPage() {
                   </div>
                 )}
               </div>
-            )}
+            </OverzichtSection>
           </section>
 
           {/* Winstmarge */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Winstmarge</h2>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => setWinstInstellingenOpen(true)}
-                  aria-label="Winstmarge instellingen"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => toggleSection('winstmarge')}
-                  aria-label={collapsedSections['winstmarge'] ? 'Tonen' : 'Verbergen'}
-                >
-                  {collapsedSections['winstmarge'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {!collapsedSections['winstmarge'] && (
+            <OverzichtSection
+              title="Winstmarge"
+              isCollapsed={!!collapsedSections['winstmarge']}
+              onToggle={() => toggleSection('winstmarge')}
+              onSettings={() => setWinstInstellingenOpen(true)}
+            >
               <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
                 <SegmentedToggle
                   options={[
@@ -2391,7 +2388,7 @@ export default function OverzichtPage() {
                   </div>
                 )}
               </div>
-            )}
+            </OverzichtSection>
           </section>
 
           {/* Sticky bottom bar - matching HSB editor footer */}

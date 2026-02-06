@@ -18,6 +18,19 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
     const [isLoading, setIsLoading] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    const getMaatwerkItems = (job: Job) => {
+        if (Array.isArray(job.maatwerk)) return job.maatwerk;
+
+        const maatwerk = job.maatwerk as any;
+        if (maatwerk?.items && Array.isArray(maatwerk.items)) {
+            return maatwerk.items;
+        }
+        if (maatwerk?.basis && Array.isArray(maatwerk.basis)) {
+            return maatwerk.basis;
+        }
+        return [];
+    };
+
     // 1. Fetch/Extract Jobs (Identical logic to DrawingsTab)
     useEffect(() => {
         const loadJobs = async () => {
@@ -102,6 +115,18 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
         return filtered;
     }, [jobs]);
 
+    const urlToBase64 = async (url: string): Promise<string | null> => {
+        try {
+            const res = await fetch(`/api/visualisatie-to-base64?url=${encodeURIComponent(url)}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.dataUrl || null;
+        } catch (err) {
+            console.error('Error converting image to base64 via API:', err);
+            return null;
+        }
+    };
+
     // 3. Render and Capture
     useEffect(() => {
         if (isLoading) return;
@@ -112,36 +137,50 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
             return;
         }
 
-        // Wait a bit for React to render the visualizers in the DOM
+        // Collect images - convert visualisatieUrl to base64 for PDF compatibility
         const captureTimeout = setTimeout(async () => {
-            if (!containerRef.current) return;
-
-            const distinctDrawings = containerRef.current.querySelectorAll('.pdf-drawing-wrapper');
             const capturedImages: string[] = [];
+            const renderJobs = drawingJobs.filter(job => !(job as any).visualisatieUrl);
 
-            // Helper to load images to ensure they are ready for canvas
-            const loadImages = (container: Element) => {
-                const imgs = container.querySelectorAll('img');
-                const promises: Promise<void>[] = [];
-                imgs.forEach((img) => {
-                    if (img.complete) return;
-                    promises.push(new Promise((resolve) => {
-                        img.onload = () => resolve();
-                        img.onerror = () => resolve(); // Proceed even if error
-                    }));
-                });
-                return Promise.all(promises);
-            };
+            for (let i = 0; i < drawingJobs.length; i++) {
+                const job = drawingJobs[i];
+                const visualisatieUrl = (job as any).visualisatieUrl;
 
-            for (let i = 0; i < distinctDrawings.length; i++) {
-                const el = distinctDrawings[i] as HTMLElement;
+                // Prefer the saved image (visualisatieUrl) when available
+                if (visualisatieUrl) {
+                    const base64 = await urlToBase64(visualisatieUrl);
+                    if (base64) {
+                        capturedImages.push(base64);
+                        continue;
+                    }
+                    // If conversion failed, fall through to html2canvas
+                }
+
+                // FALLBACK: Use html2canvas to capture the rendered DOM element
+                if (!containerRef.current) continue;
+
+                const renderIndex = renderJobs.indexOf(job);
+                if (renderIndex === -1) continue;
+                const el = containerRef.current.querySelectorAll('.pdf-drawing-wrapper')[renderIndex] as HTMLElement;
+                if (!el) continue;
+
                 try {
-                    await loadImages(el);
+                    // Helper to load images to ensure they are ready for canvas
+                    const imgs = el.querySelectorAll('img');
+                    const promises: Promise<void>[] = [];
+                    imgs.forEach((img) => {
+                        if (img.complete) return;
+                        promises.push(new Promise((resolve) => {
+                            img.onload = () => resolve();
+                            img.onerror = () => resolve();
+                        }));
+                    });
+                    await Promise.all(promises);
 
                     const canvas = await html2canvas(el, {
                         useCORS: true,
-                        scale: 2, // Higher resolution
-                        backgroundColor: '#ffffff', // Force white background
+                        scale: 2,
+                        backgroundColor: '#ffffff',
                         logging: false
                     });
                     capturedImages.push(canvas.toDataURL('image/png'));
@@ -151,7 +190,7 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
             }
 
             onReady(capturedImages);
-        }, 2000); // 2 seconds delay to allow visualizers (SVG/Canvas) to fully render
+        }, 500);
 
         return () => clearTimeout(captureTimeout);
     }, [isLoading, drawingJobs, onReady]);
@@ -159,6 +198,8 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
 
     // If loading, render nothing but keep the hook logic running
     if (isLoading) return null;
+
+    const renderJobs = drawingJobs.filter(job => !(job as any).visualisatieUrl);
 
     return (
         <div
@@ -172,7 +213,7 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
             }}
             ref={containerRef}
         >
-            {drawingJobs.map((job, i) => (
+            {renderJobs.map((job, i) => (
                 <div key={job.id || i} className="pdf-drawing-wrapper p-4 bg-white mb-8 border border-gray-200">
                     <JobDrawingSection job={job} quote={quote} index={i} />
                 </div>
@@ -219,7 +260,14 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
         return [];
     }, [job.maatwerk]);
 
-    console.log("[HiddenPDFDrawings] items extracted:", items.length, items);
+    console.log("[HiddenPDFDrawings] items extracted:", items.length, items.map((it: any) => ({
+        id: it.id,
+        breedte: it.breedte,
+        hoogte: it.hoogte,
+        vakken: it.vakken,
+        tussenstijlen: it.tussenstijlen,
+        hasVakken: Array.isArray(it.vakken) && it.vakken.length > 0
+    })));
 
     const hasItems = items.length > 0;
     const categoryConfig = JOB_REGISTRY[categorySlug];
@@ -252,12 +300,14 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
     };
     const kozijnhoutDikte = getMaterialAttr('dikte', 'kozijnhout_buiten');
     const tussenstijlDikte = getMaterialAttr('dikte', 'tussenstijl');
-    const kozijnhoutFrameThicknessMm = parseDikteToMm(kozijnhoutDikte);
-    const tussenstijlThicknessMm = parseDikteToMm(tussenstijlDikte);
+    // Use 67mm as default frame thickness (common kozijnhout size) if not found in materials
+    const DEFAULT_FRAME_THICKNESS = 67;
+    const kozijnhoutFrameThicknessMm = parseDikteToMm(kozijnhoutDikte) ?? DEFAULT_FRAME_THICKNESS;
+    const tussenstijlThicknessMm = parseDikteToMm(tussenstijlDikte) ?? kozijnhoutFrameThicknessMm;
     const isMaatwerkKozijn = jobSlug === 'maatwerk-kozijnen';
     const hasTussenstijl = items.some((item: any) => item.tussenstijlen && item.tussenstijlen.length > 0);
 
-    // Render URL Image
+    // If we do NOT have items, fall back to the pre-rendered image
     if (!hasItems && visualisatieUrl) {
         return (
             <div className="space-y-4">
@@ -270,7 +320,7 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
                     <img
                         src={visualisatieUrl}
                         alt={title}
-                        crossOrigin="anonymous" // Attempt to fix CORS issues for capture
+                        crossOrigin="anonymous"
                         className="max-w-full max-h-[400px] object-contain"
                     />
                 </div>
@@ -278,6 +328,7 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
         );
     }
 
+    // Fallback: If no visualisatieUrl and no items, don't render
     if (!hasItems) return null;
 
     return (

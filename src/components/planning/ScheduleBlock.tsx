@@ -51,9 +51,10 @@ export function ScheduleBlock({
                 position: 'absolute',
                 left: `${position.left}%`,
                 width: `${position.width}%`,
-                top: '4px',
-                bottom: '4px',
+                top: '0',
+                bottom: '0',
                 touchAction: 'none', // Important for pointer events
+                zIndex: 2
             };
         }
 
@@ -67,6 +68,29 @@ export function ScheduleBlock({
     const timeLabel = view === 'day'
         ? `${format(startDate, 'HH:mm')} - ${format(endDate, 'HH:mm')}`
         : formatHoursDisplay(entry.scheduledHours);
+
+    const blendWithBackground = (hex: string, alpha: number, base: string = '#0f0f12') => {
+        const toRgb = (value: string) => {
+            const normalized = value.replace('#', '');
+            const full = normalized.length === 3
+                ? normalized.split('').map(c => c + c).join('')
+                : normalized;
+            const num = parseInt(full, 16);
+            return {
+                r: (num >> 16) & 255,
+                g: (num >> 8) & 255,
+                b: num & 255
+            };
+        };
+        const fg = toRgb(hex);
+        const bg = toRgb(base);
+        const mix = {
+            r: Math.round(bg.r * (1 - alpha) + fg.r * alpha),
+            g: Math.round(bg.g * (1 - alpha) + fg.g * alpha),
+            b: Math.round(bg.b * (1 - alpha) + fg.b * alpha)
+        };
+        return `rgb(${mix.r}, ${mix.g}, ${mix.b})`;
+    };
 
     const handlePointerDown = (e: React.PointerEvent) => {
         if (onDragStart) {
@@ -86,7 +110,9 @@ export function ScheduleBlock({
                             view === 'day' ? 'flex items-center gap-2' : 'text-xs w-full'
                         )}
                         style={{
-                            backgroundColor: employee.color + '20',
+                            backgroundColor: view === 'day'
+                                ? blendWithBackground(employee.color, 0.2)
+                                : employee.color + '20',
                             borderLeft: `3px solid ${employee.color}`,
                             ...getBlockStyle()
                         }}
@@ -119,7 +145,12 @@ export function ScheduleBlock({
                         )}
 
                         <span className="font-medium truncate text-white/90 select-none">
-                            {entry.cache.projectTitle || 'Klus'}
+                            {entry.cache.projectTitle && entry.cache.projectTitle !== 'Klus'
+                                ? entry.cache.projectTitle
+                                : entry.cache.clientName || ''}
+                            {entry.cache.projectTitle && entry.cache.projectTitle !== 'Klus' && entry.cache.clientName
+                                ? ` · ${entry.cache.clientName}`
+                                : ''}
                         </span>
                         {view === 'day' && (
                             <span className="text-xs text-white/60 shrink-0 select-none">

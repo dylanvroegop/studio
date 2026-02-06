@@ -11,11 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Calendar, Clock, User, Briefcase, Trash2 } from 'lucide-react';
-import { Employee, PlanningEntry, PlanningSettings } from '@/lib/types-planning';
+import { Employee, PlanningEntry, PlanningSettings, TimelineView } from '@/lib/types-planning';
 import { autoSplitJob, formatHoursDisplay } from '@/lib/planning-utils';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { normalizeDataJson } from '@/lib/quote-calculations';
-import { format, setHours, setMinutes } from 'date-fns';
+import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
@@ -47,6 +47,7 @@ interface ScheduleModalProps {
     onClose: () => void;
     employees: Employee[];
     planningSettings: PlanningSettings;
+    view?: TimelineView;
     preselectedQuote?: Quote;
     preselectedHours?: number;
     existingEntry?: PlanningEntry | null;
@@ -57,6 +58,7 @@ export function ScheduleModal({
     onClose,
     employees,
     planningSettings,
+    view,
     preselectedQuote,
     preselectedHours,
     existingEntry
@@ -74,6 +76,8 @@ export function ScheduleModal({
     const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
     const [startDate, setStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+    const [startTime, setStartTime] = useState<string>(planningSettings.defaultStartTime);
+    const [endTime, setEndTime] = useState<string>(planningSettings.defaultEndTime);
     const [totalHours, setTotalHours] = useState<number>(0);
     const [useAutoSplit, setUseAutoSplit] = useState(true);
 
@@ -119,7 +123,10 @@ export function ScheduleModal({
             setSelectedQuoteId(existingEntry.quoteId);
             setSelectedEmployeeId(existingEntry.employeeId);
             const start = existingEntry.startDate.toDate();
+            const end = existingEntry.endDate.toDate();
             setStartDate(format(start, 'yyyy-MM-dd'));
+            setStartTime(format(start, 'HH:mm'));
+            setEndTime(format(end, 'HH:mm'));
             setTotalHours(existingEntry.scheduledHours);
             setUseAutoSplit(false);
         } else {
@@ -132,6 +139,8 @@ export function ScheduleModal({
             }
 
             if (!startDate) setStartDate(format(new Date(), 'yyyy-MM-dd'));
+            if (!startTime) setStartTime(planningSettings.defaultStartTime);
+            if (!endTime) setEndTime(planningSettings.defaultEndTime);
 
             // Only set total hours if 0 (initial)
             if (totalHours === 0) {
@@ -140,6 +149,17 @@ export function ScheduleModal({
             }
         }
     }, [isOpen, existingEntry, preselectedQuote, preselectedHours, employees, planningSettings, selectedQuoteId, selectedEmployeeId, startDate, totalHours]);
+
+    const syncHoursFromTimes = (nextStart: string, nextEnd: string, baseDate: string) => {
+        if (view !== 'day') return;
+        if (!nextStart || !nextEnd || !baseDate) return;
+        const start = new Date(`${baseDate}T${nextStart}`);
+        const end = new Date(`${baseDate}T${nextEnd}`);
+        const diff = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
+        if (diff) {
+            setTotalHours(diff);
+        }
+    };
 
     // Ensure employee is selected if list updates and we have exactly 1
     useEffect(() => {
@@ -279,10 +299,14 @@ export function ScheduleModal({
 
             if (existingEntry) {
                 // Update existing entry
+                const entryStart = new Date(`${startDate}T${startTime || planningSettings.defaultStartTime}`);
+                const entryEnd = new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
+                const hours = Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
                 await updateEntry(existingEntry.id, {
                     employeeId: finalEmployeeId,
-                    startDate: new Date(startDate + 'T' + planningSettings.defaultStartTime),
-                    scheduledHours: totalHours
+                    startDate: entryStart,
+                    endDate: entryEnd,
+                    scheduledHours: hours
                 });
                 toast({ title: 'Planning bijgewerkt' });
             } else if (splitEntries) {
@@ -304,16 +328,16 @@ export function ScheduleModal({
                 });
             } else {
                 // Single entry
-                const [startHour, startMin] = planningSettings.defaultStartTime.split(':').map(Number);
-                const entryStart = setMinutes(setHours(new Date(startDate), startHour), startMin);
-                const entryEnd = setMinutes(setHours(new Date(startDate), startHour + totalHours), startMin);
+                const entryStart = new Date(`${startDate}T${startTime || planningSettings.defaultStartTime}`);
+                const entryEnd = new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
+                const hours = Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
 
                 await addEntry({
                     quoteId: selectedQuoteId,
                     employeeId: finalEmployeeId,
                     startDate: entryStart,
                     endDate: entryEnd,
-                    scheduledHours: totalHours,
+                    scheduledHours: hours,
                     cache
                 });
                 toast({ title: 'Planning aangemaakt' });
@@ -404,12 +428,51 @@ export function ScheduleModal({
                             <Calendar className="w-4 h-4" />
                             Startdatum
                         </Label>
-                        <Input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                        />
-                    </div>
+                                <Input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => {
+                                        const nextDate = e.target.value;
+                                        setStartDate(nextDate);
+                                        syncHoursFromTimes(startTime, endTime, nextDate);
+                                    }}
+                                />
+                            </div>
+
+                    {view === 'day' && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4" />
+                                    Starttijd
+                                </Label>
+                                <Input
+                                    type="time"
+                                    value={startTime}
+                                    onChange={(e) => {
+                                        const nextStart = e.target.value;
+                                        setStartTime(nextStart);
+                                        syncHoursFromTimes(nextStart, endTime, startDate);
+                                    }}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4" />
+                                    Eindtijd
+                                </Label>
+                                <Input
+                                    type="time"
+                                    value={endTime}
+                                    onChange={(e) => {
+                                        const nextEnd = e.target.value;
+                                        setEndTime(nextEnd);
+                                        syncHoursFromTimes(startTime, nextEnd, startDate);
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Hours */}
                     <div className="space-y-2">

@@ -149,7 +149,8 @@ export function calculateDayBlockPosition(
     const dayStart = startOfDay(dayDate);
     // Use fixed hours matching the grid (6:00 - 20:00)
     const startHour = 6;
-    const endHour = 20;
+    // Grid renders 6..20 as 15 columns, so end is 21:00 for alignment.
+    const endHour = 21;
     const totalHours = endHour - startHour;
 
     const entryStartHour = entryStart.getHours() + entryStart.getMinutes() / 60;
