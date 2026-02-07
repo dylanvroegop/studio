@@ -94,7 +94,8 @@ export type QuoteSettings = {
 export type JobCategory =
   | "Wanden"
   | "Plafonds"
-  | "Vloeren & Vlieringen"
+  | "Constructie Vloer"
+  | "Afwerk Vloer"
   | "Deuren"
   | "Kozijnen"
 
@@ -107,8 +108,7 @@ export type JobCategory =
   | "Trappen"
   | "Houtrotreparatie"
   | "Keukens"
-  | "Inbouwkasten"
-  | "Meubels Op Maat"
+
   | "Dakramen / Lichtkoepel"
   | "Boeidelen"
   | "Sloopwerk & Logistiek"
@@ -167,7 +167,7 @@ export type Job = {
   };
 };
 
-export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank' | 'vlizotrap' | 'leidingkoof' | 'installatie' | 'dagkant' | 'gips' | 'isolatie';
+export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank' | 'vlizotrap' | 'leidingkoof' | 'installatie' | 'dagkant' | 'gips' | 'isolatie' | 'plafond';
 
 export interface JobComponent {
   id: string; // Unique ID (child ID)

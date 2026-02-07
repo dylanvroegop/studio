@@ -142,5 +142,22 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
             { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
             { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
         ]
+    },
+    // 10. Plafond
+    plafond: {
+        title: 'Plafond',
+        description: 'Plafond afwerking & constructie',
+        measurements: [
+            { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm' },
+            { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm' },
+        ],
+        defaultMaterials: [
+            { label: 'Randhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'randhout', category_ultra_filter: '' },
+            { label: 'Stelhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'stroken', category_ultra_filter: '' },
+            { label: 'Rachelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachels', category_ultra_filter: '' },
+            { label: 'Randprofielen', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'randprofielen', category_ultra_filter: '' },
+            { label: 'Draagprofielen', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'draagprofielen', category_ultra_filter: '' },
+            { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: '' },
+        ]
     }
 };

@@ -90,6 +90,11 @@ export interface CeilingDrawingProps {
         surroundingBeams?: boolean;
         openings?: CeilingOpening[];
         leidingkofen?: LeidingkoofItem[];
+        // Edge support
+        edge_top?: 'free' | 'wall';
+        edge_bottom?: 'free' | 'wall';
+        edge_left?: 'free' | 'wall';
+        edge_right?: 'free' | 'wall';
     };
     className?: string;
     fitContainer?: boolean;
@@ -97,8 +102,10 @@ export interface CeilingDrawingProps {
     startLattenFromBottom?: boolean;
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
     onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
+    onEdgeChange?: (side: string, value: string) => void;
     gridLabel?: string;
     title?: string;
+    showEdgeControls?: boolean; // Whether to show edge toggle controls
 }
 
 export function CeilingWoodDrawing({
@@ -109,8 +116,10 @@ export function CeilingWoodDrawing({
     className = "",
     onOpeningsChange,
     onLeidingkoofChange,
+    onEdgeChange,
     gridLabel,
-    title
+    title,
+    showEdgeControls = false
 }: CeilingDrawingProps) {
     // 1. EXTRACT PROPS
     const shape = item.shape || 'rectangle';
@@ -380,18 +389,54 @@ export function CeilingWoodDrawing({
                 // ===========================================
                 let outlinePath = `M ${startX} ${startY} L ${startX + rectW} ${startY} L ${startX + rectW} ${startY + rectH} L ${startX} ${startY + rectH} Z`;
                 if (shape === 'slope') {
-                    const yTopLeft = variant === 'bottom' ? startY + rectH - (hLeft * pxPerMmH) : startY;
-                    const yTopRight = variant === 'bottom' ? startY + rectH - (hRight * pxPerMmH) : startY + (Math.max(hLeft, hRight) - hRight) * pxPerMmH;
                     const yBot = startY + rectH;
                     if (variant === 'bottom') {
-                        const yBL = startY + (hLeft * pxPerMmH);
-                        const yBR = startY + (hRight * pxPerMmH);
+                        // Bottom variant: flat top, sloped bottom
+                        const yBL = startY + (effectiveHeight - hLeft) * pxPerMmH;
+                        const yBR = startY + (effectiveHeight - hRight) * pxPerMmH;
                         outlinePath = `M ${startX} ${startY} L ${startX + rectW} ${startY} L ${startX + rectW} ${yBR} L ${startX} ${yBL} Z`;
                     } else {
-                        const yTL = startY + (hoogte - hLeft) * pxPerMmH;
-                        const yTR = startY + (hoogte - hRight) * pxPerMmH;
+                        // Top variant (default): sloped top, flat bottom
+                        const yTL = startY + (effectiveHeight - hLeft) * pxPerMmH;
+                        const yTR = startY + (effectiveHeight - hRight) * pxPerMmH;
                         outlinePath = `M ${startX} ${yTL} L ${startX + rectW} ${yTR} L ${startX + rectW} ${yBot} L ${startX} ${yBot} Z`;
                     }
+                } else if (shape === 'gable') {
+                    // Gable: peak in the middle
+                    const peakX = startX + rectW / 2;
+                    const peakY = startY; // Top of the peak
+                    const baseY = startY + rectH;
+                    const leftBottomY = startY + (effectiveHeight - hLeft) * pxPerMmH;
+                    const rightBottomY = startY + (effectiveHeight - hRight) * pxPerMmH;
+                    outlinePath = `M ${startX} ${baseY} L ${startX} ${leftBottomY} L ${peakX} ${peakY} L ${startX + rectW} ${rightBottomY} L ${startX + rectW} ${baseY} Z`;
+                } else if (shape === 'l-shape') {
+                    // L-shape: two rectangles joined
+                    const l1Px = lengte1 * pxPerMmW;
+                    const h1Px = hoogte1 * pxPerMmH;
+                    const h2Px = hoogte2 * pxPerMmH;
+                    // Start from bottom-left, go counter-clockwise
+                    outlinePath = `M ${startX} ${startY + rectH} 
+                                   L ${startX} ${startY + rectH - h1Px} 
+                                   L ${startX + l1Px} ${startY + rectH - h1Px} 
+                                   L ${startX + l1Px} ${startY + rectH - h2Px} 
+                                   L ${startX + rectW} ${startY + rectH - h2Px} 
+                                   L ${startX + rectW} ${startY + rectH} Z`;
+                } else if (shape === 'u-shape') {
+                    // U-shape: three sections
+                    const l1Px = lengte1 * pxPerMmW;
+                    const l2Px = lengte2 * pxPerMmW;
+                    const h1Px = hoogte1 * pxPerMmH;
+                    const h2Px = hoogte2 * pxPerMmH;
+                    const h3Px = hoogte3 * pxPerMmH;
+                    // Start from bottom-left, go counter-clockwise
+                    outlinePath = `M ${startX} ${startY + rectH} 
+                                   L ${startX} ${startY + rectH - h1Px} 
+                                   L ${startX + l1Px} ${startY + rectH - h1Px} 
+                                   L ${startX + l1Px} ${startY + rectH - h2Px} 
+                                   L ${startX + l1Px + l2Px} ${startY + rectH - h2Px} 
+                                   L ${startX + l1Px + l2Px} ${startY + rectH - h3Px} 
+                                   L ${startX + rectW} ${startY + rectH - h3Px} 
+                                   L ${startX + rectW} ${startY + rectH} Z`;
                 }
 
                 // ===========================================
@@ -780,6 +825,113 @@ export function CeilingWoodDrawing({
                             >
                                 {title}
                             </text>
+                        )}
+
+                        {/* Edge Controls - MUUR/VRIJ toggle labels */}
+                        {showEdgeControls && (
+                            <g className="edge-controls">
+                                {/* Top Edge */}
+                                <g
+                                    onClick={() => onEdgeChange?.('top', item.edge_top === 'wall' ? 'free' : 'wall')}
+                                    cursor="pointer"
+                                >
+                                    <rect
+                                        x={startX + rectW / 2 - 30}
+                                        y={startY - 25}
+                                        width={60}
+                                        height={20}
+                                        fill="transparent"
+                                    />
+                                    <text
+                                        x={startX + rectW / 2}
+                                        y={startY - 12}
+                                        textAnchor="middle"
+                                        fill="rgb(100, 116, 139)"
+                                        fontSize="10"
+                                        fontWeight="600"
+                                        style={{ fontFamily: 'monospace', userSelect: 'none' }}
+                                    >
+                                        {item.edge_top === 'wall' ? 'MUUR' : 'VRIJ'}
+                                    </text>
+                                </g>
+
+                                {/* Bottom Edge */}
+                                <g
+                                    onClick={() => onEdgeChange?.('bottom', item.edge_bottom === 'wall' ? 'free' : 'wall')}
+                                    cursor="pointer"
+                                >
+                                    <rect
+                                        x={startX + rectW / 2 - 30}
+                                        y={startY + rectH + 5}
+                                        width={60}
+                                        height={20}
+                                        fill="transparent"
+                                    />
+                                    <text
+                                        x={startX + rectW / 2}
+                                        y={startY + rectH + 18}
+                                        textAnchor="middle"
+                                        fill="rgb(100, 116, 139)"
+                                        fontSize="10"
+                                        fontWeight="600"
+                                        style={{ fontFamily: 'monospace', userSelect: 'none' }}
+                                    >
+                                        {item.edge_bottom === 'wall' ? 'MUUR' : 'VRIJ'}
+                                    </text>
+                                </g>
+
+                                {/* Left Edge */}
+                                <g
+                                    onClick={() => onEdgeChange?.('left', item.edge_left === 'wall' ? 'free' : 'wall')}
+                                    cursor="pointer"
+                                >
+                                    <rect
+                                        x={startX - 35}
+                                        y={startY + rectH / 2 - 10}
+                                        width={30}
+                                        height={20}
+                                        fill="transparent"
+                                    />
+                                    <text
+                                        x={startX - 20}
+                                        y={startY + rectH / 2 + 3}
+                                        textAnchor="middle"
+                                        fill="rgb(100, 116, 139)"
+                                        fontSize="10"
+                                        fontWeight="600"
+                                        style={{ fontFamily: 'monospace', userSelect: 'none' }}
+                                        transform={`rotate(-90, ${startX - 20}, ${startY + rectH / 2 + 3})`}
+                                    >
+                                        {item.edge_left === 'wall' ? 'MUUR' : 'VRIJ'}
+                                    </text>
+                                </g>
+
+                                {/* Right Edge */}
+                                <g
+                                    onClick={() => onEdgeChange?.('right', item.edge_right === 'wall' ? 'free' : 'wall')}
+                                    cursor="pointer"
+                                >
+                                    <rect
+                                        x={startX + rectW + 5}
+                                        y={startY + rectH / 2 - 10}
+                                        width={30}
+                                        height={20}
+                                        fill="transparent"
+                                    />
+                                    <text
+                                        x={startX + rectW + 20}
+                                        y={startY + rectH / 2 + 3}
+                                        textAnchor="middle"
+                                        fill="rgb(100, 116, 139)"
+                                        fontSize="10"
+                                        fontWeight="600"
+                                        style={{ fontFamily: 'monospace', userSelect: 'none' }}
+                                        transform={`rotate(90, ${startX + rectW + 20}, ${startY + rectH / 2 + 3})`}
+                                    >
+                                        {item.edge_right === 'wall' ? 'MUUR' : 'VRIJ'}
+                                    </text>
+                                </g>
+                            </g>
                         )}
                     </>
                 );

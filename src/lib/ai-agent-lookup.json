@@ -26,21 +26,6 @@
       "Hout"
     ]
   },
-  "nieuwe-trap-plaatsen": {
-    "hout": [
-      "Hout",
-      "Beslag"
-    ],
-    "trap": [
-      "Hout"
-    ],
-    "veiligheid": [
-      "Hout"
-    ],
-    "beslag": [
-      "Beslag"
-    ]
-  },
   "houtrotreparatie": {
     "reparatie": [
       "Verf & Toebehoren",
@@ -500,26 +485,6 @@
     ],
     "gips_afwerking": [
       "Afwerking"
-    ]
-  },
-  "inbouwkasten": {
-    "basis": [
-      "Platen"
-    ],
-    "afwerking": [
-      "Platen"
-    ],
-    "beslag": [
-      "Beslag"
-    ]
-  },
-  "meubel-op-maat": {
-    "basis": [
-      "Hout"
-    ],
-    "afwerking": [
-      "Beslag",
-      "Verf"
     ]
   },
   "dagkanten": {

@@ -32,32 +32,32 @@ type CategoryItem = {
 
 // We define slugs manually to ensure they match valid URLs and the Registry keys
 const categories: CategoryItem[] = [
-  { name: 'Wanden', description: 'HSB, Metal Stud & Cinewalls', slug: 'wanden' },
-  { name: 'Plafonds', description: 'Houten & Metal Stud plafonds', slug: 'plafonds' },
-  { name: 'Vloeren & Vlieringen', description: 'Vloeropbouw, vlieringen & afwerkvloeren', slug: 'vloeren' },
+  { name: 'Wanden', description: 'HSB / Metal Stud / Buiten', slug: 'wanden' },
+  { name: 'Plafonds', description: 'Hout / Metalstud', slug: 'plafonds' },
+  { name: 'Constructie Vloer', description: 'Hout Balklaag / Vlonder', slug: 'vloer-constructie' },
+  { name: 'Afwerk Vloer', description: 'Laminaat / PVC / Hout / Vinyl', slug: 'vloer-afwerking' },
 
-  { name: 'Deuren', description: 'Afhangen van binnen- en buitendeuren', slug: 'deuren' },
-  { name: 'Kozijnen', description: 'Hout/Kunststof kozijnen', slug: 'kozijnen' },
-  { name: 'Dakrenovatie', description: 'Dakbedekking, pannen & boeidelen', slug: 'dakrenovatie' },
-  { name: 'Boeidelen', description: 'Hout of kunststof boeidelen vervangen', slug: 'boeiboorden' },
+  { name: 'Deuren', description: 'Binnen / Buitendeuren', slug: 'deuren' },
+  { name: 'Kozijnen', description: 'Hout / Kunststof Kozijnen', slug: 'kozijnen' },
+  { name: 'Dakrenovatie', description: 'Pannen / Epdm / Golfplaat', slug: 'dakrenovatie' },
+  { name: 'Boeidelen', description: 'Trespa / Hout / Kunststof / Rockpanel', slug: 'boeiboorden' },
 
-  { name: 'Gevelbekleding', description: 'Hout, Keralit of kunststof bekleding', slug: 'gevelbekleding' },
+  { name: 'Gevelbekleding', description: 'Hout / Keralit / Kunststof', slug: 'gevelbekleding' },
 
 
-  { name: 'Schutting', description: 'Hout, beton of composiet tuinafscheiding', slug: 'schutting' },
+  { name: 'Schutting', description: 'Hout / Beton / Composiet', slug: 'schutting' },
 
 
   { name: 'Afwerkingen', description: 'Plinten, vensterbanken & betimmering', slug: 'afwerkingen' },
-  { name: 'Glas zetten', description: 'Isolatieglas (HR++)', slug: 'glas-zetten' },
+  { name: 'Glas zetten', description: 'Isolatieglas', slug: 'glas-zetten' },
 
-  { name: 'Trappen', description: 'Traprenovatie, nieuwe trappen & vlizotrappen', slug: 'trappen' },
+  { name: 'Trappen', description: 'Overzettrede & Vlizotrappen', slug: 'trappen' },
   { name: 'Houtrotreparatie', description: 'Herstel met epoxy of inzetstukken', slug: 'houtrotreparatie' },
 
-  { name: 'Inbouwkasten', description: 'Inbouwkasten', slug: 'interieur' },
-  { name: 'Meubels Op Maat', description: 'Meubels op maat', slug: 'MEUBELS_OP_MAAT' },
+
   { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
   { name: 'Dakramen / Lichtkoepel', description: 'Velux dakramen & lichtkoepels', slug: 'dakramen' },
-  { name: 'Isolatiewerken', description: 'Zolder- en vloerisolatie', slug: 'isolatie' },
+  { name: 'Isolatiewerken', description: 'Plafond / Wand / Vloer', slug: 'isolatie' },
 ];
 
 export default function NewJobPage() {

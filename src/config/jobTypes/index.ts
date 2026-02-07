@@ -60,7 +60,10 @@ export const jobSections: Record<string, MeasurementSection[]> = {
     'golfplaat-dak':     ROOF_SECTIONS,
 
     // Gevelbekleding
-    'gevelbekleding-compleet': FACADE_SECTIONS,
+    'gevelbekleding-trespa-hpl': FACADE_SECTIONS,
+    'gevelbekleding-keralit': FACADE_SECTIONS,
+    'gevelbekleding-hout': FACADE_SECTIONS,
+    'gevelbekleding-rockpanel': FACADE_SECTIONS,
 
     // Boeiboorden
     'boeiboorden-vervangen': ['leidingkoof'],

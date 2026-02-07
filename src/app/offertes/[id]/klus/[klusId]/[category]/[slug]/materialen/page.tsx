@@ -814,6 +814,10 @@ export default function GenericMaterialsPageRedesigned() {
       if (isCeiling) {
         if (k === 'Toegang' || k === 'Vliering_Toegang' || lower.includes('vlizotrap') || lower.includes('toegang')) type = 'vlizotrap';
         else if (k === 'Koof') type = 'leidingkoof';
+        else if (lower.includes('plafond') || lower.includes('vliering')) type = 'plafond';
+
+        // Always allow plafond for ceiling jobs, even if not explicitly in categories (as it might be added via "extra" logic)
+        types.add('plafond');
       }
 
       if (k === 'gips_afwerking' || lower.includes('gips')) type = 'gips';
@@ -1062,6 +1066,7 @@ export default function GenericMaterialsPageRedesigned() {
   const isHydratingRef = useRef(true);
   const hasSavedConfigRef = useRef(false);
   const autoApplyDefaultPresetRef = useRef(false);
+  const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
 
   useEffect(() => setIsMounted(true), []);
 
@@ -1077,11 +1082,34 @@ export default function GenericMaterialsPageRedesigned() {
           const hiddenByJob = data.hidden_categories_by_job;
           const collapsedByJob = data.collapsed_sections_by_job;
 
+          let loadedHiddenPrefs: Record<string, boolean> | null = null;
+
+          console.log('[DEBUG] Loading prefs for jobSlug:', jobSlug);
+          console.log('[DEBUG] hidden_categories_by_job:', hiddenByJob);
+          console.log('[DEBUG] hidden_categories_by_job[jobSlug]:', hiddenByJob?.[jobSlug]);
+          console.log('[DEBUG] legacy hidden_categories:', data.hidden_categories);
+
+          // Priority 1: Check for job-specific preferences (new format)
           if (hiddenByJob && typeof hiddenByJob === 'object' && hiddenByJob[jobSlug]) {
-            setHiddenCategories(prev => ({ ...prev, ...hiddenByJob[jobSlug] }));
-          } else if (data.hidden_categories && (!hiddenByJob || typeof hiddenByJob !== 'object')) {
-            // Legacy fallback
-            setHiddenCategories(prev => ({ ...prev, ...data.hidden_categories }));
+            loadedHiddenPrefs = hiddenByJob[jobSlug];
+            console.log('[DEBUG] ✅ Using hidden_categories_by_job for', jobSlug, ':', loadedHiddenPrefs);
+          }
+          // Priority 2: Legacy fallback (old format - only if new format doesn't exist for this job)
+          else if (data.hidden_categories && typeof data.hidden_categories === 'object') {
+            loadedHiddenPrefs = data.hidden_categories;
+            console.log('[DEBUG] ⚠️ Falling back to legacy hidden_categories:', loadedHiddenPrefs);
+          }
+          // No preferences found
+          else {
+            console.log('[DEBUG] ❌ No hidden prefs found for', jobSlug);
+          }
+
+          if (loadedHiddenPrefs) {
+            // Store in ref so hydration can access it
+            userHiddenPrefsRef.current = loadedHiddenPrefs;
+            // Also apply immediately
+            console.log('[DEBUG] Applying hiddenPrefs to state:', loadedHiddenPrefs);
+            setHiddenCategories(prev => ({ ...prev, ...loadedHiddenPrefs }));
           }
 
           if (collapsedByJob && typeof collapsedByJob === 'object' && collapsedByJob[jobSlug]) {
@@ -1520,20 +1548,16 @@ export default function GenericMaterialsPageRedesigned() {
         // if (klusNode?.uiState?.collapsedSections) setCollapsedSections(klusNode.uiState.collapsedSections); // Removed: Loaded from user profile now
 
         // Auto-unhide categories if relevant components exist (Step Id: 181)
-        let loadedHidden = klusNode?.uiState?.hiddenCategories || {};
+        // NOTE: hiddenCategories are now stored ONLY in user profile (hidden_categories_by_job)
+        // We no longer load from klusNode.uiState.hiddenCategories (per-quote storage removed)
+
+        // Apply job-specific defaults (not override user preferences, just set initial values)
         const defaultHiddenForDeuren = (jobSlug === 'binnendeur-afhangen' || jobSlug === 'buitendeur-afhangen')
           ? { glas: true, tochtstrips: true, ventilatie: true }
           : null;
 
-        if (defaultHiddenForDeuren) {
-          Object.entries(defaultHiddenForDeuren).forEach(([key, value]) => {
-            if (loadedHidden[key] === undefined) loadedHidden[key] = value;
-          });
-        }
-
-        // If we are applying a preset later, that preset might hide things. 
-        // But here we are just hydrating.
-
+        // Auto-unhide categories that have active components (force-show these)
+        const componentBasedUnhide: Record<string, boolean> = {};
         currentComponents.forEach(comp => {
           let cat: string | null = null;
           if (comp.type === 'kozijn') cat = 'Kozijnen';
@@ -1541,12 +1565,30 @@ export default function GenericMaterialsPageRedesigned() {
           else if (comp.type === 'dagkant') cat = 'Dagkant';
           else if (comp.type === 'vensterbank') cat = 'Vensterbank';
           else if (comp.type === 'vlizotrap') cat = 'Toegang';
+          else if (comp.type === 'plafond') cat = 'plafond';
 
-          if (cat) loadedHidden[cat] = false; // Force show
+          if (cat) componentBasedUnhide[cat] = false; // Force show
         });
 
-        // Merge job-specific hidden states with any global preferences already loaded
-        setHiddenCategories(prev => ({ ...prev, ...loadedHidden }));
+        // Merge: user preferences (already loaded from user profile) -> job defaults -> component overrides
+        setHiddenCategories(prev => {
+          // Start with previous state
+          let merged = { ...prev };
+
+          // Apply user preferences from ref (ensures they're included even if async load finished after this effect started)
+          if (userHiddenPrefsRef.current) {
+            merged = { ...merged, ...userHiddenPrefsRef.current };
+          }
+
+          // Apply job defaults only for keys not already set by user
+          if (defaultHiddenForDeuren) {
+            Object.entries(defaultHiddenForDeuren).forEach(([key, value]) => {
+              if (merged[key] === undefined) merged[key] = value;
+            });
+          }
+          // Component-based overrides always win (force show categories with active components)
+          return { ...merged, ...componentBasedUnhide };
+        });
 
         if (klusNode?.material_notities) setNotities(klusNode.material_notities);
         isHydratingRef.current = false;
@@ -1680,9 +1722,9 @@ export default function GenericMaterialsPageRedesigned() {
         }
       }
 
-      // Calculate hidden categories - Ensure active component categories are visible
-      const newHidden = preset.hiddenCategories ? { ...preset.hiddenCategories } : {};
-
+      // Hidden categories are now stored in user profile, not per-preset or per-quote
+      // Only force-show categories that have active components (don't override user's global hide preferences)
+      const componentForceShow: Record<string, boolean> = {};
       finalComponents.forEach(comp => {
         let cat: string | null = null;
         if (comp.type === 'kozijn') cat = 'Kozijnen';
@@ -1691,12 +1733,14 @@ export default function GenericMaterialsPageRedesigned() {
         else if (comp.type === 'vensterbank') cat = 'Vensterbank';
         else if (comp.type === 'vlizotrap') cat = 'Toegang';
         else if (comp.type === 'leidingkoof') cat = 'Koof';
+        else if (comp.type === 'plafond') cat = 'plafond';
         else if (comp.type === 'isolatie') cat = 'isolatie';
 
-        if (cat) newHidden[cat] = false; // Force show
+        if (cat) componentForceShow[cat] = false; // Force show
       });
 
-      setHiddenCategories(newHidden);
+      // Only apply component-based force-show, preserve all other user preferences
+      setHiddenCategories(prev => ({ ...prev, ...componentForceShow }));
 
 
       // Unlock
@@ -1727,6 +1771,7 @@ export default function GenericMaterialsPageRedesigned() {
         else if (comp.type === 'installatie') cat = 'Installatie';
         else if (comp.type === 'gips') cat = 'gips_afwerking';
         else if (comp.type === 'isolatie') cat = 'isolatie';
+        else if (comp.type === 'plafond') cat = 'plafond';
 
         // If currently hidden (true), unhide it (false)
         if (cat && next[cat] === true) {
@@ -1783,12 +1828,42 @@ export default function GenericMaterialsPageRedesigned() {
       const nextHidden = !prev[categoryKey];
       const newState = { ...prev, [categoryKey]: nextHidden };
 
+      console.log('[DEBUG] toggleCategoryVisibility:', categoryKey, '→', nextHidden);
+
+      // Also update the ref so future hydrations reflect this change
+      userHiddenPrefsRef.current = { ...(userHiddenPrefsRef.current || {}), [categoryKey]: nextHidden };
+
       // Persist to Firestore if user is logged in
       if (user && firestore) {
-        const ref = doc(firestore, 'users', user.uid);
-        setDoc(ref, {
-          [`hidden_categories_by_job.${jobSlug}.${categoryKey}`]: nextHidden
-        }, { merge: true }).catch(console.error);
+        const userDocRef = doc(firestore, 'users', user.uid);
+        console.log('[DEBUG] Saving to Firestore: hidden_categories_by_job ->', jobSlug, '->', categoryKey, '=', nextHidden);
+        console.log('[DEBUG] User UID:', user.uid);
+
+        // Use proper nested object structure (NOT dot notation in key which creates flat field names)
+        setDoc(userDocRef, {
+          hidden_categories_by_job: {
+            [jobSlug]: {
+              [categoryKey]: nextHidden
+            }
+          }
+        }, { merge: true }).then(async () => {
+          console.log('[DEBUG] Firestore setDoc completed');
+          // Verify by reading back
+          try {
+            const verifySnap = await getDoc(userDocRef);
+            if (verifySnap.exists()) {
+              const data = verifySnap.data();
+              console.log('[DEBUG] Verification read - hidden_categories_by_job:', data.hidden_categories_by_job);
+              console.log('[DEBUG] Verification read - jobSlug data:', data.hidden_categories_by_job?.[jobSlug]);
+            } else {
+              console.log('[DEBUG] Verification read - document does not exist!');
+            }
+          } catch (verifyErr) {
+            console.error('[DEBUG] Verification read FAILED:', verifyErr);
+          }
+        }).catch((err) => {
+          console.error('[DEBUG] Firestore save FAILED:', err);
+        });
       }
 
       return newState;
@@ -2078,7 +2153,7 @@ export default function GenericMaterialsPageRedesigned() {
       isDefault,
       slots: slots,
       collapsedSections,
-      hiddenCategories,
+      // hiddenCategories removed - now stored in user profile globally, not per-preset
       kleinMateriaalConfig,
       custommateriaal: customMap,
       components: JSON.parse(JSON.stringify(components)), // FIX: Save components (kozijnen, deuren, etc.)
@@ -2370,8 +2445,7 @@ export default function GenericMaterialsPageRedesigned() {
     wasteByEntryKey,
     kleinMateriaalConfig,
     collapsedSections,
-    hiddenCategories,
-
+    // hiddenCategories removed from autosave - now stored in user profile only (via toggleCategoryVisibility)
     gekozenPresetId,
     notities
   ]);
@@ -2531,7 +2605,14 @@ export default function GenericMaterialsPageRedesigned() {
                   keyB === 'Installatie' || keyB === 'Schakelmateriaal' ||
                   keyB === 'Dagkant' || keyB === 'Vensterbank'
                 )) || (isCeilingJob && (isVlizotrapSectionB || keyB === 'Koof' || keyB === 'Installatie' || keyB === 'Schakelmateriaal')) || (keyB === 'gips_afwerking') ||
-                  (keyB === 'isolatie' && (categorySlug === 'boeidelen' || categorySlug === 'boeiboorden' || jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord')));
+                  (keyB === 'isolatie' && (
+                    categorySlug === 'boeidelen' ||
+                    categorySlug === 'boeiboorden' ||
+                    categorySlug === 'gevelbekleding' ||
+                    jobSlug.includes('boeidelen') ||
+                    jobSlug.includes('boeiboord') ||
+                    jobSlug.includes('gevelbekleding')
+                  ));
 
                 // Push component sections to the end
                 if (isAComponentSection && !isBComponentSection) return 1;
@@ -2541,44 +2622,77 @@ export default function GenericMaterialsPageRedesigned() {
                 return a.order - b.order;
               })
               .map(([categoryKey, categoryInfo]) => {
-                const sections = groupedSections[categoryKey] || [];
-                if (sections.length === 0) return null;
-                const isHidden = hiddenCategories[categoryKey];
-
+                // 1. Identify Job Context
                 const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat'));
                 const isCeilingJob = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
-                const isKozijnenSection = (categoryKey === 'Kozijnen' || (categoryKey as string).toLowerCase() === 'kozijnen');
-                const isDeurenSection = (categoryKey === 'Deuren' || (categoryKey as string).toLowerCase() === 'deuren');
-                const isBoeiboordSection = (categoryKey === 'boeiboord' || (categoryKey as string).toLowerCase() === 'boeiboorden');
-                const isVlizotrapSection = (categoryKey === 'Toegang' || categoryKey === 'Vliering_Toegang' || (categoryKey as string).toLowerCase().includes('vlizotrap') || (categoryKey as string).toLowerCase().includes('toegang'));
+
+                // 2. Identify Section Type
+                const lowerKey = (categoryKey as string).toLowerCase();
+                const isKozijnenSection = (categoryKey === 'Kozijnen' || lowerKey === 'kozijnen');
+                const isDeurenSection = (categoryKey === 'Deuren' || lowerKey === 'deuren');
+                const isBoeiboordSection = (categoryKey === 'boeiboord' || lowerKey === 'boeiboorden');
+                const isVlizotrapSection = (categoryKey === 'Toegang' || categoryKey === 'Vliering_Toegang' || lowerKey.includes('vlizotrap') || lowerKey.includes('toegang'));
                 const isLeidingkoofSection = categoryKey === 'Koof';
+                const isPlafondSection = categoryKey === 'plafond';
                 const isInstallatieSection = categoryKey === 'Installatie' || categoryKey === 'Schakelmateriaal';
                 const isDagkantSection = categoryKey === 'Dagkant';
                 const isVensterbankSection = categoryKey === 'Vensterbank';
                 const isGipsSection = categoryKey === 'gips_afwerking';
                 const isIsolatieSection = categoryKey === 'isolatie';
 
+                // 3. Guards (Prevents Global Fallback Pollution)
+                if (isBoeiboordSection) {
+                  const isBoeiboordJob = jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord') || categorySlug === 'boeidelen' || categorySlug === 'boeiboorden';
+                  // Force return null if not a boeiboord job
+                  if (!isBoeiboordJob) return null;
+                }
+
+                if (isPlafondSection && !isCeilingJob) return null;
+
+
+                // 4. Determine Target Component Type (For "+ Add Button")
                 const allowDoorComponents = showOpeningsSection || isComplexJob;
                 let targetComponentType: JobComponentType | null = null;
+
                 if (isKozijnenSection && allowDoorComponents) targetComponentType = 'kozijn';
                 else if (isDeurenSection && allowDoorComponents) targetComponentType = 'deur';
-                else if (isBoeiboordSection) targetComponentType = 'boeiboord';
+                else if (isBoeiboordSection) {
+                  const isBoeiboordJob = jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord') || categorySlug === 'boeidelen' || categorySlug === 'boeiboorden';
+                  if (isBoeiboordJob) targetComponentType = 'boeiboord';
+                }
                 else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
                 else if (isInstallatieSection) targetComponentType = 'installatie';
-                else if (isDagkantSection) targetComponentType = 'dagkant';
-                else if (isVensterbankSection) targetComponentType = 'vensterbank';
+                else if (isDagkantSection && allowDoorComponents) targetComponentType = 'dagkant';
+                else if (isVensterbankSection && allowDoorComponents) targetComponentType = 'vensterbank';
                 else if (isVlizotrapSection) targetComponentType = 'vlizotrap';
+                else if (isPlafondSection) targetComponentType = 'plafond';
                 else if (isGipsSection) targetComponentType = 'gips';
-                else if (isIsolatieSection && (categorySlug === 'boeidelen' || categorySlug === 'boeiboorden' || jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord'))) targetComponentType = 'isolatie';
+                else if (isIsolatieSection && (
+                  categorySlug === 'boeidelen' ||
+                  categorySlug === 'boeiboorden' ||
+                  categorySlug === 'gevelbekleding' ||
+                  jobSlug.includes('boeidelen') ||
+                  jobSlug.includes('boeiboord') ||
+                  jobSlug.includes('gevelbekleding')
+                )) targetComponentType = 'isolatie';
+
+                // 5. Visibility Check
+                const sections = groupedSections[categoryKey] || [];
+                // Allow rendering if sections exist OR if it's a component-adding section (even if empty of standard materials)
+                if (sections.length === 0 && !targetComponentType) return null;
+
+                const isHidden = hiddenCategories[categoryKey];
 
                 return (
                   <div key={categoryKey} className="space-y-2">
+                    {/* Debug Info (Hidden in prod) */}
+                    {/* <div className="text-xs text-red-500 hidden">Key: {categoryKey}, Type: {targetComponentType}</div> */}
                     <div
                       onClick={(e) => {
                         if (targetComponentType) {
                           if (isHidden) toggleCategoryVisibility(categoryKey);
 
-                          // Vlizotrap doesn't need measurements - add directly
+                          // Direct Add logic for types without complex measurements
                           if (targetComponentType === 'vlizotrap') {
                             const newVlizotrap = {
                               id: `vlizotrap-${Date.now()}`,
@@ -2597,54 +2711,28 @@ export default function GenericMaterialsPageRedesigned() {
                               materials: getPresetMaterialsForType('installatie')
                             };
                             setComponents(prev => [...prev, newInstallatie]);
-                          } else if (targetComponentType === 'isolatie') {
-                            const newIsolatie = {
-                              id: `isolatie-${Date.now()}`,
-                              type: 'isolatie' as const,
-                              label: 'Isolatie & Folies',
+                          } else if (targetComponentType === 'gips') {
+                            const newGips = {
+                              id: `gips-${Date.now()}`,
+                              type: 'gips' as const,
+                              label: 'Naden & Stucwerk',
                               measurements: {},
-                              materials: getPresetMaterialsForType('isolatie')
+                              materials: getPresetMaterialsForType('gips')
                             };
-                            setComponents(prev => [...prev, newIsolatie]);
-                          } else if (targetComponentType === 'kozijn' || targetComponentType === 'deur' || targetComponentType === 'dagkant' || targetComponentType === 'vensterbank') {
-                            // Automatically add if only one variant exists
-                            let itemsForType: any[] = [];
-                            if (targetComponentType === 'kozijn') itemsForType = JOB_REGISTRY.kozijnen.items;
-                            else if (targetComponentType === 'deur') itemsForType = JOB_REGISTRY.deuren.items;
-                            else if (targetComponentType === 'dagkant' || targetComponentType === 'vensterbank') {
-                              itemsForType = JOB_REGISTRY.afwerkingen.items.filter(i => i.title.toLowerCase().includes(targetComponentType.toLowerCase()));
-                            }
-
-                            if (itemsForType.length === 1) {
-                              const item = itemsForType[0];
-                              const newItem = {
-                                id: `${targetComponentType}-${Date.now()}`,
-                                type: targetComponentType,
-                                label: item.title,
-                                slug: item.slug,
-                                measurements: {},
-                                materials: getPresetMaterialsForType(targetComponentType)
-                              };
-                              setComponents(prev => [...prev, newItem]);
-                              toast({
-                                title: "Onderdeel toegevoegd",
-                                description: `${item.title} is toegevoegd aan de lijst.`,
-                              });
-                            } else {
-                              setVariantPickerType(targetComponentType);
-                              setVariantPickerOpen(true);
-                            }
+                            setComponents(prev => [...prev, newGips]);
+                          } else if (targetComponentType === 'leidingkoof') {
+                            const newKoof = {
+                              id: `leidingkoof-${Date.now()}`,
+                              type: 'leidingkoof' as const,
+                              label: 'Leidingkoof',
+                              measurements: {},
+                              materials: getPresetMaterialsForType('leidingkoof')
+                            };
+                            setComponents(prev => [...prev, newKoof]);
                           } else {
-                            // Instant add for simple types
-                            const config = COMPONENT_REGISTRY[targetComponentType];
-                            const newItem = {
-                              id: `${targetComponentType}-${Date.now()}`,
-                              type: targetComponentType as any,
-                              label: config?.title || targetComponentType,
-                              measurements: {},
-                              materials: getPresetMaterialsForType(targetComponentType as any)
-                            };
-                            setComponents(prev => [...prev, newItem]);
+                            // Open picker modal for types that need variant selection
+                            setVariantPickerType(targetComponentType);
+                            setVariantPickerOpen(true);
                           }
                         } else {
                           toggleCategoryVisibility(categoryKey);
@@ -2665,7 +2753,8 @@ export default function GenericMaterialsPageRedesigned() {
                                         (targetComponentType === 'vensterbank' ? 'Vensterbank' :
                                           (targetComponentType === 'gips' ? 'Naden & Stucwerk' :
                                             (targetComponentType === 'isolatie' ? 'Isolatie & Folies' :
-                                              'Boeiboord'))))))))
+                                              (targetComponentType === 'plafond' ? 'Plafond' :
+                                                'Boeiboord')))))))))
                           } toevoegen</span>
                         </div>
                       ) : (
@@ -3497,7 +3586,7 @@ export default function GenericMaterialsPageRedesigned() {
       <Dialog open={variantPickerOpen} onOpenChange={setVariantPickerOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Type {variantPickerType === 'kozijn' ? 'Kozijn' : (variantPickerType === 'deur' ? 'Deur' : 'Onderdeel')} kiezen</DialogTitle>
+            <DialogTitle>Type {variantPickerType === 'kozijn' ? 'Kozijn' : (variantPickerType === 'deur' ? 'Deur' : (variantPickerType === 'plafond' ? 'Plafond' : 'Onderdeel'))} kiezen</DialogTitle>
             <DialogDescription>
               Selecteer een variant om toe te voegen aan de lijst.
             </DialogDescription>
@@ -3508,6 +3597,7 @@ export default function GenericMaterialsPageRedesigned() {
               let items: any[] = [];
               if (variantPickerType === 'kozijn') items = JOB_REGISTRY.kozijnen.items;
               else if (variantPickerType === 'deur') items = JOB_REGISTRY.deuren.items;
+              else if (variantPickerType === 'plafond') items = JOB_REGISTRY.plafonds.items;
               else if (variantPickerType === 'dagkant' || variantPickerType === 'vensterbank') items = JOB_REGISTRY.afwerkingen.items;
 
               // Filter logic for dagkant/vensterbank specifically

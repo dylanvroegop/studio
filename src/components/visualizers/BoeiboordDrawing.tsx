@@ -14,6 +14,8 @@ interface BoeiboordDrawingProps {
     hoogte: number;
     balkafstand: number;
     latafstand: number;
+    surroundingBeams?: boolean;
+    lattenOrientation?: 'vertical' | 'horizontal';
     title?: string;
     startLattenFromBottom?: boolean;
     startFromRight?: boolean;
@@ -37,6 +39,8 @@ export function BoeiboordDrawing({
     hoogte,
     balkafstand,
     latafstand,
+    surroundingBeams,
+    lattenOrientation,
     title,
     startLattenFromBottom,
     startFromRight,
@@ -109,11 +113,12 @@ export function BoeiboordDrawing({
                     }}
                 >
                     {(ctx) => {
-                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT, drawH, drawW } = ctx;
+                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT, SVG_WIDTH, drawH, drawW } = ctx;
 
                         const structureColor = "rgb(70, 75, 85)";
                         const LAT_WIDTH_MM = 22;
                         const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
+                        const effectiveLattenOrientation = lattenOrientation ?? 'horizontal';
                         const angleDegRaw = typeof boeiboordAngle === 'number'
                             ? boeiboordAngle
                             : parseFloat(String(boeiboordAngle ?? '')) || 45;
@@ -144,13 +149,9 @@ export function BoeiboordDrawing({
 
                             const spanBase = mirrorLatten ? rectW / 2 : rectW;
                             const desiredRise = Math.tan(angleRad) * spanBase;
-                            const riseCap = Math.max(0, maxRise - boardThickness);
-                            const rise = desiredRise <= 0 ? 0 : Math.min(riseCap, desiredRise);
-                            const effectiveSpan = desiredRise > 0
-                                ? Math.min(spanBase, riseCap / Math.tan(angleRad))
-                                : spanBase;
-                            const spanLeftX = midX - (mirrorLatten ? effectiveSpan : effectiveSpan / 2);
-                            const spanRightX = mirrorLatten ? midX + effectiveSpan : midX + effectiveSpan / 2;
+                            const rise = desiredRise <= 0 ? 0 : desiredRise;
+                            const spanLeftX = mirrorLatten ? startX : startX;
+                            const spanRightX = mirrorLatten ? startX + rectW : startX + rectW;
                             const peakY = baseY - rise;
                             const lerpPoint = (a: Point, b: Point, t: number): Point => ({
                                 x: a.x + (b.x - a.x) * t,
@@ -165,6 +166,16 @@ export function BoeiboordDrawing({
                                 const len = Math.hypot(v.x, v.y) || 1;
                                 return { x: v.x / len, y: v.y / len };
                             };
+                            const dot = (a: Point, b: Point): number => a.x * b.x + a.y * b.y;
+                            const intersectLines = (a1: Point, a2: Point, b1: Point, b2: Point): Point | null => {
+                                const denom = (a1.x - a2.x) * (b1.y - b2.y) - (a1.y - a2.y) * (b1.x - b2.x);
+                                if (Math.abs(denom) < 0.0001) return null;
+                                const detA = a1.x * a2.y - a1.y * a2.x;
+                                const detB = b1.x * b2.y - b1.y * b2.x;
+                                const x = (detA * (b1.x - b2.x) - (a1.x - a2.x) * detB) / denom;
+                                const y = (detA * (b1.y - b2.y) - (a1.y - a2.y) * detB) / denom;
+                                return { x, y };
+                            };
 
                             type BoardEdges = {
                                 topStart: Point;
@@ -177,13 +188,51 @@ export function BoeiboordDrawing({
                                 if (latafstand <= 0) return [];
                                 const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
                                 const spacingPx = latafstand * pxPerMm;
-                                const length = Math.hypot(edges.topEnd.x - edges.topStart.x, edges.topEnd.y - edges.topStart.y);
-                                const numLatten = Math.floor(length / spacingPx);
-                                for (let i = 0; i <= numLatten; i++) {
-                                    const t = i / Math.max(numLatten, 1);
-                                    const top = lerpPoint(edges.topStart, edges.topEnd, t);
-                                    const bottom = lerpPoint(edges.bottomStart, edges.bottomEnd, t);
-                                    lines.push({ x1: top.x, y1: top.y, x2: bottom.x, y2: bottom.y });
+                                const lengthDir = { x: edges.bottomEnd.x - edges.bottomStart.x, y: edges.bottomEnd.y - edges.bottomStart.y };
+                                const lengthUnit = normalize(lengthDir);
+                                const normal = normalize({ x: lengthUnit.y, y: -lengthUnit.x });
+                                const thicknessVec = { x: edges.topStart.x - edges.bottomStart.x, y: edges.topStart.y - edges.bottomStart.y };
+                                const thickness = Math.abs(dot(thicknessVec, normal));
+
+                                if (effectiveLattenOrientation === 'horizontal') {
+                                    const centers = structure.latCenters.length > 0
+                                        ? structure.latCenters
+                                        : [hoogte / 2];
+                                    centers.forEach((centerMm) => {
+                                        const offset = centerMm * pxPerMm;
+                                        const offsetA = Math.max(0, Math.min(thickness, offset - halfWidthPx));
+                                        const offsetB = Math.max(0, Math.min(thickness, offset + halfWidthPx));
+                                        const startA = {
+                                            x: edges.bottomStart.x + normal.x * offsetA,
+                                            y: edges.bottomStart.y + normal.y * offsetA
+                                        };
+                                        const endA = {
+                                            x: edges.bottomEnd.x + normal.x * offsetA,
+                                            y: edges.bottomEnd.y + normal.y * offsetA
+                                        };
+                                        const startB = {
+                                            x: edges.bottomStart.x + normal.x * offsetB,
+                                            y: edges.bottomStart.y + normal.y * offsetB
+                                        };
+                                        const endB = {
+                                            x: edges.bottomEnd.x + normal.x * offsetB,
+                                            y: edges.bottomEnd.y + normal.y * offsetB
+                                        };
+                                        lines.push({ x1: startA.x, y1: startA.y, x2: endA.x, y2: endA.y });
+                                        lines.push({ x1: startB.x, y1: startB.y, x2: endB.x, y2: endB.y });
+                                    });
+                                } else {
+                                    const length = Math.hypot(lengthDir.x, lengthDir.y);
+                                    const numLatten = Math.max(1, Math.floor(length / spacingPx));
+                                    for (let i = 0; i <= numLatten; i++) {
+                                        const t = i / numLatten;
+                                        const base = lerpPoint(edges.bottomStart, edges.bottomEnd, t);
+                                        const end = {
+                                            x: base.x + normal.x * thickness,
+                                            y: base.y + normal.y * thickness
+                                        };
+                                        lines.push({ x1: base.x, y1: base.y, x2: end.x, y2: end.y });
+                                    }
                                 }
                                 return lines;
                             };
@@ -349,17 +398,26 @@ export function BoeiboordDrawing({
 
                             const fitTransform = (points: Point[]) => {
                                 const bounds = getBounds(points);
-                                const pad = 24;
-                                const availW = Math.max(1, drawW - pad * 2);
-                                const availH = Math.max(1, drawH - pad * 2);
+                                const labelPad = 36;
+                                const pad = 8;
+                                const expanded = {
+                                    minX: bounds.minX - labelPad,
+                                    maxX: bounds.maxX + labelPad,
+                                    minY: bounds.minY - labelPad,
+                                    maxY: bounds.maxY + labelPad,
+                                };
+                                const expandedW = expanded.maxX - expanded.minX;
+                                const expandedH = expanded.maxY - expanded.minY;
+                                const availW = Math.max(1, SVG_WIDTH - pad * 2);
+                                const availH = Math.max(1, SVG_HEIGHT - pad * 2);
                                 const scale = Math.min(
-                                    availW / Math.max(1, bounds.width),
-                                    availH / Math.max(1, bounds.height)
+                                    availW / Math.max(1, expandedW),
+                                    availH / Math.max(1, expandedH)
                                 );
-                                const cx = (bounds.minX + bounds.maxX) / 2;
-                                const cy = (bounds.minY + bounds.maxY) / 2;
-                                const targetX = startX + drawW / 2;
-                                const targetY = startY + drawH / 2;
+                                const cx = (expanded.minX + expanded.maxX) / 2;
+                                const cy = (expanded.minY + expanded.maxY) / 2;
+                                const targetX = SVG_WIDTH / 2;
+                                const targetY = SVG_HEIGHT / 2;
                                 return `translate(${targetX}, ${targetY}) scale(${scale}) translate(${-cx}, ${-cy})`;
                             };
 
@@ -388,13 +446,6 @@ export function BoeiboordDrawing({
                                 };
                                 const leftTopSeam = pointAtX(leftTopStart, leftTopEndRaw, peakX);
 
-                                const leftEdges: BoardEdges = {
-                                    topStart: leftTopStart,
-                                    topEnd: leftTopSeam,
-                                    bottomStart: leftBottomStart,
-                                    bottomEnd: leftBottomEnd
-                                };
-
                                 // Right board (outer end = perpendicular, inner end = vertical seam)
                                 const rightBottomStart = { x: peakX, y: peakY };
                                 const rightBottomEnd = { x: spanRightX, y: baseY };
@@ -411,8 +462,17 @@ export function BoeiboordDrawing({
                                 };
                                 const rightTopSeam = pointAtX(rightTopStartRaw, rightTopEnd, peakX);
 
+                                const apex = intersectLines(leftTopStart, leftTopEndRaw, rightTopStartRaw, rightTopEnd) ?? leftTopSeam;
+
+                                const leftEdges: BoardEdges = {
+                                    topStart: leftTopStart,
+                                    topEnd: apex,
+                                    bottomStart: leftBottomStart,
+                                    bottomEnd: leftBottomEnd
+                                };
+
                                 const rightEdges: BoardEdges = {
-                                    topStart: rightTopSeam,
+                                    topStart: apex,
                                     topEnd: rightTopEnd,
                                     bottomStart: rightBottomStart,
                                     bottomEnd: rightBottomEnd
@@ -447,7 +507,7 @@ export function BoeiboordDrawing({
                                         {leftPath && (
                                             <path
                                                 d={leftPath}
-                                                fill="rgba(70, 75, 85, 0.12)"
+                                                fill="none"
                                                 stroke={structureColor}
                                                 strokeWidth="1.5"
                                             />
@@ -457,7 +517,7 @@ export function BoeiboordDrawing({
                                         {rightPath && (
                                             <path
                                                 d={rightPath}
-                                                fill="rgba(70, 75, 85, 0.12)"
+                                                fill="none"
                                                 stroke={structureColor}
                                                 strokeWidth="1.5"
                                             />
@@ -486,6 +546,16 @@ export function BoeiboordDrawing({
                                                 {...dashProps}
                                             />
                                         ))}
+
+                                        {/* Inner seam at ridge */}
+                                        <line
+                                            x1={peakX}
+                                            y1={peakY}
+                                            x2={peakX}
+                                            y2={leftTopSeam.y}
+                                            stroke={structureColor}
+                                            strokeWidth="1"
+                                        />
 
                                         {/* Peak indicator for mirrored */}
                                         <line
@@ -606,7 +676,7 @@ export function BoeiboordDrawing({
                                         {leftPath && (
                                             <path
                                                 d={leftPath}
-                                                fill="rgba(70, 75, 85, 0.12)"
+                                                fill="none"
                                                 stroke={structureColor}
                                                 strokeWidth="1.5"
                                             />
@@ -661,11 +731,23 @@ export function BoeiboordDrawing({
                             c2: startX + g.c2 * pxPerMm,
                         }));
 
-                        const latGaps = structure.latGaps.map(g => ({
-                            value: g.value,
-                            c1: startY + g.c1 * pxPerMm,
-                            c2: startY + g.c2 * pxPerMm,
-                        }));
+                        const latGaps = (effectiveLattenOrientation === 'vertical'
+                            ? calculateGridGaps({
+                                wallLength: lengte,
+                                spacing: latafstand,
+                                studWidth: LAT_WIDTH_MM,
+                                startFromRight: startFromRight
+                            }).gaps.map(g => ({
+                                value: g.value,
+                                c1: startX + g.c1 * pxPerMm,
+                                c2: startX + g.c2 * pxPerMm,
+                            }))
+                            : structure.latGaps.map(g => ({
+                                value: g.value,
+                                c1: startY + g.c1 * pxPerMm,
+                                c2: startY + g.c2 * pxPerMm,
+                            }))
+                        );
 
                         return (
                             <>
@@ -677,14 +759,44 @@ export function BoeiboordDrawing({
                                 />
 
                                 <g>
+                                    {(() => {
+                                        if (!surroundingBeams) return null;
+                                        const frameThicknessPx = 70 * pxPerMm;
+                                        return (
+                                            <>
+                                                <line
+                                                    x1={startX}
+                                                    y1={startY + frameThicknessPx / 2}
+                                                    x2={startX + rectW}
+                                                    y2={startY + frameThicknessPx / 2}
+                                                    stroke={structureColor}
+                                                    strokeWidth={frameThicknessPx}
+                                                    opacity="0.4"
+                                                />
+                                                <line
+                                                    x1={startX}
+                                                    y1={startY + rectH - frameThicknessPx / 2}
+                                                    x2={startX + rectW}
+                                                    y2={startY + rectH - frameThicknessPx / 2}
+                                                    stroke={structureColor}
+                                                    strokeWidth={frameThicknessPx}
+                                                    opacity="0.4"
+                                                />
+                                            </>
+                                        );
+                                    })()}
+
                                     {/* Vertical beams */}
                                     {balkafstand > 0 && structure.beamCenters.map((cx, i) => {
                                         const drawX = startX + cx * pxPerMm;
+                                        const frameThicknessPx = surroundingBeams ? 70 * pxPerMm : 0;
+                                        const vStartY = startY + frameThicknessPx;
+                                        const vEndY = startY + rectH - frameThicknessPx;
                                         return (
                                             <line
                                                 key={`beam-${i}`}
-                                                x1={drawX} y1={startY}
-                                                x2={drawX} y2={startY + rectH}
+                                                x1={drawX} y1={vStartY}
+                                                x2={drawX} y2={vEndY}
                                                 stroke={structureColor}
                                                 strokeWidth={70 * pxPerMm}
                                                 opacity="0.4"
@@ -703,9 +815,16 @@ export function BoeiboordDrawing({
                                             </g>
                                         );
 
+                                        const renderVerticalSegment = (centerX: number, y1: number, y2: number, key: string) => (
+                                            <g key={key}>
+                                                <line x1={centerX - halfWidthPx} y1={y1} x2={centerX - halfWidthPx} y2={y2} {...dashProps} />
+                                                <line x1={centerX + halfWidthPx} y1={y1} x2={centerX + halfWidthPx} y2={y2} {...dashProps} />
+                                            </g>
+                                        );
+
                                         return (
                                             <>
-                                                {structure.latCenters.map((cy, i) => {
+                                                {effectiveLattenOrientation === 'horizontal' && structure.latCenters.map((cy, i) => {
                                                     const centerY = startY + cy * pxPerMm;
                                                     if (!mirrorLatten) {
                                                         return renderHorizontalSegment(centerY, startX, startX + rectW, `lat-${i}`);
@@ -717,6 +836,18 @@ export function BoeiboordDrawing({
                                                         </g>
                                                     );
                                                 })}
+                                                {effectiveLattenOrientation === 'vertical' && (() => {
+                                                    const framing = calculateGridGaps({
+                                                        wallLength: lengte,
+                                                        spacing: latafstand,
+                                                        studWidth: LAT_WIDTH_MM,
+                                                        startFromRight: startFromRight
+                                                    });
+                                                    return framing.beamCenters.map((cx, i) => {
+                                                        const centerX = startX + cx * pxPerMm;
+                                                        return renderVerticalSegment(centerX, startY, startY + rectH, `lat-v-${i}`);
+                                                    });
+                                                })()}
                                             </>
                                         );
                                     })()}
@@ -788,9 +919,13 @@ export function BoeiboordDrawing({
                                 {/* Beam grid dims (top) */}
                                 <GridMeasurements gaps={gridGaps} svgBaseYTop={startY} />
 
-                                {/* Lat grid dims (right) */}
+                                {/* Lat grid dims */}
                                 {latGaps.length > 0 && (
-                                    <GridMeasurements gaps={latGaps} svgBaseX={startX + rectW} orientation="vertical" />
+                                    effectiveLattenOrientation === 'vertical' ? (
+                                        <GridMeasurements gaps={latGaps} svgBaseYTop={startY} orientation="horizontal" />
+                                    ) : (
+                                        <GridMeasurements gaps={latGaps} svgBaseX={startX + rectW} orientation="vertical" />
+                                    )
                                 )}
 
                                 {/* Overall dimensions */}

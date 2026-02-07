@@ -13,13 +13,15 @@ interface VensterbankItem {
     uitstekRechts: number | string;
 }
 
-interface VensterbankSectionProps {
+export interface VensterbankSectionProps {
     vensterbanken: VensterbankItem[];
     onAdd: () => void;
     onDelete: (id: string) => void;
     onUpdate: (id: string, updates: Partial<VensterbankItem>) => void;
     isCollapsed?: boolean;
     onToggleCollapsed?: () => void;
+    customTitle?: string;
+    customItemLabel?: string;
 }
 
 export function VensterbankSection({
@@ -29,6 +31,8 @@ export function VensterbankSection({
     onUpdate,
     isCollapsed = false,
     onToggleCollapsed,
+    customTitle = 'Vensterbanken',
+    customItemLabel = 'Vensterbank',
 }: VensterbankSectionProps) {
     const addedRef = useRef(false);
     const filledVensterbankCount = vensterbanken.filter((vb) => {
@@ -66,10 +70,10 @@ export function VensterbankSection({
                 onClick={onToggleCollapsed}
             >
                 <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-zinc-200">Vensterbanken</span>
+                    <span className="text-sm font-medium text-zinc-200">{customTitle}</span>
                     {isCollapsed && filledVensterbankCount > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                            {filledVensterbankCount} vensterbank{filledVensterbankCount !== 1 ? 'en' : ''}
+                            {filledVensterbankCount} {customItemLabel.toLowerCase()}{filledVensterbankCount !== 1 ? 'en' : ''}
                         </span>
                     )}
                 </div>
@@ -104,7 +108,7 @@ export function VensterbankSection({
                                     <div key={vb.id} className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-3">
                                         {vensterbanken.length > 1 && (
                                             <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                                <span className="text-[10px] uppercase font-bold text-zinc-400">Vensterbank {vIdx + 1}</span>
+                                                <span className="text-[10px] uppercase font-bold text-zinc-400">{customItemLabel} {vIdx + 1}</span>
                                                 <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-zinc-500 hover:text-red-400" onClick={() => onDelete(vb.id)}>
                                                     <Trash2 className="h-3 w-3" />
                                                 </Button>
@@ -134,7 +138,7 @@ export function VensterbankSection({
                                     className="w-full h-8 text-[10px] text-zinc-500 hover:text-emerald-400 justify-center gap-2 border border-dashed border-white/10"
                                 >
                                     <PlusCircle className="h-3.5 w-3.5" />
-                                    Extra vensterbank
+                                    Extra {customItemLabel.toLowerCase()}
                                 </Button>
                             </>
                         )}

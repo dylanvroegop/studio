@@ -320,10 +320,15 @@ export default function GenericMeasurementPage() {
   const fields = jobConfig?.measurements || [];
 
   // Logic to determine if "Openings" section is relevant
-  const isWallCategory = Boolean(categorySlug === 'wanden' || (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand'))));
+  const isWallCategory = Boolean(
+    categorySlug === 'wanden' ||
+    categorySlug === 'gevelbekleding' ||
+    (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand') || jobSlug.includes('gevelbekleding')))
+  );
   const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
+  const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
   const showLeidingkoofSection = specificJobConfig.sections.includes('leidingkoof');
@@ -976,6 +981,7 @@ export default function GenericMeasurementPage() {
 
               // Initialize/remove arrays based on job config
               let normalizedItem = sanitizeItemBySections(item);
+
 
               // Data Migration for HSB Voorzetwand
               if (jobSlug === 'hsb-voorzetwand') {
@@ -1782,37 +1788,7 @@ export default function GenericMeasurementPage() {
                                 <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
 
-                              {/* Latten Orientation Options */}
-                              <div className="pt-2 border-t border-white/5" />
-                              <div className="space-y-3 pb-4 mb-4">
-                                <Label className="text-xs uppercase text-zinc-500 tracking-wider">Latten Richting</Label>
-                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateItem(index, 'latten_orientation', 'vertical')}
-                                    className={cn(
-                                      "flex-1 text-xs py-1.5 rounded transition-colors",
-                                      item.latten_orientation === 'vertical'
-                                        ? "bg-emerald-500/20 text-emerald-400"
-                                        : "text-zinc-500 hover:text-zinc-300"
-                                    )}
-                                  >
-                                    Latten verticaal
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateItem(index, 'latten_orientation', 'horizontal')}
-                                    className={cn(
-                                      "flex-1 text-xs py-1.5 rounded transition-colors",
-                                      (item.latten_orientation === 'horizontal' || !item.latten_orientation)
-                                        ? "bg-emerald-500/20 text-emerald-400"
-                                        : "text-zinc-500 hover:text-zinc-300"
-                                    )}
-                                  >
-                                    Latten horizontaal
-                                  </button>
-                                </div>
-                              </div>
+                              {/* Latten Orientation Options (inside Latten card) */}
 
                               {/* Boeiboord Orientation Options */}
                               <div className="pt-2 border-t border-white/5" />
@@ -1933,7 +1909,7 @@ export default function GenericMeasurementPage() {
                             {shape === 'gable' && (
                               <>
                                 <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
-                                <div className="space-y-2"><Label>H. Nok</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
+                                <div className="space-y-2"><Label>H. Top</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
                               </>
                             )}
                             {shape === 'rectangle' && fields.find(f => f.key === 'hoogte') && (
@@ -2373,6 +2349,38 @@ export default function GenericMeasurementPage() {
                                     </div>
                                   </div>
 
+                                  {(isBoeiboord || isGevelbekleding) && (
+                                    <div className="space-y-3">
+                                      <Label className="text-xs">Latten Richting</Label>
+                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'latten_orientation', 'vertical')}
+                                          className={cn(
+                                            "flex-1 text-xs py-1.5 rounded transition-colors",
+                                            item.latten_orientation === 'vertical'
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Verticaal
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'latten_orientation', 'horizontal')}
+                                          className={cn(
+                                            "flex-1 text-xs py-1.5 rounded transition-colors",
+                                            (item.latten_orientation === 'horizontal' || !item.latten_orientation)
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Horizontaal
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
                                   <div className="space-y-3">
                                     <Label className="text-xs">Opties</Label>
                                     <div className="grid grid-cols-2 gap-2">
@@ -2477,6 +2485,38 @@ export default function GenericMeasurementPage() {
                                       </button>
                                     </div>
                                   </div>
+
+                                  {isBoeiboord && (
+                                    <div className="space-y-3">
+                                      <Label className="text-xs">Latten Richting</Label>
+                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'latten_orientation', 'vertical')}
+                                          className={cn(
+                                            "flex-1 text-xs py-1.5 rounded transition-colors",
+                                            item.latten_orientation === 'vertical'
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Latten verticaal
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'latten_orientation', 'horizontal')}
+                                          className={cn(
+                                            "flex-1 text-xs py-1.5 rounded transition-colors",
+                                            (item.latten_orientation === 'horizontal' || !item.latten_orientation)
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Latten horizontaal
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
 
                                   <div className="space-y-3">
                                     <Label className="text-xs">Opties</Label>
@@ -2595,6 +2635,8 @@ export default function GenericMeasurementPage() {
                         onUpdate={(id, updates) => onUpdateVensterbank(index, id, updates)}
                         isCollapsed={collapsedSections[`vensterbank-${index}`] === true}
                         onToggleCollapsed={() => toggleCollapsed(`vensterbank-${index}`, false)}
+                        customTitle={isGevelbekleding ? 'Waterslagen' : 'Vensterbanken'}
+                        customItemLabel={isGevelbekleding ? 'Waterslag' : 'Vensterbank'}
                       />
                     )}
 

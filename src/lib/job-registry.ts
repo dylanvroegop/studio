@@ -56,6 +56,7 @@ export const MATERIAL_CATEGORY_INFO = {
   ventilatie: { title: 'Ventilatie', order: 10 },
   tochtstrips: { title: 'Tochtwering', order: 9 },
   isolatie: { title: 'Isolatie & Folies', order: 2 },
+  plafond: { title: 'Plafond', order: 15 },
 
   // --- AFWERKING ---
   beplating: { title: 'Beplating', order: 3 },
@@ -261,6 +262,17 @@ const AREA_FIELDS: MeasurementField[] = [
 
 ];
 
+const VLIERING_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 400 },
+];
+
+const FLOOR_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
+];
+
 const VLONDER_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
@@ -299,6 +311,13 @@ const BOEIBOORD_FIELDS: MeasurementField[] = [
   { key: 'kopkanten', label: 'Kopkanten', type: 'boolean', defaultValue: false },
   { key: 'kopkant_breedte', label: 'Breedte Kopkant', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
   { key: 'kopkant_hoogte', label: 'Hoogte Kopkant', type: 'number', suffix: 'mm', defaultValue: 250, optional: true },
+];
+
+const GEVELBEKLEDING_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2500' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
+  { key: 'latafstand', label: 'Latafstand (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
 ];
 
 // 4. MATERIAL CONFIGURATIONS (Cards)
@@ -773,12 +792,7 @@ const VLIERING_MATS: MaterialSection[] = [
   { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'Toegang', key: 'luik_afwerking', category_ultra_filter: '' },
 
   // --- A. FRAMEWERK (Hout of Metaal) ---
-  { label: 'Randhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'randhout', category_ultra_filter: '' },
-  { label: 'Stelhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'stroken', category_ultra_filter: '' },
-  { label: 'Rachelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachels', category_ultra_filter: '' },
 
-  { label: 'Randprofielen', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'randprofielen', category_ultra_filter: '' },
-  { label: 'Draagprofielen', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'draagprofielen', category_ultra_filter: '' },
 
   // --- B. SPECIALS (Koven) ---
   { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
@@ -786,9 +800,7 @@ const VLIERING_MATS: MaterialSection[] = [
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
-  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Gordijnkoof', key: 'gordijn_regelwerk', category_ultra_filter: '' },
-  { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Gordijnkoof', key: 'gordijn_beplating', category_ultra_filter: '' },
-  { label: 'Achterhout', categoryFilter: 'Vuren hout', category: 'Gordijnkoof', key: 'gordijn_achterhout', category_ultra_filter: '' },
+
 
   // --- C. INSTALLATIE ---
 
@@ -797,7 +809,7 @@ const VLIERING_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // --- E. BEPLATING (Plafond) ---
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating_afwerking', key: 'beplating', category_ultra_filter: '' },
+
 
   // --- F. AFWERKING ---
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
@@ -1049,23 +1061,45 @@ const BOEIBOORD_KERALIT_MATS: MaterialSection[] = [
 
 //#region ========================================== MATERIAL SECTIONS - GEVELBEKLEDING ==========================================
 
-const GEVEL_BEKLEDING_MATS: MaterialSection[] = [
+const GEVEL_BEKLEDING_BASE_MATS: MaterialSection[] = [
   // 1. BASIS (SKELETON)
   { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk_basis', category_ultra_filter: '' },
   { label: 'Folie', categoryFilter: 'Folieën, Dpc', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_gevel', category_ultra_filter: '' },
-  { label: 'Ventilatieprofiel (Ongedierte)', categoryFilter: 'Daktoebehoren, Overig', category: 'hout', key: 'ventilatieprofiel', category_ultra_filter: '' },
+];
 
-  // 2. THE CHOICE (AFWERKPLAAT)
-  { label: 'Houten Bekleding (Rabat/Zweeds)', categoryFilter: 'Vloer-rabat-vellingdelen, Hardhout geschaafd, Merantie', category: 'gevel_hout', key: 'gevelbekleding_hout', category_ultra_filter: '' },
+const GEVEL_BEKLEDING_AFWERKING_MATS: MaterialSection[] = [
+  // AFWERKING
+  { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Waterslagen', categoryFilter: 'Lood, Loodvervanger, Overig', category: 'bevestiging', key: 'waterslag', category_ultra_filter: '' },
+];
+
+const GEVEL_BEKLEDING_HOUT_MATS: MaterialSection[] = [
+  ...GEVEL_BEKLEDING_BASE_MATS,
+  { label: 'Houten Bekleding Rabat/Zweeds', categoryFilter: 'Vloer-rabat-vellingdelen, Hardhout geschaafd, Merantie', category: 'gevel_hout', key: 'gevelbekleding_hout', category_ultra_filter: '' },
   { label: 'Houten Hoeklatten', categoryFilter: 'Hardhout geschaafd, Merantie, Afwerking', category: 'gevel_hout', key: 'hoek_hout', category_ultra_filter: '' },
+  ...GEVEL_BEKLEDING_AFWERKING_MATS,
+];
 
-  { label: 'Kunststof Panelen (Keralit)', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: '' },
-  { label: 'Keralit Profielen (Start/Eind/Hoek)', categoryFilter: 'Daktoebehoren, Overig', category: 'gevel_kunststof', key: 'profiel_keralit', category_ultra_filter: '' },
+const GEVEL_BEKLEDING_KERALIT_MATS: MaterialSection[] = [
+  ...GEVEL_BEKLEDING_BASE_MATS,
+  { label: 'Kunststof Panelen', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: '' },
+  { label: 'Keralit Startprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_startprofiel', category_ultra_filter: '' },
+  { label: 'Keralit Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_eindprofiel', category_ultra_filter: '' },
+  { label: 'Keralit Hoekprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_hoekprofiel', category_ultra_filter: '' },
+  ...GEVEL_BEKLEDING_AFWERKING_MATS,
+];
 
-  { label: 'Volkern/HPL Plaat (Trespa)', categoryFilter: 'Trespa, Rockpanel, Exterieur platen', category: 'gevel_plaat', key: 'gevelplaat', category_ultra_filter: '' },
+const GEVEL_BEKLEDING_TRESPA_MATS: MaterialSection[] = [
+  ...GEVEL_BEKLEDING_BASE_MATS,
+  { label: 'Volkern/HPL Plaat', categoryFilter: 'Trespa, Exterieur platen', category: 'gevel_plaat', key: 'gevelplaat', category_ultra_filter: '' },
+  ...GEVEL_BEKLEDING_AFWERKING_MATS,
+];
 
-  { label: 'Waterslagen (Aluminium)', categoryFilter: 'Lood, Loodvervanger, Overig', category: 'bevestiging', key: 'waterslag', category_ultra_filter: '' },
+const GEVEL_BEKLEDING_ROCKPANEL_MATS: MaterialSection[] = [
+  ...GEVEL_BEKLEDING_BASE_MATS,
+  { label: 'Rockpanel Plaat', categoryFilter: 'Rockpanel, Exterieur platen', category: 'gevel_plaat', key: 'gevelplaat_rockpanel', category_ultra_filter: '' },
+  ...GEVEL_BEKLEDING_AFWERKING_MATS,
 ];
 
 //#endregion
@@ -1297,30 +1331,7 @@ const KEUKEN_RENOVATIE_MATS: MaterialSection[] = [
 
 //#endregion
 
-//#region ========================================== MATERIAL SECTIONS - INBOUWKASTEN ==========================================
 
-const INBOUWKAST_MATS: MaterialSection[] = [
-  { label: 'Interieur / Corpus (MDF, Melamine, Multiplex)', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'basis', key: 'corpus', category_ultra_filter: '' },
-  { label: 'Deuren', categoryFilter: 'Binnendeuren, Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'fronten', category_ultra_filter: '' },
-  { label: 'Fronten', categoryFilter: 'Interieur Platen, Merantie, Hardhout geschaafd', category: 'afwerking', key: 'fronten', category_ultra_filter: '' },
-  { label: 'Ladesystemen', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'lades', category_ultra_filter: '' },
-  { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Meubelgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'grepen', category_ultra_filter: '' },
-  { label: 'Push-to-open systeem', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'snappers', category_ultra_filter: '' },
-  { label: 'Kledingroede', categoryFilter: 'Overig', category: 'beslag', key: 'garderobe', category_ultra_filter: '' },
-];
-
-//#endregion
-
-//#region ========================================== MATERIAL SECTIONS - MEUBEL OP MAAT ==========================================
-
-const MEUBEL_MATS: MaterialSection[] = [
-  { label: 'Hoofdmateriaal', categoryFilter: 'Interieur Platen, Hardhout geschaafd, Merantie, Vuren hout', category: 'basis', key: 'materiaal', category_ultra_filter: '' },
-  { label: 'Meubelbeslag', categoryFilter: 'Deurbeslag', category: 'afwerking', key: 'beslag', category_ultra_filter: '' },
-  { label: 'Olie, Lak, Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'afwerking', category_ultra_filter: '' },
-];
-
-//#endregion
 
 
 
@@ -1436,20 +1447,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           afwerking: { title: 'Afwerking', order: 5 },
         },
       },
-      {
-        title: 'Nieuwe trap plaatsen',
-        description: 'Plaatsen van nieuwe trap',
-        slug: 'nieuwe-trap-plaatsen',
-        measurementLabel: 'Trap',
-        measurements: STANDARD_FIELDS,
-        materialSections: NIEUWE_TRAP_PLAATSEN_MATS,
-        categoryConfig: {
-          hout: { title: 'Constructie & Raveling', order: 1 },
-          trap: { title: 'De Trap (Basis)', order: 2 },
-          veiligheid: { title: 'Leuningen & Hekwerken', order: 3 },
-          beslag: { title: 'Luxe Beslag & Hardware', order: 4 },
-        },
-      },
+
     ],
   },
 
@@ -1631,34 +1629,25 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
   },
 
   // --- VLOEREN ---
-  vloeren: {
-    title: 'Vloeren & Vlieringen',
+  // --- VLOEREN ---
+  'vloer-constructie': {
+    title: 'Constructie Vloer',
     searchPlaceholder: 'Zoek vloertype...',
     items: [
       {
-        title: 'Massief Houten Vloer (finish)',
-        description: 'Eindafwerking (verlijmd/genageld)',
-        slug: 'massief-houten-vloer',
+        title: 'Constructievloer hout',
+        description: 'Tussenvloer / Begane grond',
+        slug: 'vliering-maken',
         measurementLabel: 'Vloer',
-        measurements: AREA_FIELDS,
-        materialSections: MASSIEF_HOUTEN_VLOER_FINISH_MATS,
+        measurements: VLIERING_FIELDS,
+        materialSections: VLIERING_MATS,
         categoryConfig: {
-          voorbereiding: { title: 'Voorbereiding', order: 1 },
-          parket: { title: 'Parket', order: 2 },
-          afwerking: { title: 'Afwerking', order: 3 }
-        }
-      },
-      {
-        title: 'Laminaat / PVC / Klik-Vinyl',
-        description: 'Afwerkvloer (zwevend)',
-        slug: 'laminaat-pvc',
-        measurementLabel: 'Vloer',
-        measurements: AREA_FIELDS,
-        materialSections: VLOER_AFWERK_MATS,
-        categoryConfig: {
-          voorbereiding: { title: 'Voorbereiding', order: 1 },
-          vloerdelen: { title: 'Vloerdelen', order: 2 },
-          afwerking: { title: 'Afwerking', order: 3 }
+          Constructievloer: { title: 'Constructie', order: 1 },
+          beplating: { title: 'Beplating', order: 2 },
+          isolatie: { title: 'Isolatie & Folies', order: 3 },
+          Toegang: { title: 'Toegang & Vlizotrap', order: 4 },
+          Koof: { title: 'Leidingkoof', order: 7 },
+          afwerking: { title: 'Afwerken', order: 12 },
         }
       },
       {
@@ -1674,38 +1663,37 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           Vlonder_Dek: { title: 'Vlonder & Afwerking', order: 3 }
         }
       },
+
+    ],
+  },
+  'vloer-afwerking': {
+    title: 'Afwerk Vloer',
+    searchPlaceholder: 'Zoek vloertype...',
+    items: [
       {
-        title: 'Begane Grond Constructievloer',
-        description: 'Constructieve opbouw',
-        slug: 'balklaag-constructievloer',
+        title: 'Massief Houten Vloer',
+        description: 'Afwerkvloer',
+        slug: 'massief-houten-vloer',
         measurementLabel: 'Vloer',
-        measurements: WALL_FIELDS,
-        materialSections: BALKLAAG_CONSTRUCTIEVLOER_MATS,
+        measurements: FLOOR_FIELDS,
+        materialSections: MASSIEF_HOUTEN_VLOER_FINISH_MATS,
         categoryConfig: {
-          balklaag: { title: 'Balklaag & Constructie', order: 1 },
-          isolatie: { title: 'Isolatie & Folies', order: 2 },
-          beplating: { title: 'Beplating', order: 3 }
+          Vloer_Voorbereiding: { title: 'Voorbereiding', order: 1 },
+          Vloer_Hout: { title: 'Parket', order: 2 },
+          Vloer_Afwerking: { title: 'Afwerking', order: 3 }
         }
       },
       {
-        title: 'Tussenvloer / Bergzolder',
-        description: 'Extra opslagruimte in nok',
-        slug: 'vliering-maken',
+        title: 'Laminaat / PVC / Klik-Vinyl',
+        description: 'Afwerkvloer',
+        slug: 'laminaat-pvc',
         measurementLabel: 'Vloer',
-        measurements: AREA_FIELDS,
-        materialSections: VLIERING_MATS,
+        measurements: FLOOR_FIELDS,
+        materialSections: VLOER_AFWERK_MATS,
         categoryConfig: {
-          Constructievloer: { title: 'Constructie & Vloer (Bovenzijde)', order: 1 },
-          beplating: { title: 'Beplating (Constructie)', order: 2 },
-          isolatie: { title: 'Isolatie & Folies', order: 3 },
-          Toegang: { title: 'Toegang & Vlizotrap', order: 4 },
-          hout: { title: 'Plafond Framewerk (Hout)', order: 5 },
-          metaal: { title: 'Plafond Framewerk (Metal Stud)', order: 6 },
-          Koof: { title: 'Leidingkoof', order: 7 },
-          Gordijnkoof: { title: 'Gordijnkoof', order: 8 },
-          beplating_afwerking: { title: 'Beplating (Plafond)', order: 11 },
-          afwerking: { title: 'Afwerken', order: 12 },
-          gips_afwerking: { title: 'Naden & Stucwerk', order: 13 },
+          Vloer_Voorbereiding: { title: 'Voorbereiding', order: 1 },
+          Vloer_Laminaat: { title: 'Vloerdelen', order: 2 },
+          Vloer_Afwerking: { title: 'Afwerking', order: 3 }
         }
       },
 
@@ -1726,7 +1714,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Rockpanel',
         slug: 'boeiboorden-rockpanel',
         measurementLabel: 'Boeiboord',
-        measurements: BOEIBOORD_FIELDS,
+        measurements: GEVELBEKLEDING_FIELDS,
         materialSections: BOEIBOORD_ROCKPANEL_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1741,7 +1729,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Trespa/HPL',
         slug: 'boeiboorden-trespa',
         measurementLabel: 'Boeiboord',
-        measurements: BOEIBOORD_FIELDS,
+        measurements: GEVELBEKLEDING_FIELDS,
         materialSections: BOEIBOORD_TRESPA_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1756,7 +1744,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Hardhout/Meranti',
         slug: 'boeiboorden-hout',
         measurementLabel: 'Boeiboord',
-        measurements: BOEIBOORD_FIELDS,
+        measurements: GEVELBEKLEDING_FIELDS,
         materialSections: BOEIBOORD_HOUT_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1771,7 +1759,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Keralit',
         slug: 'boeiboorden-keralit',
         measurementLabel: 'Boeiboord',
-        measurements: BOEIBOORD_FIELDS,
+        measurements: GEVELBEKLEDING_FIELDS,
         materialSections: BOEIBOORD_KERALIT_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1786,50 +1774,13 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
   //#endregion
 
-  //#region --- INBOUWKASTEN ---
-  interieur: {
-    title: 'INBOUWKASTEN',
-    searchPlaceholder: 'Zoek interieurklus...',
-    items: [
-      {
-        title: 'Inbouwkasten',
-        description: 'Maatwerk (wandvullend)',
-        slug: 'inbouwkasten',
-        measurementLabel: 'Kast',
-        measurements: STANDARD_FIELDS,
-        materialSections: INBOUWKAST_MATS,
-        categoryConfig: {
-          basis: { title: 'Binnenwerk', order: 1 },
-          afwerking: { title: 'Deuren & Fronten', order: 2 },
-          beslag: { title: 'Luxe Beslag & Ladesystemen', order: 3 },
-        }
-      },
-    ]
-  },
+
 
   //#endregion
 
   //#region --- MEUBLS OP MAAT ---
 
-  MEUBELS_OP_MAAT: {
-    title: 'MEUBELS OP MAAT',
-    searchPlaceholder: 'Zoek interieurklus...',
-    items: [
-      {
-        title: 'Meubel op maat',
-        description: 'Tafels, banken, losse kasten',
-        slug: 'meubel-op-maat',
-        measurementLabel: 'Meubel',
-        measurements: STANDARD_FIELDS,
-        materialSections: MEUBEL_MATS,
-        categoryConfig: {
-          basis: { title: 'Hoofdmateriaal', order: 1 },
-          beslag: { title: 'Meubelbeslag & Montage', order: 2 },
-          afwerking: { title: 'Afwerking', order: 3 },
-        }
-      }
-    ]
-  },
+
 
   //#endregion
 
@@ -1855,7 +1806,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vloer- en wandafwerking',
         slug: 'plinten-afwerklatten',
         measurementLabel: 'Ruimte',
-        measurements: AREA_FIELDS,
+        measurements: BOEIBOORD_FIELDS,
         materialSections: PLINTEN_MATS,
         categoryConfig: {
           plinten: { title: 'Plinten', order: 1 },
@@ -2004,7 +1955,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Op houten constructie',
         slug: 'golfplaat-dak',
         measurementLabel: 'Dakvlak',
-        measurements: AREA_FIELDS,
+        measurements: BOEIBOORD_FIELDS,
         materialSections: DAK_GOLFPLAAT_MATS,
         categoryConfig: {
           hout: { title: 'Framewerk', order: 1 },
@@ -2024,22 +1975,59 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek geveltype...',
     items: [
       {
-        title: 'Gevelbekleding Vervangen',
-        description: 'Hout, Keralit of Trespa',
-        slug: 'gevelbekleding-compleet',
+        title: 'Trespa/HPL',
+        description: 'Volkern/HPL platen',
+        slug: 'gevelbekleding-trespa-hpl',
         measurementLabel: 'Gevel',
-        measurements: AREA_FIELDS,
-        materialSections: GEVEL_BEKLEDING_MATS,
+        measurements: GEVELBEKLEDING_FIELDS,
+        materialSections: GEVEL_BEKLEDING_TRESPA_MATS,
         categoryConfig: {
-          hout: { title: 'Basis (Regelwerk)', order: 1 },
+          hout: { title: 'Constructie', order: 1 },
           isolatie: { title: 'Isolatie & Folie', order: 2 },
-
+          gevel_plaat: { title: 'Trespa/HPL Geschroefd', order: 3 },
+          gevel_plaat_lijm: { title: 'Trespa/HPL Verlijmd', order: 4 },
+          bevestiging: { title: 'Afwerking', order: 9 },
+        }
+      },
+      {
+        title: 'Keralit',
+        description: 'Kunststof panelen',
+        slug: 'gevelbekleding-keralit',
+        measurementLabel: 'Gevel',
+        measurements: GEVELBEKLEDING_FIELDS,
+        materialSections: GEVEL_BEKLEDING_KERALIT_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie', order: 1 },
+          isolatie: { title: 'Isolatie & Folie', order: 2 },
+          gevel_kunststof: { title: 'Keralit', order: 3 },
+          bevestiging: { title: 'Afwerking', order: 9 },
+        }
+      },
+      {
+        title: 'Hout',
+        description: 'Rabat/Zweeds',
+        slug: 'gevelbekleding-hout',
+        measurementLabel: 'Gevel',
+        measurements: GEVELBEKLEDING_FIELDS,
+        materialSections: GEVEL_BEKLEDING_HOUT_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie', order: 1 },
+          isolatie: { title: 'Isolatie & Folie', order: 2 },
           gevel_hout: { title: 'Hout', order: 3 },
-          gevel_kunststof: { title: 'Keralit', order: 4 },
-          gevel_plaat: { title: 'Trespa/HPL (Geschroefd)', order: 5 },
-
-          gevel_plaat_lijm: { title: 'Trespa/HPL (Verlijmd)', order: 7 },
-
+          bevestiging: { title: 'Afwerking', order: 9 },
+        }
+      },
+      {
+        title: 'Rockpanel',
+        description: 'Cementvezel platen',
+        slug: 'gevelbekleding-rockpanel',
+        measurementLabel: 'Gevel',
+        measurements: GEVELBEKLEDING_FIELDS,
+        materialSections: GEVEL_BEKLEDING_ROCKPANEL_MATS,
+        categoryConfig: {
+          hout: { title: 'Constructie', order: 1 },
+          isolatie: { title: 'Isolatie & Folie', order: 2 },
+          gevel_plaat: { title: 'Rockpanel', order: 3 },
           bevestiging: { title: 'Afwerking', order: 9 },
         }
       },
@@ -2132,17 +2120,43 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek schuttingklus...',
     items: [
       {
-        title: 'Schutting plaatsen',
-        description: 'Hout, Beton of Composiet',
-        slug: 'schutting-compleet',
+        title: 'Schutting (Hout)',
+        description: 'Houten schutting plaatsen',
+        slug: 'schutting-hout',
         measurementLabel: 'Schutting',
         measurements: STANDARD_FIELDS,
         materialSections: SCHUTTING_MATS,
         categoryConfig: {
           fundering: { title: 'Basis & Fundering', order: 1 },
-          schutting_hout: { title: 'Optie: Hout', order: 2 },
-          schutting_beton: { title: 'Optie: Beton', order: 3 },
-          schutting_composiet: { title: 'Optie: Composiet', order: 4 },
+          schutting_hout: { title: 'Schutting Hout', order: 2 },
+          poort: { title: 'Poort & Toegang', order: 5 },
+          beslag: { title: 'Tuindeur Beslag', order: 6 },
+        },
+      },
+      {
+        title: 'Schutting (Beton)',
+        description: 'Beton schutting plaatsen',
+        slug: 'schutting-beton',
+        measurementLabel: 'Schutting',
+        measurements: STANDARD_FIELDS,
+        materialSections: SCHUTTING_MATS,
+        categoryConfig: {
+          fundering: { title: 'Basis & Fundering', order: 1 },
+          schutting_beton: { title: 'Schutting Beton', order: 2 },
+          poort: { title: 'Poort & Toegang', order: 5 },
+          beslag: { title: 'Tuindeur Beslag', order: 6 },
+        },
+      },
+      {
+        title: 'Schutting (Composiet)',
+        description: 'Composiet schutting plaatsen',
+        slug: 'schutting-composiet',
+        measurementLabel: 'Schutting',
+        measurements: STANDARD_FIELDS,
+        materialSections: SCHUTTING_MATS,
+        categoryConfig: {
+          fundering: { title: 'Basis & Fundering', order: 1 },
+          schutting_composiet: { title: 'Schutting Composiet', order: 2 },
           poort: { title: 'Poort & Toegang', order: 5 },
           beslag: { title: 'Tuindeur Beslag', order: 6 },
         },

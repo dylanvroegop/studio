@@ -8,6 +8,7 @@ import { RoofDrawing } from './RoofDrawing';
 import { EPDMDrawing } from './EPDMDrawing';
 import { GolfplaatDrawing } from './GolfplaatDrawing';
 import { BoeiboordDrawing } from './BoeiboordDrawing';
+import { GevelbekledingDrawing } from './GevelbekledingDrawing';
 import { GlasDrawing } from './GlasDrawing';
 import { KozijnMaatwerkDrawing } from './KozijnMaatwerkDrawing';
 
@@ -76,7 +77,9 @@ export function VisualizerController({
                 startLattenFromBottom={item.startLattenFromBottom}
                 onOpeningsChange={onOpeningsChange}
                 onLeidingkoofChange={onLeidingkoofChange}
-                gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag') || slug.includes('vliering')) ? 'Vloer Vlak' : undefined)}
+                onEdgeChange={onEdgeChange}
+                showEdgeControls={slug.includes('vliering')}
+                gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag')) ? 'Vloer Vlak' : undefined)}
                 title={props.title}
             />
         );
@@ -188,6 +191,8 @@ export function VisualizerController({
                     hoogte={vzHoogte}
                     balkafstand={balkNum}
                     latafstand={latVz}
+                    surroundingBeams={item.surroundingBeams}
+                    lattenOrientation={item.latten_orientation}
                     title="Voorzijde"
                     startLattenFromBottom={item.startLattenFromBottom}
                     startFromRight={item.startFromRight}
@@ -202,6 +207,8 @@ export function VisualizerController({
                     hoogte={ozBreedte}
                     balkafstand={balkNum}
                     latafstand={latOz}
+                    surroundingBeams={item.surroundingBeams}
+                    lattenOrientation={item.latten_orientation}
                     title="Onderzijde"
                     startLattenFromBottom={item.startLattenFromBottom}
                     startFromRight={item.startFromRight}
@@ -209,6 +216,51 @@ export function VisualizerController({
                     mirrorBadgeText={boeiMirror ? '2x calculatie' : undefined}
                 />
             </div>
+        );
+    }
+
+    if (slug.includes('gevelbekleding')) {
+        const toNum = (v: any, fb = 0) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || fb);
+        const lengte = toNum(item.lengte);
+        const hoogte = toNum(item.hoogte || item.breedte);
+        const balkNum = toNum(item.balkafstand, 0);
+        return (
+            <GevelbekledingDrawing
+                lengte={lengte}
+                hoogte={hoogte}
+                shape={item.shape as 'rectangle' | 'slope' | 'gable' | 'l-shape' | 'u-shape' | undefined}
+                hoogteLinks={item.hoogteLinks}
+                hoogteRechts={item.hoogteRechts}
+                hoogteNok={item.hoogteNok}
+                lengte1={item.lengte1}
+                hoogte1={item.hoogte1}
+                lengte2={item.lengte2}
+                hoogte2={item.hoogte2}
+                lengte3={item.lengte3}
+                hoogte3={item.hoogte3}
+                variant={item.variant}
+                balkafstand={balkNum}
+                openings={item.openings}
+                dagkanten={item.dagkanten}
+                vensterbanken={item.vensterbanken}
+                leidingkofen={item.leidingkofen}
+                onLeidingkoofChange={onLeidingkoofChange}
+                onOpeningsChange={onOpeningsChange}
+                className={className}
+                fitContainer={fitContainer}
+                isMagnifier={isMagnifier}
+                startFromRight={item.startFromRight}
+                title={item.subtitle || item.title}
+                doubleEndBeams={item.doubleEndBeams}
+                // Latten Props
+                latafstand={toNum(item.latafstand)}
+                latten_orientation={item.latten_orientation}
+                startLattenFromBottom={item.startLattenFromBottom}
+                doubleEndBattens={item.doubleEndBattens}
+                // Plates
+                doubleTopPlate={item.doubleTopPlate}
+                doubleBottomPlate={item.doubleBottomPlate}
+            />
         );
     }
 
@@ -277,7 +329,6 @@ export function VisualizerController({
 
     // 5. OBJECT_MODE (Cabinets, Doors)
     const objectSlugs = [
-        'inbouwkasten', 'meubel-op-maat',
         'binnendeur-afhangen', 'buitendeur-afhangen',
         'kozijnen'
     ];
