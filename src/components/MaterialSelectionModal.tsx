@@ -160,6 +160,9 @@ export function MaterialSelectionModal({
   const [categoryFilter, setCategoryFilter] = useState<string | string[]>('all');
   const [displayLimit, setDisplayLimit] = useState(50);
 
+  // Edit State
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+
   // Form State
   const [customNaam, setCustomNaam] = useState<string>('');
   const [customEenheid, setCustomEenheid] = useState<string>('');
@@ -191,6 +194,9 @@ export function MaterialSelectionModal({
       // 3. Reset Waste
       setWastePercentage(initialWastePercentage || 0);
       setIsEditingWaste(false);
+
+      // 4. Reset Edit State
+      setEditingMaterialId(null);
     }
   }, [open, defaultCategory, initialWastePercentage]);
 
@@ -406,6 +412,11 @@ export function MaterialSelectionModal({
       if (!currentUser) throw new Error('Niet ingelogd.');
       const token = await currentUser.getIdToken();
 
+      // Include ID if editing
+      if (editingMaterialId) {
+        payload.row_id = editingMaterialId;
+      }
+
       const res = await fetch('/api/materialen/upsert', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
@@ -428,6 +439,9 @@ export function MaterialSelectionModal({
           prijs_per_stuk: calculatedPiecePrice,
         });
       }
+
+      // Reset and close
+      setEditingMaterialId(null);
       onOpenChange(false);
 
     } catch (e: any) {
@@ -436,6 +450,24 @@ export function MaterialSelectionModal({
     } finally {
       setSavingCustom(false);
     }
+  };
+
+  const startEditing = (mat: ExistingMaterial, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingMaterialId(mat.row_id);
+
+    // Pre-fill form
+    setCustomNaam(mat.materiaalnaam || '');
+    setCustomEenheid(mat.eenheid || '');
+
+    // Handle price formatting
+    const price = parsePriceToNumber(mat.prijs_incl_btw ?? mat.prijs);
+    setCustomPrijs(price !== null ? price.toString().replace('.', ',') : '');
+
+    setCustomSubsectie(mat.categorie || mat.subsectie || '');
+    setCustomLeverancier(mat.leverancier || '');
+
+    setStep('form');
   };
 
   const handleSelectExisting = (m: ExistingMaterial) => {
@@ -486,7 +518,6 @@ export function MaterialSelectionModal({
                     <div className="flex items-center gap-1">
                       <span className="text-xs font-medium text-muted-foreground pl-1">Afval:</span>
                       <Input
-                        autoFocus
                         type="number"
                         min={0}
                         max={100}
@@ -530,7 +561,15 @@ export function MaterialSelectionModal({
 
               <div className="mb-4">
                 <Button
-                  onClick={() => { setStep('form'); }}
+                  onClick={() => {
+                    setEditingMaterialId(null);
+                    setCustomNaam('');
+                    setCustomEenheid('');
+                    setCustomPrijs('');
+                    setCustomSubsectie('');
+                    setCustomLeverancier('');
+                    setStep('form');
+                  }}
                   variant="outline"
                   className="w-full h-12 border-dashed border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:bg-muted/10 hover:border-emerald-500/50 transition-all group"
                 >
@@ -543,7 +582,6 @@ export function MaterialSelectionModal({
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    autoFocus
                     placeholder="Zoek op materiaalnaam..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -620,22 +658,39 @@ export function MaterialSelectionModal({
                           )} */}
                         </div>
 
-                        <div className="text-right shrink-0">
-                          {(() => {
-                            const prijsPerStuk = parsePriceToNumber(mat.prijs_per_stuk);
-                            const hasPrijsPerStuk = prijsPerStuk !== null && prijsPerStuk > 0;
+                        <div className="text-right shrink-0 flex items-center gap-3">
+                          <div className="flex flex-col items-end">
+                            {(() => {
+                              // Check multiple price fields (different data sources use different field names)
+                              const prijsPerStuk = parsePriceToNumber(mat.prijs_per_stuk);
+                              const prijsInclBtw = parsePriceToNumber((mat as any).prijs_incl_btw);
+                              const prijs = parsePriceToNumber(mat.prijs);
 
-                            return (
-                              <>
-                                <div className="text-sm font-medium">
-                                  {formatEuro(hasPrijsPerStuk ? prijsPerStuk : parsePriceToNumber(mat.prijs))}
-                                </div>
-                                <div className="text-[10px] text-muted-foreground">
-                                  {hasPrijsPerStuk ? 'per stuk' : `per ${mat.eenheid}`}
-                                </div>
-                              </>
-                            );
-                          })()}
+                              // Use the first non-null price we find
+                              const finalPrice = prijsPerStuk ?? prijsInclBtw ?? prijs;
+                              const eenheid = mat.eenheid || 'stuk';
+
+                              return (
+                                <>
+                                  <div className="text-sm font-medium">
+                                    {formatEuro(finalPrice)}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground">
+                                    per {eenheid}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground/50 hover:text-foreground hover:bg-muted"
+                            onClick={(e) => startEditing(mat, e)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -681,10 +736,10 @@ export function MaterialSelectionModal({
               </Button>
               <div className="flex flex-col gap-1">
                 <DialogTitle className="text-xl font-bold text-white leading-none">
-                  Nieuw Materiaal
+                  {editingMaterialId ? 'Bewerk Materiaal' : 'Nieuw Materiaal'}
                 </DialogTitle>
                 <DialogDescription className="text-zinc-400 text-sm">
-                  Vul de gegevens van het materiaal in.
+                  {editingMaterialId ? 'Pas de gegevens van het materiaal aan.' : 'Vul de gegevens van het materiaal in.'}
                 </DialogDescription>
               </div>
             </DialogHeader>
@@ -866,8 +921,8 @@ export function MaterialSelectionModal({
                 onClick={saveCustomMaterial}
                 disabled={!canSaveCustom || savingCustom}
               >
-                {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Materiaal toevoegen
+                {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingMaterialId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
+                {editingMaterialId ? "Opslaan" : "Materiaal toevoegen"}
               </Button>
             </DialogFooter>
           </div>

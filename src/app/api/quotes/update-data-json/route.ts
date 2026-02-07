@@ -14,50 +14,45 @@ export async function POST(req: Request) {
         }
         const token = authHeader.split('Bearer ')[1];
 
-        // Initialize Firebase Admin (ensures app is ready)
+        // Initialize Firebase Admin
         const { auth } = initFirebaseAdmin();
 
         // Verify token
+        let decodedToken;
         try {
-            await auth.verifyIdToken(token);
+            decodedToken = await auth.verifyIdToken(token);
         } catch (e) {
             console.error("Token verification failed:", e);
             return NextResponse.json({ ok: false, message: 'Invalid token' }, { status: 401 });
         }
 
         // 2. Parse Body
-        const { materiaalnaam, prijs_incl_btw, prijs_excl_btw, row_id, new_materiaalnaam } = await req.json();
+        const { calculation_id, data_json } = await req.json();
 
-        if ((!materiaalnaam && !row_id) || (prijs_incl_btw === undefined && prijs_excl_btw === undefined && new_materiaalnaam === undefined)) {
+        if (!calculation_id || !data_json) {
             return NextResponse.json({ ok: false, message: 'Missing required fields' }, { status: 400 });
         }
 
-        // 3. Update Supabase
-        // Build conditional update payload based on which fields are provided
-        const updatePayload: Record<string, any> = {};
-        if (prijs_incl_btw !== undefined) {
-            updatePayload.prijs_incl_btw = Number(prijs_incl_btw);
-        }
-        if (prijs_excl_btw !== undefined) {
-            updatePayload.prijs_excl_btw = Number(prijs_excl_btw);
-        }
-        if (new_materiaalnaam !== undefined && new_materiaalnaam.trim()) {
-            updatePayload.materiaalnaam = new_materiaalnaam.trim();
-        }
-        const query = supabaseAdmin.from('main_material_list').update(updatePayload);
-        const { data, error } = row_id
-            ? await query.eq('row_id', row_id).select()
-            : await query.eq('materiaalnaam', materiaalnaam).select();
+        // 3. Update Supabase using admin client (bypasses RLS)
+        const { data, error } = await supabaseAdmin
+            .from('quotes_collection')
+            .update({ data_json })
+            .eq('id', calculation_id)
+            .select();
 
         if (error) {
             console.error('Supabase update error:', error);
             return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
         }
 
-        return NextResponse.json({ ok: true, data });
+        if (!data || data.length === 0) {
+            return NextResponse.json({ ok: false, message: 'No rows updated - calculation not found' }, { status: 404 });
+        }
+
+        return NextResponse.json({ ok: true, data: data[0] });
 
     } catch (error: any) {
-        console.error('API Error /api/materialen/update-price:', error);
+        console.error('API Error /api/quotes/update-data-json:', error);
         return NextResponse.json({ ok: false, message: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }

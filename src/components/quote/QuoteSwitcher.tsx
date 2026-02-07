@@ -72,11 +72,21 @@ export function QuoteSwitcher({ currentQuoteId, currentQuoteNumber }: QuoteSwitc
         fetchQuotes();
     }, [user, firestore]);
 
-    const handleSelect = (quoteId: string) => {
-        if (quoteId !== currentQuoteId) {
-            router.push(`/offertes/${quoteId}`);
-        }
+    // Force close popover when navigating to prevent focus-scope loops
+    useEffect(() => {
         setOpen(false);
+    }, [currentQuoteId]);
+
+    const handleSelect = (quoteId: string) => {
+        // Close popover BEFORE navigation to prevent focus-scope issues
+        setOpen(false);
+
+        if (quoteId !== currentQuoteId) {
+            // Small delay to let popover close cleanly
+            setTimeout(() => {
+                router.push(`/offertes/${quoteId}`);
+            }, 50);
+        }
     };
 
     return (

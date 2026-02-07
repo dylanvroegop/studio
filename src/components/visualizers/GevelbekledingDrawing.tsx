@@ -41,9 +41,13 @@ export interface GevelbekledingDrawingProps {
     vensterbanken?: Vensterbank[];
     leidingkofen?: LeidingkoofItem[];
     latafstand?: string | number;
+    tengelafstand?: string | number;
     startLattenFromBottom?: boolean;
     latten_orientation?: 'vertical' | 'horizontal';
     doubleEndBattens?: boolean;
+    startTengelFromBottom?: boolean;
+    tengel_orientation?: 'vertical' | 'horizontal';
+    doubleEndTengels?: boolean;
     onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
 }
 
@@ -94,10 +98,15 @@ export function GevelbekledingDrawing({
     vensterbanken = [],
     leidingkofen = [],
     onLeidingkoofChange,
+    tengelafstand,
+    startTengelFromBottom,
+    tengel_orientation,
+    doubleEndTengels,
     onDataGenerated
 }: GevelbekledingDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
+    const tengelafstandNum = typeof tengelafstand === 'number' ? tengelafstand : parseFloat(String(tengelafstand)) || 0;
     const latafstandNum = typeof latafstand === 'number' ? latafstand : parseFloat(String(latafstand)) || 0;
 
     // Default standard height
@@ -539,7 +548,7 @@ export function GevelbekledingDrawing({
             widthLabel={lengteNum > 0 ? `${lengteNum}` : '---'}
             heightLabel={hStd > 0 ? `${hStd}` : '---'}
             primarySpacing={undefined}
-            gridLabel={!balkafstand ? 'Wand Vlak' : undefined}
+            gridLabel={undefined}
             suppressTotalDimensions={true}
         >
             {(ctx) => {
@@ -570,61 +579,142 @@ export function GevelbekledingDrawing({
                 }));
 
 
-                // --- LATTEN CALCULATION ---
+                // --- LATTEN + TENGEL CALCULATION ---
                 let lattenElements: React.ReactNode[] = [];
+                let tengelElements: React.ReactNode[] = [];
                 let lattenGaps: { value: number; c1: number; c2: number }[] = [];
+                let tengelGaps: { value: number; c1: number; c2: number }[] = [];
 
+                const latOrientation = latten_orientation ?? 'horizontal';
+                const tengelOrientation = tengel_orientation ?? latOrientation;
+                const latStartFromBottom = !!startLattenFromBottom;
+                const tengelStartFromBottom = (startTengelFromBottom ?? startLattenFromBottom) ? true : false;
+
+                const lattenColor = "rgb(70, 75, 85)";
+                const lattenStroke = 1;
+                const LAT_WIDTH_MM = 46;
+
+                // Solid Latten (filled)
                 if (latafstandNum > 0) {
-                    const lattenColor = "rgb(70, 75, 85)";
-                    const lattenStroke = 1;
-
-                    if (latten_orientation === 'horizontal') {
-                        // Horizontal Latten (use vertical spacing)
-                        // This logic mirrors CeilingWoodDrawing but for wall context
+                    if (latOrientation === 'horizontal') {
                         const lattenFraming = calculateGridGaps({
-                            wallLength: maxH, // height is the 'length' for horizontal distribution
+                            wallLength: maxH,
                             spacing: latafstandNum,
-                            studWidth: 46, // Standard lat
-                            startFromRight: !startLattenFromBottom
+                            studWidth: LAT_WIDTH_MM,
+                            startFromRight: !latStartFromBottom
                         });
-
-                        // Draw lines (Double Line Style)
-                        const LAT_WIDTH_MM = 46;
 
                         lattenFraming.beamCenters.forEach(cyMm => {
                             const y = getY(cyMm);
-                            // y is the center. We want to draw edges.
-                            // Note: getY is inverted or not? baseDrawingFrame: 0 is top.
-                            // getY function usually handles MM to PX and inversion.
-                            // Let's assume y is the screen Y of the center.
-
                             const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
                             const topY = y - halfWidthPx;
-                            const bottomY = y + halfWidthPx;
+                            const heightPx = halfWidthPx * 2;
 
                             if (y > startY && y < startY + rectH) {
                                 lattenElements.push(
-                                    <line
-                                        key={`lat-h-${cyMm}-top`}
-                                        x1={WALL_X} y1={topY}
-                                        x2={WALL_X + WALL_WIDTH} y2={topY}
-                                        stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4"
-                                    />
-                                );
-                                lattenElements.push(
-                                    <line
-                                        key={`lat-h-${cyMm}-btm`}
-                                        x1={WALL_X} y1={bottomY}
-                                        x2={WALL_X + WALL_WIDTH} y2={bottomY}
-                                        stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4"
+                                    <rect
+                                        key={`lat-h-${cyMm}`}
+                                        x={WALL_X}
+                                        y={topY}
+                                        width={WALL_WIDTH}
+                                        height={heightPx}
+                                        fill={lattenColor}
+                                        stroke="rgb(55, 60, 70)"
+                                        strokeWidth="0.5"
                                     />
                                 );
                             }
                         });
 
-                        // Double End Battens Logic
                         if (doubleEndBattens) {
-                            const LAT_WIDTH = 50; // Use 50 for double ends or 46? Ceiling uses 50.
+                            const LAT_WIDTH = 50;
+                            const extraTop = maxH - ((LAT_WIDTH / 2) + LAT_WIDTH);
+                            const extraBottom = (LAT_WIDTH / 2) + LAT_WIDTH;
+                            const halfWidthPx = (LAT_WIDTH * pxPerMm) / 2;
+                            const topY = getY(extraTop) - halfWidthPx;
+                            const bottomY = getY(extraBottom) - halfWidthPx;
+                            const heightPx = halfWidthPx * 2;
+
+                            if (extraTop < maxH) {
+                                lattenElements.push(
+                                    <rect key="lat-double-top" x={WALL_X} y={topY} width={WALL_WIDTH} height={heightPx} fill={lattenColor} stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                                );
+                            }
+                            if (extraBottom > 0) {
+                                lattenElements.push(
+                                    <rect key="lat-double-bottom" x={WALL_X} y={bottomY} width={WALL_WIDTH} height={heightPx} fill={lattenColor} stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                                );
+                            }
+                        }
+
+                        lattenGaps = lattenFraming.gaps.map(g => ({
+                            value: g.value,
+                            c1: getY(g.c2),
+                            c2: getY(g.c1)
+                        }));
+                    } else {
+                        const lattenFraming = calculateGridGaps({
+                            wallLength: lengteNum,
+                            spacing: latafstandNum,
+                            studWidth: LAT_WIDTH_MM,
+                            startFromRight: latStartFromBottom
+                        });
+
+                        lattenFraming.beamCenters.forEach(cxMm => {
+                            const x = WALL_X + cxMm * pxPerMm;
+                            const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
+                            const leftX = x - halfWidthPx;
+
+                            if (x > WALL_X && x < WALL_X + WALL_WIDTH) {
+                                lattenElements.push(
+                                    <rect
+                                        key={`lat-v-${cxMm}`}
+                                        x={leftX}
+                                        y={startY}
+                                        width={halfWidthPx * 2}
+                                        height={rectH}
+                                        fill={lattenColor}
+                                        stroke="rgb(55, 60, 70)"
+                                        strokeWidth="0.5"
+                                    />
+                                );
+                            }
+                        });
+
+                        lattenGaps = lattenFraming.gaps.map(g => ({
+                            value: g.value,
+                            c1: WALL_X + g.c1 * pxPerMm,
+                            c2: WALL_X + g.c2 * pxPerMm
+                        }));
+                    }
+                }
+
+                // Tengel Latten (striped)
+                if (tengelafstandNum > 0) {
+                    if (tengelOrientation === 'horizontal') {
+                        const tengelFraming = calculateGridGaps({
+                            wallLength: maxH,
+                            spacing: tengelafstandNum,
+                            studWidth: LAT_WIDTH_MM,
+                            startFromRight: !tengelStartFromBottom
+                        });
+
+                        tengelFraming.beamCenters.forEach(cyMm => {
+                            const y = getY(cyMm);
+                            const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
+                            const topY = y - halfWidthPx;
+                            const bottomY = y + halfWidthPx;
+
+                            if (y > startY && y < startY + rectH) {
+                                tengelElements.push(
+                                    <line key={`ten-h-${cyMm}-top`} x1={WALL_X} y1={topY} x2={WALL_X + WALL_WIDTH} y2={topY} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />,
+                                    <line key={`ten-h-${cyMm}-btm`} x1={WALL_X} y1={bottomY} x2={WALL_X + WALL_WIDTH} y2={bottomY} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />
+                                );
+                            }
+                        });
+
+                        if (doubleEndTengels) {
+                            const LAT_WIDTH = 50;
                             const extraTop = maxH - ((LAT_WIDTH / 2) + LAT_WIDTH);
                             const extraBottom = (LAT_WIDTH / 2) + LAT_WIDTH;
                             const yTop = getY(extraTop);
@@ -632,63 +722,47 @@ export function GevelbekledingDrawing({
                             const halfWidthPx = (LAT_WIDTH * pxPerMm) / 2;
 
                             if (extraTop < maxH) {
-                                lattenElements.push(
-                                    <line key="lat-double-top-1" x1={WALL_X} y1={yTop - halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yTop - halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />,
-                                    <line key="lat-double-top-2" x1={WALL_X} y1={yTop + halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yTop + halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />
+                                tengelElements.push(
+                                    <line key="ten-double-top-1" x1={WALL_X} y1={yTop - halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yTop - halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />,
+                                    <line key="ten-double-top-2" x1={WALL_X} y1={yTop + halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yTop + halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />
                                 );
                             }
                             if (extraBottom > 0) {
-                                lattenElements.push(
-                                    <line key="lat-double-bottom-1" x1={WALL_X} y1={yBottom - halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yBottom - halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />,
-                                    <line key="lat-double-bottom-2" x1={WALL_X} y1={yBottom + halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yBottom + halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />
+                                tengelElements.push(
+                                    <line key="ten-double-bottom-1" x1={WALL_X} y1={yBottom - halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yBottom - halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />,
+                                    <line key="ten-double-bottom-2" x1={WALL_X} y1={yBottom + halfWidthPx} x2={WALL_X + WALL_WIDTH} y2={yBottom + halfWidthPx} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />
                                 );
                             }
                         }
 
-                        // Dimensions are VERTICAL for horizontal latten
-                        lattenGaps = lattenFraming.gaps.map(g => ({
+                        tengelGaps = tengelFraming.gaps.map(g => ({
                             value: g.value,
-                            c1: getY(g.c2), // Top of gap (min Y, higher mm)
-                            c2: getY(g.c1)  // Bottom of gap (max Y, lower mm)
+                            c1: getY(g.c2),
+                            c2: getY(g.c1)
                         }));
-
                     } else {
-                        // Vertical Latten (use horizontal spacing)
-                        const lattenFraming = calculateGridGaps({
+                        const tengelFraming = calculateGridGaps({
                             wallLength: lengteNum,
-                            spacing: latafstandNum,
-                            studWidth: 46,
-                            startFromRight: startLattenFromBottom
+                            spacing: tengelafstandNum,
+                            studWidth: LAT_WIDTH_MM,
+                            startFromRight: tengelStartFromBottom
                         });
 
-                        const LAT_WIDTH_MM = 46;
-
-                        lattenFraming.beamCenters.forEach(cxMm => {
+                        tengelFraming.beamCenters.forEach(cxMm => {
                             const x = WALL_X + cxMm * pxPerMm;
                             const halfWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
                             const leftX = x - halfWidthPx;
                             const rightX = x + halfWidthPx;
 
                             if (x > WALL_X && x < WALL_X + WALL_WIDTH) {
-                                lattenElements.push(
-                                    <line
-                                        key={`lat-v-${cxMm}-l`}
-                                        x1={leftX} y1={startY}
-                                        x2={leftX} y2={startY + rectH}
-                                        stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4"
-                                    />,
-                                    <line
-                                        key={`lat-v-${cxMm}-r`}
-                                        x1={rightX} y1={startY}
-                                        x2={rightX} y2={startY + rectH}
-                                        stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4"
-                                    />
+                                tengelElements.push(
+                                    <line key={`ten-v-${cxMm}-l`} x1={leftX} y1={startY} x2={leftX} y2={startY + rectH} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />,
+                                    <line key={`ten-v-${cxMm}-r`} x1={rightX} y1={startY} x2={rightX} y2={startY + rectH} stroke={lattenColor} strokeWidth={lattenStroke} strokeDasharray="4,4" />
                                 );
                             }
                         });
 
-                        // Dimensions are HORIZONTAL for vertical latten
-                        lattenGaps = lattenFraming.gaps.map(g => ({
+                        tengelGaps = tengelFraming.gaps.map(g => ({
                             value: g.value,
                             c1: WALL_X + g.c1 * pxPerMm,
                             c2: WALL_X + g.c2 * pxPerMm
@@ -798,8 +872,9 @@ export function GevelbekledingDrawing({
                         {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
                         {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
                         {showStructure && beams.map((b, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
-                        {/* Latten Rendering */}
+                        {/* Latten + Tengel Rendering */}
                         {lattenElements}
+                        {tengelElements}
 
                         {openings.map((op) => {
                             const wPx = op.width * pxPerMm;
@@ -1032,15 +1107,20 @@ export function GevelbekledingDrawing({
 
                         {showStructure && renderGaps.length > 0 && <GridMeasurements gaps={renderGaps} svgBaseYTop={getY(maxH)} />}
 
-                        {/* Latten Measurements */}
-                        {lattenGaps.length > 0 && (
+                        {/* Latten/Tengel Measurements */}
+                        {(() => {
+                            const primaryGaps = lattenGaps.length > 0 ? lattenGaps : tengelGaps;
+                            const primaryOrientation = lattenGaps.length > 0 ? latOrientation : tengelOrientation;
+                            if (primaryGaps.length === 0) return null;
+                            return (
                             <GridMeasurements
-                                gaps={lattenGaps}
-                                orientation={latten_orientation === 'horizontal' ? 'vertical' : 'horizontal'}
+                                gaps={primaryGaps}
+                                orientation={primaryOrientation === 'horizontal' ? 'vertical' : 'horizontal'}
                                 svgBaseX={WALL_X + WALL_WIDTH} // used for vertical
                                 svgBaseYTop={getY(maxH)} // used for horizontal
                             />
-                        )}
+                            );
+                        })()}
 
                         {title && (
                             <text

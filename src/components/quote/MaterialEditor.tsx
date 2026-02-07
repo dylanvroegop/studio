@@ -1,26 +1,184 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatCurrency, MaterialItem } from '@/lib/quote-calculations';
-import { Package, AlertCircle, Plus, Check, X } from 'lucide-react';
+import { Package, AlertCircle, Plus, Check, X, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 
 interface MaterialEditorProps {
     title: string;
     items: MaterialItem[];
-    onUpdatePrice: (index: number, price: number) => void;
+    onUpdateItem: (index: number, updates: Partial<MaterialItem>) => void;
+    onRemoveItem?: (index: number) => void;
     onAddItem?: (item: MaterialItem) => void;
     subtotal: number;
     vatRate?: number;
     onAddClick?: () => void;
 }
 
-export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtotal, vatRate = 21, onAddClick }: MaterialEditorProps) {
-    const [editingIndex, setEditingIndex] = useState<number | null>(null);
-    const [editValue, setEditValue] = useState<string>('');
+interface MaterialRowProps {
+    item: MaterialItem;
+    index: number;
+    vatRate: number;
+    onUpdateItem: (index: number, updates: Partial<MaterialItem>) => void;
+    onRemoveItem?: (index: number) => void;
+    handleKeyDown: (e: React.KeyboardEvent) => void;
+}
 
-    // State for adding new item
+function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleKeyDown }: MaterialRowProps) {
+    const [localAantal, setLocalAantal] = useState<string>(item.aantal?.toString() || '');
+    const [localProduct, setLocalProduct] = useState<string>(item.product || '');
+    const [localPrijs, setLocalPrijs] = useState<string>(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+    // Sync from props if they change externally (e.g. from modal)
+    useEffect(() => {
+        setLocalAantal(item.aantal?.toString() || '');
+        setLocalProduct(item.product || '');
+        setLocalPrijs(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
+    }, [item.aantal, item.product, item.prijs_per_stuk]);
+
+    const handleAantalBlur = () => {
+        console.log('🔵 Aantal BLUR fired!', { index, localAantal, itemAantal: item.aantal });
+        const val = parseFloat(localAantal) || 0;
+        if (val !== item.aantal) {
+            console.log('🔵 Calling onUpdateItem with aantal:', { index, val, onUpdateItemType: typeof onUpdateItem });
+            onUpdateItem(index, { aantal: val });
+        } else {
+            console.log('⚪ Aantal unchanged, skipping');
+        }
+    };
+
+    const handleProductBlur = () => {
+        console.log('🟢 Product BLUR fired!', { index, localProduct, itemProduct: item.product });
+        if (localProduct !== item.product) {
+            console.log('🟢 Calling onUpdateItem with product:', { index, localProduct, onUpdateItemType: typeof onUpdateItem });
+            onUpdateItem(index, { product: localProduct });
+        } else {
+            console.log('⚪ Product unchanged, skipping');
+        }
+    };
+
+    const handlePrijsBlur = () => {
+        console.log('🟡 Prijs BLUR fired!', { index, localPrijs, itemPrijs: item.prijs_per_stuk });
+        const val = parseFloat(localPrijs.replace(',', '.')) || 0;
+        if (val !== item.prijs_per_stuk) {
+            console.log('🟡 Calling onUpdateItem with prijs:', { index, val, onUpdateItemType: typeof onUpdateItem });
+            onUpdateItem(index, { prijs_per_stuk: val });
+        } else {
+            console.log('⚪ Prijs unchanged, skipping');
+        }
+    };
+
+    const handleDelete = () => {
+        if (onRemoveItem) {
+            onRemoveItem(index);
+        }
+        setShowDeleteDialog(false);
+    };
+
+    const needsPrice = !item.prijs_per_stuk || item.prijs_per_stuk === 0;
+    const itemTotal = (item.prijs_per_stuk || 0) * (item.aantal || 0);
+
+    return (
+        <>
+            <tr className={`group transition-all duration-200 ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
+                <td className="px-6 py-3">
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            value={localAantal}
+                            onChange={(e) => setLocalAantal(e.target.value)}
+                            onBlur={handleAantalBlur}
+                            onKeyDown={handleKeyDown}
+                            placeholder="0"
+                            className="w-12 bg-transparent border-none focus:ring-1 focus:ring-emerald-500/30 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-zinc-600 text-[10px] font-bold">×</span>
+                    </div>
+                </td>
+                <td className="px-6 py-3">
+                    <input
+                        type="text"
+                        value={localProduct}
+                        onChange={(e) => setLocalProduct(e.target.value)}
+                        onBlur={handleProductBlur}
+                        onKeyDown={handleKeyDown}
+                        className="w-full bg-transparent border-none focus:ring-1 focus:ring-emerald-500/30 rounded px-1.5 py-1 text-zinc-300 text-sm hover:bg-zinc-800/40 transition-all font-medium"
+                    />
+                </td>
+                <td className="px-6 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-zinc-600 text-[10px] font-bold">€</span>
+                        <input
+                            type="text"
+                            value={localPrijs}
+                            onChange={(e) => setLocalPrijs(e.target.value)}
+                            onBlur={handlePrijsBlur}
+                            onKeyDown={handleKeyDown}
+                            placeholder="0,00"
+                            className={`w-24 bg-transparent border-none focus:ring-1 focus:ring-emerald-500/30 rounded px-1.5 py-1 text-right text-sm hover:bg-zinc-800/40 transition-all ${needsPrice ? 'text-amber-400 font-bold placeholder:text-zinc-600' : 'text-zinc-200 font-medium'}`}
+                        />
+                    </div>
+                </td>
+                <td className="px-6 py-3 text-right text-zinc-300 text-sm">
+                    {formatCurrency(itemTotal)}
+                </td>
+                <td className="px-6 py-3 text-right text-zinc-400 text-sm font-medium">
+                    {formatCurrency(itemTotal * (1 + vatRate / 100))}
+                </td>
+                {onRemoveItem && (
+                    <td className="px-6 py-3 text-right">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowDeleteDialog(true)}
+                            className="h-8 w-8 text-zinc-600 hover:text-red-400 hover:bg-red-950/20 transition-all"
+                        >
+                            <Trash2 size={14} />
+                        </Button>
+                    </td>
+                )}
+            </tr>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent className="rounded-2xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Weet je zeker dat je <span className="font-semibold text-zinc-300">{item.product || 'dit materiaal'}</span> wilt verwijderen?
+                            Deze actie kan niet ongedaan worden gemaakt.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-2">
+                        <AlertDialogCancel disabled={false} className="rounded-xl">
+                            Annuleren
+                        </AlertDialogCancel>
+                        <Button
+                            type="button"
+                            onClick={handleDelete}
+                            variant="destructiveSoft"
+                        >
+                            Verwijderen
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
+    );
+}
+
+export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAddItem, subtotal, vatRate = 21, onAddClick }: MaterialEditorProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newItem, setNewItem] = useState<Partial<MaterialItem>>({
         aantal: 1,
@@ -30,24 +188,12 @@ export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtota
 
     const itemsNeedingPrice = items.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0).length;
 
-    const handleStartEdit = (index: number, currentPrice: number) => {
-        setEditingIndex(index);
-        setEditValue(currentPrice.toString());
-    };
+    // Calculate subtotal including VAT
+    const subtotalInclVAT = subtotal * (1 + vatRate / 100);
 
-    const handleSaveEdit = (index: number) => {
-        const newPrice = parseFloat(editValue) || 0;
-        onUpdatePrice(index, newPrice);
-        setEditingIndex(null);
-        setEditValue('');
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
-            handleSaveEdit(index);
-        } else if (e.key === 'Escape') {
-            setEditingIndex(null);
-            setEditValue('');
+            (e.target as HTMLInputElement).blur();
         }
     };
 
@@ -57,7 +203,7 @@ export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtota
         if (onAddItem) {
             onAddItem({
                 aantal: Number(newItem.aantal),
-                product: newItem.product,
+                product: newItem.product || '',
                 prijs_per_stuk: Number(newItem.prijs_per_stuk) || 0
             });
         }
@@ -75,146 +221,120 @@ export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtota
     };
 
     return (
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+        <div className="bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm">
             {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-zinc-800">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-muted/20">
                 <div className="flex items-center gap-3">
-                    <Package size={18} className="text-zinc-400" />
-                    <h3 className="font-semibold text-white">{title}</h3>
-                    {itemsNeedingPrice > 0 && (
-                        <span className="flex items-center gap-1 text-yellow-400 text-sm">
-                            <AlertCircle size={14} />
-                            {itemsNeedingPrice} zonder prijs
-                        </span>
-                    )}
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                        <Package size={18} />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-foreground tracking-tight text-sm uppercase">{title}</h3>
+                        {itemsNeedingPrice > 0 && (
+                            <span className="flex items-center gap-1 text-red-600 text-[10px] font-medium uppercase mt-0.5">
+                                <AlertCircle size={10} />
+                                {itemsNeedingPrice} zonder prijs
+                            </span>
+                        )}
+                    </div>
                 </div>
-                <div className="flex items-center gap-4">
-                    <span className="text-emerald-400 font-medium">
-                        Subtotaal: {formatCurrency(subtotal)}
-                    </span>
+                <div className="flex items-center gap-6">
+                    <div className="text-right">
+                        <p className="text-[10px] text-muted-foreground uppercase font-medium">Subtotaal (excl.)</p>
+                        <p className="text-primary font-bold tracking-tight">
+                            {formatCurrency(subtotal)}
+                        </p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-[10px] text-muted-foreground uppercase font-medium">Subtotaal (incl.)</p>
+                        <p className="text-primary font-bold tracking-tight">
+                            {formatCurrency(subtotalInclVAT)}
+                        </p>
+                    </div>
+                    {/* Spacer to align with trash icon column */}
+                    {onRemoveItem && <div className="w-12" />}
                 </div>
             </div>
 
             {/* Table */}
             <div className="overflow-x-auto">
-                <table className="w-full">
-                    <thead className="bg-zinc-800/50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-zinc-400 w-20">
+                <table className="w-full border-collapse">
+                    <thead>
+                        <tr className="bg-muted/20 text-left">
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-24">
                                 Aantal
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-zinc-400">
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                                 Product
                             </th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-zinc-400 w-32">
-                                Per stuk <span className="text-xs font-normal opacity-50 block">excl. btw</span>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-36">
+                                Per stuk <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl.)</span>
                             </th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-zinc-400 w-32">
-                                Totaal <span className="text-xs font-normal opacity-50 block">excl. btw</span>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-32">
+                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl.)</span>
                             </th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-zinc-400 w-32">
-                                Totaal <span className="text-xs font-normal opacity-50 block">incl. btw</span>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-32">
+                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(incl.)</span>
                             </th>
-                            {/* Empty header column for alignment/actions if needed later */}
+                            {onRemoveItem && <th className="px-6 py-3 w-12" />}
                         </tr>
                     </thead>
-                    <tbody>
-                        {items.map((item, index) => {
-                            const needsPrice = !item.prijs_per_stuk || item.prijs_per_stuk === 0;
-                            const itemTotal = (item.prijs_per_stuk || 0) * item.aantal;
-
-                            return (
-                                <tr
-                                    key={index}
-                                    className={`border-b border-zinc-800 transition-colors ${needsPrice ? 'bg-yellow-900/10' : 'hover:bg-zinc-800/30'
-                                        }`}
-                                >
-                                    <td className="px-4 py-3 text-zinc-300 font-medium">
-                                        {item.aantal}×
-                                    </td>
-                                    <td className="px-4 py-3 text-zinc-300">
-                                        {item.product}
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                        {editingIndex === index ? (
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                value={editValue}
-                                                onChange={(e) => setEditValue(e.target.value)}
-                                                onBlur={() => handleSaveEdit(index)}
-                                                onKeyDown={(e) => handleKeyDown(e, index)}
-                                                className="w-24 bg-zinc-800 border border-emerald-500 rounded px-2 py-1 text-right text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                                autoFocus
-                                            />
-                                        ) : (
-                                            <button
-                                                onClick={() => handleStartEdit(index, item.prijs_per_stuk || 0)}
-                                                className={`px-2 py-1 rounded transition-colors ${needsPrice
-                                                    ? 'text-yellow-400 hover:bg-yellow-900/30'
-                                                    : 'text-zinc-300 hover:bg-zinc-800'
-                                                    }`}
-                                            >
-                                                {needsPrice ? '€ 0,00 ✏️' : formatCurrency(item.prijs_per_stuk || 0)}
-                                            </button>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-zinc-300">
-                                        {formatCurrency(itemTotal)}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-zinc-400">
-                                        {formatCurrency(itemTotal * (1 + vatRate / 100))}
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                    <tbody className="divide-y divide-border">
+                        {items.map((item, index) => (
+                            <MaterialRow
+                                key={`${index}-${item.product}`}
+                                item={item}
+                                index={index}
+                                vatRate={vatRate}
+                                onUpdateItem={onUpdateItem}
+                                onRemoveItem={onRemoveItem}
+                                handleKeyDown={handleKeyDown}
+                            />
+                        ))}
 
                         {/* New Item Row */}
                         {isAdding && (
-                            <tr className="bg-zinc-800/50 border-b border-zinc-800 animate-in fade-in slide-in-from-top-1 duration-200">
-                                <td className="px-4 py-3">
-                                    <Input
+                            <tr className="bg-primary/[0.02] border-t border-border animate-in fade-in slide-in-from-top-1 duration-200">
+                                <td className="px-6 py-4">
+                                    <input
                                         type="number"
                                         min="1"
-                                        value={newItem.aantal}
+                                        value={newItem.aantal || ''}
                                         onChange={(e) => setNewItem({ ...newItem, aantal: parseInt(e.target.value) || 0 })}
-                                        className="w-16 h-8 bg-zinc-900 border-zinc-700"
+                                        placeholder="0"
+                                        className="w-12 bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
                                     />
                                 </td>
-                                <td className="px-4 py-3">
-                                    <Input
+                                <td className="px-6 py-4">
+                                    <input
                                         type="text"
                                         placeholder="Product naam"
                                         value={newItem.product}
                                         onChange={(e) => setNewItem({ ...newItem, product: e.target.value })}
-                                        className="h-8 bg-zinc-900 border-zinc-700"
-                                        autoFocus
+                                        className="w-full bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
                                     />
                                 </td>
-                                <td className="px-4 py-3">
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        placeholder="Prijs"
-                                        value={newItem.prijs_per_stuk}
-                                        onChange={(e) => setNewItem({ ...newItem, prijs_per_stuk: parseFloat(e.target.value) || 0 })}
-                                        className="h-8 bg-zinc-900 border-zinc-700 text-right"
-                                    />
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <span className="text-muted-foreground text-xs">€</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0,00"
+                                            value={newItem.prijs_per_stuk === 0 ? '' : newItem.prijs_per_stuk}
+                                            onChange={(e) => setNewItem({ ...newItem, prijs_per_stuk: parseFloat(e.target.value) || 0 })}
+                                            className="w-24 bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-right text-foreground text-sm"
+                                        />
+                                    </div>
                                 </td>
-                                <td className="px-4 py-3 text-right text-zinc-500 text-sm">
-                                    -
-                                </td>
-                                <td className="px-4 py-3 text-right text-zinc-500 text-sm">
-                                    -
-                                </td>
-                                <td className="px-4 py-3 flex justify-end gap-2 items-center h-full min-h-[56px]">
+                                <td colSpan={2} />
+                                <td className="px-6 py-4 flex justify-end gap-2">
                                     <Button
                                         size="icon"
                                         variant="ghost"
                                         onClick={handleSaveNewItem}
-                                        className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-950/50"
+                                        className="h-8 w-8 text-primary hover:text-primary/80 hover:bg-primary/10"
                                         disabled={!newItem.product}
                                     >
                                         <Check size={16} />
@@ -223,7 +343,7 @@ export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtota
                                         size="icon"
                                         variant="ghost"
                                         onClick={() => setIsAdding(false)}
-                                        className="h-8 w-8 text-zinc-500 hover:text-zinc-400 hover:bg-zinc-800"
+                                        className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
                                     >
                                         <X size={16} />
                                     </Button>
@@ -236,20 +356,21 @@ export function MaterialEditor({ title, items, onUpdatePrice, onAddItem, subtota
 
             {/* Footer / Add Button */}
             {!isAdding && onAddItem && (
-                <div className="p-2 border-t border-zinc-800 bg-zinc-900/50">
+                <div className="p-3 bg-muted/20">
                     <Button
                         variant="ghost"
                         onClick={handleAddButtonClick}
-                        className="w-full h-9 text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center gap-2 justify-center border border-dashed border-zinc-800 hover:border-zinc-700"
+                        className="w-full h-10 text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-2 justify-center border border-dashed border-border hover:border-primary transition-all rounded-lg text-xs font-semibold uppercase tracking-wider"
                     >
-                        <Plus size={14} /> Rij toevoegen
+                        <Plus size={14} className="text-primary" /> Rij toevoegen
                     </Button>
                 </div>
             )}
 
             {items.length === 0 && !isAdding && (
-                <div className="p-8 text-center text-zinc-500">
-                    Geen materialen in deze categorie
+                <div className="p-12 text-center text-muted-foreground">
+                    <Package size={32} className="mx-auto mb-3 opacity-20" />
+                    <p className="text-sm">Geen materialen in deze categorie</p>
                 </div>
             )}
         </div>

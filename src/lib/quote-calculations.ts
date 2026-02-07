@@ -82,6 +82,9 @@ export type QuoteTotals = {
     totaalInclBtw: number;
 };
 
+// Backwards compatibility alias
+export type CalculationResult = QuoteTotals;
+
 // ==============================
 // Helpers
 // ==============================
@@ -110,8 +113,17 @@ function safeJsonParse(value: any): any {
 }
 
 export function unwrapRoot(payload: any): any {
-    // not-working n8n: [ { ... } ]
+    // case 1: n8n returns an array: [ { ... } ]
     if (Array.isArray(payload) && payload.length > 0) return payload[0];
+
+    // case 2: accidental spread of array into object: { "0": { ... } }
+    // We check if "0" exists and if it's the only key or if other keys are just standard metadata
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        if ('0' in payload && Object.keys(payload).length === 1) {
+            return payload['0'];
+        }
+    }
+
     return payload;
 }
 

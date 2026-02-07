@@ -1,9 +1,9 @@
 'use client';
 
 import { supabase } from '@/lib/supabase';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
-import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson } from '@/lib/quote-calculations';
+import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson, unwrapRoot } from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
 import { WorkDescriptionCard } from '@/components/quote/WorkDescriptionCard';
@@ -18,6 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
+import { formatDistanceToNow } from 'date-fns';
+import { nl } from 'date-fns/locale';
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
@@ -61,6 +63,9 @@ export default function QuotePage() {
         verbruik: MaterialItem[];
     }>({ groot: [], verbruik: [] });
 
+    // Ref to track if we're currently updating materials to prevent race conditions
+    const isUpdatingRef = useRef(false);
+
     // Refresh captured drawings when entering the PDF tab or when data changes
     useEffect(() => {
         if (activeTab !== 'pdf') return;
@@ -70,6 +75,7 @@ export default function QuotePage() {
     // State for Material Selection Modal
     const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
     const [activeCategory, setActiveCategory] = useState<'groot' | 'verbruik' | null>(null);
+    const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
 
@@ -118,6 +124,8 @@ export default function QuotePage() {
     }, [user, firestore]);
 
     // Fetch Materials for Modal
+    const [materialRefreshTrigger, setMaterialRefreshTrigger] = useState(0);
+
     useEffect(() => {
         const fetchMaterials = async () => {
             if (!user) return;
@@ -132,8 +140,10 @@ export default function QuotePage() {
                     const materialenData = (json.data || []).map((m: any) => ({
                         ...m,
                         id: m.row_id || m.id,
-                        prijs: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : 0),
-                        prijs_per_stuk: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : 0),
+                        // API already normalizes prijs to use prijs_incl_btw, so just use it directly
+                        prijs: m.prijs ?? 0,
+                        prijs_per_stuk: m.prijs ?? 0,
+                        prijs_incl_btw: m.prijs_incl_btw ?? m.prijs ?? 0,
                         // Standardization for the modal
                         materiaalnaam: m.materiaalnaam || m.naam,
                         categorie: m.categorie || m.subsectie || 'Overig',
@@ -145,7 +155,7 @@ export default function QuotePage() {
             }
         };
         fetchMaterials();
-    }, [user]);
+    }, [user, materialRefreshTrigger]);
 
     // Initialize state from calculation data (Supabase)
     useEffect(() => {
@@ -310,83 +320,211 @@ export default function QuotePage() {
     }, [id, user, isUserLoading, firestore]);
 
     // Helper to update master price via API
-    const updateMasterPrice = async (materiaalnaam: string, priceInclBtw: string) => {
+    const updateMasterPrice = async (materiaalnaam: string, priceExclBtw: number, priceInclBtw: number, rowId?: string) => {
         if (!user) return;
         try {
+            console.log('📡 [API] Calling update-price:', { materiaalnaam, priceExclBtw, priceInclBtw, rowId });
             const token = await user.getIdToken();
-            await fetch('/api/materialen/update-price', {
+            const response = await fetch('/api/materialen/update-price', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    materiaalnaam,
-                    prijs_incl_btw: priceInclBtw
+                    ...(rowId ? { row_id: rowId } : { materiaalnaam }),
+                    prijs_excl_btw: priceExclBtw.toFixed(2),
+                    prijs_incl_btw: priceInclBtw.toFixed(2)
                 })
             });
+
+            const result = await response.json();
+            console.log('📡 [API] update-price response:', {
+                ok: result.ok,
+                status: response.status,
+                rowsUpdated: result.data?.length,
+                message: result.message
+            });
+
+            if (result.data && result.data[0]) {
+                console.log('✅ [DATABASE] Material updated successfully:', {
+                    materiaalnaam: result.data[0].materiaalnaam,
+                    prijs_incl_btw: result.data[0].prijs_incl_btw,
+                    eenheid: result.data[0].eenheid,
+                    row_id: result.data[0].row_id
+                });
+                // Trigger material list refetch to show updated price
+                setMaterialRefreshTrigger(prev => prev + 1);
+            }
+
+            if (!result.ok) {
+                console.error('❌ [API] update-price failed:', result.message);
+            }
         } catch (err) {
-            console.error("Failed to update master price:", err);
+            console.error("❌ [API] Failed to update master price:", err);
         }
     };
 
-    // Handler for updating grootmaterialen prices
-    const handleUpdateGrootMateriaal = async (index: number, price: number) => {
-        const updated = [...materials.groot];
-        updated[index] = { ...updated[index], prijs_per_stuk: price };
-        setMaterials(prev => ({ ...prev, groot: updated }));
+    // Helper to update master material name via API
+    const updateMasterName = async (oldName: string, newName: string, rowId?: string): Promise<boolean> => {
+        if (!user) return false;
+        if (!oldName || !newName || oldName === newName) return false;
 
-        // Save to Supabase (Quote Data)
-        if (calculation) {
-            await updateDataJson({
-                ...calculation.data_json,
-                grootmaterialen: updated,
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/materialen/update-price', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    ...(rowId ? { row_id: rowId } : { materiaalnaam: oldName }),
+                    new_materiaalnaam: newName
+                })
             });
-        }
 
-        // Save to Supabase (Master Data - main_material_list)
-        if (updated[index].product && quoteSettings?.btwTarief) {
-            const priceIncl = price * (1 + (quoteSettings.btwTarief / 100));
-            const priceInclString = priceIncl.toFixed(2);
-            await updateMasterPrice(updated[index].product!, priceInclString);
+            const result = await response.json();
+            return result.ok === true;
+        } catch (err) {
+            console.error("Failed to update master name:", err);
+            return false;
         }
     };
 
-    // Handler for updating verbruiksartikelen prices
-    const handleUpdateVerbruiksartikel = async (index: number, price: number) => {
-        const updated = [...materials.verbruik];
-        updated[index] = { ...updated[index], prijs_per_stuk: price };
-        setMaterials(prev => ({ ...prev, verbruik: updated }));
+    // Handler for updating grootmaterialen items
+    const handleUpdateGrootItem = async (index: number, updates: Partial<MaterialItem>) => {
+        console.log('🚀 [HANDLER] handleUpdateGrootItem called:', { index, updates, hasCalc: !!calculation });
+        isUpdatingRef.current = true;
 
-        // Save to Supabase (Quote Data)
-        if (calculation) {
-            await updateDataJson({
-                ...calculation.data_json,
-                verbruiksartikelen: updated,
-            });
+        try {
+            const updated = [...materials.groot];
+            const oldItem = updated[index];
+            updated[index] = { ...updated[index], ...updates };
+            setMaterials(prev => ({ ...prev, groot: updated }));
+            console.log('✅ [HANDLER] Local state updated');
+
+            if (calculation) {
+                console.log('📤 [HANDLER] Has calculation, calling updateDataJson...');
+                const root = unwrapRoot(calculation.data_json);
+                await updateDataJson({
+                    ...root,
+                    grootmaterialen: updated,
+                    verbruiksartikelen: materials.verbruik,
+                });
+                console.log('✅ [HANDLER] updateDataJson completed');
+            } else {
+                console.error('❌ [HANDLER] NO CALCULATION - cannot save!');
+            }
+
+            // Update master material price if changed
+            if (updates.prijs_per_stuk !== undefined && updated[index].product && quoteSettings?.btwTarief) {
+                console.log('💰 [MASTER] Updating master price:', {
+                    product: updated[index].product,
+                    prijs_excl: updates.prijs_per_stuk,
+                    btw: quoteSettings.btwTarief,
+                    row_id: updated[index].row_id
+                });
+                const priceExcl = updates.prijs_per_stuk;
+                const priceIncl = priceExcl * (1 + (quoteSettings.btwTarief / 100));
+                await updateMasterPrice(updated[index].product!, priceExcl, priceIncl, updated[index].row_id);
+                setLastSyncedAt(new Date());
+                console.log('✅ [MASTER] Price update complete');
+            }
+
+            // Update master material name if changed
+            if (updates.product !== undefined && oldItem.product && updates.product !== oldItem.product) {
+                console.log('📝 [MASTER] Updating master name:', {
+                    oldName: oldItem.product,
+                    newName: updates.product,
+                    row_id: oldItem.row_id
+                });
+                const success = await updateMasterName(oldItem.product, updates.product, oldItem.row_id);
+                if (success) {
+                    setLastSyncedAt(new Date());
+                    console.log('✅ [MASTER] Name updated');
+                } else {
+                    console.log('❌ [MASTER] Name update failed');
+                }
+            }
+        } finally {
+            isUpdatingRef.current = false;
         }
+    };
 
-        // Save to Supabase (Master Data - main_material_list)
-        if (updated[index].product && quoteSettings?.btwTarief) {
-            const priceIncl = price * (1 + (quoteSettings.btwTarief / 100));
-            const priceInclString = priceIncl.toFixed(2);
-            await updateMasterPrice(updated[index].product!, priceInclString);
+    // Handler for updating verbruiksartikelen items
+    const handleUpdateVerbruiksItem = async (index: number, updates: Partial<MaterialItem>) => {
+        isUpdatingRef.current = true;
+
+        try {
+            const updated = [...materials.verbruik];
+            const oldItem = updated[index];
+            updated[index] = { ...updated[index], ...updates };
+            setMaterials(prev => ({ ...prev, verbruik: updated }));
+
+            if (calculation) {
+                const root = unwrapRoot(calculation.data_json);
+                await updateDataJson({
+                    ...root,
+                    verbruiksartikelen: updated,
+                    grootmaterialen: materials.groot,
+                });
+            }
+
+            // Update master material price if changed
+            if (updates.prijs_per_stuk !== undefined && updated[index].product && quoteSettings?.btwTarief) {
+                console.log('💰 [MASTER] Updating master price:', {
+                    product: updated[index].product,
+                    prijs_excl: updates.prijs_per_stuk,
+                    btw: quoteSettings.btwTarief,
+                    row_id: updated[index].row_id
+                });
+                const priceExcl = updates.prijs_per_stuk;
+                const priceIncl = priceExcl * (1 + (quoteSettings.btwTarief / 100));
+                await updateMasterPrice(updated[index].product!, priceExcl, priceIncl, updated[index].row_id);
+                setLastSyncedAt(new Date());
+                console.log('✅ [MASTER] Price update complete');
+            }
+
+            // Update master material name if changed
+            if (updates.product !== undefined && oldItem.product && updates.product !== oldItem.product) {
+                console.log('📝 [MASTER] Updating master name:', {
+                    oldName: oldItem.product,
+                    newName: updates.product,
+                    row_id: oldItem.row_id
+                });
+                const success = await updateMasterName(oldItem.product, updates.product, oldItem.row_id);
+                if (success) {
+                    setLastSyncedAt(new Date());
+                    console.log('✅ [MASTER] Name updated');
+                } else {
+                    console.log('❌ [MASTER] Name update failed');
+                }
+            }
+        } finally {
+            isUpdatingRef.current = false;
         }
     };
 
     const handleAddItem = async (category: 'groot' | 'verbruik', item: MaterialItem) => {
-        const listKey = category === 'groot' ? 'groot' : 'verbruik';
-        const jsonKey = category === 'groot' ? 'grootmaterialen' : 'verbruiksartikelen';
+        isUpdatingRef.current = true;
 
-        const updated = [...materials[listKey], item];
-        setMaterials(prev => ({ ...prev, [listKey]: updated }));
+        try {
+            const listKey = category === 'groot' ? 'groot' : 'verbruik';
+            const jsonKey = category === 'groot' ? 'grootmaterialen' : 'verbruiksartikelen';
 
-        // Save to Supabase
-        if (calculation) {
-            await updateDataJson({
-                ...calculation.data_json,
-                [jsonKey]: updated,
-            });
+            const updated = [...materials[listKey], item];
+            setMaterials(prev => ({ ...prev, [listKey]: updated }));
+
+            if (calculation) {
+                const root = unwrapRoot(calculation.data_json);
+                await updateDataJson({
+                    ...root,
+                    [jsonKey]: updated,
+                });
+            }
+        } finally {
+            isUpdatingRef.current = false;
         }
     };
 
@@ -844,10 +982,21 @@ export default function QuotePage() {
                             </div>
                         ) : (
                             <>
+                                {lastSyncedAt && (
+                                    <div className="flex items-center justify-end mb-4">
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Opgeslagen {formatDistanceToNow(lastSyncedAt, { addSuffix: true, locale: nl })}
+                                        </span>
+                                    </div>
+                                )}
                                 <MaterialEditor
                                     title="GROOTMATERIALEN"
                                     items={materials.groot}
-                                    onUpdatePrice={handleUpdateGrootMateriaal}
+                                    onUpdateItem={handleUpdateGrootItem}
+                                    onRemoveItem={async () => {}}
                                     onAddItem={(item) => handleAddItem('groot', item)}
                                     subtotal={grootSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
@@ -856,7 +1005,8 @@ export default function QuotePage() {
                                 <MaterialEditor
                                     title="VERBRUIKSARTIKELEN"
                                     items={materials.verbruik}
-                                    onUpdatePrice={handleUpdateVerbruiksartikel}
+                                    onUpdateItem={handleUpdateVerbruiksItem}
+                                    onRemoveItem={async () => {}}
                                     onAddItem={(item) => handleAddItem('verbruik', item)}
                                     subtotal={verbruikSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
@@ -901,6 +1051,7 @@ export default function QuotePage() {
                                     });
                                 }}
                                 onUpdateItem={async (index, newHours) => {
+                                    console.log('⏰ [UREN] Updating hours:', { index, newHours });
                                     if (!calculation || !normalizedData) return;
                                     const updatedItems = [...(normalizedData.uren_specificatie || [])];
                                     if (updatedItems[index]) {
@@ -909,11 +1060,14 @@ export default function QuotePage() {
                                         // Recalculate total hours based on the new item value
                                         const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
 
+                                        console.log('📤 [UREN] Saving to Supabase...', { newTotal, items: updatedItems.length });
+                                        const root = unwrapRoot(calculation.data_json);
                                         await updateDataJson({
-                                            ...calculation.data_json,
+                                            ...root,
                                             uren_specificatie: updatedItems,
                                             totaal_uren: newTotal
                                         });
+                                        console.log('✅ [UREN] Saved successfully');
                                     }
                                 }}
                             />

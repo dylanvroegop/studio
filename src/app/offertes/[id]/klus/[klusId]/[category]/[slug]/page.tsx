@@ -329,6 +329,7 @@ export default function GenericMeasurementPage() {
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
   const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
+  const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
   const showLeidingkoofSection = specificJobConfig.sections.includes('leidingkoof');
@@ -1721,16 +1722,16 @@ export default function GenericMeasurementPage() {
                             setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: numVal + otherVal } : it));
                           };
                           return (
-                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                            <div className="space-y-4">
                               <div className="space-y-3">
-                                <Label className="text-xs uppercase text-zinc-500">Deel 1</Label>
-                                <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} />
-                                <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                                <Label className="text-xs uppercase text-white">Deel 1</Label>
+                                <MeasurementInput placeholder="Bijv. 3000" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} />
+                                <MeasurementInput placeholder="Bijv. 2500" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
                               </div>
-                              <div className="space-y-3 pt-2 border-t border-white/5">
-                                <Label className="text-xs uppercase text-zinc-500">Deel 2</Label>
-                                <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} />
-                                <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
+                              <div className="space-y-3 pt-2">
+                                <Label className="text-xs uppercase text-white">Deel 2</Label>
+                                <MeasurementInput placeholder="Bijv. 2000" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} />
+                                <MeasurementInput placeholder="Bijv. 1500" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
                               </div>
                             </div>
                           );
@@ -1745,21 +1746,21 @@ export default function GenericMeasurementPage() {
                             setItems(prev => prev.map((it, i) => i === index ? { ...it, [key]: val, lengte: l1 + l2 + l3 } : it));
                           };
                           return (
-                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                            <div className="space-y-4">
                               <div className="space-y-3">
                                 <Label className="text-xs">Deel 1</Label>
-                                <MeasurementInput placeholder="L1" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
-                                <MeasurementInput placeholder="H1" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                                <MeasurementInput placeholder="Bijv. 1500" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
+                                <MeasurementInput placeholder="Bijv. 2000" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
                               </div>
-                              <div className="space-y-3 pt-2 border-t border-white/5">
+                              <div className="space-y-3 pt-2">
                                 <Label className="text-xs">Deel 2</Label>
-                                <MeasurementInput placeholder="L2" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
-                                <MeasurementInput placeholder="H2" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
+                                <MeasurementInput placeholder="Bijv. 2000" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
+                                <MeasurementInput placeholder="Bijv. 1200" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
                               </div>
-                              <div className="space-y-3 pt-2 border-t border-white/5">
+                              <div className="space-y-3 pt-2">
                                 <Label className="text-xs">Deel 3</Label>
-                                <MeasurementInput placeholder="L3" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
-                                <MeasurementInput placeholder="H3" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
+                                <MeasurementInput placeholder="Bijv. 1500" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
+                                <MeasurementInput placeholder="Bijv. 2000" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
                               </div>
                             </div>
                           );
@@ -1902,14 +1903,14 @@ export default function GenericMeasurementPage() {
                             )}
                             {shape === 'slope' && (
                               <>
-                                <div className="space-y-2"><Label>H. Links</Label><MeasurementInput value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
-                                <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div>
+                                <div className="space-y-2"><Label>H. Links</Label><MeasurementInput placeholder="Bijv. 2500" value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
+                                <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput placeholder="Bijv. 2500" value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div>
                               </>
                             )}
                             {shape === 'gable' && (
                               <>
-                                <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
-                                <div className="space-y-2"><Label>H. Top</Label><MeasurementInput value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
+                                <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput placeholder="Bijv. 2500" value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
+                                <div className="space-y-2"><Label>H. Top</Label><MeasurementInput placeholder="Bijv. 3000" value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
                               </>
                             )}
                             {shape === 'rectangle' && fields.find(f => f.key === 'hoogte') && (
@@ -2303,6 +2304,84 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
+
+                    {isSchutting && (
+                      <>
+
+                        {/* Paalafstand Card */}
+                        {fields.find(f => f.key === 'paalafstand') && (
+                          <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                            <div
+                              className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                              onClick={() => toggleCollapsed(`paalafstand-${index}`)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-zinc-200">Paalafstand</span>
+                                {collapsedSections[`paalafstand-${index}`] !== false && item.paalafstand > 0 && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    {item.paalafstand}mm
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-zinc-500">
+                                {collapsedSections[`paalafstand-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </div>
+                            </div>
+
+                            {collapsedSections[`paalafstand-${index}`] === false && (
+                              <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                <div className="pt-2 border-t border-white/5 space-y-4">
+                                  <DynamicInput
+                                    field={fields.find(f => f.key === 'paalafstand')!}
+                                    value={item.paalafstand}
+                                    onChange={v => updateItem(index, 'paalafstand', v)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={disabledAll}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Betonband / Onderplaten Card */}
+                        {fields.find(f => f.key === 'betonband_hoogte') && (
+                          <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                            <div
+                              className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                              onClick={() => toggleCollapsed(`betonband-${index}`)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-zinc-200">Onderplaten (Beton)</span>
+                                {collapsedSections[`betonband-${index}`] !== false && item.betonband_hoogte > 0 && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    {item.betonband_hoogte}mm
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-zinc-500">
+                                {collapsedSections[`betonband-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </div>
+                            </div>
+
+                            {collapsedSections[`betonband-${index}`] === false && (
+                              <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                <div className="pt-2 border-t border-white/5 space-y-4">
+                                  <DynamicInput
+                                    field={fields.find(f => f.key === 'betonband_hoogte')!}
+                                    value={item.betonband_hoogte}
+                                    onChange={v => updateItem(index, 'betonband_hoogte', v)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={disabledAll}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+
                     {isCeilingCategory && (
                       <>
                         {/* Latten / Profielen Configuration */}
@@ -2423,24 +2502,106 @@ export default function GenericMeasurementPage() {
                       </>
                     )}
 
+                    {/* Balken Section (Render FIRST for wanden/hsb, but NOT for Gevelbekleding/Boeiboord) */}
+                    {!isCeilingCategory && !isGevelbekleding && !isBoeiboord && fields.find(f => f.key === 'balkafstand') && (
+                      <BalkenSection
+                        balkafstand={item.balkafstand}
+                        startFromRight={item.startFromRight}
+                        doubleEndBeams={item.doubleEndBeams}
+                        doubleTopPlate={item.doubleTopPlate}
+                        doubleBottomPlate={item.doubleBottomPlate}
+                        surroundingBeams={item.surroundingBeams}
+                        optionsConfig={specificJobConfig.balkenConfig?.options}
+                        onUpdate={(key, val) => updateItem(index, key, val)}
+                        isWallCategory={isWallCategory}
+                        jobSlug={jobSlug}
+                        // Collapse default: true (collapsed)
+                        isCollapsed={collapsedSections[`balken-${index}`] !== false}
+                        onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
+                      />
+                    )}
+
                     {!isCeilingCategory && (
                       (() => {
-                        const balkenSection = fields.find(f => f.key === 'balkafstand') && (
-                          <BalkenSection
-                            balkafstand={item.balkafstand}
-                            startFromRight={item.startFromRight}
-                            doubleEndBeams={item.doubleEndBeams}
-                            doubleTopPlate={item.doubleTopPlate}
-                            doubleBottomPlate={item.doubleBottomPlate}
-                            surroundingBeams={item.surroundingBeams}
-                            optionsConfig={specificJobConfig.balkenConfig.options}
-                            onUpdate={(key, val) => updateItem(index, key, val)}
-                            isWallCategory={isWallCategory}
-                            jobSlug={jobSlug}
-                            // Collapse default: true (collapsed)
-                            isCollapsed={collapsedSections[`balken-${index}`] === true}
-                            onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
-                          />
+                        const tengelSection = isGevelbekleding && fields.find(f => f.key === 'tengelafstand') && (
+                          <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                            <div
+                              className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                              onClick={() => toggleCollapsed(`tengel-${index}`)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-zinc-200">Tengel latten</span>
+                                {collapsedSections[`tengel-${index}`] === true && item.tengelafstand > 0 && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    {item.tengelafstand}mm h.o.h
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-zinc-500">
+                                {collapsedSections[`tengel-${index}`] === true ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </div>
+                            </div>
+
+                            {collapsedSections[`tengel-${index}`] !== true && (
+                              <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                <div className="pt-2 border-t border-white/5 space-y-4">
+                                  <DynamicInput field={fields.find(f => f.key === 'tengelafstand')!} value={item.tengelafstand} onChange={v => updateItem(index, 'tengelafstand', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Startpositie</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button type="button" onClick={() => updateItem(index, 'startTengelFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startTengelFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                        Boven
+                                      </button>
+                                      <button type="button" onClick={() => updateItem(index, 'startTengelFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startTengelFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                        Onder
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Latten Richting</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateItem(index, 'tengel_orientation', 'vertical')}
+                                        className={cn(
+                                          "flex-1 text-xs py-1.5 rounded transition-colors",
+                                          item.tengel_orientation === 'vertical'
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : "text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                      >
+                                        Latten verticaal
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateItem(index, 'tengel_orientation', 'horizontal')}
+                                        className={cn(
+                                          "flex-1 text-xs py-1.5 rounded transition-colors",
+                                          (item.tengel_orientation === 'horizontal' || !item.tengel_orientation)
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : "text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                      >
+                                        Latten horizontaal
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Opties</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                        <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
+                                        <Switch checked={item.doubleEndTengels || false} onCheckedChange={(c) => updateItem(index, 'doubleEndTengels', c)} className="scale-75 origin-right" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         );
 
                         const lattenSection = fields.find(f => f.key === 'latafstand') && (
@@ -2486,7 +2647,7 @@ export default function GenericMeasurementPage() {
                                     </div>
                                   </div>
 
-                                  {isBoeiboord && (
+                                  {(isBoeiboord || isGevelbekleding) && (
                                     <div className="space-y-3">
                                       <Label className="text-xs">Latten Richting</Label>
                                       <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
@@ -2537,6 +2698,24 @@ export default function GenericMeasurementPage() {
                               </div>
                             )}
                           </div>
+                        );
+
+                        const balkenSection = fields.find(f => f.key === 'balkafstand') && (
+                          <BalkenSection
+                            balkafstand={item.balkafstand}
+                            startFromRight={item.startFromRight}
+                            doubleEndBeams={item.doubleEndBeams}
+                            doubleTopPlate={item.doubleTopPlate}
+                            doubleBottomPlate={item.doubleBottomPlate}
+                            surroundingBeams={item.surroundingBeams}
+                            optionsConfig={specificJobConfig.balkenConfig?.options}
+                            onUpdate={(key, val) => updateItem(index, key, val)}
+                            isWallCategory={isWallCategory}
+                            jobSlug={jobSlug}
+                            // Collapse default: true (collapsed)
+                            isCollapsed={collapsedSections[`balken-${index}`] !== false}
+                            onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
+                          />
                         );
 
                         if (isBoeiboord) {
@@ -2605,7 +2784,7 @@ export default function GenericMeasurementPage() {
 
                         return (
                           <>
-                            {balkenSection}
+                            {tengelSection}
                             {lattenSection}
                           </>
                         );
@@ -2649,6 +2828,25 @@ export default function GenericMeasurementPage() {
                         onUpdate={(id, updates) => onUpdateDagkant(index, id, updates)}
                         isCollapsed={collapsedSections[`dagkant-${index}`] !== false}
                         onToggleCollapsed={() => toggleCollapsed(`dagkant-${index}`)}
+                      />
+                    )}
+
+                    {/* Balken Section (non-ceiling, moved lower - ONLY for Gevelbekleding) */}
+                    {!isCeilingCategory && isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (
+                      <BalkenSection
+                        balkafstand={item.balkafstand}
+                        startFromRight={item.startFromRight}
+                        doubleEndBeams={item.doubleEndBeams}
+                        doubleTopPlate={item.doubleTopPlate}
+                        doubleBottomPlate={item.doubleBottomPlate}
+                        surroundingBeams={item.surroundingBeams}
+                        optionsConfig={specificJobConfig.balkenConfig.options}
+                        onUpdate={(key, val) => updateItem(index, key, val)}
+                        isWallCategory={isWallCategory}
+                        jobSlug={jobSlug}
+                        // Collapse default: true (collapsed)
+                        isCollapsed={collapsedSections[`balken-${index}`] === true}
+                        onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
                       />
                     )}
 
@@ -2714,11 +2912,11 @@ export default function GenericMeasurementPage() {
                     )}
 
                     {/* Extra Fields - NO SLICE, just filter out known keys and grouped fields */}
-                    {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
+                    {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
                       <div className="space-y-3 pt-4 border-t border-white/5">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
                         <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                          {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
+                          {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
                             <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                           ))}
                         </div>

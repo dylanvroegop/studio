@@ -174,7 +174,7 @@ export default function GenericSubCategoryPage() {
 
   // 6. Filtering Logic
   // We use valid category items or empty array to avoid crashes if invalid category
-  const activeItems = categoryConfig ? categoryConfig.items : [];
+  const activeItems = categoryConfig ? categoryConfig.items.filter((item) => !item.hidden) : [];
 
   const filteredItems = useMemo(() => {
     const q = zoekterm.trim().toLowerCase();

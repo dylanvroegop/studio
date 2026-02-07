@@ -127,18 +127,31 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
         }
     };
 
+    const onReadyCalledRef = useRef(false);
+
+    // Reset the ref when quote changes
+    useEffect(() => {
+        onReadyCalledRef.current = false;
+    }, [quote.id]);
+
     // 3. Render and Capture
     useEffect(() => {
         if (isLoading) return;
 
+        // Prevent calling onReady multiple times
+        if (onReadyCalledRef.current) return;
+
         // If no jobs, return empty list immediately
         if (drawingJobs.length === 0) {
+            onReadyCalledRef.current = true;
             onReady([]);
             return;
         }
 
         // Collect images - convert visualisatieUrl to base64 for PDF compatibility
         const captureTimeout = setTimeout(async () => {
+            if (onReadyCalledRef.current) return; // Double-check before async work
+
             const capturedImages: string[] = [];
             const renderJobs = drawingJobs.filter(job => !(job as any).visualisatieUrl);
 
@@ -189,11 +202,12 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
                 }
             }
 
+            onReadyCalledRef.current = true;
             onReady(capturedImages);
         }, 500);
 
         return () => clearTimeout(captureTimeout);
-    }, [isLoading, drawingJobs, onReady]);
+    }, [isLoading, drawingJobs]); // Removed onReady from dependencies
 
 
     // If loading, render nothing but keep the hook logic running

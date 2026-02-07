@@ -440,6 +440,9 @@ export default function OverzichtPage() {
   const [prijsPerKm, setPrijsPerKm] = useState('');
   const [vasteTransportkosten, setVasteTransportkosten] = useState('');
 
+  // Uurtarief
+  const [uurTarief, setUurTarief] = useState('');
+
   // Bouwplaatskosten
   const [bouwplaatskosten, setBouwplaatskosten] = useState<BouwplaatsItem[]>([]);
 
@@ -500,7 +503,9 @@ export default function OverzichtPage() {
   // Auto-save control
   const isHydratingRef = useRef(true);
   const lastSavedJsonRef = useRef<string>('');
+  const lastSavedUurtariefRef = useRef<number | null>(null);
   const saveTimerRef = useRef<any>(null);
+  const saveUurtariefTimerRef = useRef<any>(null);
 
   /* ---------------------------------------------
    Firestore refs + veilige user instellingen read/write
@@ -700,6 +705,7 @@ export default function OverzichtPage() {
         setTransportMode('perKm');
         setPrijsPerKm('');
         setVasteTransportkosten('');
+        setUurTarief(numberToEuroInputString(data.instellingen?.uurTariefExclBtw ?? 50)); // Fallback 50 if missing
         setBouwplaatskosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
 
@@ -995,6 +1001,33 @@ export default function OverzichtPage() {
     winstMarge.fixedAmount,
     winstMarge.basis,
   ]);
+
+  /* ---------------------------------------------
+   Firestore save Uurtarief (debounced)
+  --------------------------------------------- */
+  useEffect(() => {
+    if (!quote) return;
+    if (!firestore || !user) return;
+    if (isHydratingRef.current) return;
+
+    if (saveUurtariefTimerRef.current) clearTimeout(saveUurtariefTimerRef.current);
+    saveUurtariefTimerRef.current = setTimeout(async () => {
+      const val = euroNLToNumberOrNull(uurTarief);
+      if (val === null) return; // Invalid input, skip save
+      if (val === lastSavedUurtariefRef.current) return;
+
+      const ref = doc(firestore, 'quotes', quoteId);
+      await updateDoc(ref, {
+        'instellingen.uurTariefExclBtw': val,
+        updatedAt: serverTimestamp(),
+      });
+      lastSavedUurtariefRef.current = val;
+    }, 800);
+
+    return () => {
+      if (saveUurtariefTimerRef.current) clearTimeout(saveUurtariefTimerRef.current);
+    };
+  }, [quoteId, quote, firestore, user, uurTarief]);
 
   /* ---------------------------------------------
    Handlers: bouwplaatskosten (regels)
@@ -2290,6 +2323,34 @@ export default function OverzichtPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </OverzichtSection>
+          </section>
+
+          {/* Standaard Uurtarief */}
+          <section className="space-y-3">
+            <OverzichtSection
+              title="Standaard Uurtarief"
+              isCollapsed={!!collapsedSections['uurtarief']}
+              onToggle={() => toggleSection('uurtarief')}
+            >
+              <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-32">
+                    <EuroInput
+                      value={uurTarief}
+                      onChange={setUurTarief}
+                      inputClassName="bg-black/20 border-white/5 rounded-lg"
+                      placeholder="50,00"
+                    />
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    per uur (excl. btw)
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground/60">
+                  Dit tarief wordt gebruikt voor alle arbeidscalculaties in deze offerte.
+                </p>
               </div>
             </OverzichtSection>
           </section>

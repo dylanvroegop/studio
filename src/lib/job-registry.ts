@@ -156,6 +156,7 @@ export interface MaterialSection {
   categoryFilter?: string | string[];
   category?: MaterialCategoryKey;
   category_ultra_filter?: string;
+  multiEntry?: boolean;
 }
 
 export interface JobSubItem {
@@ -166,6 +167,7 @@ export interface JobSubItem {
   measurements?: MeasurementField[];
   materialSections?: MaterialSection[];
   categoryConfig?: Record<string, { title: string; order: number }>;
+  hidden?: boolean;
 }
 
 export interface CategoryConfig {
@@ -187,7 +189,7 @@ const STANDARD_FIELDS: MeasurementField[] = [
 const WALL_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm' },
 ];
 
 const HSB_VOORZETWAND_FIELDS: MeasurementField[] = [
@@ -316,8 +318,37 @@ const BOEIBOORD_FIELDS: MeasurementField[] = [
 const GEVELBEKLEDING_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2500' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm' },
+  { key: 'tengelafstand', label: 'Tengelafstand (h.o.h.) *', type: 'number', suffix: 'mm' },
   { key: 'latafstand', label: 'Latafstand (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
+];
+
+const SCHUTTING_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Totale Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 10000' },
+  { key: 'hoogte', label: 'Hoogte Schutting', type: 'number', suffix: 'mm', placeholder: 'Bijv. 1800' },
+  { key: 'paalafstand', label: 'Maat tussen palen', type: 'number', suffix: 'mm', defaultValue: 1800, group: 'constructie' },
+  {
+    key: 'type_schutting',
+    label: 'Type Schutting',
+    type: 'select',
+    options: [
+      { label: 'Recht (Planken)', value: 'planken' },
+      { label: 'Schermen', value: 'schermen' }
+    ],
+    defaultValue: 'schermen',
+    group: 'constructie'
+  },
+  {
+    key: 'plank_richting',
+    label: 'Plank Richting',
+    type: 'select',
+    options: [{ label: 'Horizontaal', value: 'horizontal' }, { label: 'Verticaal', value: 'vertical' }],
+    defaultValue: 'horizontal',
+    group: 'constructie'
+  },
+  { key: 'betonband_hoogte', label: 'Hoogte Betonband', type: 'number', suffix: 'mm', defaultValue: 100, group: 'constructie', optional: true },
+  { key: 'aantal_hoeken', label: 'Aantal Hoeken', type: 'number', suffix: 'stuks', defaultValue: 0, group: 'constructie', optional: true },
+  { key: 'poort_aanwezig', label: 'Poort Aanwezig', type: 'boolean', defaultValue: false, group: 'toegang' },
 ];
 
 // 4. MATERIAL CONFIGURATIONS (Cards)
@@ -827,7 +858,7 @@ const VLIERING_MATS: MaterialSection[] = [
 
 const DAGKANT_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '' },
-  { label: 'Afwerk Hout', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'dagkant', category_ultra_filter: '' },
+  { label: 'Afwerk Hout', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'dagkant', category_ultra_filter: '', multiEntry: true },
   { label: 'Hoek- of Stopcontactprofielen', categoryFilter: 'Gipsplaten, Overig', category: 'afwerking', key: 'hoekprofiel', category_ultra_filter: '' },
 ];
 
@@ -852,7 +883,7 @@ const OMKASTING_MATS: MaterialSection[] = [
 
 const VENSTERBANK_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '' },
-  { label: 'Vensterbank', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '' },
+  { label: 'Vensterbank', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '', multiEntry: true },
   { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'afwerking', key: 'roosters', category_ultra_filter: '' },
   { label: 'Olie, Lak of Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'behandeling', category_ultra_filter: '' },
 ];
@@ -1348,16 +1379,19 @@ const ISOLATIEGLAS_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - DAKRAMEN ==========================================
 
 const VELUX_MATS: MaterialSection[] = [
-  { label: 'Velux dakraam set', categoryFilter: 'Dakramen', category: 'vensterset', key: 'venster', category_ultra_filter: '' },
-  { label: 'Velux Venster', categoryFilter: 'Dakramen', category: 'venster', key: 'venster', category_ultra_filter: '' },
-  { label: 'Gootstukken', categoryFilter: 'Dakramen, Daktoebehoren', category: 'gootstuk', key: 'gootstuk', category_ultra_filter: '' },
-  { label: 'Interieur afwerking', categoryFilter: 'Interieur Platen, Afwerking', category: 'afwerking', key: 'betimmering', category_ultra_filter: '' },
+  { label: 'Velux dakraam set', categoryFilter: 'Dakramen', category: 'vensterset', key: 'vensterset_compleet', category_ultra_filter: '', multiEntry: true },
+  { label: 'Velux Venster', categoryFilter: 'Dakramen', category: 'venster', key: 'venster_los', category_ultra_filter: '', multiEntry: true },
+  { label: 'Gootstukken', categoryFilter: 'Dakramen, Daktoebehoren', category: 'gootstuk', key: 'gootstuk', category_ultra_filter: '', multiEntry: true },
+  { label: 'Afwerk plaat', categoryFilter: 'Interieur Platen, Afwerking', category: 'afwerking', key: 'betimmering', category_ultra_filter: '' },
+  { label: 'Plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '' },
 ];
 
 const LICHTKOEPEL_MATS: MaterialSection[] = [
-  { label: 'Lichtkoepel', categoryFilter: 'Lichtkoepels', category: 'koepel', key: 'koepel', category_ultra_filter: '' },
-  { label: 'Opstand Houtbalk of Prefab Set', categoryFilter: 'Lichtkoepels, Vuren hout', category: 'opstand', key: 'opstand', category_ultra_filter: '' },
-  { label: 'Dakbedekking', categoryFilter: 'Epdm, Dakrollen', category: 'afwerking', key: 'dakbedekking', category_ultra_filter: '' },
+  { label: 'Lichtkoepel', categoryFilter: 'Lichtkoepels', category: 'koepel', key: 'koepel', category_ultra_filter: '', multiEntry: true },
+  { label: 'Opstand Houtbalk of Prefab Set', categoryFilter: 'Lichtkoepels, Vuren hout', category: 'opstand', key: 'opstand', category_ultra_filter: '', multiEntry: true },
+  { label: 'Dakbedekking', categoryFilter: 'Epdm, Dakrollen', category: 'afwerking_dak', key: 'dakbedekking', category_ultra_filter: '' },
+  { label: 'Afwerk plaat', categoryFilter: 'Interieur Platen, Afwerking', category: 'afwerking', key: 'betimmering', category_ultra_filter: '' },
+  { label: 'Plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '' },
 ];
 
 //WATCH OUT BECAUSE THIS MIGHT NOT BE CORRECT AT ALL VVVVVVVVVVVVV
@@ -1379,7 +1413,7 @@ const CONSTRUCTIEF_MATS: MaterialSection[] = [
 
 //#region ========================================== MATERIAL SECTIONS - BEVEILIGING ==========================================
 const BEVEILIGING_MATS: MaterialSection[] = [
-  { label: 'Hang- en Sluitwerk (PKVW)', categoryFilter: 'Deurbeslag', category: 'beveiliging', key: 'hang_sluitwerk', category_ultra_filter: '' },
+  { label: 'Hang- en Sluitwerk (PKVW)', categoryFilter: 'Deurbeslag', category: 'beveiliging', key: 'hang_sluitwerk', category_ultra_filter: '', multiEntry: true },
 ];
 //#endregion
 
@@ -1661,7 +1695,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           Vlonder_Fundering: { title: 'Grondwerk & Fundering', order: 1 },
           Vlonder_Constructie: { title: 'Constructie (Onderbouw)', order: 2 },
           Vlonder_Dek: { title: 'Vlonder & Afwerking', order: 3 }
-        }
+        },
+        hidden: true
       },
 
     ],
@@ -2124,7 +2159,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Houten schutting plaatsen',
         slug: 'schutting-hout',
         measurementLabel: 'Schutting',
-        measurements: STANDARD_FIELDS,
+        measurements: SCHUTTING_FIELDS,
         materialSections: SCHUTTING_MATS,
         categoryConfig: {
           fundering: { title: 'Basis & Fundering', order: 1 },
@@ -2138,7 +2173,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Beton schutting plaatsen',
         slug: 'schutting-beton',
         measurementLabel: 'Schutting',
-        measurements: STANDARD_FIELDS,
+        measurements: SCHUTTING_FIELDS,
         materialSections: SCHUTTING_MATS,
         categoryConfig: {
           fundering: { title: 'Basis & Fundering', order: 1 },
@@ -2152,7 +2187,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Composiet schutting plaatsen',
         slug: 'schutting-composiet',
         measurementLabel: 'Schutting',
-        measurements: STANDARD_FIELDS,
+        measurements: SCHUTTING_FIELDS,
         materialSections: SCHUTTING_MATS,
         categoryConfig: {
           fundering: { title: 'Basis & Fundering', order: 1 },
@@ -2254,7 +2289,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         categoryConfig: {
           koepel: { title: 'Koepel', order: 1 },
           opstand: { title: 'Opstand', order: 2 },
-          afwerking: { title: 'Dakafwerking', order: 3 },
+          afwerking_dak: { title: 'Dakafwerking', order: 3 },
+          afwerking: { title: 'Aftimmering', order: 4 },
         },
       }
     ]

@@ -70,6 +70,7 @@ export const jobSections: Record<string, MeasurementSection[]> = {
 
     // Vloeren
     'balklaag-constructievloer': ['leidingkoof'],
+    'vliering-maken': ['openingen'],
 };
 
 export const defaultJobConfig: JobTypeConfig = {

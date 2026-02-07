@@ -103,7 +103,7 @@ export interface CeilingDrawingProps {
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
     onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
     onEdgeChange?: (side: string, value: string) => void;
-    gridLabel?: string;
+    gridLabel?: string | null;
     title?: string;
     showEdgeControls?: boolean; // Whether to show edge toggle controls
 }
@@ -365,7 +365,7 @@ export function CeilingWoodDrawing({
             secondarySpacing={latafstand}
             widthLabel={lengte > 0 ? `${lengte}` : '---'}
             heightLabel={effectiveHeight > 0 ? `${effectiveHeight}` : '---'}
-            gridLabel={gridLabel || (!balkafstand && !latafstand ? 'Plafond Vlak' : undefined)}
+            gridLabel={gridLabel === null ? undefined : (gridLabel ?? (!balkafstand && !latafstand ? 'Plafond Vlak' : undefined))}
             className={className}
             fitContainer={fitContainer}
             startFromRight={startFromRight}

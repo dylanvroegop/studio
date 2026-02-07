@@ -11,6 +11,7 @@ import { BoeiboordDrawing } from './BoeiboordDrawing';
 import { GevelbekledingDrawing } from './GevelbekledingDrawing';
 import { GlasDrawing } from './GlasDrawing';
 import { KozijnMaatwerkDrawing } from './KozijnMaatwerkDrawing';
+import { SchuttingDrawing } from './SchuttingDrawing';
 
 interface VisualizerControllerProps {
     category: string;
@@ -79,7 +80,7 @@ export function VisualizerController({
                 onLeidingkoofChange={onLeidingkoofChange}
                 onEdgeChange={onEdgeChange}
                 showEdgeControls={slug.includes('vliering')}
-                gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag')) ? 'Vloer Vlak' : undefined)}
+                gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag')) ? null : undefined)}
                 title={props.title}
             />
         );
@@ -240,6 +241,14 @@ export function VisualizerController({
                 hoogte3={item.hoogte3}
                 variant={item.variant}
                 balkafstand={balkNum}
+                latafstand={item.latafstand}
+                tengelafstand={item.tengelafstand}
+                startLattenFromBottom={item.startLattenFromBottom}
+                latten_orientation={item.latten_orientation}
+                doubleEndBattens={item.doubleEndBattens}
+                startTengelFromBottom={item.startTengelFromBottom}
+                tengel_orientation={item.tengel_orientation}
+                doubleEndTengels={item.doubleEndTengels}
                 openings={item.openings}
                 dagkanten={item.dagkanten}
                 vensterbanken={item.vensterbanken}
@@ -252,11 +261,7 @@ export function VisualizerController({
                 startFromRight={item.startFromRight}
                 title={item.subtitle || item.title}
                 doubleEndBeams={item.doubleEndBeams}
-                // Latten Props
                 latafstand={toNum(item.latafstand)}
-                latten_orientation={item.latten_orientation}
-                startLattenFromBottom={item.startLattenFromBottom}
-                doubleEndBattens={item.doubleEndBattens}
                 // Plates
                 doubleTopPlate={item.doubleTopPlate}
                 doubleBottomPlate={item.doubleBottomPlate}
@@ -312,6 +317,23 @@ export function VisualizerController({
                 title={props.title}
                 doorPosition={item.doorPosition}
                 doorSwing={item.doorSwing || 'left'}
+            />
+        );
+    }
+
+    // 3c. SCHUTTING (Fences)
+    if (slug.includes('schutting')) {
+        const toNum = (v: any, fb = 0) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || fb);
+        return (
+            <SchuttingDrawing
+                lengte={toNum(item.lengte)}
+                hoogte={toNum(item.hoogte)}
+                paalafstand={toNum(item.paalafstand, 1500)}
+                plank_richting={item.plank_richting}
+                type_schutting={item.type_schutting}
+                betonband_hoogte={toNum(item.betonband_hoogte)}
+                fitContainer={fitContainer}
+                className={className}
             />
         );
     }

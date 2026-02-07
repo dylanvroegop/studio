@@ -19,23 +19,9 @@ import { Pencil } from 'lucide-react';
 export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRate, onUpdateTotalHours }: CostSummaryCardProps) {
     const [isEditingRate, setIsEditingRate] = useState(false);
     const [tempRate, setTempRate] = useState<string>('');
-    const rateInputRef = useRef<HTMLInputElement>(null);
 
     const [isEditingHours, setIsEditingHours] = useState(false);
     const [tempHours, setTempHours] = useState<string>('');
-    const hoursInputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        if (isEditingRate && rateInputRef.current) {
-            rateInputRef.current.focus();
-        }
-    }, [isEditingRate]);
-
-    useEffect(() => {
-        if (isEditingHours && hoursInputRef.current) {
-            hoursInputRef.current.focus();
-        }
-    }, [isEditingHours]);
 
     const startEditingRate = () => {
         if (!settings) return;
@@ -74,16 +60,16 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
 
     if (!totals || !settings) {
         return (
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-                <h3 className="font-semibold text-zinc-400 text-sm mb-4">KOSTENOVERZICHT</h3>
-                <p className="text-zinc-500">Bezig met berekenen...</p>
+            <div className="bg-card rounded-lg border border-border p-6">
+                <h3 className="font-semibold text-muted-foreground text-sm mb-4">KOSTENOVERZICHT</h3>
+                <p className="text-muted-foreground">Bezig met berekenen...</p>
             </div>
         );
     }
 
     return (
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-            <h3 className="font-semibold text-zinc-400 text-sm mb-4 flex items-center gap-2">
+        <div className="bg-card rounded-lg border border-border p-6">
+            <h3 className="font-semibold text-muted-foreground text-sm mb-4 flex items-center gap-2">
                 <Euro size={14} />
                 KOSTENOVERZICHT
             </h3>
@@ -91,34 +77,34 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
             <div className="space-y-3">
                 {/* Materials */}
                 <div className="flex justify-between text-sm">
-                    <span className="text-zinc-400">Materialen (groot)</span>
-                    <span className="text-zinc-300">{formatCurrency(totals.materialenGroot)}</span>
+                    <span className="text-muted-foreground">Materialen (groot)</span>
+                    <span className="text-foreground">{formatCurrency(totals.materialenGroot)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                    <span className="text-zinc-400">Verbruiksartikelen</span>
-                    <span className="text-zinc-300">{formatCurrency(totals.materialenVerbruik)}</span>
+                    <span className="text-muted-foreground">Verbruiksartikelen</span>
+                    <span className="text-foreground">{formatCurrency(totals.materialenVerbruik)}</span>
                 </div>
 
-                <div className="border-t border-zinc-700 pt-3 flex justify-between text-sm">
-                    <span className="text-zinc-400">Subtotaal materialen</span>
-                    <span className="text-zinc-300">{formatCurrency(totals.materialenTotaal)}</span>
+                <div className="border-t border-border pt-3 flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotaal materialen</span>
+                    <span className="text-foreground">{formatCurrency(totals.materialenTotaal)}</span>
                 </div>
 
                 {/* Labor */}
                 <div className="flex justify-between text-sm">
-                    <span className="text-zinc-400 flex flex-wrap items-center gap-1">
+                    <span className="text-muted-foreground flex flex-wrap items-center gap-1">
                         Arbeid (
 
                         {/* Hours Editing */}
                         {isEditingHours ? (
                             <div className="flex items-center gap-1">
                                 <Input
-                                    ref={hoursInputRef}
+                                    autoFocus
                                     type="number"
                                     value={tempHours}
                                     onChange={(e) => setTempHours(e.target.value)}
                                     onBlur={saveHours}
-                                    className="h-6 w-16 px-1 py-0 text-sm bg-zinc-800 border-zinc-700 text-center"
+                                    className="h-6 w-16 px-1 py-0 text-sm bg-muted border-border text-center"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') saveHours();
                                         if (e.key === 'Escape') cancelEditingHours();
@@ -126,9 +112,9 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                                 />
                             </div>
                         ) : (
-                            <span className="flex items-center gap-1 cursor-pointer hover:text-zinc-200 transition-colors" onClick={startEditingHours}>
+                            <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors" onClick={startEditingHours}>
                                 {totalUren} uur
-                                <Pencil size={12} className="text-zinc-500" />
+                                <Pencil size={12} className="text-muted-foreground" />
                             </span>
                         )}
 
@@ -137,14 +123,14 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                         {/* Rate Editing */}
                         {isEditingRate ? (
                             <div className="flex items-center gap-1 ml-1">
-                                <span className="text-zinc-500">€</span>
+                                <span className="text-muted-foreground">€</span>
                                 <Input
-                                    ref={rateInputRef}
+                                    autoFocus
                                     type="number"
                                     value={tempRate}
                                     onChange={(e) => setTempRate(e.target.value)}
                                     onBlur={saveRate}
-                                    className="h-6 w-20 px-1 py-0 text-sm bg-zinc-800 border-zinc-700"
+                                    className="h-6 w-20 px-1 py-0 text-sm bg-muted border-border"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') saveRate();
                                         if (e.key === 'Escape') cancelEditingRate();
@@ -152,60 +138,60 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                                 />
                             </div>
                         ) : (
-                            <span className="flex items-center gap-1 cursor-pointer hover:text-zinc-200 transition-colors ml-1" onClick={startEditingRate}>
+                            <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors ml-1" onClick={startEditingRate}>
                                 {formatCurrency(settings.uurTariefExclBtw)}
-                                <Pencil size={12} className="text-zinc-500" />
+                                <Pencil size={12} className="text-muted-foreground" />
                             </span>
                         )}
-                        <span className="text-xs text-zinc-500 ml-1">excl. btw</span>)
+                        <span className="text-xs text-muted-foreground ml-1">excl. btw</span>)
                     </span>
-                    <span className="text-zinc-300">{formatCurrency(totals.arbeidTotaal)}</span>
+                    <span className="text-foreground">{formatCurrency(totals.arbeidTotaal)}</span>
                 </div>
 
                 {/* Transport */}
                 <div className="flex justify-between text-sm">
-                    <span className="text-zinc-400">Transport</span>
-                    <span className="text-zinc-300">{formatCurrency(totals.transportTotaal)}</span>
+                    <span className="text-muted-foreground">Transport</span>
+                    <span className="text-foreground">{formatCurrency(totals.transportTotaal)}</span>
                 </div>
 
                 {/* Subtotal */}
-                <div className="border-t border-zinc-700 pt-3 flex justify-between text-sm">
-                    <span className="text-zinc-400">Subtotaal excl. BTW</span>
-                    <span className="text-zinc-300">{formatCurrency(totals.subtotaalExclBtw)}</span>
+                <div className="border-t border-border pt-3 flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotaal excl. BTW</span>
+                    <span className="text-foreground">{formatCurrency(totals.subtotaalExclBtw)}</span>
                 </div>
 
                 {/* Margin */}
                 <div className="flex justify-between text-sm">
-                    <span className="text-zinc-400">
+                    <span className="text-muted-foreground">
                         {settings.extras.winstMarge.mode === 'percentage' ? (
                             <>
                                 Winstmarge ({settings.extras.winstMarge.percentage}%)
-                                {settings.extras.winstMarge.basis === 'materialen' && <span className="text-xs text-zinc-500 ml-1">(over mat.)</span>}
-                                {settings.extras.winstMarge.basis === 'materialen_arbeid' && <span className="text-xs text-zinc-500 ml-1">(over mat.+arb.)</span>}
+                                {settings.extras.winstMarge.basis === 'materiaal' && <span className="text-xs text-muted-foreground ml-1">(over mat.)</span>}
+                                {settings.extras.winstMarge.basis === 'arbeid' && <span className="text-xs text-muted-foreground ml-1">(over arb.)</span>}
                             </>
                         ) : (
                             <>Winstmarge (vast)</>
                         )}
                     </span>
-                    <span className="text-zinc-300">{formatCurrency(totals.winstMarge)}</span>
+                    <span className="text-foreground">{formatCurrency(totals.winstMarge)}</span>
                 </div>
 
                 {/* Total excl BTW */}
-                <div className="border-t border-zinc-700 pt-3 flex justify-between text-sm">
-                    <span className="text-zinc-400">Totaal excl. BTW</span>
-                    <span className="text-zinc-300">{formatCurrency(totals.totaalExclBtw)}</span>
+                <div className="border-t border-border pt-3 flex justify-between text-sm">
+                    <span className="text-muted-foreground">Totaal excl. BTW</span>
+                    <span className="text-foreground">{formatCurrency(totals.totaalExclBtw)}</span>
                 </div>
 
                 {/* BTW */}
                 <div className="flex justify-between text-sm">
-                    <span className="text-zinc-400">BTW ({settings.btwTarief}%)</span>
-                    <span className="text-zinc-300">{formatCurrency(totals.btw)}</span>
+                    <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
+                    <span className="text-foreground">{formatCurrency(totals.btw)}</span>
                 </div>
 
                 {/* Grand Total */}
-                <div className="border-t-2 border-emerald-500/50 pt-3 flex justify-between">
-                    <span className="font-semibold text-white">TOTAAL INCL. BTW</span>
-                    <span className="font-bold text-lg text-emerald-400">
+                <div className="border-t-2 border-primary/50 pt-3 flex justify-between">
+                    <span className="font-semibold text-foreground">TOTAAL INCL. BTW</span>
+                    <span className="font-bold text-lg text-primary">
                         {formatCurrency(totals.totaalInclBtw)}
                     </span>
                 </div>

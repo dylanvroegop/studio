@@ -193,12 +193,13 @@ export default function NewJobPage() {
     if (!quoteId || !firestore || creatingJobRef.current) return;
 
     const categoryData = JOB_REGISTRY[category.slug];
-    const hasOnlyOneItem = categoryData?.items?.length === 1;
+    const visibleItems = (categoryData?.items || []).filter((item) => !item.hidden);
+    const hasOnlyOneItem = visibleItems.length === 1;
 
-    if (hasOnlyOneItem && categoryData?.items?.[0]) {
+    if (hasOnlyOneItem && visibleItems[0]) {
       // Auto-create job for single-item categories
       creatingJobRef.current = true;
-      const singleItem = categoryData.items[0];
+      const singleItem = visibleItems[0];
 
       startTransition(() => {
         (async () => {

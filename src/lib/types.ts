@@ -211,6 +211,17 @@ export type MateriaalKeuze = Omit<Material, 'prijs'> & {
 };
 
 
+export type MultiEntryItem = {
+  id: string;
+  material: Record<string, any>;
+  aantal: number;
+};
+
+export type MultiEntrySlotValue = {
+  _multiEntry: true;
+  entries: MultiEntryItem[];
+};
+
 export type ExtraMaterial = {
   id: string;
   naam: string;

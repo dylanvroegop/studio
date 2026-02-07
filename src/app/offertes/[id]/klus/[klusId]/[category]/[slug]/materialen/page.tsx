@@ -33,6 +33,7 @@ import {
   Edit2,
   Box,
   AlertTriangle,
+  PlusCircle,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -486,6 +487,139 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
 }
 
 // ==================================
+// MULTI-ENTRY MATERIAL SLOT
+// ==================================
+
+interface MultiEntryEntry {
+  id: string;
+  material: any;
+  aantal: number;
+}
+
+interface MultiEntrySlotData {
+  _multiEntry: true;
+  entries: MultiEntryEntry[];
+}
+
+function isMultiEntrySlot(val: any): val is MultiEntrySlotData {
+  return val && val._multiEntry === true && Array.isArray(val.entries);
+}
+
+function MultiEntryMaterialSlot({
+  sectionLabel,
+  sectionKey,
+  slotData,
+  onAddEntry,
+  onEditEntry,
+  onRemoveEntry,
+  onUpdateAantal,
+}: {
+  sectionLabel: string;
+  sectionKey: string;
+  slotData: MultiEntrySlotData | null;
+  onAddEntry: () => void;
+  onEditEntry: (entryId: string) => void;
+  onRemoveEntry: (entryId: string) => void;
+  onUpdateAantal: (entryId: string, aantal: number) => void;
+}) {
+  const entries = slotData?.entries || [];
+  const [deleteConfId, setDeleteConfId] = useState<string | null>(null);
+
+  if (entries.length === 0) {
+    return (
+      <div
+        onClick={onAddEntry}
+        className="group relative flex items-center justify-between py-1.5 px-4 rounded-lg border border-border hover:bg-accent/40 transition-all cursor-pointer"
+      >
+        <span className="font-medium text-sm text-muted-foreground">{sectionLabel}</span>
+        <div className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-500 font-medium">
+          <Plus className="h-3.5 w-3.5" />
+          <span>Materiaal toevoegen</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {entries.map((entry) => (
+        <React.Fragment key={entry.id}>
+          <div
+            onClick={() => onEditEntry(entry.id)}
+            className="group relative flex flex-col sm:flex-row sm:items-center justify-between py-1.5 px-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 transition-all gap-1 sm:gap-4 cursor-pointer"
+          >
+            <div className="flex items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0">
+              <span className="font-medium text-sm text-emerald-500 truncate">
+                {entry.material?.materiaalnaam || sectionLabel}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <Input
+                  type="number"
+                  min={1}
+                  value={entry.aantal}
+                  onChange={(e) => onUpdateAantal(entry.id, Math.max(1, parseInt(e.target.value) || 1))}
+                  className="h-7 w-16 text-xs text-center"
+                />
+                <span className="text-xs text-muted-foreground">stuks</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDeleteConfId(entry.id);
+                }}
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <AlertDialog open={deleteConfId === entry.id} onOpenChange={(open) => { if (!open) setDeleteConfId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Weet je zeker dat je <strong>{entry.material?.materiaalnaam}</strong> wilt verwijderen?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel asChild onClick={(e) => { e.stopPropagation(); setDeleteConfId(null); }}>
+                  <Button variant="ghost">Annuleren</Button>
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveEntry(entry.id);
+                    setDeleteConfId(null);
+                  }}
+                  asChild
+                >
+                  <Button variant="destructiveSoft">Verwijderen</Button>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </React.Fragment>
+      ))}
+
+      {/* Green add button */}
+      <div
+        onClick={onAddEntry}
+        className="flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-dashed border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer"
+      >
+        <PlusCircle className="h-4 w-4 text-emerald-500" />
+        <span className="text-xs font-medium text-emerald-500">{sectionLabel} toevoegen</span>
+      </div>
+    </div>
+  );
+}
+
+// ==================================
 // DIALOG COMPONENTS
 // ==================================
 
@@ -771,6 +905,11 @@ export default function GenericMaterialsPageRedesigned() {
   const [missingPriceSaved, setMissingPriceSaved] = useState<Record<string, boolean>>({});
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [components, setComponents] = useState<JobComponent[]>([]);
+
+  // Multi-entry material slots state
+  // When set, the modal adds/replaces a specific entry in a multiEntry slot
+  const [activeMultiEntryKey, setActiveMultiEntryKey] = useState<string | null>(null); // section.key
+  const [activeMultiEntryId, setActiveMultiEntryId] = useState<string | null>(null); // entry id (null = adding new)
 
   // Per-component werkpakket presets
   const [componentPresets, setComponentPresets] = useState<Record<string, any[]>>({});
@@ -1510,6 +1649,9 @@ export default function GenericMaterialsPageRedesigned() {
             });
           } else {
             // New structure distribution
+            // First pass: collect multi-entry items grouped by their base sectionKey
+            const multiEntryGroups: Record<string, MultiEntryEntry[]> = {};
+
             Object.entries(materialenLijst).forEach(([key, val]: [string, any]) => {
               const legacyWaste = typeof val?.wastePercentage === 'number'
                 ? val.wastePercentage
@@ -1517,17 +1659,37 @@ export default function GenericMaterialsPageRedesigned() {
               if (legacyWaste != null) {
                 newWasteByEntryKey[key] = legacyWaste;
               }
-              // If it has a 'title' (Group title) and isn't just a material title, it's likely a custom group
-              // Standard selections don't need 'title' saved (we know the section label).
-              // Custom selections save 'title' as the Name of the group.
-              // ALSO: Standard keys match the section slugs. Custom keys are UUIDs.
-              // Let's assume keys starting with 'custom_' or being UUIDs are custom? 
-              // Support for new nested structure with sectionKey
+
+              // Detect multi-entry items by type flag or __N suffix pattern
+              if (val.type === 'multi_entry' && val.sectionKey && val.material) {
+                const baseKey = val.sectionKey;
+                if (!multiEntryGroups[baseKey]) multiEntryGroups[baseKey] = [];
+                multiEntryGroups[baseKey].push({
+                  id: crypto.randomUUID(),
+                  material: val.material,
+                  aantal: typeof val.aantal === 'number' ? val.aantal : 1,
+                });
+                return;
+              }
+
+              // Also detect by __N suffix (backward compat)
+              const multiMatch = key.match(/^(.+)__(\d+)$/);
+              if (multiMatch && val.material && val.sectionKey) {
+                const baseKey = val.sectionKey;
+                if (!multiEntryGroups[baseKey]) multiEntryGroups[baseKey] = [];
+                multiEntryGroups[baseKey].push({
+                  id: crypto.randomUUID(),
+                  material: val.material,
+                  aantal: typeof val.aantal === 'number' ? val.aantal : 1,
+                });
+                return;
+              }
+
+              // Standard selections
               if (val.material && val.sectionKey) {
-                // It's a standard selection in the new format
                 newGekozen[val.sectionKey] = val.material;
               }
-              // Support for custom groups (check for title/order)
+              // Custom groups
               else if (val.order !== undefined || val.title) {
                 newCustomGroupsMap[key] = val;
               }
@@ -1535,6 +1697,11 @@ export default function GenericMaterialsPageRedesigned() {
               else {
                 newGekozen[key] = val;
               }
+            });
+
+            // Reconstruct multi-entry slot values
+            Object.entries(multiEntryGroups).forEach(([baseKey, entries]) => {
+              newGekozen[baseKey] = { _multiEntry: true, entries } as MultiEntrySlotData;
             });
           }
 
@@ -1606,6 +1773,11 @@ export default function GenericMaterialsPageRedesigned() {
       let changed = false;
       Object.keys(prev).forEach(k => {
         const val = prev[k];
+        // Skip multi-entry slots - they manage their own material references
+        if (isMultiEntrySlot(val)) {
+          next[k] = val;
+          return;
+        }
         // Only try to link back if we have an ID.
         // If we don't have an ID (new clean format), we just use the preserved values.
         if (val && val.id && !val.materiaalnaam) {
@@ -1872,6 +2044,55 @@ export default function GenericMaterialsPageRedesigned() {
   const openMateriaalKiezer = (sectieKey: string, groupId: string | null = null) => { setActieveSectie(sectieKey); setActiveGroupId(groupId); setIsExtraModalOpen(true); };
   const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({ ...prev, [key]: materiaal })); };
   const handleMateriaalVerwijderen = (key: string) => { setGekozenMaterialen(prev => { const n = { ...prev }; delete n[key]; return n; }); };
+
+  // Multi-entry handlers
+  const handleMultiEntryAdd = (sectionKey: string, materiaal: any) => {
+    setGekozenMaterialen(prev => {
+      const current = prev[sectionKey];
+      const entries: MultiEntryEntry[] = isMultiEntrySlot(current) ? [...current.entries] : [];
+      entries.push({ id: crypto.randomUUID(), material: materiaal, aantal: 1 });
+      return { ...prev, [sectionKey]: { _multiEntry: true, entries } as MultiEntrySlotData };
+    });
+  };
+
+  const handleMultiEntryEdit = (sectionKey: string, entryId: string, materiaal: any) => {
+    setGekozenMaterialen(prev => {
+      const current = prev[sectionKey];
+      if (!isMultiEntrySlot(current)) return prev;
+      const entries = current.entries.map(e => e.id === entryId ? { ...e, material: materiaal } : e);
+      return { ...prev, [sectionKey]: { _multiEntry: true, entries } as MultiEntrySlotData };
+    });
+  };
+
+  const handleMultiEntryRemove = (sectionKey: string, entryId: string) => {
+    setGekozenMaterialen(prev => {
+      const current = prev[sectionKey];
+      if (!isMultiEntrySlot(current)) return prev;
+      const entries = current.entries.filter(e => e.id !== entryId);
+      if (entries.length === 0) {
+        const n = { ...prev };
+        delete n[sectionKey];
+        return n;
+      }
+      return { ...prev, [sectionKey]: { _multiEntry: true, entries } as MultiEntrySlotData };
+    });
+  };
+
+  const handleMultiEntryAantal = (sectionKey: string, entryId: string, aantal: number) => {
+    setGekozenMaterialen(prev => {
+      const current = prev[sectionKey];
+      if (!isMultiEntrySlot(current)) return prev;
+      const entries = current.entries.map(e => e.id === entryId ? { ...e, aantal } : e);
+      return { ...prev, [sectionKey]: { _multiEntry: true, entries } as MultiEntrySlotData };
+    });
+  };
+
+  const openMultiEntryModal = (sectionKey: string, entryId: string | null = null) => {
+    setActiveMultiEntryKey(sectionKey);
+    setActiveMultiEntryId(entryId);
+    setActieveSectie(sectionKey);
+    setIsExtraModalOpen(true);
+  };
 
   const suggestBetterBeam = useCallback((sectionKey: string) => {
     if (!beamHeightWarning || !alleMaterialen.length) return;
@@ -2298,6 +2519,28 @@ export default function GenericMaterialsPageRedesigned() {
       // A. Standard Selections (Base Job)
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
         if (k.startsWith('component_')) return;
+
+        // Handle multi-entry slots
+        if (isMultiEntrySlot(v)) {
+          v.entries.forEach((entry, idx) => {
+            const cleaned = cleanMaterialData(entry.material);
+            if (cleaned) {
+              const indexedKey = `${k}__${idx}`;
+              materialenLijst[indexedKey] = {
+                sectionKey: k,
+                material: cleaned,
+                aantal: entry.aantal,
+                context: JOB_TITEL,
+                type: 'multi_entry',
+                wastePercentage: typeof wasteByEntryKey[indexedKey] === 'number'
+                  ? wasteByEntryKey[indexedKey]
+                  : getDefaultWastePercentage(k, sectionLabelByKey[k], JOB_TITEL)
+              };
+            }
+          });
+          return;
+        }
+
         const cleaned = cleanMaterialData(v);
         if (cleaned) {
           // Rule: If boeiboord is mirrored, double the quantity (aantal) for standard materials
@@ -2365,9 +2608,24 @@ export default function GenericMaterialsPageRedesigned() {
         return { ...c, materials: componentMaterials };
       });
 
+      // Auto-sync maatwerk.aantal with sum of multi-entry quantities
+      let syncedBaseItems = baseItems;
+      const multiEntryTotalAantal = Object.values(gekozenMaterialen).reduce((sum, v) => {
+        if (isMultiEntrySlot(v)) {
+          return sum + v.entries.reduce((s: number, e: MultiEntryEntry) => s + (e.aantal || 0), 0);
+        }
+        return sum;
+      }, 0);
+
+      if (multiEntryTotalAantal > 0 && Array.isArray(baseItems) && baseItems.length > 0) {
+        syncedBaseItems = baseItems.map((item: any, idx: number) =>
+          idx === 0 ? { ...item, aantal: multiEntryTotalAantal } : item
+        );
+      }
+
       const updatePayload: any = {
         [`klussen.${klusId}.maatwerk`]: JSON.parse(JSON.stringify({
-          basis: baseItems,
+          basis: syncedBaseItems,
           toevoegingen: mappedComponents.map((c: any) => ({
             id: c.id,
             type: c.type,
@@ -2458,6 +2716,18 @@ export default function GenericMaterialsPageRedesigned() {
     // 1. Standard selections from gekozenMaterialen
     Object.values(gekozenMaterialen).forEach((v: any) => {
       if (!v) return;
+      // Handle multi-entry slots
+      if (isMultiEntrySlot(v)) {
+        v.entries.forEach((entry: MultiEntryEntry) => {
+          const source = entry.material?._raw || entry.material;
+          if (!source) return;
+          const id = source.row_id || source.id || source.materiaalnaam;
+          if (!id || seenKeys.has(String(id))) return;
+          seenKeys.add(String(id));
+          allMaterials.push(source);
+        });
+        return;
+      }
       const source = v._raw || v;
       const id = source.row_id || source.id || source.materiaalnaam;
       if (!id || seenKeys.has(String(id))) return;
@@ -2764,13 +3034,22 @@ export default function GenericMaterialsPageRedesigned() {
                             isHidden ? "text-muted-foreground" : "text-foreground"
                           )} style={{ letterSpacing: '0.05em' }}>{categoryInfo.title}</h2>
                           {isHidden && (() => {
-                            const filledSections = sections.filter((s: any) => gekozenMaterialen[s.key]?.materiaalnaam);
+                            const filledSections = sections.filter((s: any) => {
+                              const val = gekozenMaterialen[s.key];
+                              return val?.materiaalnaam || (isMultiEntrySlot(val) && val.entries.length > 0);
+                            });
                             if (filledSections.length === 0) return null;
-                            return filledSections.map((s: any) => (
-                              <span key={s.key} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-medium normal-case tracking-normal truncate max-w-[180px] animate-in fade-in slide-in-from-left-2">
-                                {gekozenMaterialen[s.key].materiaalnaam}
-                              </span>
-                            ));
+                            return filledSections.map((s: any) => {
+                              const val = gekozenMaterialen[s.key];
+                              const label = isMultiEntrySlot(val)
+                                ? `${val.entries.length}x ${s.label}`
+                                : val.materiaalnaam;
+                              return (
+                                <span key={s.key} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-medium normal-case tracking-normal truncate max-w-[180px] animate-in fade-in slide-in-from-left-2">
+                                  {label}
+                                </span>
+                              );
+                            });
                           })()}
                         </div>
                       )}
@@ -2938,41 +3217,55 @@ export default function GenericMaterialsPageRedesigned() {
                             <>
                               {sections.map(section => (
                                 <React.Fragment key={section.key}>
-                                  <MaterialRow
-                                    label={section.label}
-                                    selected={gekozenMaterialen[section.key]}
-                                    onClick={() => openMateriaalKiezer(section.key)}
-                                    onRemove={() => handleMateriaalVerwijderen(section.key)}
-                                  />
-                                  {/* Beam Height Warning - shows after staanders selection */}
-                                  {['staanders_en_liggers', 'regelwerk_hoofd', 'ms_staanders'].includes(section.key) && beamHeightWarning && (
-                                    <div className="mx-1 mb-2 p-3 rounded-lg border bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700/50 animate-in fade-in slide-in-from-top-1 duration-200">
-                                      <div className="flex items-start gap-2.5">
-                                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
-                                            {beamHeightWarning.isTooShort ? 'Balk te kort' : 'Controleer balkhoogte'}
-                                          </p>
-                                          <p className="text-xs text-amber-700/80 dark:text-amber-500/70 mt-0.5 leading-relaxed">
-                                            De wandhoogte is <strong>{beamHeightWarning.wallHeight}mm</strong> en de gekozen balken zijn{' '}
-                                            <strong>{beamHeightWarning.beamLength}mm</strong>.
-                                            {beamHeightWarning.isTooShort && (
-                                              <> Dit is <strong className="text-red-600">{beamHeightWarning.missingLength}mm te kort</strong>.</>
-                                            )}
-                                            {' '}Is dit correct?
-                                          </p>
+                                  {section.multiEntry ? (
+                                    <MultiEntryMaterialSlot
+                                      sectionLabel={section.label}
+                                      sectionKey={section.key}
+                                      slotData={isMultiEntrySlot(gekozenMaterialen[section.key]) ? gekozenMaterialen[section.key] : null}
+                                      onAddEntry={() => openMultiEntryModal(section.key, null)}
+                                      onEditEntry={(entryId) => openMultiEntryModal(section.key, entryId)}
+                                      onRemoveEntry={(entryId) => handleMultiEntryRemove(section.key, entryId)}
+                                      onUpdateAantal={(entryId, aantal) => handleMultiEntryAantal(section.key, entryId, aantal)}
+                                    />
+                                  ) : (
+                                    <>
+                                      <MaterialRow
+                                        label={section.label}
+                                        selected={gekozenMaterialen[section.key]}
+                                        onClick={() => openMateriaalKiezer(section.key)}
+                                        onRemove={() => handleMateriaalVerwijderen(section.key)}
+                                      />
+                                      {/* Beam Height Warning - shows after staanders selection */}
+                                      {['staanders_en_liggers', 'regelwerk_hoofd', 'ms_staanders'].includes(section.key) && beamHeightWarning && (
+                                        <div className="mx-1 mb-2 p-3 rounded-lg border bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700/50 animate-in fade-in slide-in-from-top-1 duration-200">
+                                          <div className="flex items-start gap-2.5">
+                                            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                                                {beamHeightWarning.isTooShort ? 'Balk te kort' : 'Controleer balkhoogte'}
+                                              </p>
+                                              <p className="text-xs text-amber-700/80 dark:text-amber-500/70 mt-0.5 leading-relaxed">
+                                                De wandhoogte is <strong>{beamHeightWarning.wallHeight}mm</strong> en de gekozen balken zijn{' '}
+                                                <strong>{beamHeightWarning.beamLength}mm</strong>.
+                                                {beamHeightWarning.isTooShort && (
+                                                  <> Dit is <strong className="text-red-600">{beamHeightWarning.missingLength}mm te kort</strong>.</>
+                                                )}
+                                                {' '}Is dit correct?
+                                              </p>
+                                            </div>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className="h-8 bg-amber-100 border-amber-300 text-amber-900 hover:bg-emerald-100 hover:text-emerald-900 hover:border-emerald-300 transition-colors shrink-0"
+                                              onClick={() => suggestBetterBeam(section.key)}
+                                            >
+                                              <Sparkles className="mr-2 h-3.5 w-3.5" />
+                                              Balk aanpassen
+                                            </Button>
+                                          </div>
                                         </div>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-8 bg-amber-100 border-amber-300 text-amber-900 hover:bg-emerald-100 hover:text-emerald-900 hover:border-emerald-300 transition-colors shrink-0"
-                                          onClick={() => suggestBetterBeam(section.key)}
-                                        >
-                                          <Sparkles className="mr-2 h-3.5 w-3.5" />
-                                          Balk aanpassen
-                                        </Button>
-                                      </div>
-                                    </div>
+                                      )}
+                                    </>
                                   )}
                                 </React.Fragment>
                               ))}
@@ -3280,6 +3573,8 @@ export default function GenericMaterialsPageRedesigned() {
             setActiveComponentId(null);
             setActieveSectie(null);
             setActiveGroupId(null);
+            setActiveMultiEntryKey(null);
+            setActiveMultiEntryId(null);
           }
         }}
         onUpdateWaste={(newWaste) => {
@@ -3351,6 +3646,15 @@ export default function GenericMaterialsPageRedesigned() {
           } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
             setActiveGroupId(null);
+          } else if (activeMultiEntryKey && actieveSectie) {
+            if (activeMultiEntryId) {
+              handleMultiEntryEdit(activeMultiEntryKey, activeMultiEntryId, converted);
+            } else {
+              handleMultiEntryAdd(activeMultiEntryKey, converted);
+            }
+            setActiveMultiEntryKey(null);
+            setActiveMultiEntryId(null);
+            setActieveSectie(null);
           } else if (actieveSectie) {
             handleMateriaalSelectie(actieveSectie, converted);
             setActieveSectie(null);
@@ -3371,6 +3675,15 @@ export default function GenericMaterialsPageRedesigned() {
           } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
             setActiveGroupId(null);
+          } else if (activeMultiEntryKey && actieveSectie) {
+            if (activeMultiEntryId) {
+              handleMultiEntryEdit(activeMultiEntryKey, activeMultiEntryId, converted);
+            } else {
+              handleMultiEntryAdd(activeMultiEntryKey, converted);
+            }
+            setActiveMultiEntryKey(null);
+            setActiveMultiEntryId(null);
+            setActieveSectie(null);
           } else if (actieveSectie) {
             handleMateriaalSelectie(actieveSectie, converted);
             setActieveSectie(null);

@@ -36,7 +36,9 @@ export async function GET(req: Request) {
     const normalized = Array.isArray(data)
       ? data.map((row: any) => ({
           ...row,
-          prijs: row?.prijs ?? row?.prijs_incl_btw ?? null,
+          // Prioritize prijs_incl_btw since that's what we're actively updating
+          prijs: row?.prijs_incl_btw ?? row?.prijs ?? null,
+          prijs_incl_btw: row?.prijs_incl_btw ?? null,
           subsectie: row?.subsectie ?? row?.categorie ?? null,
         }))
       : data;
