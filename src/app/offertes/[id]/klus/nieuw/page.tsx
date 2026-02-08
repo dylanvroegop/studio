@@ -286,7 +286,7 @@ export default function NewJobPage() {
       </div>
 
       {/* CONTENT */}
-      <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-24 space-y-6">
+      <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-40 space-y-6">
 
         {/* FAVORIETEN */}
         {visibleFavorieten.length > 0 && (

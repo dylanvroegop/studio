@@ -194,7 +194,7 @@ export default function InstellingenPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background pb-20">
+        <div className="min-h-screen bg-background pb-40">
             <DashboardHeader user={user} title="Instellingen" />
 
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">

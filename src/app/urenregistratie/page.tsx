@@ -470,7 +470,7 @@ export default function UrenRegistratiePage() {
     const needsQuoteSelection = !selectedQuoteId || selectedQuoteId === 'none';
 
     return (
-        <div className="min-h-screen pb-24 bg-background">
+        <div className="min-h-screen pb-40 bg-background">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold flex items-center gap-2">

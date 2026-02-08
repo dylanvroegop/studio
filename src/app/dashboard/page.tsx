@@ -522,7 +522,7 @@ export default function Dashboard() {
       <div className="min-h-screen">
         <DashboardHeader user={user} title="Dashboard" />
 
-        <main className="flex flex-col items-center p-4 md:px-6 md:pt-6 pb-32">
+        <main className="flex flex-col items-center p-4 md:px-6 md:pt-6 pb-40">
           <div className="w-full max-w-3xl space-y-14">
             <div className="px-1">
               <div className="text-3xl font-light tracking-tight">{begroeting}</div>

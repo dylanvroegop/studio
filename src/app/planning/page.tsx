@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { DashboardHeader } from '@/components/DashboardHeader';
@@ -15,21 +15,46 @@ import { TimelineView, PlanningEntry } from '@/lib/types-planning';
 import { getDateRangeForView, getDaysInRange, formatDateHeader } from '@/lib/planning-utils';
 import { PlanningGrid } from '@/components/planning/PlanningGrid';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
+import { SchedulingBanner } from '@/components/planning/SchedulingBanner';
 import { format, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { DEFAULT_PLANNING_SETTINGS, PlanningSettings } from '@/lib/types-planning';
+import { useToast } from '@/hooks/use-toast';
+
+interface Quote {
+  id: string;
+  titel?: string;
+  klantinformatie?: {
+    voornaam?: string;
+    achternaam?: string;
+    bedrijfsnaam?: string;
+  };
+  offerteNummer?: number;
+}
 
 export default function PlanningPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const { toast } = useToast();
 
-    const [view, setView] = useState<TimelineView>('week');
+    // Extract URL parameters for scheduling mode
+    const schedulingMode = searchParams?.get('mode') === 'schedule';
+    const schedulingQuoteId = searchParams?.get('quoteId') || '';
+    const schedulingHours = Number(searchParams?.get('hours')) || 0;
+    const urlView = searchParams?.get('view') as TimelineView;
+
+    const [view, setView] = useState<TimelineView>(urlView || 'week');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<PlanningEntry | null>(null);
     const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
+    const [schedulingQuote, setSchedulingQuote] = useState<Quote | null>(null);
+    const [isLoadingSchedulingQuote, setIsLoadingSchedulingQuote] = useState(false);
+    const [preselectedDate, setPreselectedDate] = useState<Date | undefined>();
+    const [preselectedEmployee, setPreselectedEmployee] = useState<string | undefined>();
 
     const { employees, isLoading: isLoadingEmployees, autoCreateSelf, isAutoCreating } = useEmployees();
 
@@ -59,6 +84,42 @@ export default function PlanningPage() {
 
         fetchSettings();
     }, [user, firestore]);
+
+    // Fetch quote when in scheduling mode
+    useEffect(() => {
+        if (!schedulingMode || !schedulingQuoteId || !user || !firestore) {
+            setSchedulingQuote(null);
+            return;
+        }
+
+        const fetchQuote = async () => {
+            setIsLoadingSchedulingQuote(true);
+            try {
+                const quoteDoc = await getDoc(doc(firestore, 'quotes', schedulingQuoteId));
+                if (quoteDoc.exists() && quoteDoc.data()?.userId === user.uid) {
+                    setSchedulingQuote({ id: quoteDoc.id, ...quoteDoc.data() } as Quote);
+                } else {
+                    toast({
+                        title: 'Offerte niet gevonden',
+                        description: 'Deze offerte bestaat niet of is van een andere gebruiker.',
+                        variant: 'destructive'
+                    });
+                    router.push('/planning');
+                }
+            } catch (error) {
+                console.error('Error fetching scheduling quote:', error);
+                toast({
+                    title: 'Fout bij ophalen offerte',
+                    variant: 'destructive'
+                });
+                router.push('/planning');
+            } finally {
+                setIsLoadingSchedulingQuote(false);
+            }
+        };
+
+        fetchQuote();
+    }, [schedulingMode, schedulingQuoteId, user, firestore, toast, router]);
 
     const navigateDate = (direction: 'prev' | 'next' | 'today') => {
         if (direction === 'today') {
@@ -98,8 +159,19 @@ export default function PlanningPage() {
     };
 
     const handleEmptyCellClick = (date: Date, employeeId: string) => {
-        setSelectedEntry(null);
-        setIsScheduleModalOpen(true);
+        if (schedulingMode) {
+            setPreselectedDate(date);
+            setPreselectedEmployee(employeeId);
+            setSelectedEntry(null);
+            setIsScheduleModalOpen(true);
+        } else {
+            setSelectedEntry(null);
+            setIsScheduleModalOpen(true);
+        }
+    };
+
+    const handleCancelScheduling = () => {
+        router.push('/planning');
     };
 
     const handleEntryDrop = async (entryId: string, newStart: Date, newEmployeeId: string) => {
@@ -184,7 +256,21 @@ export default function PlanningPage() {
         <div className="min-h-screen bg-background flex flex-col">
             <DashboardHeader user={user} title="Planning" />
 
-            <div className="flex-1 flex flex-col p-4 pb-24 space-y-4 overflow-hidden">
+            <div className="flex-1 flex flex-col p-4 pb-40 space-y-4 overflow-hidden">
+                {/* Scheduling Mode Banner */}
+                {schedulingMode && schedulingQuote && (
+                    <SchedulingBanner
+                        clientName={
+                            schedulingQuote.klantinformatie?.bedrijfsnaam ||
+                            `${schedulingQuote.klantinformatie?.voornaam || ''} ${schedulingQuote.klantinformatie?.achternaam || ''}`.trim() ||
+                            'Onbekend'
+                        }
+                        offerteNummer={String(schedulingQuote.offerteNummer || '')}
+                        hours={schedulingHours}
+                        onCancel={handleCancelScheduling}
+                    />
+                )}
+
                 {/* Controls */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
@@ -273,6 +359,7 @@ export default function PlanningPage() {
                         onEntryDrop={handleEntryDrop}
                         onEntryResize={handleEntryResize}
                         onEmptyCellClick={handleEmptyCellClick}
+                        schedulingMode={schedulingMode}
                     />
                 )}
             </div>
@@ -282,11 +369,20 @@ export default function PlanningPage() {
                 onClose={() => {
                     setIsScheduleModalOpen(false);
                     setSelectedEntry(null);
+                    setPreselectedDate(undefined);
+                    setPreselectedEmployee(undefined);
+                    if (schedulingMode) {
+                        router.push('/planning');
+                    }
                 }}
                 employees={employees}
                 planningSettings={planningSettings}
                 view={view}
                 existingEntry={selectedEntry}
+                preselectedQuote={schedulingMode ? schedulingQuote : undefined}
+                preselectedHours={schedulingMode ? schedulingHours : undefined}
+                preselectedDate={preselectedDate}
+                preselectedEmployee={preselectedEmployee}
             />
 
             <BottomNav />

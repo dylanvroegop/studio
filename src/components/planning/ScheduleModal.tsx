@@ -51,6 +51,8 @@ interface ScheduleModalProps {
     preselectedQuote?: Quote;
     preselectedHours?: number;
     existingEntry?: PlanningEntry | null;
+    preselectedDate?: Date;
+    preselectedEmployee?: string;
 }
 
 export function ScheduleModal({
@@ -61,7 +63,9 @@ export function ScheduleModal({
     view,
     preselectedQuote,
     preselectedHours,
-    existingEntry
+    existingEntry,
+    preselectedDate,
+    preselectedEmployee
 }: ScheduleModalProps) {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -74,8 +78,12 @@ export function ScheduleModal({
     const [pendingSave, setPendingSave] = useState(false);
 
     const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
-    const [startDate, setStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(preselectedEmployee || '');
+    const [startDate, setStartDate] = useState<string>(
+        preselectedDate
+            ? format(preselectedDate, 'yyyy-MM-dd')
+            : format(new Date(), 'yyyy-MM-dd')
+    );
     const [startTime, setStartTime] = useState<string>(planningSettings.defaultStartTime);
     const [endTime, setEndTime] = useState<string>(planningSettings.defaultEndTime);
     const [totalHours, setTotalHours] = useState<number>(0);
@@ -384,6 +392,8 @@ export function ScheduleModal({
                     <DialogDescription>
                         {existingEntry
                             ? 'Pas de planning aan of verwijder deze.'
+                            : preselectedQuote && preselectedDate
+                            ? `Plan in op ${format(new Date(startDate), 'd MMMM yyyy', { locale: nl })}`
                             : 'Plan een offerte in voor een uitvoerder.'}
                     </DialogDescription>
                 </DialogHeader>

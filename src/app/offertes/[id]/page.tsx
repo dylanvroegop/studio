@@ -17,7 +17,7 @@ import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLef
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Button } from "@/components/ui/button";
@@ -26,17 +26,15 @@ import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
-import { ScheduleModal } from '@/components/planning/ScheduleModal';
 import { QuoteSwitcher } from '@/components/quote/QuoteSwitcher';
-import { useEmployees } from '@/hooks/useEmployees';
 import { BottomNav } from '@/components/BottomNav';
-import { DEFAULT_PLANNING_SETTINGS, PlanningSettings } from '@/lib/types-planning';
 
 import { Quote } from "@/lib/types";
 
 export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
+    const router = useRouter();
 
     // Fetch calculation data from Supabase
     const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id);
@@ -86,11 +84,6 @@ export default function QuotePage() {
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
-
-    // Planning Modal State
-    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-    const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
-    const { employees } = useEmployees();
 
     // PDF Generation State
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -862,7 +855,15 @@ export default function QuotePage() {
                             Download
                         </button>
                         <button
-                            onClick={() => setIsScheduleModalOpen(true)}
+                            onClick={() => {
+                                const params = new URLSearchParams({
+                                    mode: 'schedule',
+                                    quoteId: id,
+                                    hours: String(normalizedData?.totaal_uren || 0),
+                                    view: 'week'
+                                });
+                                router.push(`/planning?${params.toString()}`);
+                            }}
                             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border"
                             disabled={!normalizedData?.totaal_uren}
                         >
@@ -887,7 +888,7 @@ export default function QuotePage() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-24">
+            <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-40">
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
@@ -1004,7 +1005,7 @@ export default function QuotePage() {
                                     title="GROOTMATERIALEN"
                                     items={materials.groot}
                                     onUpdateItem={handleUpdateGrootItem}
-                                    onRemoveItem={async () => {}}
+                                    onRemoveItem={async () => { }}
                                     onAddItem={(item) => handleAddItem('groot', item)}
                                     subtotal={grootSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
@@ -1014,7 +1015,7 @@ export default function QuotePage() {
                                     title="VERBRUIKSARTIKELEN"
                                     items={materials.verbruik}
                                     onUpdateItem={handleUpdateVerbruiksItem}
-                                    onRemoveItem={async () => {}}
+                                    onRemoveItem={async () => { }}
                                     onAddItem={(item) => handleAddItem('verbruik', item)}
                                     subtotal={verbruikSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
@@ -1129,15 +1130,6 @@ export default function QuotePage() {
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
                 korteTitel={normalizedData?.korteTitel}
                 korteBeschrijving={normalizedData?.korteBeschrijving}
-            />
-
-            <ScheduleModal
-                isOpen={isScheduleModalOpen}
-                onClose={() => setIsScheduleModalOpen(false)}
-                employees={employees}
-                planningSettings={planningSettings}
-                preselectedQuote={quote ? { id: quote.id, titel: quote.titel, klantinformatie: quote.klantinformatie as any, offerteNummer: (quote as any).offerteNummer } : undefined}
-                preselectedHours={normalizedData?.totaal_uren}
             />
 
             <MaterialSelectionModal

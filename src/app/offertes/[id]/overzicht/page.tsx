@@ -1977,7 +1977,7 @@ export default function OverzichtPage() {
       />
 
 
-      <div className="flex-1 px-4 py-6 md:py-10 pb-32">
+      <div className="flex-1 px-4 py-6 md:py-10 pb-40">
         <div className="mx-auto max-w-5xl space-y-8">
 
           {/* Klussen */}

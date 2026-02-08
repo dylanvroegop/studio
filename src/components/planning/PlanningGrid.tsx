@@ -19,6 +19,7 @@ interface PlanningGridProps {
     onEntryDrop: (entryId: string, newStart: Date, employeeId: string) => void;
     onEntryResize: (entryId: string, newStart: Date, newEnd: Date) => void;
     onEmptyCellClick: (date: Date, employeeId: string) => void;
+    schedulingMode?: boolean;
 }
 
 export function PlanningGrid({
@@ -29,7 +30,8 @@ export function PlanningGrid({
     onEntryClick,
     onEntryDrop,
     onEntryResize,
-    onEmptyCellClick
+    onEmptyCellClick,
+    schedulingMode = false
 }: PlanningGridProps) {
     const days = useMemo(() => getDaysInRange(dateRange.start, dateRange.end), [dateRange]);
     const hours = useMemo(() => getHoursInDay(6, 20), []);
@@ -133,7 +135,9 @@ export function PlanningGrid({
                                         <div
                                             className={cn(
                                                 "relative col-span-full col-start-2",
-                                                !isWorkDay(day, employee.workDays) && "bg-zinc-800/30"
+                                                !isWorkDay(day, employee.workDays) && "bg-zinc-800/30",
+                                                schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
+                                                !schedulingMode && "cursor-default"
                                             )}
                                             onClick={() => !suppressClick && onEmptyCellClick(day, employee.id)}
                                             data-date={day.toISOString()}
@@ -231,7 +235,9 @@ export function PlanningGrid({
                                             className={cn(
                                                 "relative min-h-[60px] border-r border-zinc-800 last:border-r-0 p-0",
                                                 isValidDay ? "" : "bg-zinc-800/30",
-                                                isValidDay && isWeekend && "bg-zinc-800/20"
+                                                isValidDay && isWeekend && "bg-zinc-800/20",
+                                                schedulingMode && isValidDay && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
+                                                !schedulingMode && "cursor-default"
                                             )}
                                             onClick={() => isValidDay && !suppressClick && onEmptyCellClick(date, '')}
                                             data-date={isValidDay ? date.toISOString() : undefined}
@@ -346,6 +352,8 @@ export function PlanningGrid({
                                                         // No, grid-auto-flow: row.
                                                         // The employee cell took up the first slot of rows 1..N.
                                                         // The next items will fill the available slots.
+                                                        schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
+                                                        !schedulingMode && "cursor-default"
                                                     )}
                                                     onClick={() => !suppressClick && onEmptyCellClick(day, employee.id)}
                                                     data-date={day.toISOString()}
@@ -440,7 +448,9 @@ export function PlanningGrid({
                                     className={cn(
                                         "relative min-h-[60px] border-r border-zinc-800 last:border-r-0 p-1",
                                         isToday(day) && "bg-emerald-500/5",
-                                        !isWorkDay(day, employee.workDays) && "bg-zinc-800/30"
+                                        !isWorkDay(day, employee.workDays) && "bg-zinc-800/30",
+                                        schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
+                                        !schedulingMode && "cursor-default"
                                     )}
                                     onClick={() => !suppressClick && onEmptyCellClick(day, employee.id)}
                                     data-date={day.toISOString()}

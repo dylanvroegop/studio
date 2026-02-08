@@ -3380,7 +3380,7 @@ export default function GenericMaterialsPageRedesigned() {
 
       {/* Quote Notes Section - Persistent at bottom */}
       {/* Quote Notes Section - Persistent at bottom */}
-      <div className="max-w-5xl mx-auto px-4 pb-24">
+      <div className="max-w-5xl mx-auto px-4 pb-40">
         {/* Public Job Notes Section - Matching Measurement Page Style */}
         <div className="space-y-3 pt-6 border-t border-white/5">
           <div>

@@ -1276,7 +1276,7 @@ export default function GenericMeasurementPage() {
       // Without door: one base row
       let expected = colCount;
       const rowEntries = nonDoorVakken.slice(0, colCount);
-      const explicitHeights = rowEntries.map(v => num(v?.hoogte)).filter(v => v > 0);
+      const explicitHeights = rowEntries.map((v: any) => num(v?.hoogte)).filter((v: any) => v > 0);
       if (explicitHeights.length > 0) {
         const rowHeight = Math.min(...explicitHeights);
         const leftover = innerHeightMm - rowHeight;
@@ -1295,7 +1295,7 @@ export default function GenericMeasurementPage() {
     let expected = doorRowVakken + (hasBottomRow ? colCount : 0);
     if (hasBottomRow) {
       const rowEntries = nonDoorVakken.slice(doorRowVakken, doorRowVakken + colCount);
-      const explicitHeights = rowEntries.map(v => num(v?.hoogte)).filter(v => v > 0);
+      const explicitHeights = rowEntries.map((v: any) => num(v?.hoogte)).filter((v: any) => v > 0);
       if (explicitHeights.length > 0) {
         const rowHeight = Math.min(...explicitHeights);
         const leftover = bottomRowHeight - rowHeight;
@@ -1643,7 +1643,7 @@ export default function GenericMeasurementPage() {
         rightContent={<PersonalNotes quoteId={quoteId} jobId={klusId} context={`Metingen: ${jobConfig.title}`} />}
       />
 
-      <div className="px-4 py-8 max-w-[1400px] mx-auto pb-32">
+      <div className="px-4 py-8 max-w-[1400px] mx-auto pb-40">
         <form>
           <div className="space-y-8">
             {items.map((item, index) => (
@@ -1970,7 +1970,7 @@ export default function GenericMeasurementPage() {
                                     const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
                                     const sponning = 17;
                                     const frameMm = Math.max(0, (kozijnhoutFrameThicknessMm || 0) - sponning);
-                                    const tussenstijlMm = Math.max(0, (tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm || 0) - (2 * sponning));
+                                    const tussenstijlMm = Math.max(0, ((tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm) || 0) - (2 * sponning));
                                     const innerWidthMm = Math.max(0, num(item.breedte) - (2 * frameMm));
                                     const doorWidthMm = num(item.deur_breedte);
                                     const isDoorLeft = item.doorPosition !== 'right';
@@ -2013,7 +2013,7 @@ export default function GenericMeasurementPage() {
                                         const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
                                         const sponning = 17;
                                         const frameMm = Math.max(0, (kozijnhoutFrameThicknessMm || 0) - sponning);
-                                        const tussenstijlMm = Math.max(0, (tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm || 0) - (2 * sponning));
+                                        const tussenstijlMm = Math.max(0, ((tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm) || 0) - (2 * sponning));
                                         const innerWidthMm = Math.max(0, num(item.breedte) - (2 * frameMm));
                                         const doorInfo = getDoorVakInfo(item);
                                         const doorWidthMm = doorInfo.width;
@@ -2059,7 +2059,7 @@ export default function GenericMeasurementPage() {
                           const num = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
                           const sponning = 17;
                           const frameMm = Math.max(0, (kozijnhoutFrameThicknessMm || 0) - sponning);
-                          const tussenstijlMm = hasTussenstijl ? Math.max(0, (tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm || 0) - (2 * sponning)) : 0;
+                          const tussenstijlMm = hasTussenstijl ? Math.max(0, ((tussenstijlThicknessMm ?? kozijnhoutFrameThicknessMm) || 0) - (2 * sponning)) : 0;
                           const innerWidthMm = Math.max(0, num(item.breedte) - (2 * frameMm));
                           const innerHeightMm = Math.max(0, num(item.hoogte) - (2 * frameMm));
                           const doorInfo = getDoorVakInfo(item);
