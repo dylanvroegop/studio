@@ -27,6 +27,19 @@ service cloud.firestore {
          allow read, write: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
       }
     }
+
+    // Rules for the 'invoices' collection (Facturen)
+    match /invoices/{invoiceId} {
+      allow read, get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && (request.query.where.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      // Subcollection: Payments
+      match /payments/{paymentId} {
+        allow read, write: if isSignedIn() && get(/databases/$(database)/documents/invoices/$(invoiceId)).data.userId == request.auth.uid;
+      }
+    }
     
     // Rules for the 'notes' (Personal Notes) collection
     match /notes/{noteId} {

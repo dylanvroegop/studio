@@ -63,4 +63,6 @@ this only applies to construction logic where its impossible for example to buil
 - Systeem plafond new job type under 'plafonds', make sure to implement a basic mats into job-registry.
 
 
-
+- [wait] implement options for drawings 'show constructie platen layout' or 'constructie hout' or 'gipsplaten' etc etc. 
+- able to export drawings as pdf
+- able to expand drawings on phone or desktop. 

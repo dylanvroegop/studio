@@ -5,14 +5,14 @@ import { RoofDrawingProps } from './RoofDrawing';
 import { OverallDimensions, OpeningMeasurements } from './shared/measurements';
 import { OpeningLabels } from './shared/OpeningLabels';
 
-interface EPDMDrawingProps extends RoofDrawingProps {
+type EPDMDrawingProps = Omit<RoofDrawingProps, 'edgeLeft' | 'edgeRight' | 'onEdgeChange'> & {
     dakrandWidth?: number;
     edgeTop?: 'free' | 'wall';
     edgeBottom?: 'free' | 'wall';
     edgeLeft?: 'free' | 'wall';
     edgeRight?: 'free' | 'wall';
-    onEdgeChange?: (side: string, value: string) => void;
-}
+    onEdgeChange?: (side: 'top' | 'bottom' | 'left' | 'right', value: 'free' | 'wall') => void;
+};
 
 const labelColor = "rgb(100, 116, 139)"; // Slate-500
 

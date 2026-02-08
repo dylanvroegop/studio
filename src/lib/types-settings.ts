@@ -64,6 +64,12 @@ export interface UserSettings {
     standaardIntroTekst: string;
     standaardSluitTekst: string;
 
+    // 3b. Factuur Configuraties
+    factuurNummerPrefix: string;
+    factuurNummerStart: number;
+    standaardBetaaltermijnDagen: number;
+    standaardFactuurTekst: string;
+
     // 4. Bouwplaatskosten Beheer
     bouwplaatsKostenPakketten: {
         id: string;
@@ -100,6 +106,10 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     standaardGeldigheidDagen: 30,
     standaardIntroTekst: 'Hierbij ontvangt u de offerte voor de besproken werkzaamheden.',
     standaardSluitTekst: 'Wij hopen u hiermee van dienst te zijn en horen graag van u.',
+    factuurNummerPrefix: new Date().getFullYear() + '-',
+    factuurNummerStart: 460001,
+    standaardBetaaltermijnDagen: 14,
+    standaardFactuurTekst: 'Gelieve het factuurbedrag binnen de betaaltermijn te voldoen o.v.v. het factuurnummer.',
     bouwplaatsKostenPakketten: [],
     planningSettings: {
         defaultWorkdayHours: 8,

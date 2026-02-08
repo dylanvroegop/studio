@@ -548,6 +548,48 @@ export default function InstellingenPage() {
                         </Card>
                         <Card>
                             <CardHeader>
+                                <CardTitle>Factuur Configuratie</CardTitle>
+                                <CardDescription>Standaard instellingen voor nieuwe facturen.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="grid gap-6 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label>Factuurnummer Prefix</Label>
+                                    <Input
+                                        value={settings.factuurNummerPrefix}
+                                        onChange={e => update('factuurNummerPrefix', e.target.value)}
+                                        placeholder="bv. 2024-"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Voorlooptekst voor elk factuurnummer.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Startnummer</Label>
+                                    <Input
+                                        type="number"
+                                        value={settings.factuurNummerStart}
+                                        onChange={e => update('factuurNummerStart', Number(e.target.value))}
+                                    />
+                                    <p className="text-xs text-muted-foreground">Volgende nummer in de reeks.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Betaaltermijn (dagen)</Label>
+                                    <Input
+                                        type="number"
+                                        value={settings.standaardBetaaltermijnDagen}
+                                        onChange={e => update('standaardBetaaltermijnDagen', Number(e.target.value))}
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label>Standaard Factuurtekst</Label>
+                                    <Textarea
+                                        rows={3}
+                                        value={settings.standaardFactuurTekst}
+                                        onChange={e => update('standaardFactuurTekst', e.target.value)}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader>
                                 <CardTitle>Standaard Teksten</CardTitle>
                                 <CardDescription>Standaard inleiding en afsluiting voor nieuwe offertes.</CardDescription>
                             </CardHeader>

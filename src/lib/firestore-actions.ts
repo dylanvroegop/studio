@@ -42,6 +42,43 @@ export async function reserveQuoteNumber(firestore: Firestore, userId: string, s
 }
 
 /**
+ * Reserves the next available invoice number for a specific user.
+ * Increments the counter in `counters/invoiceNumber_{userId}`.
+ *
+ * Uses `startNumberFromSettings` ONLY when the counter does not exist yet.
+ */
+export async function reserveInvoiceNumber(
+    firestore: Firestore,
+    userId: string,
+    startNumberFromSettings: number
+): Promise<number> {
+    const counterRef = doc(firestore, 'counters', `invoiceNumber_${userId}`);
+
+    return await runTransaction(firestore, async (tx) => {
+        const snap = await tx.get(counterRef);
+
+        const currentNext: number =
+            snap.exists() && typeof snap.data()?.next === 'number'
+                ? snap.data().next
+                : startNumberFromSettings;
+
+        const nextVal = currentNext + 1;
+
+        tx.set(
+            counterRef,
+            {
+                next: nextVal,
+                updatedAt: serverTimestamp(),
+                userId,
+            },
+            { merge: true }
+        );
+
+        return currentNext;
+    });
+}
+
+/**
  * Creates a new empty quote document in Firestore immediately.
  * Uses 'concept' status and reserves a quote number.
  */

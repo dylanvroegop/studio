@@ -22,6 +22,10 @@ interface MappingRow {
   category_key: string;
 }
 
+function asString(value: string | string[]): string {
+  return Array.isArray(value) ? (value[0] ?? '') : value;
+}
+
 function generateMapping(): MappingRow[] {
   const rows: MappingRow[] = [];
 
@@ -42,12 +46,15 @@ function generateMapping(): MappingRow[] {
         // Skip als essentiële velden ontbreken
         if (!categoryFilter || !category) continue;
 
+        const categoryKey = asString(category);
+        const categoryFilterValue = asString(categoryFilter);
+
         // Bepaal de hoofdcategorie titel
-        let hoofdcategorie: string = category; // fallback naar category key
+        let hoofdcategorie: string = categoryKey; // fallback naar category key
 
         // Probeer de titel te vinden in de itemCategoryConfig
         if (itemCategoryConfig) {
-          const configEntry = (itemCategoryConfig as Record<string, { title: string; order: number }>)[category];
+          const configEntry = (itemCategoryConfig as Record<string, { title: string; order: number }>)[categoryKey];
           if (configEntry) {
             hoofdcategorie = configEntry.title;
           }
@@ -58,8 +65,8 @@ function generateMapping(): MappingRow[] {
           slug: slug,
           hoofdcategorie: hoofdcategorie,
           subcategorie_label: label,
-          categoryFilter_subsectie: categoryFilter,
-          category_key: category,
+          categoryFilter_subsectie: categoryFilterValue,
+          category_key: categoryKey,
         });
       }
     }

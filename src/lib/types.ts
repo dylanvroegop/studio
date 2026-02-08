@@ -1,5 +1,6 @@
 
 import { Timestamp } from "firebase/firestore";
+import type { DataJson } from "@/lib/quote-calculations";
 
 export type User = {
   id: string;
@@ -88,6 +89,72 @@ export type QuoteSettings = {
   btwTarief: number;          // e.g. 21
   uurTariefExclBtw: number;   // e.g. 45.00
 };
+
+export type InvoiceStatus = 'concept' | 'verzonden' | 'gedeeltelijk_betaald' | 'betaald' | 'geannuleerd';
+
+export interface InvoicePayment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  date: Timestamp;
+  method: 'bank' | 'contant' | 'pin' | 'overig';
+  reference?: string;
+  note?: string;
+  createdAt: Timestamp;
+}
+
+export interface Invoice {
+  id: string;
+  userId: string;
+  quoteId: string;
+
+  status: InvoiceStatus;
+  invoiceNumber: number;
+  invoicePrefix: string;
+  invoiceNumberLabel: string;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  issueDate: Timestamp;
+  dueDate: Timestamp;
+
+  sourceQuote: {
+    offerteNummer?: number;
+    titel?: string;
+    klantSnapshot: {
+      klanttype?: string;
+      naam: string;
+      adres: string;
+      postcode: string;
+      plaats: string;
+      telefoon: string;
+      email: string;
+    };
+    projectAdresSnapshot?: {
+      adres: string;
+      postcode: string;
+      plaats: string;
+    } | null;
+  };
+
+  calculationSnapshot?: DataJson;
+
+  totalsSnapshot: {
+    totaalInclBtw: number;
+    totaalExclBtw?: number;
+    btw?: number;
+  };
+
+  paymentSummary: {
+    paidAmount: number;
+    openAmount: number;
+    lastPaymentAt?: Timestamp;
+  };
+
+  notes?: string;
+  sentAt?: Timestamp;
+  paidAt?: Timestamp;
+}
 
 
 

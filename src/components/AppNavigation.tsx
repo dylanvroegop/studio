@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Menu, X, LayoutDashboard, FileText, CalendarDays, Boxes, Users, Settings, Clock3, Plus } from 'lucide-react';
+import { Menu, LayoutDashboard, FileText, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -19,6 +19,7 @@ interface NavigationItem {
 const navItems: NavigationItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/offertes', label: 'Alle Offertes', icon: FileText },
+    { href: '/facturen', label: 'Facturen', icon: ReceiptText },
     { href: '/planning', label: 'Planning', icon: CalendarDays },
     { href: '/materialen', label: 'Producten beheren', icon: Boxes },
     { href: '/klanten', label: 'Klanten beheren', icon: Users },
@@ -37,17 +38,16 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
             <div className="border-b border-border px-6 py-6">
                 {onClose && (
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
-                        className="absolute right-4 top-4 h-8 w-8 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                        className="absolute right-4 top-4 h-11 w-11 rounded-xl shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
                         onClick={onClose}
                         aria-label="Navigatie sluiten"
                     >
-                        <X className="h-4 w-4" />
+                        <Menu className="h-4 w-4" />
                     </Button>
                 )}
                 <h2 className="text-2xl font-semibold tracking-tight text-foreground">Navigatie</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Snelle toegang tot alle onderdelen.</p>
             </div>
 
             <div className="px-4 py-5">
@@ -163,7 +163,7 @@ export function AppNavigation() {
 
                     <aside
                         className={cn(
-                            'fixed inset-y-0 left-0 z-40 w-[22rem] transform transition-transform duration-200 ease-out',
+                            'fixed inset-y-0 left-0 z-40 w-[15.84rem] transform transition-transform duration-200 ease-out',
                             menuOpen ? 'translate-x-0' : '-translate-x-full'
                         )}
                     >

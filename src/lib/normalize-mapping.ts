@@ -3,6 +3,10 @@ import * as fs from 'fs';
 
 const normalized: Record<string, Record<string, string>> = {};
 
+function asString(value: string | string[]): string {
+  return Array.isArray(value) ? (value[0] ?? '') : value;
+}
+
 for (const [, categoryConfig] of Object.entries(JOB_REGISTRY)) {
   for (const item of categoryConfig.items) {
     const { materialSections, categoryConfig: itemCategoryConfig } = item;
@@ -12,14 +16,15 @@ for (const [, categoryConfig] of Object.entries(JOB_REGISTRY)) {
       const { label, categoryFilter, category } = section;
       if (!categoryFilter || !category) continue;
 
-      let hoofdcategorie: string = category;
+      const categoryKey = asString(category);
+      let hoofdcategorie: string = categoryKey;
       if (itemCategoryConfig) {
-        const configEntry = (itemCategoryConfig as Record<string, { title: string; order: number }>)[category];
+        const configEntry = (itemCategoryConfig as Record<string, { title: string; order: number }>)[categoryKey];
         if (configEntry) hoofdcategorie = configEntry.title;
       }
 
       if (!normalized[hoofdcategorie]) normalized[hoofdcategorie] = {};
-      normalized[hoofdcategorie][label] = categoryFilter;
+      normalized[hoofdcategorie][label] = asString(categoryFilter);
     }
   }
 }

@@ -13,7 +13,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool, CalendarDays, Eye } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
@@ -30,6 +30,9 @@ import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { QuoteSwitcher } from '@/components/quote/QuoteSwitcher';
 import { AppNavigation } from '@/components/AppNavigation';
 import { LogoUpload } from '@/components/settings/LogoUpload';
+import { createInvoiceFromQuote } from '@/lib/invoice-actions';
+import type { UserSettings } from '@/lib/types-settings';
+import { toast } from '@/hooks/use-toast';
 
 import { Quote } from "@/lib/types";
 
@@ -88,6 +91,7 @@ export default function QuotePage() {
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+    const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
 
     // PDF Generation State
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -98,6 +102,47 @@ export default function QuotePage() {
 
     const [userProfile, setUserProfile] = useState<any>(null);
     const [businessData, setBusinessData] = useState<any>(null);
+
+    const handleCreateInvoice = async () => {
+        if (!user || !firestore || !quote || !totals) return;
+        if (calculationLoading || !calculation?.data_json) return;
+
+        setIsCreatingInvoice(true);
+        try {
+            const userRef = doc(firestore, 'users', user.uid);
+            const userSnap = await getDoc(userRef);
+            const settings = userSnap.exists() ? (userSnap.data() as any)?.settings : null;
+
+            if (!settings) {
+                toast({
+                    title: 'Instellingen ontbreken',
+                    description: 'Open Instellingen en sla minimaal uw gegevens op.',
+                    variant: 'destructive',
+                });
+                return;
+            }
+
+            const invoiceId = await createInvoiceFromQuote(firestore, {
+                userId: user.uid,
+                quoteId: id,
+                quote,
+                settings: settings as UserSettings,
+                calculationSnapshot: calculation.data_json as any,
+                totalsInclBtw: totals.totaalInclBtw,
+            });
+
+            router.push(`/facturen/${invoiceId}`);
+        } catch (e) {
+            console.error('Fout bij aanmaken factuur:', e);
+            toast({
+                title: 'Fout',
+                description: 'Kon factuur niet aanmaken. Probeer opnieuw.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsCreatingInvoice(false);
+        }
+    };
 
     // Fetch user profile and business details
     useEffect(() => {
@@ -927,6 +972,14 @@ export default function QuotePage() {
                         >
                             <Download size={16} />
                             Download
+                        </button>
+                        <button
+                            onClick={handleCreateInvoice}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isCreatingInvoice || calculationLoading || !calculation?.data_json || !totals}
+                        >
+                            {isCreatingInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText size={16} />}
+                            Maak factuur
                         </button>
                         <button
                             onClick={() => {
