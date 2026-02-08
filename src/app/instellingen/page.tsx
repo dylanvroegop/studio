@@ -578,6 +578,19 @@ export default function InstellingenPage() {
                                         onChange={e => update('standaardBetaaltermijnDagen', Number(e.target.value))}
                                     />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label>Standaard voorschot (%)</Label>
+                                    <div className="relative">
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            value={settings.standaardVoorschotPercentage}
+                                            onChange={e => update('standaardVoorschotPercentage', Number(e.target.value))}
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                                    </div>
+                                </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <Label>Standaard Factuurtekst</Label>
                                     <Textarea

@@ -69,6 +69,11 @@ export type Quote = {
   // ✅ Financial Armor (Settings per quote)
   instellingen: QuoteSettings;
 
+  facturatie?: {
+    voorschotIngeschakeld: boolean;
+    voorschotPercentage: number;
+  };
+
   // ✅ Extras (Mutable overrides for Transport, Winst, Bouwplaats)
   extras?: {
     transport?: {
@@ -90,6 +95,8 @@ export type QuoteSettings = {
   uurTariefExclBtw: number;   // e.g. 45.00
 };
 
+export type InvoiceType = 'voorschot' | 'eind';
+
 export type InvoiceStatus = 'concept' | 'verzonden' | 'gedeeltelijk_betaald' | 'betaald' | 'geannuleerd';
 
 export interface InvoicePayment {
@@ -109,6 +116,7 @@ export interface Invoice {
   quoteId: string;
 
   status: InvoiceStatus;
+  invoiceType: InvoiceType;
   invoiceNumber: number;
   invoicePrefix: string;
   invoiceNumberLabel: string;
@@ -143,6 +151,19 @@ export interface Invoice {
     totaalInclBtw: number;
     totaalExclBtw?: number;
     btw?: number;
+  };
+
+  financialAdjustments?: {
+    originalTotalInclBtw: number;
+    voorschotAftrekInclBtw: number;
+    voorschotFactuur?: {
+      id: string;
+      invoiceNumberLabel: string;
+      status: string;
+      totaalInclBtw: number;
+      paidAmount: number;
+    } | null;
+    opmerking?: string;
   };
 
   paymentSummary: {

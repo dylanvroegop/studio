@@ -1,13 +1,19 @@
 import type { Firestore } from 'firebase/firestore';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc, doc } from 'firebase/firestore';
 import type { DataJson } from '@/lib/quote-calculations';
 import type { UserSettings } from '@/lib/types-settings';
 import { reserveInvoiceNumber } from '@/lib/firestore-actions';
+import type { InvoiceType } from '@/lib/types';
+import { removeEmptyFields } from '@/lib/utils';
 
 function safeNumber(value: unknown): number | null {
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) return null;
   return n;
+}
+
+function roundTo2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function buildKlantSnapshot(quote: any) {
@@ -72,31 +78,53 @@ export async function createInvoiceFromQuote(
     quoteId: string;
     quote: any;
     settings: UserSettings;
+    invoiceType: InvoiceType;
     calculationSnapshot?: DataJson;
-    totalsInclBtw?: number;
+    originalTotalInclBtw: number;
+    totalsInclBtw: number;
+    voorschotPercentage?: number;
+    voorschotAftrekInclBtw?: number;
+    voorschotFactuurSnapshot?: {
+      id: string;
+      invoiceNumberLabel: string;
+      status: string;
+      totaalInclBtw: number;
+      paidAmount: number;
+    } | null;
+    opmerking?: string;
   }
 ): Promise<string> {
-  const { userId, quoteId, quote, settings, calculationSnapshot, totalsInclBtw } = params;
+  const {
+    userId,
+    quoteId,
+    quote,
+    settings,
+    invoiceType,
+    calculationSnapshot,
+    originalTotalInclBtw,
+    totalsInclBtw,
+    voorschotPercentage,
+    voorschotAftrekInclBtw,
+    voorschotFactuurSnapshot,
+    opmerking,
+  } = params;
 
   const startNumber = safeNumber(settings.factuurNummerStart) ?? 460001;
   const invoiceNumber = await reserveInvoiceNumber(firestore, userId, startNumber);
   const invoicePrefix = (settings.factuurNummerPrefix || '').toString();
   const invoiceNumberLabel = `${invoicePrefix}${invoiceNumber}`;
 
-  const totaalInclBtw =
-    safeNumber(totalsInclBtw) ??
-    safeNumber(quote?.amount) ??
-    safeNumber(quote?.totaalbedrag) ??
-    0;
+  const totaalInclBtw = roundTo2(Math.max(0, safeNumber(totalsInclBtw) ?? 0));
 
   const issueDate = new Date();
   const betaaltermijn = safeNumber(settings.standaardBetaaltermijnDagen) ?? 14;
   const dueDate = new Date(Date.now() + betaaltermijn * 24 * 60 * 60 * 1000);
 
-  const docRef = await addDoc(collection(firestore, 'invoices'), {
+  const payload = removeEmptyFields({
     userId,
     quoteId,
     status: 'concept',
+    invoiceType,
 
     invoiceNumber,
     invoicePrefix,
@@ -120,6 +148,15 @@ export async function createInvoiceFromQuote(
       totaalInclBtw,
     },
 
+    financialAdjustments: invoiceType === 'eind' || invoiceType === 'voorschot'
+      ? {
+        originalTotalInclBtw: roundTo2(Math.max(0, safeNumber(originalTotalInclBtw) ?? 0)),
+        voorschotAftrekInclBtw: roundTo2(Math.max(0, safeNumber(voorschotAftrekInclBtw) ?? 0)),
+        voorschotFactuur: voorschotFactuurSnapshot ?? null,
+        opmerking: (opmerking ?? '').toString(),
+      }
+      : undefined,
+
     paymentSummary: {
       paidAmount: 0,
       openAmount: totaalInclBtw,
@@ -128,5 +165,57 @@ export async function createInvoiceFromQuote(
     notes: '',
   });
 
+  const docRef = await addDoc(collection(firestore, 'invoices'), payload || {});
+
   return docRef.id;
+}
+
+export async function findExistingVoorschotInvoiceId(
+  firestore: Firestore,
+  params: { userId: string; quoteId: string }
+): Promise<string | null> {
+  const ref = collection(firestore, 'invoices');
+  const q = query(
+    ref,
+    where('userId', '==', params.userId),
+    limit(50)
+  );
+
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+
+  const candidates = snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as any) }))
+    .filter((d) => d?.quoteId === params.quoteId)
+    .filter((d) => (d?.invoiceType ?? 'eind') === 'voorschot')
+    .filter((d) => d?.status !== 'geannuleerd');
+
+  return candidates[0]?.id ?? null;
+}
+
+export async function getInvoiceSnapshotForAdjustments(
+  firestore: Firestore,
+  invoiceId: string
+): Promise<{
+  id: string;
+  invoiceNumberLabel: string;
+  status: string;
+  totaalInclBtw: number;
+  paidAmount: number;
+} | null> {
+  const ref = doc(firestore, 'invoices', invoiceId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const data = snap.data() as any;
+
+  const status = (data?.status ?? 'concept').toString();
+  const paidAmount = status !== 'concept' ? (safeNumber(data?.paymentSummary?.paidAmount) ?? 0) : 0;
+
+  return {
+    id: snap.id,
+    invoiceNumberLabel: (data?.invoiceNumberLabel ?? '').toString(),
+    status,
+    totaalInclBtw: safeNumber(data?.totalsSnapshot?.totaalInclBtw) ?? 0,
+    paidAmount,
+  };
 }

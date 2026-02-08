@@ -13,7 +13,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2 } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
@@ -30,9 +30,9 @@ import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { QuoteSwitcher } from '@/components/quote/QuoteSwitcher';
 import { AppNavigation } from '@/components/AppNavigation';
 import { LogoUpload } from '@/components/settings/LogoUpload';
-import { createInvoiceFromQuote } from '@/lib/invoice-actions';
-import type { UserSettings } from '@/lib/types-settings';
-import { toast } from '@/hooks/use-toast';
+import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 
 import { Quote } from "@/lib/types";
 
@@ -91,7 +91,9 @@ export default function QuotePage() {
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
-    const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+    const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(false);
+    const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
+    const [existingVoorschotInvoiceId, setExistingVoorschotInvoiceId] = useState<string | null>(null);
 
     // PDF Generation State
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -102,47 +104,6 @@ export default function QuotePage() {
 
     const [userProfile, setUserProfile] = useState<any>(null);
     const [businessData, setBusinessData] = useState<any>(null);
-
-    const handleCreateInvoice = async () => {
-        if (!user || !firestore || !quote || !totals) return;
-        if (calculationLoading || !calculation?.data_json) return;
-
-        setIsCreatingInvoice(true);
-        try {
-            const userRef = doc(firestore, 'users', user.uid);
-            const userSnap = await getDoc(userRef);
-            const settings = userSnap.exists() ? (userSnap.data() as any)?.settings : null;
-
-            if (!settings) {
-                toast({
-                    title: 'Instellingen ontbreken',
-                    description: 'Open Instellingen en sla minimaal uw gegevens op.',
-                    variant: 'destructive',
-                });
-                return;
-            }
-
-            const invoiceId = await createInvoiceFromQuote(firestore, {
-                userId: user.uid,
-                quoteId: id,
-                quote,
-                settings: settings as UserSettings,
-                calculationSnapshot: calculation.data_json as any,
-                totalsInclBtw: totals.totaalInclBtw,
-            });
-
-            router.push(`/facturen/${invoiceId}`);
-        } catch (e) {
-            console.error('Fout bij aanmaken factuur:', e);
-            toast({
-                title: 'Fout',
-                description: 'Kon factuur niet aanmaken. Probeer opnieuw.',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsCreatingInvoice(false);
-        }
-    };
 
     // Fetch user profile and business details
     useEffect(() => {
@@ -173,6 +134,54 @@ export default function QuotePage() {
         };
         fetchUserData();
     }, [user, firestore]);
+
+    // Init & sync facturatie instellingen (voorschot) vanuit quote
+    useEffect(() => {
+        if (!quote) return;
+        const f = (quote as any)?.facturatie;
+        if (f && typeof f === 'object') {
+            setVoorschotIngeschakeld(!!f.voorschotIngeschakeld);
+            if (typeof f.voorschotPercentage === 'number' && Number.isFinite(f.voorschotPercentage)) {
+                setVoorschotPercentage(f.voorschotPercentage);
+            }
+        }
+    }, [quote?.id]);
+
+    // Zoek bestaande voorschotfactuur id (voor link in UI)
+    useEffect(() => {
+        if (!user || !firestore || !id) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const existingId = await findExistingVoorschotInvoiceId(firestore, { userId: user.uid, quoteId: id });
+                if (!cancelled) setExistingVoorschotInvoiceId(existingId);
+            } catch {
+                // ignore
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [user, firestore, id]);
+
+    // Debounced save facturatie to quote doc
+    useEffect(() => {
+        if (!user || !firestore || !id) return;
+        if (!quote) return;
+        const timer = setTimeout(async () => {
+            try {
+                const quoteRef = doc(firestore, 'quotes', id);
+                await updateDoc(quoteRef, {
+                    facturatie: {
+                        voorschotIngeschakeld,
+                        voorschotPercentage,
+                    },
+                    updatedAt: new Date(),
+                });
+            } catch (e) {
+                console.error('Fout bij opslaan facturatie:', e);
+            }
+        }, 800);
+        return () => clearTimeout(timer);
+    }, [voorschotIngeschakeld, voorschotPercentage, user, firestore, id, quote]);
 
     // Fetch Materials for Modal
     const [materialRefreshTrigger, setMaterialRefreshTrigger] = useState(0);
@@ -945,9 +954,6 @@ export default function QuotePage() {
             <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <Button asChild variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted">
-                            <Link href="/dashboard"><ArrowLeft size={20} /></Link>
-                        </Button>
                         <div>
                             <div className="flex items-center gap-3">
                                 <h1 className="text-xl font-bold text-foreground">
@@ -974,11 +980,11 @@ export default function QuotePage() {
                             Download
                         </button>
                         <button
-                            onClick={handleCreateInvoice}
+                            onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
                             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={isCreatingInvoice || calculationLoading || !calculation?.data_json || !totals}
+                            disabled={!totals}
                         >
-                            {isCreatingInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText size={16} />}
+                            <ReceiptText size={16} />
                             Maak factuur
                         </button>
                         <button
@@ -1005,12 +1011,6 @@ export default function QuotePage() {
                             Versturen
                         </button>
 
-                        <Button asChild variant="secondary" className="gap-2 h-10 bg-card hover:bg-accent border border-border text-foreground shadow-sm">
-                            <Link href={`/offertes/${id}/klus`}>
-                                <Pencil className="w-4 h-4" />
-                                <span className="hidden sm:inline">Bewerken</span>
-                            </Link>
-                        </Button>
                     </div>
                 </div>
             </header>
@@ -1150,6 +1150,79 @@ export default function QuotePage() {
 
                                 {/* Work Description */}
                                 <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
+
+                                {/* Facturatie (Voorschot) */}
+                                {totals && (
+                                    <Card className="border border-border bg-card/50">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-base">Facturatie</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="space-y-1">
+                                                    <div className="font-medium text-foreground">Voorschot gebruiken</div>
+                                                    <div className="text-sm text-muted-foreground">
+                                                        Gebruik een voorschotpercentage voor de eindfactuur.
+                                                    </div>
+                                                </div>
+                                                <Switch
+                                                    checked={voorschotIngeschakeld}
+                                                    onCheckedChange={(checked) => {
+                                                        const wasOn = voorschotIngeschakeld;
+                                                        setVoorschotIngeschakeld(checked);
+                                                        if (checked && !wasOn) {
+                                                            const defaultPct = Number(userProfile?.settings?.standaardVoorschotPercentage);
+                                                            if (Number.isFinite(defaultPct)) {
+                                                                setVoorschotPercentage(defaultPct);
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-3">
+                                                <div className="space-y-2">
+                                                    <Label>Voorschot (%)</Label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            max={100}
+                                                            value={voorschotPercentage}
+                                                            onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                                                            disabled={!voorschotIngeschakeld}
+                                                            className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
+                                                        />
+                                                        <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2 md:col-span-2">
+                                                    <Label>Preview (incl. BTW)</Label>
+                                                    <div className="h-10 rounded-md border border-border bg-background px-3 flex items-center justify-between">
+                                                        <span className="text-sm text-muted-foreground">Voorschotbedrag</span>
+                                                        <span className="text-sm font-semibold text-foreground">
+                                                            {formatCurrency(
+                                                                Math.round((totals.totaalInclBtw * (Math.max(0, Math.min(100, voorschotPercentage)) / 100)) * 100) / 100
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => existingVoorschotInvoiceId && router.push(`/facturen/${existingVoorschotInvoiceId}`)}
+                                                    disabled={!existingVoorschotInvoiceId}
+                                                >
+                                                    Open voorschotfactuur
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
                             </div>
                         )}
                     </TabsContent>

@@ -124,7 +124,7 @@ export function AppNavigation() {
     return (
         <>
             {isMobile ? (
-                <div className="fixed left-4 top-4 z-50">
+                <div className="fixed left-4 top-4 z-[60]">
                     <Sheet open={menuOpen} onOpenChange={handleMenuOpenChange}>
                         <SheetTrigger asChild>
                             <Button
@@ -147,7 +147,7 @@ export function AppNavigation() {
                 </div>
             ) : (
                 <>
-                    <div className="fixed left-4 top-4 z-50">
+                    <div className="fixed left-4 top-4 z-[60]">
                         {!menuOpen && (
                             <Button
                                 size="icon"

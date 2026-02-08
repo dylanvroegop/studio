@@ -11,6 +11,7 @@ import {
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
 import { ArrowLeft, Download, Loader2, Mail, ReceiptText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
@@ -72,6 +73,9 @@ export default function FactuurDetailPage() {
 
   const [sendOpen, setSendOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [overrideAmount, setOverrideAmount] = useState<string>('');
+  const [overrideReason, setOverrideReason] = useState<string>('');
+  const [overrideSaving, setOverrideSaving] = useState(false);
 
   // Payment form
   const [payAmount, setPayAmount] = useState<string>('');
@@ -162,7 +166,15 @@ export default function FactuurDetailPage() {
     const klant = invoice.sourceQuote?.klantSnapshot;
     if (!bedrijfNaam || !klant) return null;
 
+    const invoiceType = (invoice as any)?.invoiceType ?? 'eind';
+    const originalTotalInclBtw = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? invoice.totalsSnapshot?.totaalInclBtw ?? 0);
+    const voorschotAftrekInclBtw = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
+    const voorschotFactuurPaidAmount = typeof invoice.financialAdjustments?.voorschotFactuur?.paidAmount === 'number'
+      ? invoice.financialAdjustments.voorschotFactuur.paidAmount
+      : undefined;
+
     return {
+      invoiceType,
       invoiceNumberLabel: invoice.invoiceNumberLabel,
       issueDate: issueDate ? issueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }) : '-',
       dueDate: dueDate ? dueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }) : '-',
@@ -195,6 +207,13 @@ export default function FactuurDetailPage() {
         btw: invoice.totalsSnapshot?.btw,
         totaalInclBtw: invoice.totalsSnapshot?.totaalInclBtw ?? 0,
       },
+      financialAdjustments: invoiceType === 'eind'
+        ? {
+          originalTotalInclBtw: Number.isFinite(originalTotalInclBtw) ? originalTotalInclBtw : 0,
+          voorschotAftrekInclBtw: Number.isFinite(voorschotAftrekInclBtw) ? voorschotAftrekInclBtw : 0,
+          voorschotFactuurPaidAmount,
+        }
+        : undefined,
       standaardFactuurTekst: settings.standaardFactuurTekst || '',
       calculationSnapshot: invoice.calculationSnapshot ?? null,
     };
@@ -340,6 +359,8 @@ export default function FactuurDetailPage() {
   const paid = invoice.paymentSummary?.paidAmount ?? 0;
   const open = invoice.paymentSummary?.openAmount ?? Math.max(0, totaalIncl - paid);
   const klantNaam = invoice.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant';
+  const invoiceType = (invoice as any)?.invoiceType ?? 'eind';
+  const typeLabel = invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur';
 
   return (
     <div className="app-shell min-h-screen bg-background pb-10">
@@ -357,6 +378,16 @@ export default function FactuurDetailPage() {
             </Button>
 
             <div className="flex items-center gap-2">
+              {invoiceType === 'voorschot' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(invoice.quoteId)}&type=eind`)}
+                >
+                  Maak eindfactuur
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -392,7 +423,7 @@ export default function FactuurDetailPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <ReceiptText className="h-5 w-5 text-emerald-400 shrink-0" />
                   <div className="truncate">
-                    Factuur #{invoice.invoiceNumberLabel}
+                    {typeLabel} #{invoice.invoiceNumberLabel}
                   </div>
                   <InvoiceStatusBadge status={invoice.status} />
                 </div>
@@ -454,6 +485,72 @@ export default function FactuurDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {invoiceType === 'eind' && (
+                <Card className="border-white/5 bg-zinc-900/60">
+                  <CardHeader>
+                    <CardTitle>Bedrag aanpassen</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nieuw bedrag (incl. BTW)</Label>
+                      <Input
+                        value={overrideAmount}
+                        onChange={(e) => setOverrideAmount(e.target.value)}
+                        placeholder="bijv. 1250,00"
+                        className="bg-zinc-950/40 border-white/10"
+                      />
+                      <div className="text-xs text-zinc-500">
+                        Laat leeg om niet te wijzigen. Dit overschrijft het eindfactuurbedrag.
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Reden / notitie (optioneel)</Label>
+                      <Textarea
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder="bijv. voorschot is mondeling afgesproken"
+                        className="bg-zinc-950/40 border-white/10 min-h-[90px]"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="success"
+                      disabled={overrideSaving}
+                      onClick={async () => {
+                        const parsed = Number(String(overrideAmount).replace(',', '.'));
+                        if (!overrideAmount.trim()) return;
+                        if (!Number.isFinite(parsed) || parsed < 0) {
+                          toast({ title: 'Ongeldig bedrag', description: 'Vul een geldig bedrag in.', variant: 'destructive' });
+                          return;
+                        }
+                        setOverrideSaving(true);
+                        try {
+                          const invRef = doc(firestore!, 'invoices', invoiceId);
+                          await updateDoc(invRef, {
+                            'totalsSnapshot.totaalInclBtw': parsed,
+                            'paymentSummary.openAmount': Math.max(0, parsed - (invoice.paymentSummary?.paidAmount ?? 0)),
+                            'financialAdjustments.opmerking': overrideReason || '',
+                            updatedAt: serverTimestamp(),
+                          });
+                          setOverrideAmount('');
+                          setOverrideReason('');
+                          toast({ title: 'Opgeslagen', description: 'Eindfactuurbedrag is aangepast.' });
+                        } catch (e) {
+                          console.error(e);
+                          toast({ title: 'Fout', description: 'Kon bedrag niet opslaan.', variant: 'destructive' });
+                        } finally {
+                          setOverrideSaving(false);
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      {overrideSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Opslaan
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card className="border-white/5 bg-zinc-900/60">
                 <CardHeader>
@@ -590,4 +687,3 @@ export default function FactuurDetailPage() {
     </div>
   );
 }
-

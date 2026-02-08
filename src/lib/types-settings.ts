@@ -69,6 +69,7 @@ export interface UserSettings {
     factuurNummerStart: number;
     standaardBetaaltermijnDagen: number;
     standaardFactuurTekst: string;
+    standaardVoorschotPercentage: number;
 
     // 4. Bouwplaatskosten Beheer
     bouwplaatsKostenPakketten: {
@@ -110,6 +111,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     factuurNummerStart: 460001,
     standaardBetaaltermijnDagen: 14,
     standaardFactuurTekst: 'Gelieve het factuurbedrag binnen de betaaltermijn te voldoen o.v.v. het factuurnummer.',
+    standaardVoorschotPercentage: 50,
     bouwplaatsKostenPakketten: [],
     planningSettings: {
         defaultWorkdayHours: 8,

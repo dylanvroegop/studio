@@ -1,7 +1,9 @@
 import { jsPDF } from 'jspdf';
 import type { DataJson } from '@/lib/quote-calculations';
+import type { InvoiceType } from '@/lib/types';
 
 export interface PDFInvoiceData {
+  invoiceType: InvoiceType;
   invoiceNumberLabel: string;
   issueDate: string;
   dueDate: string;
@@ -37,6 +39,12 @@ export interface PDFInvoiceData {
     totaalExclBtw?: number;
     btw?: number;
     totaalInclBtw: number;
+  };
+
+  financialAdjustments?: {
+    originalTotalInclBtw: number;
+    voorschotAftrekInclBtw: number;
+    voorschotFactuurPaidAmount?: number;
   };
 
   standaardFactuurTekst?: string;
@@ -91,7 +99,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   // Header right
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.text('FACTUUR', pageWidth - margin, y + 5, { align: 'right' });
+  doc.text(data.invoiceType === 'voorschot' ? 'VOORSCHOTFACTUUR' : 'EINDFACTUUR', pageWidth - margin, y + 5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
@@ -147,6 +155,36 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   doc.line(margin, y, pageWidth - margin, y);
   y += 10;
 
+  // Specificatie (eindfactuur)
+  if (data.invoiceType === 'eind' && data.financialAdjustments) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Specificatie', margin, y);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+
+    const specRows: Array<{ label: string; value: number }> = [
+      { label: 'Origineel totaal (incl. BTW)', value: data.financialAdjustments.originalTotalInclBtw },
+      { label: 'Voorschot in mindering', value: -Math.abs(data.financialAdjustments.voorschotAftrekInclBtw) },
+    ];
+
+    if (typeof data.financialAdjustments.voorschotFactuurPaidAmount === 'number') {
+      specRows.push({ label: 'Reeds betaald op voorschot (info)', value: data.financialAdjustments.voorschotFactuurPaidAmount });
+    }
+
+    specRows.forEach((row) => {
+      doc.text(row.label, margin, y);
+      const v = row.value;
+      const formatted = (v < 0 ? '-' : '') + formatCurrency(Math.abs(v));
+      doc.text(formatted, pageWidth - margin, y, { align: 'right' });
+      y += 5;
+    });
+
+    y += 8;
+  }
+
   // Totals
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
@@ -183,7 +221,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   if (data.bedrijf.iban) paymentLines.push(`IBAN: ${data.bedrijf.iban}`);
   if (data.bedrijf.bankNaam) paymentLines.push(`Bank: ${data.bedrijf.bankNaam}`);
   if (data.bedrijf.bic) paymentLines.push(`BIC: ${data.bedrijf.bic}`);
-  paymentLines.push(`Omschrijving: Factuur #${data.invoiceNumberLabel}`);
+  paymentLines.push(`Omschrijving: ${data.invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur'} #${data.invoiceNumberLabel}`);
 
   const standaardTekst = (data.standaardFactuurTekst || '').trim();
   if (standaardTekst) {

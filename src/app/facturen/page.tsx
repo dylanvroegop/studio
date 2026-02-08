@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { collection, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
-import { Loader2, ReceiptText, Search } from 'lucide-react';
+import { collection, getDocs, onSnapshot, query, Timestamp, where } from 'firebase/firestore';
+import { Loader2, ReceiptText, Search, Plus, FileText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useFirestore, useUser } from '@/firebase';
 import type { Invoice } from '@/lib/types';
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 type FilterMode = 'alle' | 'openstaand' | 'betaald';
 
@@ -41,6 +42,9 @@ export default function FacturenPage() {
   const [invoices, setInvoices] = useState<Array<Invoice & { issueDateDate: Date | null }>>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [quoteSearch, setQuoteSearch] = useState('');
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -86,6 +90,26 @@ export default function FacturenPage() {
     return () => unsub();
   }, [user, firestore]);
 
+  useEffect(() => {
+    if (!createOpen || !user || !firestore) return;
+    (async () => {
+      try {
+        const ref = collection(firestore, 'quotes');
+        const q = query(ref, where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        arr.sort((a, b) => {
+          const aT = naarDate(a.updatedAt)?.getTime() ?? naarDate(a.createdAt)?.getTime() ?? 0;
+          const bT = naarDate(b.updatedAt)?.getTime() ?? naarDate(b.createdAt)?.getTime() ?? 0;
+          return bT - aT;
+        });
+        setQuotes(arr);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [createOpen, user, firestore]);
+
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
 
@@ -105,6 +129,21 @@ export default function FacturenPage() {
       return klant.includes(s) || nr.includes(s) || offerte.includes(s);
     });
   }, [invoices, search, filter]);
+
+  const filteredQuotes = useMemo(() => {
+    const s = quoteSearch.trim().toLowerCase();
+    let arr = [...quotes];
+    if (!s) return arr.slice(0, 30);
+    arr = arr.filter((q) => {
+      const titel = (q?.titel || q?.title || '').toString().toLowerCase();
+      const klant = (q?.klantinformatie?.bedrijfsnaam || `${q?.klantinformatie?.voornaam || ''} ${q?.klantinformatie?.achternaam || ''}`.trim() || '')
+        .toString()
+        .toLowerCase();
+      const nr = typeof q?.offerteNummer === 'number' ? String(q.offerteNummer) : '';
+      return titel.includes(s) || klant.includes(s) || nr.includes(s);
+    });
+    return arr.slice(0, 30);
+  }, [quotes, quoteSearch]);
 
   if (isUserLoading || loading) {
     return (
@@ -146,6 +185,88 @@ export default function FacturenPage() {
                   />
                 </div>
                 <div className="flex gap-2">
+                  <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="success" className="h-10 gap-2">
+                        <Plus className="h-4 w-4" />
+                        Nieuwe factuur
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-2xl bg-zinc-900 border-zinc-800 text-white">
+                      <DialogHeader>
+                        <DialogTitle>Nieuwe factuur</DialogTitle>
+                        <DialogDescription>Kies een offerte en maak een voorschot- of eindfactuur.</DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-3">
+                        <Input
+                          value={quoteSearch}
+                          onChange={(e) => setQuoteSearch(e.target.value)}
+                          placeholder="Zoek offertes op klant, titel of nummer..."
+                          className="bg-zinc-800 border-zinc-700"
+                        />
+
+                        <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-1">
+                          {filteredQuotes.length === 0 ? (
+                            <div className="text-sm text-zinc-400 p-3">Geen offertes gevonden.</div>
+                          ) : (
+                            filteredQuotes.map((q) => {
+                              const klant =
+                                q?.klantinformatie?.bedrijfsnaam ||
+                                `${q?.klantinformatie?.voornaam || ''} ${q?.klantinformatie?.achternaam || ''}`.trim() ||
+                                'Onbekende klant';
+                              const label = typeof q?.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
+                              const total = typeof q?.amount === 'number' ? q.amount : (typeof q?.totaalbedrag === 'number' ? q.totaalbedrag : 0);
+                              const disabled = !total || total <= 0;
+                              return (
+                                <div key={q.id} className="rounded-lg border border-zinc-800 bg-zinc-950/30 p-3 flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
+                                      <div className="font-semibold text-sm truncate">{label}</div>
+                                      <div className="text-xs text-zinc-500 truncate">• {klant}</div>
+                                    </div>
+                                    <div className="text-xs text-zinc-500 mt-1 truncate">
+                                      {(q?.titel || q?.title || '').toString() || '—'}
+                                    </div>
+                                    <div className="text-xs text-zinc-400 mt-1">
+                                      Totaal: {formatCurrency(total)}
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 shrink-0">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="h-9"
+                                      disabled={disabled}
+                                      onClick={() => {
+                                        router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=voorschot`);
+                                        setCreateOpen(false);
+                                      }}
+                                    >
+                                      Voorschot
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="success"
+                                      className="h-9"
+                                      disabled={disabled}
+                                      onClick={() => {
+                                        router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=eind`);
+                                        setCreateOpen(false);
+                                      }}
+                                    >
+                                      Eindfactuur
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   <Button
                     type="button"
                     variant={filter === 'alle' ? 'success' : 'outline'}
@@ -229,4 +350,3 @@ export default function FacturenPage() {
     </div>
   );
 }
-
