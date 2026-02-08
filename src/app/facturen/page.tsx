@@ -3,8 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, onSnapshot, query, Timestamp, where } from 'firebase/firestore';
-import { Loader2, ReceiptText, Search, Plus, FileText } from 'lucide-react';
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { Calendar, Loader2, Pencil, Plus, ReceiptText, Search, Trash2, FileText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +24,19 @@ import { useFirestore, useUser } from '@/firebase';
 import type { Invoice } from '@/lib/types';
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { format } from 'date-fns';
+import { nl } from 'date-fns/locale';
 
 type FilterMode = 'alle' | 'openstaand' | 'betaald';
 
@@ -46,6 +69,10 @@ export default function FacturenPage() {
   const [quotes, setQuotes] = useState<any[]>([]);
   const [quoteSearch, setQuoteSearch] = useState('');
 
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<(Invoice & { issueDateDate: Date | null }) | null>(null);
+  const [archiving, setArchiving] = useState(false);
+
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
@@ -69,7 +96,7 @@ export default function FacturenPage() {
             id: docSnap.id,
             issueDateDate: naarDate(raw?.issueDate),
           };
-        });
+        }).filter((inv) => !inv.archived);
 
         data.sort((a, b) => {
           const aT = a.issueDateDate?.getTime() ?? 0;
@@ -130,6 +157,34 @@ export default function FacturenPage() {
     });
   }, [invoices, search, filter]);
 
+  function openArchiveDialog(inv: Invoice & { issueDateDate: Date | null }) {
+    setArchiveTarget(inv);
+    setArchiveOpen(true);
+  }
+
+  async function confirmArchive() {
+    if (!user || !firestore || !archiveTarget || archiving) return;
+    setArchiving(true);
+    try {
+      const ref = doc(firestore, 'invoices', archiveTarget.id);
+      await updateDoc(ref, {
+        archived: true,
+        archivedAt: serverTimestamp(),
+        archivedBy: user.uid,
+        updatedAt: serverTimestamp(),
+      } as any);
+
+      setArchiveOpen(false);
+      setArchiveTarget(null);
+      router.push('/archief');
+    } catch (e: any) {
+      console.error(e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon factuur niet archiveren.'}`);
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   const filteredQuotes = useMemo(() => {
     const s = quoteSearch.trim().toLowerCase();
     let arr = [...quotes];
@@ -147,20 +202,21 @@ export default function FacturenPage() {
 
   if (isUserLoading || loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <Loader2 className="animate-spin text-emerald-500 w-8 h-8" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary w-8 h-8" />
       </div>
     );
   }
 
   return (
-    <div className="app-shell min-h-screen bg-background pb-10">
-      <AppNavigation />
-      <DashboardHeader user={user} title="Facturen" />
+    <TooltipProvider>
+      <div className="app-shell min-h-screen bg-background pb-10">
+        <AppNavigation />
+        <DashboardHeader user={user} title="Facturen" />
 
-      <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
-        <div className="w-full max-w-3xl space-y-6">
-          <Card className="border-white/5 bg-zinc-900/60">
+        <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
+          <div className="w-full max-w-3xl space-y-6">
+          <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
                 <ReceiptText className="h-5 w-5 text-emerald-400" />
@@ -176,12 +232,12 @@ export default function FacturenPage() {
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Zoek op klant, factuurnummer of offerte-id..."
-                    className="pl-9 bg-zinc-950/40 border-white/10"
+                    className="pl-9"
                   />
                 </div>
                 <div className="flex gap-2">
@@ -192,7 +248,7 @@ export default function FacturenPage() {
                         Nieuwe factuur
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-2xl bg-zinc-900 border-zinc-800 text-white">
+                    <DialogContent className="sm:max-w-2xl">
                       <DialogHeader>
                         <DialogTitle>Nieuwe factuur</DialogTitle>
                         <DialogDescription>Kies een offerte en maak een voorschot- of eindfactuur.</DialogDescription>
@@ -203,12 +259,11 @@ export default function FacturenPage() {
                           value={quoteSearch}
                           onChange={(e) => setQuoteSearch(e.target.value)}
                           placeholder="Zoek offertes op klant, titel of nummer..."
-                          className="bg-zinc-800 border-zinc-700"
                         />
 
                         <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-1">
                           {filteredQuotes.length === 0 ? (
-                            <div className="text-sm text-zinc-400 p-3">Geen offertes gevonden.</div>
+                            <div className="text-sm text-muted-foreground p-3">Geen offertes gevonden.</div>
                           ) : (
                             filteredQuotes.map((q) => {
                               const klant =
@@ -219,17 +274,17 @@ export default function FacturenPage() {
                               const total = typeof q?.amount === 'number' ? q.amount : (typeof q?.totaalbedrag === 'number' ? q.totaalbedrag : 0);
                               const disabled = !total || total <= 0;
                               return (
-                                <div key={q.id} className="rounded-lg border border-zinc-800 bg-zinc-950/30 p-3 flex items-start justify-between gap-3">
+                                <div key={q.id} className="rounded-lg border border-border/50 bg-background/30 p-3 flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2">
                                       <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
                                       <div className="font-semibold text-sm truncate">{label}</div>
-                                      <div className="text-xs text-zinc-500 truncate">• {klant}</div>
+                                      <div className="text-xs text-muted-foreground truncate">• {klant}</div>
                                     </div>
-                                    <div className="text-xs text-zinc-500 mt-1 truncate">
+                                    <div className="text-xs text-muted-foreground mt-1 truncate">
                                       {(q?.titel || q?.title || '').toString() || '—'}
                                     </div>
-                                    <div className="text-xs text-zinc-400 mt-1">
+                                    <div className="text-xs text-muted-foreground mt-1">
                                       Totaal: {formatCurrency(total)}
                                     </div>
                                   </div>
@@ -297,10 +352,10 @@ export default function FacturenPage() {
           </Card>
 
           {filtered.length === 0 ? (
-            <Card className="border-white/5 bg-zinc-900/60">
+            <Card>
               <CardContent className="p-8 text-center space-y-3">
-                <div className="text-zinc-200 font-semibold">Geen facturen gevonden</div>
-                <div className="text-sm text-zinc-400">
+                <div className="font-semibold">Geen facturen gevonden</div>
+                <div className="text-sm text-muted-foreground">
                   Facturen maak je aan vanuit een offerte.
                 </div>
                 <Button asChild variant="success" className="mt-2">
@@ -313,40 +368,138 @@ export default function FacturenPage() {
               {filtered.map((inv) => {
                 const open = inv.paymentSummary?.openAmount ?? inv.totalsSnapshot?.totaalInclBtw ?? 0;
                 const klant = inv.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant';
-                const datum = inv.issueDateDate
-                  ? inv.issueDateDate.toLocaleDateString('nl-NL')
-                  : '-';
+                const datum = inv.issueDateDate;
+                const nrLabel = inv.invoiceNumberLabel ? `Factuur #${inv.invoiceNumberLabel}` : null;
+                const titel =
+                  inv.sourceQuote?.titel ||
+                  inv.sourceQuote?.projectAdresSnapshot?.adres ||
+                  inv.sourceQuote?.klantSnapshot?.adres ||
+                  '—';
+                const lopend =
+                  inv.status !== 'betaald' &&
+                  inv.status !== 'geannuleerd' &&
+                  (open ?? 0) > 0;
 
                 return (
-                  <Link
+                  <div
                     key={inv.id}
-                    href={`/facturen/${inv.id}`}
-                    className="block rounded-xl border border-white/5 bg-zinc-900/60 hover:bg-zinc-900/80 transition-colors"
+                    className={cn(
+                      "group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
+                      lopend ? "border-l-4 border-l-emerald-500" : ""
+                    )}
                   >
-                    <div className="p-4 flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="font-semibold text-zinc-100 truncate">
-                            Factuur #{inv.invoiceNumberLabel}
-                          </div>
-                          <InvoiceStatusBadge status={inv.status} />
-                        </div>
-                        <div className="text-sm text-zinc-400 truncate">{klant}</div>
-                        <div className="text-xs text-zinc-500 mt-1">Datum: {datum}</div>
+                    <Link href={`/facturen/${inv.id}`} className="absolute inset-0 z-0" />
+
+                    <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                          {klant}
+                        </span>
+
+                        {nrLabel && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
+                            {nrLabel}
+                          </span>
+                        )}
+
+                        <InvoiceStatusBadge status={inv.status} />
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <div className="text-xs text-zinc-500">Openstaand</div>
-                        <div className="text-sm font-semibold text-zinc-100">{formatCurrency(open)}</div>
+                      <div className="flex items-center gap-3 text-sm text-zinc-500">
+                        <span className="truncate max-w-[200px] text-zinc-400 font-medium">
+                          {titel.toString()}
+                        </span>
+                        <span className="opacity-20">•</span>
+                        <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
+                          <Calendar className="h-3.5 w-3.5 opacity-70" />
+                          {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
+                        </span>
+                        <span className="opacity-20">•</span>
+                        <span
+                          className={cn(
+                            "font-semibold tracking-wide",
+                            open > 0 ? "text-emerald-400" : "text-zinc-600"
+                          )}
+                        >
+                          {formatCurrency(open)}
+                        </span>
                       </div>
                     </div>
-                  </Link>
+
+                    <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            asChild
+                            variant="secondary"
+                            size="sm"
+                            className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                          >
+                            <Link href={`/facturen/${inv.id}`}>
+                              <Pencil className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Openen</span>
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Open deze factuur</TooltipContent>
+                      </Tooltip>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          openArchiveDialog(inv);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Archiveren</span>
+                      </Button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
           )}
-        </div>
-      </main>
-    </div>
+          </div>
+        </main>
+
+        <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Factuur archiveren?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Deze factuur wordt verplaatst naar het archief. Je kunt dit later ongedaan maken via het archief.
+                {archiveTarget ? (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    <span className="font-mono text-zinc-300">
+                      {archiveTarget.invoiceNumberLabel ? `Factuur #${archiveTarget.invoiceNumberLabel}` : 'Factuur'}
+                    </span>
+                    <span className="opacity-30 mx-2">•</span>
+                    <span>{archiveTarget.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant'}</span>
+                  </div>
+                ) : null}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter className="gap-2 sm:gap-2">
+              <AlertDialogCancel disabled={archiving} className="rounded-xl">
+                Annuleren
+              </AlertDialogCancel>
+              <Button
+                type="button"
+                onClick={confirmArchive}
+                disabled={archiving}
+                variant="destructiveSoft"
+              >
+                {archiving ? 'Archiveren...' : 'Archiveren'}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </TooltipProvider>
   );
 }

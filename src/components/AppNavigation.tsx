@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Menu, LayoutDashboard, FileText, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus } from 'lucide-react';
+import { Archive, Menu, LayoutDashboard, FileText, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -18,8 +18,9 @@ interface NavigationItem {
 
 const navItems: NavigationItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/offertes', label: 'Alle Offertes', icon: FileText },
+    { href: '/offertes', label: 'Offertes', icon: FileText },
     { href: '/facturen', label: 'Facturen', icon: ReceiptText },
+    { href: '/archief', label: 'Archief', icon: Archive },
     { href: '/planning', label: 'Planning', icon: CalendarDays },
     { href: '/materialen', label: 'Producten beheren', icon: Boxes },
     { href: '/klanten', label: 'Klanten beheren', icon: Users },

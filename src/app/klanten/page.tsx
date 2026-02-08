@@ -498,6 +498,7 @@ export default function KlantenPage() {
                     <Label>Voornaam</Label>
                     <Input
                       value={editingClient.voornaam || ''}
+                      placeholder="Voornaam"
                       onChange={(e) =>
                         setEditingClient({ ...editingClient, voornaam: e.target.value })
                       }
@@ -508,6 +509,7 @@ export default function KlantenPage() {
                     <Label>Achternaam</Label>
                     <Input
                       value={editingClient.achternaam || ''}
+                      placeholder="Achternaam"
                       onChange={(e) =>
                         setEditingClient({ ...editingClient, achternaam: e.target.value })
                       }
@@ -519,6 +521,7 @@ export default function KlantenPage() {
                   <Label>Bedrijfsnaam (optioneel)</Label>
                   <Input
                     value={editingClient.bedrijfsnaam || ''}
+                    placeholder="Bedrijf B.V."
                     onChange={(e) =>
                       setEditingClient({ ...editingClient, bedrijfsnaam: e.target.value })
                     }
@@ -530,6 +533,7 @@ export default function KlantenPage() {
                     <Label>E-mail</Label>
                     <Input
                       value={editingClient.emailadres || ''}
+                      placeholder="naam@voorbeeld.nl"
                       onChange={(e) =>
                         setEditingClient({ ...editingClient, emailadres: e.target.value })
                       }
@@ -540,6 +544,7 @@ export default function KlantenPage() {
                     <Label>Telefoon</Label>
                     <Input
                       value={editingClient.telefoonnummer || ''}
+                      placeholder="06 12345678"
                       onChange={(e) =>
                         setEditingClient({ ...editingClient, telefoonnummer: e.target.value })
                       }
@@ -559,6 +564,7 @@ export default function KlantenPage() {
                       <Label>Straat</Label>
                       <Input
                         value={editingClient.straat || ''}
+                        placeholder="Straatnaam"
                         onChange={(e) =>
                           setEditingClient({ ...editingClient, straat: e.target.value })
                         }
@@ -569,6 +575,7 @@ export default function KlantenPage() {
                       <Label>Nr.</Label>
                       <Input
                         value={editingClient.huisnummer || ''}
+                        placeholder="Nr."
                         onChange={(e) =>
                           setEditingClient({ ...editingClient, huisnummer: e.target.value })
                         }
@@ -581,6 +588,7 @@ export default function KlantenPage() {
                       <Label>Postcode</Label>
                       <Input
                         value={editingClient.postcode || ''}
+                        placeholder="1234 AB"
                         onChange={(e) =>
                           setEditingClient({ ...editingClient, postcode: e.target.value })
                         }
@@ -591,6 +599,7 @@ export default function KlantenPage() {
                       <Label>Plaats</Label>
                       <Input
                         value={editingClient.plaats || ''}
+                        placeholder="Plaatsnaam"
                         onChange={(e) =>
                           setEditingClient({ ...editingClient, plaats: e.target.value })
                         }

@@ -43,11 +43,15 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
 
     const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak'];
 
+    const formatPrice = (val: number) => {
+        return val.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     // Sync from props if they change externally (e.g. from modal)
     useEffect(() => {
         setLocalAantal(item.aantal?.toString() || '');
         setLocalProduct(item.product || '');
-        setLocalPrijs(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
+        setLocalPrijs(item.prijs_per_stuk === undefined || item.prijs_per_stuk === 0 ? '' : formatPrice(item.prijs_per_stuk));
         setLocalEenheid(item.eenheid || 'stuk');
     }, [item.aantal, item.product, item.prijs_per_stuk, item.eenheid]);
 
@@ -74,13 +78,19 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
 
     const handlePrijsBlur = () => {
         console.log('🟡 Prijs BLUR fired!', { index, localPrijs, itemPrijs: item.prijs_per_stuk });
-        const val = parseFloat(localPrijs.replace(',', '.')) || 0;
+        // Parse: remove dots (thousands) and replace comma with dot (decimal)
+        const parsedValue = localPrijs.replace(/\./g, '').replace(',', '.');
+        const val = parseFloat(parsedValue) || 0;
+
         if (val !== item.prijs_per_stuk) {
             console.log('🟡 Calling onUpdateItem with prijs:', { index, val, onUpdateItemType: typeof onUpdateItem });
             onUpdateItem(index, { prijs_per_stuk: val });
         } else {
             console.log('⚪ Prijs unchanged, skipping');
         }
+
+        // Re-format local display
+        setLocalPrijs(val === 0 ? '' : formatPrice(val));
     };
 
     const handleEenheidChange = (val: string) => {
@@ -209,6 +219,7 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
         prijs_per_stuk: 0,
         eenheid: 'stuk'
     });
+    const [localNewPrice, setLocalNewPrice] = useState<string>('');
 
     const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak'];
 
@@ -227,16 +238,25 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
         if (!newItem.product || !newItem.aantal) return;
 
         if (onAddItem) {
+            const parsedPrice = parseFloat(localNewPrice.replace(/\./g, '').replace(',', '.')) || 0;
             onAddItem({
                 aantal: Number(newItem.aantal),
                 product: newItem.product || '',
-                prijs_per_stuk: Number(newItem.prijs_per_stuk) || 0,
+                prijs_per_stuk: parsedPrice,
                 eenheid: newItem.eenheid || 'stuk'
             });
         }
 
         setIsAdding(false);
         setNewItem({ aantal: 1, product: '', prijs_per_stuk: 0, eenheid: 'stuk' });
+        setLocalNewPrice('');
+    };
+
+    const handleNewPrijsBlur = () => {
+        const parsedValue = localNewPrice.replace(/\./g, '').replace(',', '.');
+        const val = parseFloat(parsedValue) || 0;
+        setNewItem({ ...newItem, prijs_per_stuk: val });
+        setLocalNewPrice(val === 0 ? '' : val.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     };
 
     const handleAddButtonClick = () => {
@@ -351,12 +371,12 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-muted-foreground text-xs pointer-events-none">€</span>
                                             <input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
+                                                type="text"
                                                 placeholder="0,00"
-                                                value={newItem.prijs_per_stuk === 0 ? '' : newItem.prijs_per_stuk}
-                                                onChange={(e) => setNewItem({ ...newItem, prijs_per_stuk: parseFloat(e.target.value) || 0 })}
+                                                value={localNewPrice}
+                                                onChange={(e) => setLocalNewPrice(e.target.value)}
+                                                onBlur={handleNewPrijsBlur}
+                                                onKeyDown={handleKeyDown}
                                                 className="bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-right text-foreground p-0 w-24"
                                             />
                                         </div>

@@ -175,6 +175,10 @@ export interface Invoice {
   notes?: string;
   sentAt?: Timestamp;
   paidAt?: Timestamp;
+
+  archived?: boolean;
+  archivedAt?: Timestamp;
+  archivedBy?: string;
 }
 
 

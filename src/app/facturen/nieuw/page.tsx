@@ -161,8 +161,8 @@ export default function NieuweFactuurPage() {
 
   if (isUserLoading || loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <Loader2 className="animate-spin text-emerald-500 w-8 h-8" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary w-8 h-8" />
       </div>
     );
   }
@@ -184,9 +184,9 @@ export default function NieuweFactuurPage() {
           </div>
 
           {!quote ? (
-            <Card className="border-white/5 bg-zinc-900/60">
+            <Card>
               <CardContent className="p-8 text-center space-y-3">
-                <div className="text-zinc-200 font-semibold">Offerte niet gevonden</div>
+                <div className="font-semibold">Offerte niet gevonden</div>
                 <Button asChild variant="outline">
                   <Link href="/facturen">Terug naar facturen</Link>
                 </Button>
@@ -194,18 +194,18 @@ export default function NieuweFactuurPage() {
             </Card>
           ) : (
             <>
-              <Card className="border-white/5 bg-zinc-900/60">
+              <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-emerald-400" />
                     Offerte {typeof quote?.offerteNummer === 'number' ? `#${quote.offerteNummer}` : ''}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm text-zinc-300">
-                  <div className="text-zinc-400">{(quote?.titel || quote?.title || quote?.werkomschrijving || '—').toString()}</div>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="text-muted-foreground">{(quote?.titel || quote?.title || quote?.werkomschrijving || '—').toString()}</div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">Totaal (incl. BTW)</span>
-                    <span className="font-semibold text-zinc-100">{formatCurrency(totalIncl)}</span>
+                    <span className="text-muted-foreground">Totaal (incl. BTW)</span>
+                    <span className="font-semibold">{formatCurrency(totalIncl)}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -230,7 +230,7 @@ export default function NieuweFactuurPage() {
               </div>
 
               {selectedType === 'voorschot' ? (
-                <Card className="border-white/5 bg-zinc-900/60">
+                <Card>
                   <CardHeader>
                     <CardTitle>Voorschot</CardTitle>
                   </CardHeader>
@@ -245,16 +245,16 @@ export default function NieuweFactuurPage() {
                             max={100}
                             value={voorschotPercentage}
                             onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
-                            className="bg-zinc-950/40 border-white/10 pr-10"
+                            className="pr-10"
                           />
-                          <span className="absolute right-3 top-2.5 text-sm text-zinc-400">%</span>
+                          <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <Label>Bedrag (incl. BTW)</Label>
-                        <div className="h-10 rounded-md border border-white/10 bg-zinc-950/40 px-3 flex items-center justify-between">
-                          <span className="text-sm text-zinc-400">Voorschot</span>
-                          <span className="text-sm font-semibold text-zinc-100">{formatCurrency(voorschotBedrag)}</span>
+                        <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Voorschot</span>
+                          <span className="text-sm font-semibold">{formatCurrency(voorschotBedrag)}</span>
                         </div>
                       </div>
                     </div>
@@ -278,15 +278,15 @@ export default function NieuweFactuurPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card className="border-white/5 bg-zinc-900/60">
+                <Card>
                   <CardHeader>
                     <CardTitle>Eindfactuur</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between gap-4">
                       <div className="space-y-1">
-                        <div className="font-medium text-zinc-100">Voorschot aftrekken</div>
-                        <div className="text-sm text-zinc-400">
+                        <div className="font-medium">Voorschot aftrekken</div>
+                        <div className="text-sm text-muted-foreground">
                           Eindfactuur = totaal - voorschot (ook zonder voorschotfactuur).
                         </div>
                       </div>
@@ -304,23 +304,23 @@ export default function NieuweFactuurPage() {
                             value={voorschotPercentage}
                             onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
                             disabled={!voorschotIngeschakeld}
-                            className="bg-zinc-950/40 border-white/10 pr-10"
+                            className="pr-10"
                           />
-                          <span className="absolute right-3 top-2.5 text-sm text-zinc-400">%</span>
+                          <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <Label>Voorschot in mindering (incl. BTW)</Label>
-                        <div className="h-10 rounded-md border border-white/10 bg-zinc-950/40 px-3 flex items-center justify-between">
-                          <span className="text-sm text-zinc-400">Aftrek</span>
-                          <span className="text-sm font-semibold text-zinc-100">{formatCurrency(aftrek)}</span>
+                        <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Aftrek</span>
+                          <span className="text-sm font-semibold">{formatCurrency(aftrek)}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="h-10 rounded-md border border-white/10 bg-zinc-950/40 px-3 flex items-center justify-between">
-                      <span className="text-sm text-zinc-400">Te betalen eindfactuur</span>
-                      <span className="text-sm font-semibold text-zinc-100">{formatCurrency(eindBedrag)}</span>
+                    <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Te betalen eindfactuur</span>
+                      <span className="text-sm font-semibold">{formatCurrency(eindBedrag)}</span>
                     </div>
 
                     <Button
@@ -343,4 +343,3 @@ export default function NieuweFactuurPage() {
     </div>
   );
 }
-

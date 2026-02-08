@@ -330,8 +330,8 @@ export default function FactuurDetailPage() {
 
   if (isUserLoading || loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <Loader2 className="animate-spin text-emerald-500 w-8 h-8" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary w-8 h-8" />
       </div>
     );
   }
@@ -342,9 +342,9 @@ export default function FactuurDetailPage() {
         <AppNavigation />
         <DashboardHeader user={user} title="Factuur" />
         <main className="flex flex-col items-center p-6">
-          <Card className="w-full max-w-2xl border-white/5 bg-zinc-900/60">
+          <Card className="w-full max-w-2xl">
             <CardContent className="p-8 text-center space-y-3">
-              <div className="text-zinc-200 font-semibold">Factuur niet gevonden</div>
+              <div className="font-semibold">Factuur niet gevonden</div>
               <Button asChild variant="outline">
                 <Link href="/facturen">Terug naar facturen</Link>
               </Button>
@@ -369,6 +369,12 @@ export default function FactuurDetailPage() {
 
       <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
         <div className="w-full max-w-4xl space-y-6">
+          {invoice.archived ? (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+              Deze factuur is gearchiveerd. Je vindt ’m terug in het <Link href="/archief?tab=facturen" className="underline underline-offset-4">archief</Link>.
+            </div>
+          ) : null}
+
           <div className="flex items-center justify-between gap-3">
             <Button asChild variant="outline" className="gap-2">
               <Link href="/facturen">
@@ -417,7 +423,7 @@ export default function FactuurDetailPage() {
             </div>
           )}
 
-          <Card className="border-white/5 bg-zinc-900/60">
+          <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
@@ -428,15 +434,15 @@ export default function FactuurDetailPage() {
                   <InvoiceStatusBadge status={invoice.status} />
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-xs text-zinc-500">Openstaand</div>
-                  <div className="text-sm font-semibold text-zinc-100">{formatCurrency(open)}</div>
+                  <div className="text-xs text-muted-foreground">Openstaand</div>
+                  <div className="text-sm font-semibold">{formatCurrency(open)}</div>
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-zinc-300 space-y-2">
-              <div><span className="text-zinc-500">Klant:</span> {klantNaam}</div>
-              <div><span className="text-zinc-500">Factuurdatum:</span> {issueDate ? issueDate.toLocaleDateString('nl-NL') : '-'}</div>
-              <div><span className="text-zinc-500">Vervaldatum:</span> {dueDate ? dueDate.toLocaleDateString('nl-NL') : '-'}</div>
+            <CardContent className="text-sm space-y-2">
+              <div><span className="text-muted-foreground">Klant:</span> {klantNaam}</div>
+              <div><span className="text-muted-foreground">Factuurdatum:</span> {issueDate ? issueDate.toLocaleDateString('nl-NL') : '-'}</div>
+              <div><span className="text-muted-foreground">Vervaldatum:</span> {dueDate ? dueDate.toLocaleDateString('nl-NL') : '-'}</div>
               <div className="pt-2 flex gap-2">
                 <Button asChild variant="outline" className="h-9">
                   <Link href={`/offertes/${invoice.quoteId}`}>Open offerte</Link>
@@ -466,28 +472,28 @@ export default function FactuurDetailPage() {
             </TabsContent>
 
             <TabsContent value="overzicht" className="space-y-4">
-              <Card className="border-white/5 bg-zinc-900/60">
+              <Card>
                 <CardHeader>
                   <CardTitle>Bedragen</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-400">Totaal (incl. BTW)</span>
-                    <span className="font-semibold text-zinc-100">{formatCurrency(totaalIncl)}</span>
+                    <span className="text-muted-foreground">Totaal (incl. BTW)</span>
+                    <span className="font-semibold">{formatCurrency(totaalIncl)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-400">Betaald</span>
-                    <span className="font-semibold text-zinc-100">{formatCurrency(paid)}</span>
+                    <span className="text-muted-foreground">Betaald</span>
+                    <span className="font-semibold">{formatCurrency(paid)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-zinc-400">Openstaand</span>
-                    <span className="font-semibold text-zinc-100">{formatCurrency(open)}</span>
+                    <span className="text-muted-foreground">Openstaand</span>
+                    <span className="font-semibold">{formatCurrency(open)}</span>
                   </div>
                 </CardContent>
               </Card>
 
               {invoiceType === 'eind' && (
-                <Card className="border-white/5 bg-zinc-900/60">
+                <Card>
                   <CardHeader>
                     <CardTitle>Bedrag aanpassen</CardTitle>
                   </CardHeader>
@@ -498,9 +504,8 @@ export default function FactuurDetailPage() {
                         value={overrideAmount}
                         onChange={(e) => setOverrideAmount(e.target.value)}
                         placeholder="bijv. 1250,00"
-                        className="bg-zinc-950/40 border-white/10"
                       />
-                      <div className="text-xs text-zinc-500">
+                      <div className="text-xs text-muted-foreground">
                         Laat leeg om niet te wijzigen. Dit overschrijft het eindfactuurbedrag.
                       </div>
                     </div>
@@ -510,7 +515,7 @@ export default function FactuurDetailPage() {
                         value={overrideReason}
                         onChange={(e) => setOverrideReason(e.target.value)}
                         placeholder="bijv. voorschot is mondeling afgesproken"
-                        className="bg-zinc-950/40 border-white/10 min-h-[90px]"
+                        className="min-h-[90px]"
                       />
                     </div>
                     <Button
@@ -552,13 +557,13 @@ export default function FactuurDetailPage() {
                 </Card>
               )}
 
-              <Card className="border-white/5 bg-zinc-900/60">
+              <Card>
                 <CardHeader>
                   <CardTitle>Notities</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea value={invoice.notes || ''} readOnly className="bg-zinc-950/40 border-white/10 min-h-[120px]" />
-                  <div className="text-xs text-zinc-500 mt-2">
+                  <Textarea value={invoice.notes || ''} readOnly className="min-h-[120px]" />
+                  <div className="text-xs text-muted-foreground mt-2">
                     Notities zijn in v1 read-only (kan later editable gemaakt worden).
                   </div>
                 </CardContent>
@@ -566,7 +571,7 @@ export default function FactuurDetailPage() {
             </TabsContent>
 
             <TabsContent value="betalingen" className="space-y-4">
-              <Card className="border-white/5 bg-zinc-900/60">
+              <Card>
                 <CardHeader>
                   <CardTitle>Betaling toevoegen</CardTitle>
                 </CardHeader>
@@ -577,7 +582,6 @@ export default function FactuurDetailPage() {
                       value={payAmount}
                       onChange={(e) => setPayAmount(e.target.value)}
                       placeholder="bijv. 150,00"
-                      className="bg-zinc-950/40 border-white/10"
                     />
                   </div>
                   <div className="space-y-2">
@@ -586,13 +590,12 @@ export default function FactuurDetailPage() {
                       type="date"
                       value={payDate}
                       onChange={(e) => setPayDate(e.target.value)}
-                      className="bg-zinc-950/40 border-white/10"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Methode</Label>
                     <Select value={payMethod} onValueChange={(v) => setPayMethod(v as any)}>
-                      <SelectTrigger className="bg-zinc-950/40 border-white/10">
+                      <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -609,7 +612,6 @@ export default function FactuurDetailPage() {
                       value={payReference}
                       onChange={(e) => setPayReference(e.target.value)}
                       placeholder="bijv. omschrijving / transactie-id"
-                      className="bg-zinc-950/40 border-white/10"
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -618,7 +620,7 @@ export default function FactuurDetailPage() {
                       value={payNote}
                       onChange={(e) => setPayNote(e.target.value)}
                       placeholder="Optioneel"
-                      className="bg-zinc-950/40 border-white/10 min-h-[90px]"
+                      className="min-h-[90px]"
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -636,26 +638,26 @@ export default function FactuurDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-white/5 bg-zinc-900/60">
+              <Card>
                 <CardHeader>
                   <CardTitle>Betalingen</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {payments.length === 0 ? (
-                    <div className="text-sm text-zinc-400">Nog geen betalingen.</div>
+                    <div className="text-sm text-muted-foreground">Nog geen betalingen.</div>
                   ) : (
                     <div className="space-y-2">
                       {payments.map((p) => {
                         const d = naarDate(p.date);
                         return (
-                          <div key={p.id} className="flex items-start justify-between gap-4 rounded-lg border border-white/5 bg-zinc-950/30 p-3">
+                          <div key={p.id} className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card/50 p-3">
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold text-zinc-100">{formatCurrency(p.amount)}</div>
-                              <div className="text-xs text-zinc-500">
+                              <div className="text-sm font-semibold">{formatCurrency(p.amount)}</div>
+                              <div className="text-xs text-muted-foreground">
                                 {d ? d.toLocaleDateString('nl-NL') : '-'} • {p.method}
                               </div>
                               {(p.reference || p.note) && (
-                                <div className="text-xs text-zinc-400 mt-1 break-words">
+                                <div className="text-xs text-muted-foreground mt-1 break-words">
                                   {[p.reference, p.note].filter(Boolean).join(' — ')}
                                 </div>
                               )}

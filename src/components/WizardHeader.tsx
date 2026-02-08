@@ -225,7 +225,7 @@ export function WizardHeader({
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
                                                 <Link href="/offertes">
                                                     <FileText className="h-4 w-4" />
-                                                    Alle Offertes
+                                                    Offertes
                                                 </Link>
                                             </Button>
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>

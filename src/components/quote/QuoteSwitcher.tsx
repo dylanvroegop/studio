@@ -111,28 +111,38 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
         const location = (quote.klantinformatie?.plaats || '').toLowerCase();
 
         return quoteNumber.includes(search) ||
-               clientName.includes(search) ||
-               title.includes(search) ||
-               location.includes(search);
+            clientName.includes(search) ||
+            title.includes(search) ||
+            location.includes(search);
     });
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted"
-                >
-                    <FileText size={16} />
-                    Alle offertes
-                    <ChevronDown size={14} />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent
-                className="w-96 p-0 bg-card border-border"
-                align="start"
+        <div className="flex items-center gap-1">
+            <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => router.push('/offertes')}
             >
+                <FileText size={16} />
+                Offertes
+            </Button>
+
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        aria-label="Wissel offerte"
+                    >
+                        <ChevronDown size={14} />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                    className="w-96 p-0 bg-card border-border"
+                    align="start"
+                >
                 {/* Search Input */}
                 <div className="p-3 border-b border-border">
                     <div className="relative">
@@ -147,51 +157,51 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
                     </div>
                 </div>
 
-                {/* Quote List */}
-                <div className="max-h-[400px] overflow-y-auto">
-                    {loading ? (
-                        <div className="p-4 text-center text-muted-foreground text-sm">Laden...</div>
-                    ) : filteredQuotes.length === 0 ? (
-                        <div className="p-4 text-center text-muted-foreground text-sm">
-                            {searchQuery ? 'Geen offertes gevonden' : 'Geen offertes beschikbaar'}
-                        </div>
-                    ) : (
-                        filteredQuotes.map(quote => {
-                            const isActive = quote.id === currentQuoteId;
-                            const clientName = [quote.klantinformatie?.voornaam, quote.klantinformatie?.achternaam]
-                                .filter(Boolean)
-                                .join(' ') || 'Onbekende klant';
-                            const totalAmount = quote.totaalbedrag || quote.amount || 0;
+                    {/* Quote List */}
+                    <div className="max-h-[400px] overflow-y-auto">
+                        {loading ? (
+                            <div className="p-4 text-center text-muted-foreground text-sm">Laden...</div>
+                        ) : filteredQuotes.length === 0 ? (
+                            <div className="p-4 text-center text-muted-foreground text-sm">
+                                {searchQuery ? 'Geen offertes gevonden' : 'Geen offertes beschikbaar'}
+                            </div>
+                        ) : (
+                            filteredQuotes.map(quote => {
+                                const isActive = quote.id === currentQuoteId;
+                                const clientName = [quote.klantinformatie?.voornaam, quote.klantinformatie?.achternaam]
+                                    .filter(Boolean)
+                                    .join(' ') || 'Onbekende klant';
+                                const totalAmount = quote.totaalbedrag || quote.amount || 0;
 
-                            return (
-                                <button
-                                    key={quote.id}
-                                    onClick={() => handleSelect(quote.id)}
-                                    className={`w-full p-3 text-left hover:bg-accent transition-colors flex items-center justify-between gap-2 border-b border-border/50 last:border-0 ${
-                                        isActive ? 'bg-accent/50' : ''
-                                    }`}
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-mono text-sm text-emerald-500 font-medium">
-                                                {quote.offerteNummer || 'Concept'}
-                                            </span>
-                                            {isActive && <Check size={14} className="text-emerald-500" />}
+                                return (
+                                    <button
+                                        key={quote.id}
+                                        onClick={() => handleSelect(quote.id)}
+                                        className={`w-full p-3 text-left hover:bg-accent transition-colors flex items-center justify-between gap-2 border-b border-border/50 last:border-0 ${isActive ? 'bg-accent/50' : ''
+                                            }`}
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono text-sm text-emerald-500 font-medium">
+                                                    {quote.offerteNummer || 'Concept'}
+                                                </span>
+                                                {isActive && <Check size={14} className="text-emerald-500" />}
+                                            </div>
+                                            <div className="text-sm text-foreground truncate">{clientName}</div>
+                                            {quote.titel && (
+                                                <div className="text-xs text-muted-foreground truncate">{quote.titel}</div>
+                                            )}
                                         </div>
-                                        <div className="text-sm text-foreground truncate">{clientName}</div>
-                                        {quote.titel && (
-                                            <div className="text-xs text-muted-foreground truncate">{quote.titel}</div>
-                                        )}
-                                    </div>
-                                    <div className="text-sm font-medium text-muted-foreground shrink-0">
-                                        {formatCurrency(totalAmount)}
-                                    </div>
-                                </button>
-                            );
-                        })
-                    )}
-                </div>
-            </PopoverContent>
-        </Popover>
+                                        <div className="text-sm font-medium text-muted-foreground shrink-0">
+                                            {formatCurrency(totalAmount)}
+                                        </div>
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+                </PopoverContent>
+            </Popover>
+        </div>
     );
 }
