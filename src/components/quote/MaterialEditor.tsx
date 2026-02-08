@@ -38,14 +38,18 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
     const [localAantal, setLocalAantal] = useState<string>(item.aantal?.toString() || '');
     const [localProduct, setLocalProduct] = useState<string>(item.product || '');
     const [localPrijs, setLocalPrijs] = useState<string>(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
+    const [localEenheid, setLocalEenheid] = useState<string>(item.eenheid || 'stuk');
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+    const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak'];
 
     // Sync from props if they change externally (e.g. from modal)
     useEffect(() => {
         setLocalAantal(item.aantal?.toString() || '');
         setLocalProduct(item.product || '');
         setLocalPrijs(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
-    }, [item.aantal, item.product, item.prijs_per_stuk]);
+        setLocalEenheid(item.eenheid || 'stuk');
+    }, [item.aantal, item.product, item.prijs_per_stuk, item.eenheid]);
 
     const handleAantalBlur = () => {
         console.log('🔵 Aantal BLUR fired!', { index, localAantal, itemAantal: item.aantal });
@@ -79,6 +83,11 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
         }
     };
 
+    const handleEenheidChange = (val: string) => {
+        setLocalEenheid(val);
+        onUpdateItem(index, { eenheid: val });
+    };
+
     const handleDelete = () => {
         if (onRemoveItem) {
             onRemoveItem(index);
@@ -93,6 +102,16 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
         <>
             <tr className={`group transition-all duration-200 ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
                 <td className="px-6 py-3">
+                    <input
+                        type="text"
+                        value={localProduct}
+                        onChange={(e) => setLocalProduct(e.target.value)}
+                        onBlur={handleProductBlur}
+                        onKeyDown={handleKeyDown}
+                        className="w-full bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-300 text-sm hover:bg-zinc-800/50 hover:border-zinc-600 transition-all font-medium"
+                    />
+                </td>
+                <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
                         <input
                             type="number"
@@ -101,34 +120,38 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
                             onBlur={handleAantalBlur}
                             onKeyDown={handleKeyDown}
                             placeholder="0"
-                            className="w-12 bg-transparent border-none focus:ring-1 focus:ring-emerald-500/30 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-12 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <span className="text-zinc-600 text-[10px] font-bold">×</span>
                     </div>
                 </td>
-                <td className="px-6 py-3">
-                    <input
-                        type="text"
-                        value={localProduct}
-                        onChange={(e) => setLocalProduct(e.target.value)}
-                        onBlur={handleProductBlur}
-                        onKeyDown={handleKeyDown}
-                        className="w-full bg-transparent border-none focus:ring-1 focus:ring-emerald-500/30 rounded px-1.5 py-1 text-zinc-300 text-sm hover:bg-zinc-800/40 transition-all font-medium"
-                    />
-                </td>
                 <td className="px-6 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                        <span className="text-zinc-600 text-[10px] font-bold">€</span>
-                        <input
-                            type="text"
-                            value={localPrijs}
-                            onChange={(e) => setLocalPrijs(e.target.value)}
-                            onBlur={handlePrijsBlur}
-                            onKeyDown={handleKeyDown}
-                            placeholder="0,00"
-                            className={`w-24 bg-transparent border-none focus:ring-1 focus:ring-emerald-500/30 rounded px-1.5 py-1 text-right text-sm hover:bg-zinc-800/40 transition-all ${needsPrice ? 'text-amber-400 font-bold placeholder:text-zinc-600' : 'text-zinc-200 font-medium'}`}
-                        />
-                    </div>
+                    <label className={`flex items-center justify-end w-28 bg-zinc-900/40 border rounded px-2 py-1 hover:bg-zinc-800/50 transition-all focus-within:ring-1 focus-within:ring-emerald-500/50 focus-within:border-emerald-500/50 hover:border-zinc-600 cursor-text ${needsPrice ? 'border-amber-500/50' : 'border-zinc-700/60'}`}>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-zinc-400 text-sm pointer-events-none">€</span>
+                            <input
+                                type="text"
+                                value={localPrijs}
+                                onChange={(e) => setLocalPrijs(e.target.value)}
+                                onBlur={handlePrijsBlur}
+                                onKeyDown={handleKeyDown}
+                                placeholder="0,00"
+                                style={{ width: `${Math.max(1, (localPrijs?.length || 4))}ch` }}
+                                className={`bg-transparent border-none focus:outline-none focus:ring-0 text-sm font-mono text-right p-0 ${needsPrice ? 'text-amber-400 font-bold placeholder:text-zinc-600' : 'text-zinc-200 font-medium placeholder:text-zinc-600'}`}
+                            />
+                        </div>
+                    </label>
+                </td>
+                <td className="px-6 py-3">
+                    <select
+                        value={localEenheid}
+                        onChange={(e) => handleEenheidChange(e.target.value)}
+                        className="bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-300 text-xs hover:bg-zinc-800/50 hover:border-zinc-600 transition-all font-medium appearance-none min-w-[60px] text-center"
+                    >
+                        {UNITS.map(u => (
+                            <option key={u} value={u}>{u}</option>
+                        ))}
+                    </select>
                 </td>
                 <td className="px-6 py-3 text-right text-zinc-300 text-sm">
                     {formatCurrency(itemTotal)}
@@ -183,8 +206,11 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
     const [newItem, setNewItem] = useState<Partial<MaterialItem>>({
         aantal: 1,
         product: '',
-        prijs_per_stuk: 0
+        prijs_per_stuk: 0,
+        eenheid: 'stuk'
     });
+
+    const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak'];
 
     const itemsNeedingPrice = items.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0).length;
 
@@ -204,12 +230,13 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
             onAddItem({
                 aantal: Number(newItem.aantal),
                 product: newItem.product || '',
-                prijs_per_stuk: Number(newItem.prijs_per_stuk) || 0
+                prijs_per_stuk: Number(newItem.prijs_per_stuk) || 0,
+                eenheid: newItem.eenheid || 'stuk'
             });
         }
 
         setIsAdding(false);
-        setNewItem({ aantal: 1, product: '', prijs_per_stuk: 0 });
+        setNewItem({ aantal: 1, product: '', prijs_per_stuk: 0, eenheid: 'stuk' });
     };
 
     const handleAddButtonClick = () => {
@@ -238,15 +265,17 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                         )}
                     </div>
                 </div>
-                <div className="flex items-center gap-6">
-                    <div className="text-right">
-                        <p className="text-[10px] text-muted-foreground uppercase font-medium">Subtotaal (excl.)</p>
+                <div className="flex items-center">
+                    <div className="text-right w-32 px-6">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Subtotaal</p>
+                        <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
                         <p className="text-primary font-bold tracking-tight">
                             {formatCurrency(subtotal)}
                         </p>
                     </div>
-                    <div className="text-right">
-                        <p className="text-[10px] text-muted-foreground uppercase font-medium">Subtotaal (incl.)</p>
+                    <div className="text-right w-32 px-6">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Subtotaal</p>
+                        <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
                         <p className="text-primary font-bold tracking-tight">
                             {formatCurrency(subtotalInclVAT)}
                         </p>
@@ -261,20 +290,23 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                 <table className="w-full border-collapse">
                     <thead>
                         <tr className="bg-muted/20 text-left">
-                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-24">
-                                Aantal
-                            </th>
                             <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                                 Product
                             </th>
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-24">
+                                Aantal
+                            </th>
                             <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-36">
-                                Per stuk <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl.)</span>
+                                Prijs <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl. btw)</span>
+                            </th>
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-24">
+                                Eenheid
                             </th>
                             <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-32">
-                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl.)</span>
+                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl. btw)</span>
                             </th>
                             <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-32">
-                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(incl.)</span>
+                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(incl. btw)</span>
                             </th>
                             {onRemoveItem && <th className="px-6 py-3 w-12" />}
                         </tr>
@@ -297,6 +329,15 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                             <tr className="bg-primary/[0.02] border-t border-border animate-in fade-in slide-in-from-top-1 duration-200">
                                 <td className="px-6 py-4">
                                     <input
+                                        type="text"
+                                        placeholder="Product naam"
+                                        value={newItem.product}
+                                        onChange={(e) => setNewItem({ ...newItem, product: e.target.value })}
+                                        className="w-full bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
+                                    />
+                                </td>
+                                <td className="px-6 py-4">
+                                    <input
                                         type="number"
                                         min="1"
                                         value={newItem.aantal || ''}
@@ -306,27 +347,31 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                                     />
                                 </td>
                                 <td className="px-6 py-4">
-                                    <input
-                                        type="text"
-                                        placeholder="Product naam"
-                                        value={newItem.product}
-                                        onChange={(e) => setNewItem({ ...newItem, product: e.target.value })}
-                                        className="w-full bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
-                                    />
+                                    <label className="flex items-center justify-end w-36 bg-muted border border-border focus-within:ring-1 focus-within:ring-primary/50 rounded px-2 py-1 transition-all cursor-text">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-muted-foreground text-xs pointer-events-none">€</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                placeholder="0,00"
+                                                value={newItem.prijs_per_stuk === 0 ? '' : newItem.prijs_per_stuk}
+                                                onChange={(e) => setNewItem({ ...newItem, prijs_per_stuk: parseFloat(e.target.value) || 0 })}
+                                                className="bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-right text-foreground p-0 w-24"
+                                            />
+                                        </div>
+                                    </label>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <span className="text-muted-foreground text-xs">€</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0,00"
-                                            value={newItem.prijs_per_stuk === 0 ? '' : newItem.prijs_per_stuk}
-                                            onChange={(e) => setNewItem({ ...newItem, prijs_per_stuk: parseFloat(e.target.value) || 0 })}
-                                            className="w-24 bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-right text-foreground text-sm"
-                                        />
-                                    </div>
+                                    <select
+                                        value={newItem.eenheid || 'stuk'}
+                                        onChange={(e) => setNewItem({ ...newItem, eenheid: e.target.value })}
+                                        className="bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-xs appearance-none min-w-[60px] text-center"
+                                    >
+                                        {UNITS.map(u => (
+                                            <option key={u} value={u}>{u}</option>
+                                        ))}
+                                    </select>
                                 </td>
                                 <td colSpan={2} />
                                 <td className="px-6 py-4 flex justify-end gap-2">

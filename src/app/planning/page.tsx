@@ -12,7 +12,7 @@ import { Loader2, ChevronLeft, ChevronRight, Plus, CalendarDays } from 'lucide-r
 import { useEmployees } from '@/hooks/useEmployees';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { TimelineView, PlanningEntry } from '@/lib/types-planning';
-import { getDateRangeForView, getDaysInRange, formatDateHeader } from '@/lib/planning-utils';
+import { getDateRangeForView, getDaysInRange, formatDateHeader, autoSplitJob } from '@/lib/planning-utils';
 import { PlanningGrid } from '@/components/planning/PlanningGrid';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
 import { SchedulingBanner } from '@/components/planning/SchedulingBanner';
@@ -23,14 +23,14 @@ import { DEFAULT_PLANNING_SETTINGS, PlanningSettings } from '@/lib/types-plannin
 import { useToast } from '@/hooks/use-toast';
 
 interface Quote {
-  id: string;
-  titel?: string;
-  klantinformatie?: {
-    voornaam?: string;
-    achternaam?: string;
-    bedrijfsnaam?: string;
-  };
-  offerteNummer?: number;
+    id: string;
+    titel?: string;
+    klantinformatie?: {
+        voornaam?: string;
+        achternaam?: string;
+        bedrijfsnaam?: string;
+    };
+    offerteNummer?: number;
 }
 
 export default function PlanningPage() {
@@ -53,14 +53,12 @@ export default function PlanningPage() {
     const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [schedulingQuote, setSchedulingQuote] = useState<Quote | null>(null);
     const [isLoadingSchedulingQuote, setIsLoadingSchedulingQuote] = useState(false);
-    const [preselectedDate, setPreselectedDate] = useState<Date | undefined>();
-    const [preselectedEmployee, setPreselectedEmployee] = useState<string | undefined>();
 
     const { employees, isLoading: isLoadingEmployees, autoCreateSelf, isAutoCreating } = useEmployees();
 
     const dateRange = useMemo(() => getDateRangeForView(view, currentDate), [view, currentDate]);
 
-    const { entries, isLoading: isLoadingEntries, updateEntry, shiftQuoteEntries } = usePlanningData({
+    const { entries, isLoading: isLoadingEntries, updateEntry, shiftQuoteEntries, addEntry, addMultipleEntries } = usePlanningData({
         startDate: dateRange.start,
         endDate: dateRange.end
     });
@@ -133,7 +131,7 @@ export default function PlanningPage() {
                 setCurrentDate(prev => amount > 0 ? addWeeks(prev, 1) : subWeeks(prev, 1));
                 break;
             case 'week':
-                setCurrentDate(prev => amount > 0 ? addWeeks(prev, 6) : subWeeks(prev, 6));
+                setCurrentDate(prev => amount > 0 ? addMonths(prev, 1) : subMonths(prev, 1));
                 break;
             case 'month':
                 setCurrentDate(prev => amount > 0 ? addMonths(prev, 1) : subMonths(prev, 1));
@@ -147,7 +145,7 @@ export default function PlanningPage() {
             case 'day':
                 return `${format(start, 'd MMM', { locale: nl })} - ${format(end, 'd MMM yyyy', { locale: nl })}`;
             case 'week':
-                return `${format(start, 'd MMM', { locale: nl })} - ${format(end, 'd MMM yyyy', { locale: nl })}`;
+                return format(currentDate, 'MMMM yyyy', { locale: nl });
             case 'month':
                 return format(currentDate, 'MMMM yyyy', { locale: nl });
         }
@@ -158,12 +156,102 @@ export default function PlanningPage() {
         setIsScheduleModalOpen(true);
     };
 
-    const handleEmptyCellClick = (date: Date, employeeId: string) => {
+    const handleEmptyCellClick = async (date: Date, employeeId: string) => {
         if (schedulingMode) {
-            setPreselectedDate(date);
-            setPreselectedEmployee(employeeId);
-            setSelectedEntry(null);
-            setIsScheduleModalOpen(true);
+            // In scheduling mode: directly create the planning entry
+            if (!schedulingQuote || !schedulingHours) {
+                toast({
+                    title: 'Fout',
+                    description: 'Offerte gegevens ontbreken',
+                    variant: 'destructive'
+                });
+                return;
+            }
+
+            // Use first employee if no specific employee selected
+            const targetEmployeeId = employeeId || employees[0]?.id;
+            if (!targetEmployeeId) {
+                toast({
+                    title: 'Geen uitvoerder',
+                    description: 'Maak eerst een profiel aan in instellingen',
+                    variant: 'destructive'
+                });
+                return;
+            }
+
+            try {
+                const clientName = schedulingQuote.klantinformatie?.bedrijfsnaam ||
+                    `${schedulingQuote.klantinformatie?.voornaam || ''} ${schedulingQuote.klantinformatie?.achternaam || ''}`.trim() ||
+                    'Onbekend';
+
+                const cacheData = {
+                    clientName,
+                    projectTitle: schedulingQuote.titel || '',
+                    projectAddress: '',
+                    totalQuoteHours: schedulingHours
+                };
+
+                // Check if we need to auto-split
+                if (schedulingHours > planningSettings.defaultWorkdayHours && planningSettings.allowAutoSplit) {
+                    // Auto-split the job
+                    const splitEntries = autoSplitJob(
+                        schedulingHours,
+                        date,
+                        planningSettings
+                    );
+
+                    // Convert to the format expected by addMultipleEntries
+                    const entriesToAdd = splitEntries.map(entry => ({
+                        quoteId: schedulingQuote.id,
+                        employeeId: targetEmployeeId,
+                        startDate: entry.startDate,
+                        endDate: entry.endDate,
+                        scheduledHours: entry.hours,
+                        isAutoSplit: true,
+                        cache: cacheData
+                    }));
+
+                    await addMultipleEntries(entriesToAdd);
+
+                    toast({
+                        title: 'Ingepland',
+                        description: `${schedulingHours}u verdeeld over ${splitEntries.length} werkdagen`
+                    });
+                } else {
+                    // Single entry
+                    const startTime = planningSettings.defaultStartTime.split(':');
+                    const endTime = planningSettings.defaultEndTime.split(':');
+                    const startDate = new Date(date);
+                    startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), 0);
+                    const endDate = new Date(date);
+                    endDate.setHours(parseInt(endTime[0]), parseInt(endTime[1]), 0);
+
+                    await addEntry({
+                        quoteId: schedulingQuote.id,
+                        employeeId: targetEmployeeId,
+                        startDate,
+                        endDate,
+                        scheduledHours: schedulingHours,
+                        isAutoSplit: false,
+                        cache: cacheData
+                    });
+
+                    toast({
+                        title: 'Ingepland',
+                        description: `${schedulingHours}u ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })}`
+                    });
+                }
+
+                // Exit scheduling mode
+                router.push('/planning');
+            } catch (error) {
+                console.error('Error creating planning entry:', error);
+                toast({
+                    title: 'Fout bij inplannen',
+                    description: error instanceof Error ? error.message : 'Onbekende fout',
+                    variant: 'destructive'
+                });
+            }
         } else {
             setSelectedEntry(null);
             setIsScheduleModalOpen(true);
@@ -256,7 +344,7 @@ export default function PlanningPage() {
         <div className="min-h-screen bg-background flex flex-col">
             <DashboardHeader user={user} title="Planning" />
 
-            <div className="flex-1 flex flex-col p-4 pb-40 space-y-4 overflow-hidden">
+            <div className="flex-1 flex flex-col p-4 pb-[280px] space-y-4 overflow-hidden">
                 {/* Scheduling Mode Banner */}
                 {schedulingMode && schedulingQuote && (
                     <SchedulingBanner
@@ -276,7 +364,7 @@ export default function PlanningPage() {
                     <div className="flex items-center gap-2">
                         {/* View Toggle */}
                         <div className="flex bg-zinc-800 rounded-lg p-1">
-                            {(['day', 'week', 'month'] as TimelineView[]).map((v) => (
+                            {(['day', 'week'] as TimelineView[]).map((v) => (
                                 <button
                                     key={v}
                                     onClick={() => setView(v)}
@@ -287,7 +375,7 @@ export default function PlanningPage() {
                                             : "text-zinc-400 hover:text-zinc-200"
                                     )}
                                 >
-                                    {v === 'day' ? 'Dag' : v === 'week' ? 'Week' : 'Maand'}
+                                    {v === 'day' ? 'Week' : 'Maand'}
                                 </button>
                             ))}
                         </div>
@@ -360,6 +448,7 @@ export default function PlanningPage() {
                         onEntryResize={handleEntryResize}
                         onEmptyCellClick={handleEmptyCellClick}
                         schedulingMode={schedulingMode}
+                        currentDate={currentDate}
                     />
                 )}
             </div>
@@ -369,20 +458,11 @@ export default function PlanningPage() {
                 onClose={() => {
                     setIsScheduleModalOpen(false);
                     setSelectedEntry(null);
-                    setPreselectedDate(undefined);
-                    setPreselectedEmployee(undefined);
-                    if (schedulingMode) {
-                        router.push('/planning');
-                    }
                 }}
                 employees={employees}
                 planningSettings={planningSettings}
                 view={view}
                 existingEntry={selectedEntry}
-                preselectedQuote={schedulingMode ? schedulingQuote : undefined}
-                preselectedHours={schedulingMode ? schedulingHours : undefined}
-                preselectedDate={preselectedDate}
-                preselectedEmployee={preselectedEmployee}
             />
 
             <BottomNav />

@@ -5,7 +5,7 @@ import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
 import { getDaysInRange, getHoursInDay, formatDateHeader, isWorkDay } from '@/lib/planning-utils';
 import { useDragResize } from './useDragResize';
 import { ScheduleBlock } from './ScheduleBlock';
-import { format, isSameDay, isToday, startOfMonth, addMonths } from 'date-fns';
+import { format, isSameDay, isToday, startOfMonth, addMonths, isSameMonth } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
@@ -20,6 +20,7 @@ interface PlanningGridProps {
     onEntryResize: (entryId: string, newStart: Date, newEnd: Date) => void;
     onEmptyCellClick: (date: Date, employeeId: string) => void;
     schedulingMode?: boolean;
+    currentDate?: Date;
 }
 
 export function PlanningGrid({
@@ -31,7 +32,8 @@ export function PlanningGrid({
     onEntryDrop,
     onEntryResize,
     onEmptyCellClick,
-    schedulingMode = false
+    schedulingMode = false,
+    currentDate = new Date()
 }: PlanningGridProps) {
     const days = useMemo(() => getDaysInRange(dateRange.start, dateRange.end), [dateRange]);
     const hours = useMemo(() => getHoursInDay(6, 20), []);
@@ -276,7 +278,7 @@ export function PlanningGrid({
     }
 
     if (view === 'week') {
-        // Create an array of 6 weeks from the date range days
+        // Create an array of weeks from the date range days
         const weeks: Date[][] = [];
         for (let i = 0; i < days.length; i += 7) {
             weeks.push(days.slice(i, i + 7));
@@ -288,14 +290,12 @@ export function PlanningGrid({
         return (
             <div className="flex-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-auto">
                 <div className="min-w-[800px]">
-                    {/* Header: Mon - Sun */}
+                    {/* Header: Month + Mon - Sun */}
                     <div
                         className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 grid"
-                        style={{ gridTemplateColumns: `150px repeat(7, 1fr)` }}
+                        style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}
                     >
-                        <div className="p-3 border-r border-zinc-800">
-                            <span className="text-sm font-medium text-zinc-400"></span>
-                        </div>
+                        <div className="p-2 border-r border-zinc-800"></div>
                         {headerDays.map(day => (
                             <div
                                 key={format(day, 'EEE')}
@@ -313,45 +313,29 @@ export function PlanningGrid({
                         <div key={employee.id} className="border-b border-zinc-800 last:border-b-0">
                             <div
                                 className="grid"
-                                style={{ gridTemplateColumns: `150px repeat(7, 1fr)` }}
+                                style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}
                             >
-                                {/* Employee Info - Spans all weeks */}
-                                <div
-                                    className="p-3 border-r border-zinc-800 bg-zinc-900/50 flex flex-col justify-start sticky left-0 z-[5]"
-                                    style={{ gridRow: `1 / span ${weeks.length}` }}
-                                >
-                                    <div className="flex items-center gap-2 sticky top-[45px]">
-                                        <div
-                                            className="w-3 h-3 rounded-full shrink-0"
-                                            style={{ backgroundColor: employee.color }}
-                                        />
-                                        <span className="text-sm font-medium truncate">{employee.name}</span>
-                                    </div>
-                                </div>
-
                                 {/* Weeks */}
                                 {weeks.map((weekDays, weekIdx) => (
                                     <React.Fragment key={weekIdx}>
+                                        {/* Month label for this week */}
+                                        <div className="p-2 border-r border-zinc-800 border-b border-zinc-800/50 flex items-start justify-center bg-zinc-900/50">
+                                            <span className="text-xs font-medium text-zinc-400">
+                                                {format(weekDays[0], 'MMM', { locale: nl })}
+                                            </span>
+                                        </div>
                                         {weekDays.map(day => {
                                             const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
-                                            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                            const dayOfWeek = day.getDay();
+                                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                            const isCurrentMonth = isSameMonth(day, currentDate);
                                             return (
                                                 <div
                                                     key={day.toISOString()}
                                                     className={cn(
                                                         "relative min-h-[100px] border-r border-zinc-800 border-b border-zinc-800/50 p-1",
-                                                        "last:border-r-0", // Last day of week
-                                                        // weekIdx === weeks.length - 1 && "border-b-0", // Last week
-                                                        isWeekend && !isToday(day) && "bg-zinc-800/30",
-                                                        // If it's not the first week, we don't need to specify column because they flow naturally?
-                                                        // Actually in CSS Grid, if we didn't use subgrid/nested, this works because the parent grid 
-                                                        // defines the columns. 
-                                                        // BUT: The Employee div is taking up grid-column 1 / 2.
-                                                        // So all these divs need to be placed in columns 2-8.
-                                                        // However, just letting them flow will put them in col 1 if we aren't careful?
-                                                        // No, grid-auto-flow: row.
-                                                        // The employee cell took up the first slot of rows 1..N.
-                                                        // The next items will fill the available slots.
+                                                        "last:border-r-0",
+                                                        isWeekend && "bg-zinc-800/30",
                                                         schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                                         !schedulingMode && "cursor-default"
                                                     )}
@@ -360,8 +344,11 @@ export function PlanningGrid({
                                                     data-employee-id={employee.id}
                                                     data-role="week-slot"
                                                 >
-                                                    <div className="text-xs mb-1 text-right px-1 text-zinc-500">
-                                                        {format(day, 'd MMM', { locale: nl })}
+                                                    <div className={cn(
+                                                        "text-xs mb-1 text-right px-1",
+                                                        isCurrentMonth ? "text-white" : "text-zinc-500"
+                                                    )}>
+                                                        {format(day, 'd', { locale: nl })}
                                                     </div>
 
                                                     <div className="flex flex-col gap-1">

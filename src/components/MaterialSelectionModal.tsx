@@ -131,6 +131,7 @@ interface MaterialSelectionModalProps {
   categoryTitle?: string;
   initialWastePercentage?: number;
   onUpdateWaste?: (percentage: number) => void;
+  selectedMaterialId?: string;
 }
 
 export function MaterialSelectionModal({
@@ -144,7 +145,8 @@ export function MaterialSelectionModal({
   showFavorites = true,
   categoryTitle,
   initialWastePercentage = 0,
-  onUpdateWaste
+  onUpdateWaste,
+  selectedMaterialId
 }: MaterialSelectionModalProps) {
 
   const [step, setStep] = useState<'search' | 'choice' | 'form'>('search');
@@ -339,16 +341,21 @@ export function MaterialSelectionModal({
     }
 
     return result.sort((a, b) => {
-      // 1. Favorites first
+      // 1. Currently selected material ALWAYS first
+      if (selectedMaterialId) {
+        if (a.row_id === selectedMaterialId) return -1;
+        if (b.row_id === selectedMaterialId) return 1;
+      }
+      // 2. Favorites first
       if (a.isFavorite !== b.isFavorite) {
         return a.isFavorite ? -1 : 1;
       }
-      // 2. Then by order_id (if available)
+      // 3. Then by order_id (if available)
       const orderA = a.order_id ?? 999999;
       const orderB = b.order_id ?? 999999;
       return orderA - orderB;
     });
-  }, [uniqueMaterials, searchTerm, categoryFilter]);
+  }, [uniqueMaterials, searchTerm, categoryFilter, selectedMaterialId]);
 
   const visibleMaterials = useMemo(() => {
     return allFilteredMaterials.slice(0, displayLimit);
@@ -644,12 +651,27 @@ export function MaterialSelectionModal({
 
                       {/* CONTENT */}
                       <div
-                        className="flex-1 flex items-center justify-between gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                        className={cn(
+                          "flex-1 flex items-center justify-between gap-3 p-4 cursor-pointer transition-colors",
+                          mat.row_id === selectedMaterialId
+                            ? "bg-emerald-500/10 hover:bg-emerald-500/20"
+                            : "hover:bg-muted/50"
+                        )}
                         onClick={() => handleSelectExisting(mat)}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-foreground group-hover:text-emerald-600 transition-colors break-words whitespace-normal text-sm">
+                          <div className={cn(
+                            "font-medium transition-colors break-words whitespace-normal text-sm",
+                            mat.row_id === selectedMaterialId
+                              ? "text-emerald-600"
+                              : "text-foreground group-hover:text-emerald-600"
+                          )}>
                             {mat.materiaalnaam}
+                            {mat.row_id === selectedMaterialId && (
+                              <span className="ml-2 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                Huidig
+                              </span>
+                            )}
                           </div>
                           {/* {(mat.subsectie || mat.leverancier) && (
                             <div className="text-[10px] text-muted-foreground mt-0.5 truncate">

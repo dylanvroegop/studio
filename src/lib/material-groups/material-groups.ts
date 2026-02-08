@@ -25,7 +25,7 @@ export const GROUPS_PER_JOB: Record<string, MaterialGroupConfig> = {
     { id: 'gips_afwerking', title: 'NADEN & STUCWERK' },
     { id: 'Kozijnen', title: 'KOZIJNEN' },
     { id: 'Deuren', title: 'DEUREN' },
-    { id: 'Koof', title: 'LEIDINGKOOF / OMKASTING' },
+    { id: 'Koof', title: 'KOOF' },
     { id: 'Installatie', title: 'INSTALLATIE & ELEKTRA' },
     { id: 'Schakelmateriaal', title: 'SCHAKELMATERIAAL' },
     // als jij “extra” ook als sectie wil tonen:

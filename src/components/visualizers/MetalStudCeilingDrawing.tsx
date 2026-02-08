@@ -7,8 +7,8 @@ import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
 import { OpeningRenderer } from './shared/OpeningRenderer';
 import { calculateRaveelwerk, raveelwerkToSVG } from './shared/raveelwerk-utils';
-import { LeidingkoofOverlay } from './shared/LeidingkoofOverlay';
-import { LeidingkoofItem } from '../leidingkoof/LeidingkoofSection';
+import { KoofOverlay } from './shared/KoofOverlay';
+import { KoofItem } from '../koof/KoofSection';
 
 export interface CeilingOpening {
     id: string;
@@ -79,14 +79,14 @@ export interface CeilingDrawingProps {
 
         doubleEndBattens?: boolean;
         openings?: CeilingOpening[];
-        leidingkofen?: LeidingkoofItem[];
+        koven?: KoofItem[];
     };
     className?: string;
     fitContainer?: boolean;
     startFromRight?: boolean;
     startLattenFromBottom?: boolean;
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
-    onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
+    onKoofChange?: (updated: KoofItem[]) => void;
     title?: string;
 }
 
@@ -97,7 +97,7 @@ export function MetalStudCeilingDrawing({
     fitContainer = false,
     className = "",
     onOpeningsChange,
-    onLeidingkoofChange,
+    onKoofChange,
     title
 }: CeilingDrawingProps) {
     // 1. EXTRACT PROPS
@@ -198,8 +198,8 @@ export function MetalStudCeilingDrawing({
         origBottom: number;
     } | null>(null);
 
-    const handleKoofPointerDown = React.useCallback((e: React.PointerEvent, koof: LeidingkoofItem) => {
-        if (!onLeidingkoofChange) return;
+    const handleKoofPointerDown = React.useCallback((e: React.PointerEvent, koof: KoofItem) => {
+        if (!onKoofChange) return;
         e.preventDefault();
         e.stopPropagation();
         (e.target as Element).setPointerCapture(e.pointerId);
@@ -211,10 +211,10 @@ export function MetalStudCeilingDrawing({
             origLeft: Number(koof.vanLinks) || 0,
             origBottom: Number(koof.vanOnder) || 0
         };
-    }, [onLeidingkoofChange]);
+    }, [onKoofChange]);
 
     const handleKoofPointerMove = React.useCallback((e: React.PointerEvent) => {
-        if (!draggingKoofId || !koofDragStartRef.current || !onLeidingkoofChange) return;
+        if (!draggingKoofId || !koofDragStartRef.current || !onKoofChange) return;
         if (!pxPerMmState) return;
 
         const start = koofDragStartRef.current;
@@ -228,7 +228,7 @@ export function MetalStudCeilingDrawing({
         const newBottom = Math.max(0, Math.round(start.origBottom + dyMm));
 
         const SNAP_THRESHOLD = 50; // mm
-        const updatedKofen = (item.leidingkofen || []).map(k => {
+        const updatedKofen = (item.koven || []).map(k => {
             if (k.id !== draggingKoofId) return k;
 
             const orientation = k.orientation || 'side';
@@ -260,8 +260,8 @@ export function MetalStudCeilingDrawing({
             return { ...k, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides };
         });
 
-        onLeidingkoofChange(updatedKofen);
-    }, [draggingKoofId, onLeidingkoofChange, pxPerMmState, item.leidingkofen, lengte, effectiveHeight]);
+        onKoofChange(updatedKofen);
+    }, [draggingKoofId, onKoofChange, pxPerMmState, item.koven, lengte, effectiveHeight]);
 
     const handleKoofPointerUp = React.useCallback((e: React.PointerEvent) => {
         if (draggingKoofId) {
@@ -537,9 +537,9 @@ export function MetalStudCeilingDrawing({
                             );
                         })}
 
-                        {/* Leidingkoof Overlay */}
-                        <LeidingkoofOverlay
-                            leidingkofen={item.leidingkofen || []}
+                        {/* Koof Overlay */}
+                        <KoofOverlay
+                            koven={item.koven || []}
                             startX={startX}
                             startY={startY}
                             rectW={rectW}
@@ -551,7 +551,7 @@ export function MetalStudCeilingDrawing({
                             onPointerMove={handleKoofPointerMove}
                             onPointerUp={handleKoofPointerUp}
                             draggingId={draggingKoofId}
-                            isDraggable={Boolean(onLeidingkoofChange)}
+                            isDraggable={Boolean(onKoofChange)}
                         />
 
                         <OverallDimensions

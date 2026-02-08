@@ -981,6 +981,33 @@ export default function GenericMaterialsPageRedesigned() {
   const [variantPickerType, setVariantPickerType] = useState<JobComponentType | null>(null);
   const [activeComponentId, setActiveComponentId] = useState<string | null>(null);
 
+  const currentlyPickedMaterialId = useMemo(() => {
+    if (activeGroupId) {
+      const g = customGroups.find(x => x.id === activeGroupId);
+      return g?.materials?.[0]?.row_id || g?.materials?.[0]?.id;
+    }
+    if (activeComponentId && actieveSectie) {
+      const comp = components.find(c => c.id === activeComponentId);
+      const matEntry = (comp?.materials as any[])?.find((m: any) => m.sectionKey === actieveSectie);
+      return matEntry?.material?.row_id || matEntry?.material?.id;
+    }
+    if (activeMultiEntryKey && actieveSectie && activeMultiEntryId) {
+      const slot = gekozenMaterialen[activeMultiEntryKey];
+      if (isMultiEntrySlot(slot)) {
+        const entry = slot.entries.find(e => e.id === activeMultiEntryId);
+        return entry?.material?.row_id || entry?.material?.id;
+      }
+    }
+    if (actieveSectie) {
+      // For multi-entry without a specific entry selected (adding a new one), we don't have a "current"
+      if (activeMultiEntryKey) return undefined;
+
+      const mat = gekozenMaterialen[actieveSectie];
+      return mat?.row_id || mat?.id;
+    }
+    return undefined;
+  }, [activeGroupId, activeComponentId, actieveSectie, activeMultiEntryKey, activeMultiEntryId, customGroups, components, gekozenMaterialen]);
+
   const [klus, setKlus] = useState<Job | null>(null);
   const [notities, setNotities] = useState('');
   const [notesPlaceholderIndex, setNotesPlaceholderIndex] = useState(0);
@@ -1904,7 +1931,7 @@ export default function GenericMaterialsPageRedesigned() {
         else if (comp.type === 'dagkant') cat = 'Dagkant';
         else if (comp.type === 'vensterbank') cat = 'Vensterbank';
         else if (comp.type === 'vlizotrap') cat = 'Toegang';
-        else if (comp.type === 'leidingkoof') cat = 'Koof';
+        else if (comp.type === 'koof') cat = 'Koof';
         else if (comp.type === 'plafond') cat = 'plafond';
         else if (comp.type === 'isolatie') cat = 'isolatie';
 
@@ -2930,7 +2957,7 @@ export default function GenericMaterialsPageRedesigned() {
                   const isBoeiboordJob = jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord') || categorySlug === 'boeidelen' || categorySlug === 'boeiboorden';
                   if (isBoeiboordJob) targetComponentType = 'boeiboord';
                 }
-                else if (isLeidingkoofSection) targetComponentType = 'leidingkoof';
+                else if (isLeidingkoofSection) targetComponentType = 'koof';
                 else if (isInstallatieSection) targetComponentType = 'installatie';
                 else if (isDagkantSection && allowDoorComponents) targetComponentType = 'dagkant';
                 else if (isVensterbankSection && allowDoorComponents) targetComponentType = 'vensterbank';
@@ -2990,13 +3017,13 @@ export default function GenericMaterialsPageRedesigned() {
                               materials: getPresetMaterialsForType('gips')
                             };
                             setComponents(prev => [...prev, newGips]);
-                          } else if (targetComponentType === 'leidingkoof') {
+                          } else if (targetComponentType === 'koof') {
                             const newKoof = {
-                              id: `leidingkoof-${Date.now()}`,
-                              type: 'leidingkoof' as const,
-                              label: 'Leidingkoof',
+                              id: `koof-${Date.now()}`,
+                              type: 'koof' as const,
+                              label: 'Koof',
                               measurements: {},
-                              materials: getPresetMaterialsForType('leidingkoof')
+                              materials: getPresetMaterialsForType('koof')
                             };
                             setComponents(prev => [...prev, newKoof]);
                           } else {
@@ -3017,7 +3044,7 @@ export default function GenericMaterialsPageRedesigned() {
                             targetComponentType === 'kozijn' ? 'Kozijn' :
                               (targetComponentType === 'deur' ? 'Deur' :
                                 (targetComponentType === 'vlizotrap' ? 'Vlizotrap' :
-                                  (targetComponentType === 'leidingkoof' ? 'Leidingkoof' :
+                                  (targetComponentType === 'koof' ? 'Koof' :
                                     (targetComponentType === 'installatie' ? 'Installatie' :
                                       (targetComponentType === 'dagkant' ? 'Dagkant' :
                                         (targetComponentType === 'vensterbank' ? 'Vensterbank' :
@@ -3380,7 +3407,7 @@ export default function GenericMaterialsPageRedesigned() {
 
       {/* Quote Notes Section - Persistent at bottom */}
       {/* Quote Notes Section - Persistent at bottom */}
-      <div className="max-w-5xl mx-auto px-4 pb-40">
+      <div className="max-w-5xl mx-auto px-4 pb-[280px]">
         {/* Public Job Notes Section - Matching Measurement Page Style */}
         <div className="space-y-3 pt-6 border-t border-white/5">
           <div>
@@ -3590,6 +3617,7 @@ export default function GenericMaterialsPageRedesigned() {
         existingMaterials={enrichedMaterials}
         showFavorites={actieveSectie !== 'extra' && !activeGroupId}
         defaultCategory={memoizedDefaultCategory}
+        selectedMaterialId={currentlyPickedMaterialId}
 
         // New Props
         categoryTitle={(() => {

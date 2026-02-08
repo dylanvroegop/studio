@@ -168,8 +168,8 @@ export async function POST(req: Request) {
               return newOp;
             });
           }
-          if (Array.isArray(newItem.leidingkofen)) {
-            newItem.leidingkofen = newItem.leidingkofen.map((k: any) => {
+          if (Array.isArray(newItem.koven)) {
+            newItem.koven = newItem.koven.map((k: any) => {
               const newK = { ...k };
               ['lengte', 'hoogte', 'diepte', 'vanLinks', 'vanOnder', 'aantalZijden'].forEach(key => {
                 if (newK[key] !== undefined && newK[key] !== null && newK[key] !== '') {
@@ -244,7 +244,7 @@ export async function POST(req: Request) {
                   const n = parseFloat(val.replace(',', '.'));
                   if (!isNaN(n)) val = n;
                 }
-                // Semantic key prefixing: 'leidingkoof_hoogte' instead of 'hoogte'
+                // Semantic key prefixing: 'koof_hoogte' instead of 'hoogte'
                 const semanticKey = (k.startsWith(c.type) || k.includes('_')) ? k : `${c.type}_${k}`;
                 cleanAfmetingen[semanticKey] = val;
               });

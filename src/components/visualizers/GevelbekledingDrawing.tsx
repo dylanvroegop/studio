@@ -6,7 +6,7 @@ import { OpeningLabels } from './shared/OpeningLabels';
 import { GridMeasurements, OpeningMeasurements, OverallDimensions, DimensionLine } from './shared/measurements';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { Dagkant, Vensterbank } from '../openingen/OpeningCard';
-import { LeidingkoofItem } from '../leidingkoof/LeidingkoofSection';
+import { KoofItem } from '../koof/KoofSection';
 import { calculateGridGaps } from './shared/framing-utils';
 
 export { type WallOpening };
@@ -39,7 +39,7 @@ export interface GevelbekledingDrawingProps {
     doubleEndBeams?: boolean;
     dagkanten?: Dagkant[];
     vensterbanken?: Vensterbank[];
-    leidingkofen?: LeidingkoofItem[];
+    koven?: KoofItem[];
     latafstand?: string | number;
     tengelafstand?: string | number;
     startLattenFromBottom?: boolean;
@@ -48,7 +48,7 @@ export interface GevelbekledingDrawingProps {
     startTengelFromBottom?: boolean;
     tengel_orientation?: 'vertical' | 'horizontal';
     doubleEndTengels?: boolean;
-    onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
+    onKoofChange?: (updated: KoofItem[]) => void;
 }
 
 type LogicalBeam = {
@@ -96,8 +96,8 @@ export function GevelbekledingDrawing({
     doubleEndBeams = false,
     dagkanten = [],
     vensterbanken = [],
-    leidingkofen = [],
-    onLeidingkoofChange,
+    koven = [],
+    onKoofChange,
     tengelafstand,
     startTengelFromBottom,
     tengel_orientation,
@@ -437,9 +437,9 @@ export function GevelbekledingDrawing({
         };
     };
 
-    const handleKoofPointerDown = (e: React.PointerEvent, koof: LeidingkoofItem) => {
+    const handleKoofPointerDown = (e: React.PointerEvent, koof: KoofItem) => {
         if (isMagnifier) return;
-        if (!onLeidingkoofChange) return;
+        if (!onKoofChange) return;
         e.preventDefault();
         e.stopPropagation();
         (e.target as Element).setPointerCapture(e.pointerId);
@@ -481,9 +481,9 @@ export function GevelbekledingDrawing({
                 return o;
             });
             onOpeningsChange(updatedOpenings);
-        } else if (draggingType === 'koof' && onLeidingkoofChange) {
+        } else if (draggingType === 'koof' && onKoofChange) {
             const SNAP_THRESHOLD = 50; // mm
-            const updatedKofen = leidingkofen.map(k => {
+            const updatedKofen = koven.map(k => {
                 if (k.id !== draggingId) return k;
 
                 const orientation = k.orientation || 'side';
@@ -523,7 +523,7 @@ export function GevelbekledingDrawing({
 
                 return { ...k, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides };
             });
-            onLeidingkoofChange(updatedKofen);
+            onKoofChange(updatedKofen);
         }
     };
 
@@ -975,8 +975,8 @@ export function GevelbekledingDrawing({
                             );
                         })}
 
-                        {/* Leidingkoof Visualization */}
-                        {leidingkofen.map((koof) => {
+                        {/* Koof Visualization */}
+                        {koven.map((koof) => {
                             const koofLengte = Number(koof.lengte) || 0;
                             const koofHoogte = Number(koof.hoogte) || 0;
                             const koofVanLinks = Number(koof.vanLinks) || 0;
@@ -1002,7 +1002,7 @@ export function GevelbekledingDrawing({
                                     onPointerDown={(e) => handleKoofPointerDown(e, koof)}
                                     onPointerMove={handlePointerMove}
                                     onPointerUp={handlePointerUp}
-                                    style={{ cursor: onLeidingkoofChange ? 'move' : 'default' }}
+                                    style={{ cursor: onKoofChange ? 'move' : 'default' }}
                                 >
                                     {/* Opaque background to hide beams */}
                                     <rect
@@ -1113,12 +1113,12 @@ export function GevelbekledingDrawing({
                             const primaryOrientation = lattenGaps.length > 0 ? latOrientation : tengelOrientation;
                             if (primaryGaps.length === 0) return null;
                             return (
-                            <GridMeasurements
-                                gaps={primaryGaps}
-                                orientation={primaryOrientation === 'horizontal' ? 'vertical' : 'horizontal'}
-                                svgBaseX={WALL_X + WALL_WIDTH} // used for vertical
-                                svgBaseYTop={getY(maxH)} // used for horizontal
-                            />
+                                <GridMeasurements
+                                    gaps={primaryGaps}
+                                    orientation={primaryOrientation === 'horizontal' ? 'vertical' : 'horizontal'}
+                                    svgBaseX={WALL_X + WALL_WIDTH} // used for vertical
+                                    svgBaseYTop={getY(maxH)} // used for horizontal
+                                />
                             );
                         })()}
 

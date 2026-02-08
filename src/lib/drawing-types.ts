@@ -1,6 +1,6 @@
 export interface WallOpening {
     id: string;
-    type: 'door' | 'window' | 'opening' | 'door-frame' | 'other';
+    type: 'door' | 'window' | 'opening' | 'door-frame' | 'nis' | 'other';
     width: number;
     height: number;
     fromLeft: number;

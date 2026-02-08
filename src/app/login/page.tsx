@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   AuthError,
 } from 'firebase/auth';
 import Link from 'next/link';
@@ -25,6 +26,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const router = useRouter();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
@@ -69,7 +72,38 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      setError('Vul uw e-mailadres in om een reset-link te ontvangen.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (!auth) {
+        setError('Authenticatie is nog niet beschikbaar. Probeer opnieuw.');
+        return;
+      }
+      auth.languageCode = 'nl';
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+    } catch (e) {
+      const authError = e as AuthError;
+      let errorMessage = 'Er is een fout opgetreden bij het versturen van de reset-link.';
+
+      if (authError.code === 'auth/user-not-found') {
+        errorMessage = 'Er is geen account gevonden met dit emailadres.';
+      } else if (authError.code === 'auth/invalid-email') {
+        errorMessage = 'Ongeldig emailadres formaat.';
+      }
+
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isUserLoading || user) {
@@ -101,60 +135,121 @@ export default function LoginPage() {
               unoptimized
             />
           </div>
-          <CardDescription>Log in om toegang te krijgen tot uw dashboard</CardDescription>
+          <CardTitle className="text-xl">
+            {isResetMode ? 'Wachtwoord vergeten?' : 'Inloggen'}
+          </CardTitle>
+          <CardDescription>
+            {isResetMode
+              ? 'Vul uw e-mailadres in om een reset-link te ontvangen.'
+              : 'Log in om toegang te krijgen tot uw dashboard'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mailadres</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="bijv. info@bedrijf.nl"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
+          {resetEmailSent ? (
+            <div className="space-y-6">
+              <div className="p-5 rounded-2xl bg-emerald-600 border border-emerald-500 text-white shadow-lg animate-in fade-in zoom-in-95 duration-500">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-2.5 w-2.5 rounded-full bg-white animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                  <p className="font-bold text-lg tracking-tight text-white">Check je inbox!</p>
+                </div>
+                <p className="text-sm leading-relaxed text-emerald-50 opacity-90">
+                  Er is een e-mail met instructies verstuurd naar <span className="font-bold text-white underline decoration-emerald-300 underline-offset-4">{email}</span>.
+                  Geen mail ontvangen? Check je spam-folder.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full h-12 rounded-xl border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 transition-all font-semibold shadow-sm"
+                onClick={() => {
+                  setIsResetMode(false);
+                  setResetEmailSent(false);
+                }}
+              >
+                Terug naar inloggen
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Wachtwoord</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            {error && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Inlogfout</AlertTitle>
-                <AlertDescription>
-                  {error}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-          <div className="mt-6 flex flex-col gap-4">
-            <Button
-              variant="success"
-              onClick={handleLogin}
-              disabled={isLoading}
-              className="w-full"
-            >
-              {isLoading ? 'Inloggen...' : 'Inloggen'}
-            </Button>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mailadres</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="bijv. info@bedrijf.nl"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                {!isResetMode && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Wachtwoord</Label>
+                      <button
+                        onClick={() => {
+                          setIsResetMode(true);
+                          setError(null);
+                        }}
+                        className="text-sm text-primary hover:underline font-medium"
+                      >
+                        Wachtwoord vergeten?
+                      </button>
+                    </div>
+                    <Input
+                      id="password"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={isLoading}
+                    />
+                  </div>
+                )}
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>{isResetMode ? 'Fout' : 'Inlogfout'}</AlertTitle>
+                    <AlertDescription>
+                      {error}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+              <div className="mt-6 flex flex-col gap-4">
+                <Button
+                  variant="success"
+                  onClick={isResetMode ? handleResetPassword : handleLogin}
+                  disabled={isLoading}
+                  className="w-full"
+                >
+                  {isLoading
+                    ? (isResetMode ? 'Versturen...' : 'Inloggen...')
+                    : (isResetMode ? 'Reset-link versturen' : 'Inloggen')}
+                </Button>
 
-            <p className="text-center text-sm text-muted-foreground">
-              Nog geen account?{' '}
-              <Link href="/register" className="underline text-primary hover:text-primary/80">
-                Account aanmaken
-              </Link>
-            </p>
-          </div>
+                {isResetMode ? (
+                  <button
+                    onClick={() => {
+                      setIsResetMode(false);
+                      setError(null);
+                    }}
+                    className="text-center text-sm text-muted-foreground hover:underline"
+                  >
+                    Terug naar inloggen
+                  </button>
+                ) : (
+                  <p className="text-center text-sm text-muted-foreground">
+                    Nog geen account?{' '}
+                    <Link href="/register" className="underline text-primary hover:text-primary/80">
+                      Account aanmaken
+                    </Link>
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -31,7 +31,7 @@ export interface OpeningData {
     onderdorpelDikte?: number;
 }
 
-export interface Leidingkoof {
+export interface Koof {
     id: string;
     lengte: number | string;
     hoogte: number | string;

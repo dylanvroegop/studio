@@ -242,27 +242,27 @@
   {
     "hoofdtitel": "HSB Voorzetwand",
     "slug": "hsb-voorzetwand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
     "category_key": "Koof",
     "subsectie": "Constructiehout (Vuren & SLS)",
-    "Extra_info": "Selecteer vuren rachels of latten voor de achterconstructie van de leidingkoof. Focus op vuren latten in standaard kopmaten voor een stabiele omkasting."
+    "Extra_info": "Selecteer vuren rachels of latten voor de achterconstructie van de koof. Focus op vuren latten in standaard kopmaten voor een stabiele omkasting."
   },
   {
     "hoofdtitel": "HSB Voorzetwand",
     "slug": "hsb-voorzetwand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
     "category_key": "Koof",
     "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
-    "Extra_info": "Selecteer plaatmateriaal zoals gips of MDF voor het dichtzetten van de leidingkoof. Focus op panelen geschikt voor strak zichtwerk."
+    "Extra_info": "Selecteer plaatmateriaal zoals gips of MDF voor het dichtzetten van de koof. Focus op panelen geschikt voor strak zichtwerk."
   },
   {
     "hoofdtitel": "HSB Voorzetwand",
     "slug": "hsb-voorzetwand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Isolatie",
     "categoryFilter_subsectie": "Isolatie",
     "category_key": "Koof",
@@ -562,17 +562,17 @@
   {
     "hoofdtitel": "Metalstud Voorzetwand",
     "slug": "metalstud-voorzetwand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
     "category_key": "Koof",
     "subsectie": "Metaalprofielen",
-    "Extra_info": "Selecteer kleine metalen profielen of houten latten voor de constructie van de leidingkoof. Focus op materialen voor een stabiele omkasting."
+    "Extra_info": "Selecteer kleine metalen profielen of houten latten voor de constructie van de koof. Focus op materialen voor een stabiele omkasting."
   },
   {
     "hoofdtitel": "Metalstud Voorzetwand",
     "slug": "metalstud-voorzetwand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
     "category_key": "Koof",
@@ -582,7 +582,7 @@
   {
     "hoofdtitel": "Metalstud Voorzetwand",
     "slug": "metalstud-voorzetwand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Isolatie",
     "categoryFilter_subsectie": "Isolatie",
     "category_key": "Koof",
@@ -1312,7 +1312,7 @@
   {
     "hoofdtitel": "Cinewall / TV-wand",
     "slug": "cinewall-tv-wand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
     "category_key": "Koof",
@@ -1322,7 +1322,7 @@
   {
     "hoofdtitel": "Cinewall / TV-wand",
     "slug": "cinewall-tv-wand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
     "category_key": "Koof",
@@ -1332,7 +1332,7 @@
   {
     "hoofdtitel": "Cinewall / TV-wand",
     "slug": "cinewall-tv-wand",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Isolatie",
     "categoryFilter_subsectie": "Isolatie",
     "category_key": "Koof",
@@ -1492,7 +1492,7 @@
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "slug": "plafond-houten-framework",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
     "category_key": "Koof",
@@ -1502,7 +1502,7 @@
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "slug": "plafond-houten-framework",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
     "category_key": "Koof",
@@ -1512,7 +1512,7 @@
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "slug": "plafond-houten-framework",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Isolatie",
     "categoryFilter_subsectie": "Isolatie",
     "category_key": "Koof",
@@ -1522,30 +1522,30 @@
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "slug": "plafond-houten-framework",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Constructiehout (Vuren & SLS)",
-    "Extra_info": "Selecteer houten regels of latten voor de opbouw van een verdiepte gordijnkoof. Focus op standaard kopmaten voor een constructieve basis."
+    "Extra_info": "Selecteer houten regels of latten voor de opbouw van een verdiepte koof. Focus op standaard kopmaten voor een constructieve basis."
   },
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "slug": "plafond-houten-framework",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
-    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gips voor de zichtzijdes van de gordijnkoof. Focus op panelen geschikt voor strak zichtwerk."
+    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gips voor de zichtzijdes van de koof. Focus op panelen geschikt voor strak zichtwerk."
   },
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "slug": "plafond-houten-framework",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Achterhout",
     "categoryFilter_subsectie": "Balkhout",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer extra houten verstevigingen voor de montage van gordijnrails. Focus op stevig vuren hout of plaatmateriaal achter de zichtzijde."
   },
@@ -1712,7 +1712,7 @@
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "slug": "plafond-metalstud",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
     "category_key": "Koof",
@@ -1722,7 +1722,7 @@
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "slug": "plafond-metalstud",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
     "category_key": "Koof",
@@ -1732,7 +1732,7 @@
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "slug": "plafond-metalstud",
-    "hoofdcategorie": "Leidingkoof / Omkasting",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Isolatie",
     "categoryFilter_subsectie": "Isolatie",
     "category_key": "Koof",
@@ -1742,30 +1742,30 @@
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "slug": "plafond-metalstud",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Metaalprofielen",
-    "Extra_info": "Selecteer houten regels of specifieke metalen profielen voor de opbouw van een verdiepte gordijnkoof. Focus op een constructieve basis voor de gewenste koofbreedte."
+    "Extra_info": "Selecteer houten regels of specifieke metalen profielen voor de opbouw van een verdiepte koof. Focus op een constructieve basis voor de gewenste koofbreedte."
   },
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "slug": "plafond-metalstud",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Gipsplaten & Wandsystemen",
-    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gipsplaten voor de afwerking van de gordijnkoof. Focus op panelen geschikt voor een strakke integratie in het plafond."
+    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gipsplaten voor de afwerking van de koof. Focus op panelen geschikt voor een strakke integratie in het plafond."
   },
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "slug": "plafond-metalstud",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Achterhout",
     "categoryFilter_subsectie": "Balkhout",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer houten platen of balken voor extra versteviging achter de beplating. Dit is essentieel voor de stevige montage van gordijnrails binnen de koof."
   },
@@ -2302,7 +2302,7 @@
   {
     "hoofdtitel": "Constructievloer hout",
     "slug": "vliering-maken",
-    "hoofdcategorie": "Leidingkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
     "category_key": "Koof",
@@ -2312,7 +2312,7 @@
   {
     "hoofdtitel": "Constructievloer hout",
     "slug": "vliering-maken",
-    "hoofdcategorie": "Leidingkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
     "category_key": "Koof",
@@ -2322,7 +2322,7 @@
   {
     "hoofdtitel": "Constructievloer hout",
     "slug": "vliering-maken",
-    "hoofdcategorie": "Leidingkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Isolatie",
     "categoryFilter_subsectie": "Isolatie",
     "category_key": "Koof",
@@ -2332,30 +2332,30 @@
   {
     "hoofdtitel": "Constructievloer hout",
     "slug": "vliering-maken",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Regelwerk",
     "categoryFilter_subsectie": "Balkhout",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Constructiehout (Vuren & SLS)",
-    "Extra_info": "Selecteer houten regels voor de constructie van een verdiepte gordijnkoof in het plafond."
+    "Extra_info": "Selecteer houten regels voor de constructie van een verdiepte koof in het plafond."
   },
   {
     "hoofdtitel": "Constructievloer hout",
     "slug": "vliering-maken",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Beplating",
     "categoryFilter_subsectie": "Plaatmateriaal",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
-    "Extra_info": "Selecteer plaatmateriaal in gangbare diktes voor de afwerking van de zichtzijdes van de gordijnkoof."
+    "Extra_info": "Selecteer plaatmateriaal in gangbare diktes voor de afwerking van de zichtzijdes van de koof."
   },
   {
     "hoofdtitel": "Constructievloer hout",
     "slug": "vliering-maken",
-    "hoofdcategorie": "Gordijnkoof",
+    "hoofdcategorie": "Koof",
     "subcategorie_label": "Achterhout",
     "categoryFilter_subsectie": "Balkhout",
-    "category_key": "Gordijnkoof",
+    "category_key": "Koof",
     "subsectie": "Constructiehout (Vuren & SLS)",
     "Extra_info": "Selecteer houten verstevigingsmateriaal voor de stevige montage van gordijnrails binnen de koof."
   },

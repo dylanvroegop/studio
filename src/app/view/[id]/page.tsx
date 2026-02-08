@@ -143,7 +143,7 @@ export default function ClientViewPage() {
     const clientEmail = normalized?.klantinformatie?.emailadres || (normalized?.klantinformatie as any)?.['e-mailadres'];
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-40">
+        <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-[280px]">
             {/* Simple Header */}
             <header className="bg-zinc-900 border-b border-zinc-800 p-6">
                 <div className="max-w-4xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">

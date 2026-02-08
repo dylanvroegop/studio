@@ -5,7 +5,7 @@ import { Eye, EyeOff, Trash2, PlusCircle } from 'lucide-react';
 import { MeasurementInput } from '@/components/MeasurementInput';
 import { cn } from '@/lib/utils';
 
-export interface LeidingkoofItem {
+export interface KoofItem {
     id: string;
     lengte: number | string;
     hoogte: number | string;
@@ -16,19 +16,19 @@ export interface LeidingkoofItem {
     aantalZijden?: number;
 }
 
-interface LeidingkoofSectionProps {
-    leidingkofen: LeidingkoofItem[];
+interface KoofSectionProps {
+    koven: KoofItem[];
     onAdd: () => void;
     onDelete: (id: string) => void;
-    onUpdate: (id: string, updates: Partial<LeidingkoofItem>) => void;
+    onUpdate: (id: string, updates: Partial<KoofItem>) => void;
     isCollapsed?: boolean;
     onToggleCollapsed?: () => void;
     wallLength?: number;
     wallHeight?: number;
 }
 
-export function LeidingkoofSection({
-    leidingkofen,
+export function KoofSection({
+    koven,
     onAdd,
     onDelete,
     onUpdate,
@@ -36,9 +36,9 @@ export function LeidingkoofSection({
     onToggleCollapsed,
     wallLength = 0,
     wallHeight = 0,
-}: LeidingkoofSectionProps) {
+}: KoofSectionProps) {
     const addedRef = useRef(false);
-    const filledKoofCount = leidingkofen.filter((koof) => {
+    const filledKoofCount = koven.filter((koof) => {
         const hasValue = (value: number | string | undefined) => {
             if (value === undefined || value === null) return false;
             if (typeof value === 'number') return value > 0;
@@ -54,7 +54,7 @@ export function LeidingkoofSection({
     }).length;
 
     const ensureFirstItem = () => {
-        if (leidingkofen.length === 0 && !addedRef.current) {
+        if (koven.length === 0 && !addedRef.current) {
             addedRef.current = true;
             onAdd();
             setTimeout(() => { addedRef.current = false; }, 100);
@@ -62,10 +62,10 @@ export function LeidingkoofSection({
     };
 
     useEffect(() => {
-        if (!isCollapsed && leidingkofen.length === 0) {
+        if (!isCollapsed && koven.length === 0) {
             ensureFirstItem();
         }
-    }, [isCollapsed, leidingkofen.length]);
+    }, [isCollapsed, koven.length]);
 
     return (
         <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
@@ -74,7 +74,7 @@ export function LeidingkoofSection({
                 onClick={onToggleCollapsed}
             >
                 <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-zinc-200">Leidingkoof</span>
+                    <span className="text-sm font-medium text-zinc-200">Koof</span>
                     {isCollapsed && filledKoofCount > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                             {filledKoofCount} {filledKoofCount === 1 ? 'koof' : 'koven'}
@@ -89,7 +89,7 @@ export function LeidingkoofSection({
             {!isCollapsed && (
                 <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
                     <div className="pt-2 border-t border-white/5 space-y-3">
-                        {leidingkofen.length === 0 ? (
+                        {koven.length === 0 ? (
                             <div className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-3">
                                 <div className="space-y-1">
                                     <Label className="text-[10px] text-zinc-500">Lengte (mm)</Label>
@@ -108,13 +108,13 @@ export function LeidingkoofSection({
                             </div>
                         ) : (
                             <>
-                                {leidingkofen.map((koof, kIdx) => {
+                                {koven.map((koof, kIdx) => {
                                     const orientation = koof.orientation || 'side';
                                     return (
                                         <div key={koof.id} className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-3">
-                                            {leidingkofen.length > 1 && (
+                                            {koven.length > 1 && (
                                                 <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                                    <span className="text-[10px] uppercase font-bold text-zinc-400">Leidingkoof {kIdx + 1}</span>
+                                                    <span className="text-[10px] uppercase font-bold text-zinc-400">Koof {kIdx + 1}</span>
                                                     <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-zinc-500 hover:text-red-400" onClick={() => onDelete(koof.id)}>
                                                         <Trash2 className="h-3 w-3" />
                                                     </Button>
@@ -217,7 +217,7 @@ export function LeidingkoofSection({
                                     className="w-full h-8 text-[10px] text-zinc-500 hover:text-emerald-400 justify-center gap-2 border border-dashed border-white/10"
                                 >
                                     <PlusCircle className="h-3.5 w-3.5" />
-                                    Extra leidingkoof
+                                    Extra koof
                                 </Button>
                             </>
                         )}

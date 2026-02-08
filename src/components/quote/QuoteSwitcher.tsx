@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { ChevronDown, FileText, Check } from 'lucide-react';
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { ChevronDown, FileText, Check, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/quote-calculations';
 
 interface QuoteItem {
@@ -25,16 +26,16 @@ interface QuoteItem {
 
 interface QuoteSwitcherProps {
     currentQuoteId: string;
-    currentQuoteNumber?: string;
 }
 
-export function QuoteSwitcher({ currentQuoteId, currentQuoteNumber }: QuoteSwitcherProps) {
+export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
     const router = useRouter();
     const { user } = useUser();
     const firestore = useFirestore();
     const [quotes, setQuotes] = useState<QuoteItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [open, setOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (!user || !firestore) return;
@@ -77,6 +78,13 @@ export function QuoteSwitcher({ currentQuoteId, currentQuoteNumber }: QuoteSwitc
         setOpen(false);
     }, [currentQuoteId]);
 
+    // Reset search when opening/closing popover
+    useEffect(() => {
+        if (!open) {
+            setSearchQuery('');
+        }
+    }, [open]);
+
     const handleSelect = (quoteId: string) => {
         // Close popover BEFORE navigation to prevent focus-scope issues
         setOpen(false);
@@ -89,32 +97,66 @@ export function QuoteSwitcher({ currentQuoteId, currentQuoteNumber }: QuoteSwitc
         }
     };
 
+    // Filter quotes based on search query
+    const filteredQuotes = quotes.filter(quote => {
+        if (!searchQuery.trim()) return true;
+
+        const search = searchQuery.toLowerCase();
+        const quoteNumber = (quote.offerteNummer || '').toLowerCase();
+        const clientName = [quote.klantinformatie?.voornaam, quote.klantinformatie?.achternaam]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+        const title = (quote.titel || '').toLowerCase();
+        const location = (quote.klantinformatie?.plaats || '').toLowerCase();
+
+        return quoteNumber.includes(search) ||
+               clientName.includes(search) ||
+               title.includes(search) ||
+               location.includes(search);
+    });
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button
                     variant="ghost"
-                    className="gap-2 text-white hover:bg-zinc-800 font-bold text-xl h-auto py-1 px-2"
+                    size="sm"
+                    className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted"
                 >
-                    <FileText size={18} className="text-emerald-500" />
-                    {currentQuoteNumber || 'Offerte'}
-                    <ChevronDown size={16} className="text-zinc-500" />
+                    <FileText size={16} />
+                    Alle offertes
+                    <ChevronDown size={14} />
                 </Button>
             </PopoverTrigger>
             <PopoverContent
-                className="w-80 p-0 bg-zinc-900 border-zinc-800"
+                className="w-96 p-0 bg-card border-border"
                 align="start"
             >
-                <div className="p-2 border-b border-zinc-800">
-                    <div className="text-xs text-zinc-500 uppercase font-semibold px-2">Alle offertes</div>
+                {/* Search Input */}
+                <div className="p-3 border-b border-border">
+                    <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            type="text"
+                            placeholder="Zoek offerte, klant, plaats..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9 bg-muted/50 border-border"
+                        />
+                    </div>
                 </div>
-                <div className="max-h-80 overflow-y-auto">
+
+                {/* Quote List */}
+                <div className="max-h-[400px] overflow-y-auto">
                     {loading ? (
-                        <div className="p-4 text-center text-zinc-500 text-sm">Laden...</div>
-                    ) : quotes.length === 0 ? (
-                        <div className="p-4 text-center text-zinc-500 text-sm">Geen offertes gevonden</div>
+                        <div className="p-4 text-center text-muted-foreground text-sm">Laden...</div>
+                    ) : filteredQuotes.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground text-sm">
+                            {searchQuery ? 'Geen offertes gevonden' : 'Geen offertes beschikbaar'}
+                        </div>
                     ) : (
-                        quotes.map(quote => {
+                        filteredQuotes.map(quote => {
                             const isActive = quote.id === currentQuoteId;
                             const clientName = [quote.klantinformatie?.voornaam, quote.klantinformatie?.achternaam]
                                 .filter(Boolean)
@@ -125,22 +167,23 @@ export function QuoteSwitcher({ currentQuoteId, currentQuoteNumber }: QuoteSwitc
                                 <button
                                     key={quote.id}
                                     onClick={() => handleSelect(quote.id)}
-                                    className={`w-full p-3 text-left hover:bg-zinc-800 transition-colors flex items-center justify-between gap-2 ${isActive ? 'bg-zinc-800/50' : ''
-                                        }`}
+                                    className={`w-full p-3 text-left hover:bg-accent transition-colors flex items-center justify-between gap-2 border-b border-border/50 last:border-0 ${
+                                        isActive ? 'bg-accent/50' : ''
+                                    }`}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-mono text-sm text-emerald-400">
+                                            <span className="font-mono text-sm text-emerald-500 font-medium">
                                                 {quote.offerteNummer || 'Concept'}
                                             </span>
                                             {isActive && <Check size={14} className="text-emerald-500" />}
                                         </div>
-                                        <div className="text-sm text-zinc-300 truncate">{clientName}</div>
+                                        <div className="text-sm text-foreground truncate">{clientName}</div>
                                         {quote.titel && (
-                                            <div className="text-xs text-zinc-500 truncate">{quote.titel}</div>
+                                            <div className="text-xs text-muted-foreground truncate">{quote.titel}</div>
                                         )}
                                     </div>
-                                    <div className="text-sm font-medium text-zinc-400 shrink-0">
+                                    <div className="text-sm font-medium text-muted-foreground shrink-0">
                                         {formatCurrency(totalAmount)}
                                     </div>
                                 </button>

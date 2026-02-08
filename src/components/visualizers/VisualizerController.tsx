@@ -25,7 +25,7 @@ interface VisualizerControllerProps {
     onOpeningsChange?: (newOpenings: any[]) => void;
     onEdgeChange?: (side: string, value: string) => void;
     onDataGenerated?: (data: any) => void;
-    onLeidingkoofChange?: (updated: any[]) => void;
+    onKoofChange?: (updated: any[]) => void;
     doorEnabled?: boolean;
     // ... allow other props
     [key: string]: any;
@@ -41,7 +41,7 @@ export function VisualizerController({
     className,
     onOpeningsChange,
     onEdgeChange,
-    onLeidingkoofChange,
+    onKoofChange,
     ...props
 }: VisualizerControllerProps) {
 
@@ -64,7 +64,7 @@ export function VisualizerController({
                     startFromRight={item.startFromRight}
                     startLattenFromBottom={item.startLattenFromBottom}
                     onOpeningsChange={onOpeningsChange}
-                    onLeidingkoofChange={onLeidingkoofChange}
+                    onKoofChange={onKoofChange}
                     title={props.title}
                 />
             );
@@ -77,7 +77,7 @@ export function VisualizerController({
                 startFromRight={item.startFromRight}
                 startLattenFromBottom={item.startLattenFromBottom}
                 onOpeningsChange={onOpeningsChange}
-                onLeidingkoofChange={onLeidingkoofChange}
+                onKoofChange={onKoofChange}
                 onEdgeChange={onEdgeChange}
                 showEdgeControls={slug.includes('vliering')}
                 gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag')) ? null : undefined)}
@@ -252,8 +252,8 @@ export function VisualizerController({
                 openings={item.openings}
                 dagkanten={item.dagkanten}
                 vensterbanken={item.vensterbanken}
-                leidingkofen={item.leidingkofen}
-                onLeidingkoofChange={onLeidingkoofChange}
+                koven={item.koven}
+                onKoofChange={onKoofChange}
                 onOpeningsChange={onOpeningsChange}
                 className={className}
                 fitContainer={fitContainer}
@@ -261,7 +261,6 @@ export function VisualizerController({
                 startFromRight={item.startFromRight}
                 title={item.subtitle || item.title}
                 doubleEndBeams={item.doubleEndBeams}
-                latafstand={toNum(item.latafstand)}
                 // Plates
                 doubleTopPlate={item.doubleTopPlate}
                 doubleBottomPlate={item.doubleBottomPlate}
@@ -280,7 +279,7 @@ export function VisualizerController({
                 fitContainer={fitContainer}
                 className={className}
                 onOpeningsChange={onOpeningsChange}
-                onLeidingkoofChange={onLeidingkoofChange}
+                onKoofChange={onKoofChange}
                 onDataGenerated={props.onDataGenerated}
                 {...props}
             />

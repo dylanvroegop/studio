@@ -224,7 +224,7 @@
         "uitleg": "Vuren latten die haaks op de balklaag worden gezet voor plafondbeplating."
       }
     },
-    "Gordijnkoof": {
+    "Koof": {
       "Regelwerk": {
         "subsectie": "Constructiehout (Vuren & SLS)",
         "uitleg": "Latten voor de constructie boven het raam."
@@ -260,13 +260,13 @@
         "uitleg": "Houten kaders die in de gevel worden geplaatst om het kozijn in te monteren."
       }
     },
-    "Leidingkoof": {
+    "Koof": {
       "Regelwerk": {
         "subsectie": "Constructiehout (Vuren & SLS)",
         "uitleg": "Frame voor de koof."
       }
     },
-    "Leidingkoof / Omkasting": {
+    "Koof": {
       "Regelwerk": {
         "subsectie": "Constructiehout (Vuren & SLS)",
         "uitleg": "Houten kader voor het wegwerken van standleidingen of ventilatiebuizen."
@@ -562,13 +562,13 @@
         "uitleg": "Geluidsisolatie voor leidingen in de koof."
       }
     },
-    "Leidingkoof": {
+    "Koof": {
       "Isolatie": {
         "subsectie": "Isolatiematerialen",
         "uitleg": "Geluidsdemper."
       }
     },
-    "Leidingkoof / Omkasting": {
+    "Koof": {
       "Isolatie": {
         "subsectie": "Isolatiematerialen",
         "uitleg": "Minerale wol om stromingsgeluiden in de leidingen te dempen."
@@ -1522,7 +1522,7 @@
         "uitleg": "Deurtjes en frontjes."
       }
     },
-    "Gordijnkoof": {
+    "Koof": {
       "Beplating": {
         "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
         "uitleg": "MDF of gips voor een strakke afwerking."
@@ -1544,13 +1544,13 @@
         "uitleg": "Gips- of MDF platen."
       }
     },
-    "Leidingkoof": {
+    "Koof": {
       "Beplating": {
         "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
         "uitleg": "MDF of gips."
       }
     },
-    "Leidingkoof / Omkasting": {
+    "Koof": {
       "Beplating": {
         "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
         "uitleg": "Plaatwerk (meestal gips of MDF) om de koof te sluiten."

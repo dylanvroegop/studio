@@ -6,7 +6,7 @@ import { OpeningLabels } from './shared/OpeningLabels';
 import { GridMeasurements, OpeningMeasurements, OverallDimensions, DimensionLine } from './shared/measurements';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { Dagkant, Vensterbank } from '../openingen/OpeningCard';
-import { LeidingkoofItem } from '../leidingkoof/LeidingkoofSection';
+import { KoofItem } from '../koof/KoofSection';
 
 export { type WallOpening };
 
@@ -38,8 +38,8 @@ export interface WallDrawingProps {
     doubleEndBeams?: boolean;
     dagkanten?: Dagkant[];
     vensterbanken?: Vensterbank[];
-    leidingkofen?: LeidingkoofItem[];
-    onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
+    koven?: KoofItem[];
+    onKoofChange?: (updated: KoofItem[]) => void;
 }
 
 type LogicalBeam = {
@@ -85,8 +85,8 @@ export function WallDrawing({
     doubleEndBeams = false,
     dagkanten = [],
     vensterbanken = [],
-    leidingkofen = [],
-    onLeidingkoofChange,
+    koven = [],
+    onKoofChange,
     onDataGenerated
 }: WallDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
@@ -401,7 +401,6 @@ export function WallDrawing({
     const [draggingType, setDraggingType] = useState<'opening' | 'koof' | null>(null);
     const dragStartRef = useRef<{ x: number; y: number; id: string; origLeft: number; origBottom: number } | null>(null);
     const metricsRef = useRef<{ pxPerMm: number } | null>(null);
-
     const handlePointerDown = (e: React.PointerEvent, op: WallOpening) => {
         if (isMagnifier) return;
         if (!onOpeningsChange) return;
@@ -419,9 +418,10 @@ export function WallDrawing({
         };
     };
 
-    const handleKoofPointerDown = (e: React.PointerEvent, koof: LeidingkoofItem) => {
+
+    const handleKoofPointerDown = (e: React.PointerEvent, koof: KoofItem) => {
         if (isMagnifier) return;
-        if (!onLeidingkoofChange) return;
+        if (!onKoofChange) return;
         e.preventDefault();
         e.stopPropagation();
         (e.target as Element).setPointerCapture(e.pointerId);
@@ -463,9 +463,9 @@ export function WallDrawing({
                 return o;
             });
             onOpeningsChange(updatedOpenings);
-        } else if (draggingType === 'koof' && onLeidingkoofChange) {
+        } else if (draggingType === 'koof' && onKoofChange) {
             const SNAP_THRESHOLD = 50; // mm
-            const updatedKofen = leidingkofen.map(k => {
+            const updatedKofen = koven.map(k => {
                 if (k.id !== draggingId) return k;
 
                 const orientation = k.orientation || 'side';
@@ -505,7 +505,7 @@ export function WallDrawing({
 
                 return { ...k, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides };
             });
-            onLeidingkoofChange(updatedKofen);
+            onKoofChange(updatedKofen);
         }
     };
 
@@ -693,8 +693,8 @@ export function WallDrawing({
                             );
                         })}
 
-                        {/* Leidingkoof Visualization */}
-                        {leidingkofen.map((koof) => {
+                        {/* Koof Visualization */}
+                        {koven.map((koof) => {
                             const koofLengte = Number(koof.lengte) || 0;
                             const koofHoogte = Number(koof.hoogte) || 0;
                             const koofVanLinks = Number(koof.vanLinks) || 0;
@@ -720,7 +720,7 @@ export function WallDrawing({
                                     onPointerDown={(e) => handleKoofPointerDown(e, koof)}
                                     onPointerMove={handlePointerMove}
                                     onPointerUp={handlePointerUp}
-                                    style={{ cursor: onLeidingkoofChange ? 'move' : 'default' }}
+                                    style={{ cursor: onKoofChange ? 'move' : 'default' }}
                                 >
                                     {/* Opaque background to hide beams */}
                                     <rect

@@ -1,8 +1,8 @@
 import React from 'react';
-import { LeidingkoofItem } from '../../leidingkoof/LeidingkoofSection';
+import { KoofItem } from '../../koof/KoofSection';
 
-export interface LeidingkoofOverlayProps {
-    leidingkofen: LeidingkoofItem[];
+export interface KoofOverlayProps {
+    koven: KoofItem[];
     startX: number;
     startY: number;
     rectW: number;
@@ -10,7 +10,7 @@ export interface LeidingkoofOverlayProps {
     pxPerMm: number;
     wallLength: number;
     wallHeight: number;
-    onPointerDown?: (event: React.PointerEvent, koof: LeidingkoofItem) => void;
+    onPointerDown?: (event: React.PointerEvent, koof: KoofItem) => void;
     onPointerMove?: (event: React.PointerEvent) => void;
     onPointerUp?: (event: React.PointerEvent) => void;
     draggingId?: string | null;
@@ -18,11 +18,11 @@ export interface LeidingkoofOverlayProps {
 }
 
 /**
- * Shared SVG overlay that renders leidingkoof (pipe boxing) elements
+ * Shared SVG overlay that renders koof (boxing) elements
  * as semi-transparent blue boxes on any drawing type.
  */
-export function LeidingkoofOverlay({
-    leidingkofen,
+export function KoofOverlay({
+    koven,
     startX,
     startY,
     rectW,
@@ -35,15 +35,15 @@ export function LeidingkoofOverlay({
     onPointerUp,
     draggingId,
     isDraggable
-}: LeidingkoofOverlayProps) {
-    if (!leidingkofen || leidingkofen.length === 0) return null;
+}: KoofOverlayProps) {
+    if (!koven || koven.length === 0) return null;
 
     // Y-bottom of the drawing area (floor level)
     const yBottom = startY + rectH;
 
     return (
         <>
-            {leidingkofen.map((koof) => {
+            {koven.map((koof) => {
                 const koofLengte = Number(koof.lengte) || 0;
                 const koofHoogte = Number(koof.hoogte) || 0;
                 const koofVanLinks = Number(koof.vanLinks) || 0;

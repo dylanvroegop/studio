@@ -115,6 +115,17 @@ function getOfferteNummerLabel(q: any): string | null {
   return null;
 }
 
+// ✅ Bepaal waar de 'bewerk' knop heen gaat (klant info of overzicht)
+function getEditHref(quote: any) {
+  const info = quote?.klantinformatie;
+  const hasClient = !!(info?.voornaam || info?.achternaam || info?.bedrijfsnaam);
+
+  if (!hasClient) {
+    return `/offertes/${quote.id}/klant`;
+  }
+  return `/offertes/${quote.id}/overzicht`;
+}
+
 // ✅ Altijd naar overzicht (Financiële details / Edit flow)
 function getOverzichtHref(quoteId: string) {
   return `/offertes/${quoteId}/overzicht`;
@@ -522,7 +533,7 @@ export default function Dashboard() {
       <div className="min-h-screen">
         <DashboardHeader user={user} title="Dashboard" />
 
-        <main className="flex flex-col items-center p-4 md:px-6 md:pt-6 pb-40">
+        <main className="flex flex-col items-center p-4 md:px-6 md:pt-6 pb-[280px]">
           <div className="w-full max-w-3xl space-y-14">
             <div className="px-1">
               <div className="text-3xl font-light tracking-tight">{begroeting}</div>
@@ -664,7 +675,7 @@ export default function Dashboard() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button asChild variant="secondary" size="sm" className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm">
-                                    <Link href={getOverzichtHref(o.id)}>
+                                    <Link href={getEditHref(o)}>
                                       <Pencil className="h-3.5 w-3.5" />
                                       <span className="hidden sm:inline">Bewerken</span>
                                     </Link>

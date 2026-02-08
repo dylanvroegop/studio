@@ -78,11 +78,14 @@ export function getDateRangeForView(view: TimelineView, currentDate: Date): { st
                 end: endOfWeek(currentDate, { weekStartsOn: 1 })
             };
         case 'week':
-            // "Week" view now shows 6 weeks (grid view)
-            const start = startOfWeek(currentDate, { weekStartsOn: 1 });
+            // "Week" view shows exactly 6 weeks starting from the week containing the 1st
+            // Similar to Google Calendar approach
+            const monthStart = startOfMonth(currentDate);
+            const start = startOfWeek(monthStart, { weekStartsOn: 1 });
+            const end = addDays(start, 41); // Exactly 6 weeks (42 days)
             return {
                 start,
-                end: addDays(start, 41) // 6 weeks (42 days) total
+                end
             };
         case 'month':
             return {

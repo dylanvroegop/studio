@@ -9,51 +9,24 @@ interface WorkDescriptionCardProps {
 }
 
 export function WorkDescriptionCard({ werkbeschrijving }: WorkDescriptionCardProps) {
-    const [expanded, setExpanded] = useState(false);
-
     if (!werkbeschrijving || werkbeschrijving.length === 0) {
         return null;
     }
 
-    const summary = generateWorkSummary(werkbeschrijving, 300);
-
     return (
-        <div className="bg-card rounded-lg border border-border p-6">
+        <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
             <h3 className="font-semibold text-muted-foreground text-sm mb-4 flex items-center gap-2">
                 <FileText size={14} />
                 WERKBESCHRIJVING
             </h3>
 
-            {expanded ? (
-                <div className="space-y-2">
-                    {werkbeschrijving.map((item, index) => (
-                        <p key={index} className="text-foreground/80 text-sm leading-relaxed">
-                            • {item}
-                        </p>
-                    ))}
-                </div>
-            ) : (
-                <p className="text-foreground/80 text-sm leading-relaxed">
-                    {summary}
-                </p>
-            )}
-
-            <button
-                onClick={() => setExpanded(!expanded)}
-                className="mt-4 text-emerald-400 hover:text-emerald-300 text-sm flex items-center gap-1"
-            >
-                {expanded ? (
-                    <>
-                        <ChevronUp size={16} />
-                        Minder tonen
-                    </>
-                ) : (
-                    <>
-                        <ChevronDown size={16} />
-                        Volledige beschrijving tonen ({werkbeschrijving.length} stappen)
-                    </>
-                )}
-            </button>
+            <div className="space-y-3">
+                {werkbeschrijving.map((item, index) => (
+                    <p key={index} className="text-foreground/80 text-sm leading-relaxed border-l-2 border-emerald-500/20 pl-4 py-0.5">
+                        {item}
+                    </p>
+                ))}
+            </div>
         </div>
     );
 }

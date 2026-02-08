@@ -40,6 +40,8 @@ export interface UserSettings {
     email: string;
     telefoon: string;
     website: string;
+    logoUrl?: string;
+    logoScale: number;
 
     iban: string;
     bankNaam: string;
@@ -83,6 +85,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     email: '',
     telefoon: '',
     website: '',
+    logoUrl: '',
+    logoScale: 1.0,
     iban: '',
     bankNaam: '',
     bic: '',

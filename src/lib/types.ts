@@ -105,11 +105,13 @@ export type JobCategory =
 
   | "Afwerkingen"
   | "Glas zetten"
-  | "Trappen"
+  | "Overzettreden"
+  | "Vlizotrappen"
   | "Houtrotreparatie"
   | "Keukens"
 
-  | "Dakramen / Lichtkoepel"
+  | "Dakramen"
+  | "Lichtkoepel"
   | "Boeidelen"
   | "Sloopwerk & Logistiek"
   | "Constructief"
@@ -167,7 +169,7 @@ export type Job = {
   };
 };
 
-export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank' | 'vlizotrap' | 'leidingkoof' | 'installatie' | 'dagkant' | 'gips' | 'isolatie' | 'plafond';
+export type JobComponentType = 'kozijn' | 'deur' | 'boeiboord' | 'schoorsteen' | 'vensterbank' | 'vlizotrap' | 'koof' | 'installatie' | 'dagkant' | 'gips' | 'isolatie' | 'plafond';
 
 export interface JobComponent {
   id: string; // Unique ID (child ID)

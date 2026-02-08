@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useTransition, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff, ArrowDownUp } from 'lucide-react';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -55,7 +55,7 @@ import { JobComponent } from '@/lib/types';
 import { VisualizerController } from '@/components/visualizers/VisualizerController';
 import { OpeningenSection } from '@/components/openingen/OpeningenSection';
 import { BalkenSection } from '@/components/balken/BalkenSection';
-import { LeidingkoofSection } from '@/components/leidingkoof/LeidingkoofSection';
+import { KoofSection } from '@/components/koof/KoofSection';
 import { VensterbankSection } from '@/components/vensterbank/VensterbankSection';
 import { DagkantSection } from '@/components/dagkant/DagkantSection';
 import { getJobConfig } from '@/config/jobTypes/index';
@@ -332,7 +332,7 @@ export default function GenericMeasurementPage() {
   const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
-  const showLeidingkoofSection = specificJobConfig.sections.includes('leidingkoof');
+  const showKoofSection = specificJobConfig.sections.includes('leidingkoof');
   const showVensterbankSection = specificJobConfig.sections.includes('vensterbanken');
   const showDagkantSection = specificJobConfig.sections.includes('dagkanten');
   const GLAS_MAATWERK_OFFSET_MM = 5;
@@ -683,7 +683,7 @@ export default function GenericMeasurementPage() {
       delete item.openings;
     }
 
-    if (showLeidingkoofSection) {
+    if (showKoofSection) {
       if (!Array.isArray(item.leidingkofen)) item.leidingkofen = [];
     } else {
       delete item.leidingkofen;
@@ -1142,7 +1142,7 @@ export default function GenericMeasurementPage() {
     fields.forEach(f => {
       newItem[f.key] = f.defaultValue !== undefined ? f.defaultValue : '';
     });
-    if (showLeidingkoofSection) newItem.leidingkofen = [];
+    if (showKoofSection) newItem.leidingkofen = [];
     if (showDagkantSection) newItem.dagkanten = [];
     if (showVensterbankSection) newItem.vensterbanken = [];
     if (isMaatwerkKozijn) {
@@ -1406,6 +1406,13 @@ export default function GenericMeasurementPage() {
     }));
   };
 
+  const handleSwapDimensions = (index: number, key1: string, key2: string) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      return { ...item, [key1]: item[key2], [key2]: item[key1] };
+    }));
+  };
+
   // Linked Item Handlers
   const onAddDagkant = (itemIdx: number, openingId?: string) => {
     const opening = openingId ? items[itemIdx].openings?.find((op: any) => op.id === openingId) : null;
@@ -1466,18 +1473,18 @@ export default function GenericMeasurementPage() {
     updateItem(itemIdx, 'vensterbanken', currentVensterbanken.map((v: any) => v.id === id ? { ...v, ...updates } : v));
   };
 
-  const onAddLeidingkoof = (itemIdx: number) => {
+  const onAddKoof = (itemIdx: number) => {
     const newKoof = { id: crypto.randomUUID(), lengte: '', hoogte: '', diepte: '' };
     const currentKofen = items[itemIdx].leidingkofen || [];
     updateItem(itemIdx, 'leidingkofen', [...currentKofen, newKoof]);
   };
 
-  const onDeleteLeidingkoof = (itemIdx: number, id: string) => {
+  const onDeleteKoof = (itemIdx: number, id: string) => {
     const currentKofen = items[itemIdx].leidingkofen || [];
     updateItem(itemIdx, 'leidingkofen', currentKofen.filter((k: any) => k.id !== id));
   };
 
-  const onUpdateLeidingkoof = (itemIdx: number, id: string, updates: any) => {
+  const onUpdateKoof = (itemIdx: number, id: string, updates: any) => {
     const currentKofen = items[itemIdx].leidingkofen || [];
     updateItem(itemIdx, 'leidingkofen', currentKofen.map((k: any) => k.id === id ? { ...k, ...updates } : k));
   };
@@ -1643,7 +1650,7 @@ export default function GenericMeasurementPage() {
         rightContent={<PersonalNotes quoteId={quoteId} jobId={klusId} context={`Metingen: ${jobConfig.title}`} />}
       />
 
-      <div className="px-4 py-8 max-w-[1400px] mx-auto pb-40">
+      <div className="px-4 py-8 max-w-[1400px] mx-auto pb-[280px]">
         <form>
           <div className="space-y-8">
             {items.map((item, index) => (
@@ -1776,6 +1783,23 @@ export default function GenericMeasurementPage() {
                               {fields.find(f => f.key === 'lengte') && (
                                 <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
+
+                              {fields.find(f => f.key === 'lengte') && fields.find(f => f.key === 'hoogte') && (
+                                <div className="flex justify-center -my-2 relative z-10">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full bg-zinc-900 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all shadow-md group/swap"
+                                    onClick={() => handleSwapDimensions(index, 'lengte', 'hoogte')}
+                                    disabled={disabledAll}
+                                    title="Wissel afmetingen"
+                                  >
+                                    <ArrowDownUp className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+
                               {fields.find(f => f.key === 'hoogte') && (
                                 <DynamicInput field={fields.find(f => f.key === 'hoogte')!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
@@ -1785,6 +1809,23 @@ export default function GenericMeasurementPage() {
                               {fields.find(f => f.key === 'lengte_onderzijde') && (
                                 <DynamicInput field={fields.find(f => f.key === 'lengte_onderzijde')!} value={item.lengte_onderzijde} onChange={v => updateItem(index, 'lengte_onderzijde', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
+
+                              {fields.find(f => f.key === 'lengte_onderzijde') && fields.find(f => f.key === 'breedte') && (
+                                <div className="flex justify-center -my-2 relative z-10">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full bg-zinc-900 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all shadow-md group/swap"
+                                    onClick={() => handleSwapDimensions(index, 'lengte_onderzijde', 'breedte')}
+                                    disabled={disabledAll}
+                                    title="Wissel afmetingen"
+                                  >
+                                    <ArrowDownUp className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+
                               {fields.find(f => f.key === 'breedte') && (
                                 <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
@@ -1889,6 +1930,15 @@ export default function GenericMeasurementPage() {
                           );
                         }
 
+                        // Default: Rectangle, Slope, Gable
+                        const fLengte = fields.find(f => f.key === 'lengte');
+                        const fHoogte = fields.find(f => f.key === 'hoogte');
+                        const fBreedte = fields.find(f => f.key === 'breedte');
+
+                        const showLengte = !!fLengte;
+                        const showHoogte = shape === 'rectangle' && !!fHoogte;
+                        const showBreedte = shape === 'rectangle' && !!fBreedte;
+
                         return (
                           <div className="space-y-4">
                             {/* Roof Tile Specific Fields */}
@@ -1898,9 +1948,27 @@ export default function GenericMeasurementPage() {
                             {fields.find(f => f.key === 'aantal_pannen_hoogte') && (
                               <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_hoogte')!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
-                            {fields.find(f => f.key === 'lengte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                            {showLengte && (
+                              <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
+
+                            {showLengte && (showHoogte || showBreedte) && (
+                              <div className="flex justify-center -my-2 relative z-10">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 rounded-full bg-zinc-900 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all shadow-md group/swap"
+                                  onClick={() => handleSwapDimensions(index, 'lengte', showBreedte ? 'breedte' : 'hoogte')}
+                                  disabled={disabledAll}
+                                  title="Wissel afmetingen"
+                                >
+                                  <ArrowDownUp className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+
                             {shape === 'slope' && (
                               <>
                                 <div className="space-y-2"><Label>H. Links</Label><MeasurementInput placeholder="Bijv. 2500" value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
@@ -1913,11 +1981,12 @@ export default function GenericMeasurementPage() {
                                 <div className="space-y-2"><Label>H. Top</Label><MeasurementInput placeholder="Bijv. 3000" value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
                               </>
                             )}
-                            {shape === 'rectangle' && fields.find(f => f.key === 'hoogte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'hoogte')!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+
+                            {showHoogte && (
+                              <DynamicInput field={fHoogte!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
-                            {shape === 'rectangle' && fields.find(f => f.key === 'breedte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            {showBreedte && (
+                              <DynamicInput field={fBreedte!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
                           </div>
                         );
@@ -2791,13 +2860,13 @@ export default function GenericMeasurementPage() {
                       })()
                     )}
 
-                    {/* Leidingkoof Section */}
-                    {showLeidingkoofSection && (
-                      <LeidingkoofSection
-                        leidingkofen={item.leidingkofen || []}
-                        onAdd={() => onAddLeidingkoof(index)}
-                        onDelete={(id) => onDeleteLeidingkoof(index, id)}
-                        onUpdate={(id, updates) => onUpdateLeidingkoof(index, id, updates)}
+                    {/* Koof Section */}
+                    {showKoofSection && (
+                      <KoofSection
+                        koven={item.leidingkofen || []}
+                        onAdd={() => onAddKoof(index)}
+                        onDelete={(id) => onDeleteKoof(index, id)}
+                        onUpdate={(id, updates) => onUpdateKoof(index, id, updates)}
                         isCollapsed={collapsedSections[`koof-${index}`] === true}
                         onToggleCollapsed={() => toggleCollapsed(`koof-${index}`, false)}
                         wallLength={Number(item.lengte) || 0}
@@ -2989,7 +3058,7 @@ export default function GenericMeasurementPage() {
                             onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                             onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                             onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
-                            onLeidingkoofChange={(updated: any) => updateItem(index, 'leidingkofen', updated)}
+                            onKoofChange={(updated: any) => updateItem(index, 'leidingkofen', updated)}
                             className="w-full h-full"
                           />
                         </div>

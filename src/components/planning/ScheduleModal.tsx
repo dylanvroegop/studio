@@ -4,6 +4,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
+import { normalizeDataJson } from '@/lib/quote-calculations';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +16,6 @@ import { Loader2, Calendar, Clock, User, Briefcase, Trash2 } from 'lucide-react'
 import { Employee, PlanningEntry, PlanningSettings, TimelineView } from '@/lib/types-planning';
 import { autoSplitJob, formatHoursDisplay } from '@/lib/planning-utils';
 import { usePlanningData } from '@/hooks/usePlanningData';
-import { normalizeDataJson } from '@/lib/quote-calculations';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -123,6 +124,24 @@ export function ScheduleModal({
         fetchQuotes();
     }, [isOpen, user, firestore]);
 
+    // Reset form when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            // Reset to defaults when modal closes
+            setSelectedQuoteId('');
+            setSelectedEmployeeId(preselectedEmployee || '');
+            setStartDate(
+                preselectedDate
+                    ? format(preselectedDate, 'yyyy-MM-dd')
+                    : format(new Date(), 'yyyy-MM-dd')
+            );
+            setStartTime(planningSettings.defaultStartTime);
+            setEndTime(planningSettings.defaultEndTime);
+            setTotalHours(0);
+            setUseAutoSplit(true);
+        }
+    }, [isOpen, preselectedDate, preselectedEmployee, planningSettings]);
+
     // Initialize form when modal opens
     useEffect(() => {
         if (!isOpen) return;
@@ -138,15 +157,23 @@ export function ScheduleModal({
             setTotalHours(existingEntry.scheduledHours);
             setUseAutoSplit(false);
         } else {
-            // Only set defaults if state is empty, to prevent overwriting user input on re-renders
+            // Set quote from preselection
             if (!selectedQuoteId) setSelectedQuoteId(preselectedQuote?.id || '');
 
-            // Auto-select employee if only one exists or if not yet selected
-            if ((!selectedEmployeeId || employees.length === 1) && employees.length > 0) {
+            // Set employee from preselection or auto-select if only one
+            if (preselectedEmployee) {
+                setSelectedEmployeeId(preselectedEmployee);
+            } else if ((!selectedEmployeeId || employees.length === 1) && employees.length > 0) {
                 setSelectedEmployeeId(employees[0].id);
             }
 
-            if (!startDate) setStartDate(format(new Date(), 'yyyy-MM-dd'));
+            // Set date from preselection or default to today
+            if (preselectedDate) {
+                setStartDate(format(preselectedDate, 'yyyy-MM-dd'));
+            } else if (!startDate) {
+                setStartDate(format(new Date(), 'yyyy-MM-dd'));
+            }
+
             if (!startTime) setStartTime(planningSettings.defaultStartTime);
             if (!endTime) setEndTime(planningSettings.defaultEndTime);
 
@@ -156,7 +183,7 @@ export function ScheduleModal({
                 setUseAutoSplit(planningSettings.allowAutoSplit);
             }
         }
-    }, [isOpen, existingEntry, preselectedQuote, preselectedHours, employees, planningSettings, selectedQuoteId, selectedEmployeeId, startDate, totalHours]);
+    }, [isOpen, existingEntry, preselectedQuote, preselectedHours, preselectedDate, preselectedEmployee, employees, planningSettings, selectedQuoteId, selectedEmployeeId, startDate, totalHours]);
 
     const syncHoursFromTimes = (nextStart: string, nextEnd: string, baseDate: string) => {
         if (view !== 'day') return;
@@ -203,13 +230,30 @@ export function ScheduleModal({
 
         const fetchQuoteHours = async () => {
             try {
-                // First check klus_regels in supabase via calculation
-                // For simplicity, we'll just check if we can get totaal_uren from the calculation
-                // In a real app, you'd fetch from your calculation service
+                // Fetch calculation data from Supabase
+                const { data: calculation, error } = await supabase
+                    .from('quotes_collection')
+                    .select('data_json')
+                    .eq('quoteid', selectedQuoteId)
+                    .eq('status', 'completed')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
 
-                // For now, set a default or let user input
-                if (preselectedHours) {
-                    setTotalHours(preselectedHours);
+                if (error) {
+                    if (error.code === 'PGRST116') {
+                        // No rows found - this is fine
+                        return;
+                    }
+                    console.error('Error fetching calculation:', error);
+                    return;
+                }
+
+                if (calculation?.data_json) {
+                    const normalized = normalizeDataJson(calculation.data_json);
+                    if (normalized?.totaal_uren) {
+                        setTotalHours(normalized.totaal_uren);
+                    }
                 }
             } catch (err) {
                 console.error('Error fetching quote hours:', err);
@@ -217,7 +261,7 @@ export function ScheduleModal({
         };
 
         fetchQuoteHours();
-    }, [selectedQuoteId, firestore, existingEntry, preselectedHours]);
+    }, [selectedQuoteId, firestore, existingEntry]);
 
     const selectedQuote = useMemo(() =>
         quotes.find(q => q.id === selectedQuoteId),

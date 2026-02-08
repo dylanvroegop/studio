@@ -138,7 +138,7 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
     }
 
     return (
-        <div className="space-y-12 pb-40">
+        <div className="space-y-12 pb-[280px]">
             {drawingJobs.map((job, i) => (
                 <JobDrawingSection key={job.id || i} job={job} quote={quote} index={i} />
             ))}
@@ -304,7 +304,7 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
                                         onOpeningsChange={() => { }}
                                         onEdgeChange={() => { }}
                                         onDataGenerated={() => { }}
-                                        onLeidingkoofChange={() => { }}
+                                        onKoofChange={() => { }}
 
                                         className="w-full h-full"
                                     />

@@ -7,12 +7,12 @@ import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
 import { calculateRaveelwerk, raveelwerkToSVG } from './shared/raveelwerk-utils';
 import { OpeningLabels } from './shared/OpeningLabels';
-import { LeidingkoofOverlay } from './shared/LeidingkoofOverlay';
-import { LeidingkoofItem } from '../leidingkoof/LeidingkoofSection';
+import { KoofOverlay } from './shared/KoofOverlay';
+import { KoofItem } from '../koof/KoofSection';
 
 export interface CeilingOpening {
     id: string;
-    type: 'door' | 'window' | 'opening';
+    type: 'door' | 'window' | 'opening' | 'nis' | 'other';
     width: number;
     length: number; // usually 'height' in logic
     fromLeft: number;
@@ -89,7 +89,7 @@ export interface CeilingDrawingProps {
         doubleEndBattens?: boolean;
         surroundingBeams?: boolean;
         openings?: CeilingOpening[];
-        leidingkofen?: LeidingkoofItem[];
+        koven?: KoofItem[];
         // Edge support
         edge_top?: 'free' | 'wall';
         edge_bottom?: 'free' | 'wall';
@@ -101,7 +101,7 @@ export interface CeilingDrawingProps {
     startFromRight?: boolean;
     startLattenFromBottom?: boolean;
     onOpeningsChange?: (openings: CeilingOpening[]) => void;
-    onLeidingkoofChange?: (updated: LeidingkoofItem[]) => void;
+    onKoofChange?: (updated: KoofItem[]) => void;
     onEdgeChange?: (side: string, value: string) => void;
     gridLabel?: string | null;
     title?: string;
@@ -115,7 +115,7 @@ export function CeilingWoodDrawing({
     fitContainer = false,
     className = "",
     onOpeningsChange,
-    onLeidingkoofChange,
+    onKoofChange,
     onEdgeChange,
     gridLabel,
     title,
@@ -227,8 +227,8 @@ export function CeilingWoodDrawing({
         origBottom: number;
     } | null>(null);
 
-    const handleKoofPointerDown = React.useCallback((e: React.PointerEvent, koof: LeidingkoofItem) => {
-        if (!onLeidingkoofChange) return;
+    const handleKoofPointerDown = React.useCallback((e: React.PointerEvent, koof: KoofItem) => {
+        if (!onKoofChange) return;
         e.preventDefault();
         e.stopPropagation();
         (e.target as Element).setPointerCapture(e.pointerId);
@@ -240,10 +240,10 @@ export function CeilingWoodDrawing({
             origLeft: Number(koof.vanLinks) || 0,
             origBottom: Number(koof.vanOnder) || 0
         };
-    }, [onLeidingkoofChange]);
+    }, [onKoofChange]);
 
     const handleKoofPointerMove = React.useCallback((e: React.PointerEvent) => {
-        if (!draggingKoofId || !koofDragStartRef.current || !onLeidingkoofChange) return;
+        if (!draggingKoofId || !koofDragStartRef.current || !onKoofChange) return;
         if (!pxPerMmState) return;
 
         const start = koofDragStartRef.current;
@@ -257,7 +257,7 @@ export function CeilingWoodDrawing({
         const newBottom = Math.max(0, Math.round(start.origBottom + dyMm));
 
         const SNAP_THRESHOLD = 50; // mm
-        const updatedKofen = (item.leidingkofen || []).map(k => {
+        const updatedKofen = (item.koven || []).map(k => {
             if (k.id !== draggingKoofId) return k;
 
             const orientation = k.orientation || 'side';
@@ -289,8 +289,8 @@ export function CeilingWoodDrawing({
             return { ...k, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides };
         });
 
-        onLeidingkoofChange(updatedKofen);
-    }, [draggingKoofId, onLeidingkoofChange, pxPerMmState, item.leidingkofen, lengte, effectiveHeight]);
+        onKoofChange(updatedKofen);
+    }, [draggingKoofId, onKoofChange, pxPerMmState, item.koven, lengte, effectiveHeight]);
 
     const handleKoofPointerUp = React.useCallback((e: React.PointerEvent) => {
         if (draggingKoofId) {
@@ -763,9 +763,9 @@ export function CeilingWoodDrawing({
                         })}
 
 
-                        {/* Leidingkoof Overlay */}
-                        <LeidingkoofOverlay
-                            leidingkofen={item.leidingkofen || []}
+                        {/* Koof Overlay */}
+                        <KoofOverlay
+                            koven={item.koven || []}
                             startX={startX}
                             startY={startY}
                             rectW={rectW}
@@ -777,7 +777,7 @@ export function CeilingWoodDrawing({
                             onPointerMove={handleKoofPointerMove}
                             onPointerUp={handleKoofPointerUp}
                             draggingId={draggingKoofId}
-                            isDraggable={Boolean(onLeidingkoofChange)}
+                            isDraggable={Boolean(onKoofChange)}
                         />
 
                         {/* UNIVERSAL DIMENSIONS OVERLAY */}

@@ -34,7 +34,7 @@ type CategoryItem = {
 const categories: CategoryItem[] = [
   { name: 'Wanden', description: 'HSB / Metal Stud / Buiten', slug: 'wanden' },
   { name: 'Plafonds', description: 'Hout / Metalstud', slug: 'plafonds' },
-  { name: 'Constructie Vloer', description: 'Hout Balklaag / Vlonder', slug: 'vloer-constructie' },
+  { name: 'Constructie Vloer', description: 'Hout Balklaag', slug: 'vloer-constructie' },
   { name: 'Afwerk Vloer', description: 'Laminaat / PVC / Hout / Vinyl', slug: 'vloer-afwerking' },
 
   { name: 'Deuren', description: 'Binnen / Buitendeuren', slug: 'deuren' },
@@ -51,12 +51,14 @@ const categories: CategoryItem[] = [
   { name: 'Afwerkingen', description: 'Plinten, vensterbanken & betimmering', slug: 'afwerkingen' },
   { name: 'Glas zetten', description: 'Isolatieglas', slug: 'glas-zetten' },
 
-  { name: 'Trappen', description: 'Overzettrede & Vlizotrappen', slug: 'trappen' },
+  { name: 'Overzettreden', description: 'Traprenovatie met overzettreden', slug: 'overzettreden' },
+  { name: 'Vlizotrappen', description: 'Zoldertrappen & vlizotrappen', slug: 'vlizotrap' },
   { name: 'Houtrotreparatie', description: 'Herstel met epoxy of inzetstukken', slug: 'houtrotreparatie' },
 
 
   { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
-  { name: 'Dakramen / Lichtkoepel', description: 'Velux dakramen & lichtkoepels', slug: 'dakramen' },
+  { name: 'Dakramen', description: 'Diverse dakramen', slug: 'dakramen' },
+  { name: 'Lichtkoepel', description: 'Diverse lichtkoepels', slug: 'lichtkoepel' },
   { name: 'Isolatiewerken', description: 'Plafond / Wand / Vloer', slug: 'isolatie' },
 ];
 

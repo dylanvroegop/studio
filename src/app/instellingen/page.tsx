@@ -20,6 +20,7 @@ import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2
 import { UserSettings, DEFAULT_USER_SETTINGS, BouwplaatsItem } from '@/lib/types-settings';
 import { useEmployees } from '@/hooks/useEmployees';
 import { EMPLOYEE_COLORS } from '@/lib/types-planning';
+import { LogoUpload } from '@/components/settings/LogoUpload';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -36,6 +37,7 @@ export default function InstellingenPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('bedrijf');
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
     // Bouwplaats CRUD State
     const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
@@ -141,6 +143,7 @@ export default function InstellingenPage() {
                 };
 
                 setSettings(merged);
+                setLogoUrl(merged.logoUrl || null);
             } catch (error) {
                 console.error("Error fetching settings:", error);
                 toast({ variant: 'destructive', title: 'Fout', description: 'Kon instellingen niet laden.' });
@@ -185,6 +188,32 @@ export default function InstellingenPage() {
         }));
     };
 
+    // Handle logo change with auto-save
+    const handleLogoChange = async (url: string | null) => {
+        setLogoUrl(url);
+        const updatedSettings = { ...settings, logoUrl: url || undefined };
+        setSettings(updatedSettings);
+
+        // Auto-save to Firestore immediately
+        if (user && firestore) {
+            try {
+                const docRef = doc(firestore, 'users', user.uid);
+                await setDoc(docRef, { settings: updatedSettings }, { merge: true });
+                toast({
+                    title: url ? 'Logo opgeslagen' : 'Logo verwijderd',
+                    description: url ? 'Uw logo is automatisch opgeslagen.' : 'Uw logo is verwijderd.'
+                });
+            } catch (error) {
+                console.error("Error saving logo:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Fout',
+                    description: 'Kon logo niet opslaan. Probeer het opnieuw.'
+                });
+            }
+        }
+    };
+
     if (isUserLoading || isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
@@ -194,7 +223,7 @@ export default function InstellingenPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background pb-40">
+        <div className="min-h-screen bg-background pb-[280px]">
             <DashboardHeader user={user} title="Instellingen" />
 
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -273,6 +302,46 @@ export default function InstellingenPage() {
                                     <Label>BTW Nummer</Label>
                                     <Input value={settings.btwNummer} onChange={e => update('btwNummer', e.target.value)} placeholder="NL123456789B01" />
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Bedrijfslogo</CardTitle>
+                                <CardDescription>Dit logo wordt getoond op uw offertes en facturen.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {user && (
+                                    <LogoUpload
+                                        currentLogoUrl={logoUrl || undefined}
+                                        userId={user.uid}
+                                        onLogoChange={handleLogoChange}
+                                    />
+                                )}
+
+                                {logoUrl && (
+                                    <div className="space-y-2 pt-4 border-t">
+                                        <Label htmlFor="logoScale">Logogrootte in PDF</Label>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                id="logoScale"
+                                                type="range"
+                                                min="0.5"
+                                                max="2"
+                                                step="0.1"
+                                                value={settings.logoScale || 1.0}
+                                                onChange={e => update('logoScale', parseFloat(e.target.value))}
+                                                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                            <span className="text-sm font-semibold min-w-[60px] text-right">
+                                                {Math.round((settings.logoScale || 1.0) * 100)}%
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Pas de grootte van het logo in de PDF aan (50% - 200%). Standaard is 100%.
+                                        </p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 

@@ -147,13 +147,13 @@
     "hoofdtitel": "HSB Voorzetwand",
     "subcategorie_label": "Regelwerk",
     "subsectie": "Constructiehout (Vuren & SLS)",
-    "Extra_info": "Selecteer vuren rachels of latten voor de achterconstructie van de leidingkoof. Focus op vuren latten in standaard kopmaten voor een stabiele omkasting."
+    "Extra_info": "Selecteer vuren rachels of latten voor de achterconstructie van de koof. Focus op vuren latten in standaard kopmaten voor een stabiele omkasting."
   },
   {
     "hoofdtitel": "HSB Voorzetwand",
     "subcategorie_label": "Beplating",
     "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
-    "Extra_info": "Selecteer plaatmateriaal zoals gips of MDF voor het dichtzetten van de leidingkoof. Focus op panelen geschikt voor strak zichtwerk."
+    "Extra_info": "Selecteer plaatmateriaal zoals gips of MDF voor het dichtzetten van de koof. Focus op panelen geschikt voor strak zichtwerk."
   },
   {
     "hoofdtitel": "HSB Voorzetwand",
@@ -339,7 +339,7 @@
     "hoofdtitel": "Metalstud Voorzetwand",
     "subcategorie_label": "Regelwerk",
     "subsectie": "Metaalprofielen",
-    "Extra_info": "Selecteer kleine metalen profielen of houten latten voor de constructie van de leidingkoof. Focus op materialen voor een stabiele omkasting."
+    "Extra_info": "Selecteer kleine metalen profielen of houten latten voor de constructie van de koof. Focus op materialen voor een stabiele omkasting."
   },
   {
     "hoofdtitel": "Metalstud Voorzetwand",
@@ -915,13 +915,13 @@
     "hoofdtitel": "Plafond - Houten Framewerk",
     "subcategorie_label": "Regelwerk",
     "subsectie": "Constructiehout (Vuren & SLS)",
-    "Extra_info": "Selecteer houten regels of latten voor de opbouw van een verdiepte gordijnkoof. Focus op standaard kopmaten voor een constructieve basis."
+    "Extra_info": "Selecteer houten regels of latten voor de opbouw van een verdiepte koof. Focus op standaard kopmaten voor een constructieve basis."
   },
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
     "subcategorie_label": "Beplating",
     "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
-    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gips voor de zichtzijdes van de gordijnkoof. Focus op panelen geschikt voor strak zichtwerk."
+    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gips voor de zichtzijdes van de koof. Focus op panelen geschikt voor strak zichtwerk."
   },
   {
     "hoofdtitel": "Plafond - Houten Framewerk",
@@ -1047,13 +1047,13 @@
     "hoofdtitel": "Plafond - Metalstud C/U",
     "subcategorie_label": "Regelwerk",
     "subsectie": "Metaalprofielen",
-    "Extra_info": "Selecteer houten regels of specifieke metalen profielen voor de opbouw van een verdiepte gordijnkoof. Focus op een constructieve basis voor de gewenste koofbreedte."
+    "Extra_info": "Selecteer houten regels of specifieke metalen profielen voor de opbouw van een verdiepte koof. Focus op een constructieve basis voor de gewenste koofbreedte."
   },
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
     "subcategorie_label": "Beplating",
     "subsectie": "Gipsplaten & Wandsystemen",
-    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gipsplaten voor de afwerking van de gordijnkoof. Focus op panelen geschikt voor een strakke integratie in het plafond."
+    "Extra_info": "Selecteer plaatmateriaal zoals multiplex of gipsplaten voor de afwerking van de koof. Focus op panelen geschikt voor een strakke integratie in het plafond."
   },
   {
     "hoofdtitel": "Plafond - Metalstud C/U",
@@ -1401,13 +1401,13 @@
     "hoofdtitel": "Constructievloer hout",
     "subcategorie_label": "Regelwerk",
     "subsectie": "Constructiehout (Vuren & SLS)",
-    "Extra_info": "Selecteer houten regels voor de constructie van een verdiepte gordijnkoof in het plafond."
+    "Extra_info": "Selecteer houten regels voor de constructie van een verdiepte koof in het plafond."
   },
   {
     "hoofdtitel": "Constructievloer hout",
     "subcategorie_label": "Beplating",
     "subsectie": "Plaatmateriaal Hout (Multiplex, MDF, OSB & Spaanplaat)",
-    "Extra_info": "Selecteer plaatmateriaal in gangbare diktes voor de afwerking van de zichtzijdes van de gordijnkoof."
+    "Extra_info": "Selecteer plaatmateriaal in gangbare diktes voor de afwerking van de zichtzijdes van de koof."
   },
   {
     "hoofdtitel": "Constructievloer hout",

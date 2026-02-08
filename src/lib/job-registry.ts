@@ -65,8 +65,7 @@ export const MATERIAL_CATEGORY_INFO = {
   afwerking_buiten: { title: 'Afwerken (Buiten)', order: 5 },
   lijstwerk: { title: 'Lijstwerk', order: 4 },
   gips_afwerking: { title: 'Naden & Stucwerk', order: 6 },
-  Koof: { title: 'Leidingkoof / Omkasting', order: 9 },
-  Gordijnkoof: { title: 'Gordijnkoof', order: 10 },
+  Koof: { title: 'Koof', order: 9 },
   Cinewall: { title: 'Cinewall Elementen', order: 21 },
   // --- TUIN & SCHUTTING ---
 
@@ -108,7 +107,6 @@ export const WALL_CONFIG = MATERIAL_CATEGORY_INFO;
 export const CEILING_CONFIG = {
   ...MATERIAL_CATEGORY_INFO,
   Koof: { ...MATERIAL_CATEGORY_INFO.Koof, order: 2 },
-  Gordijnkoof: { ...MATERIAL_CATEGORY_INFO.Gordijnkoof, order: 3 },
   isolatie: { ...MATERIAL_CATEGORY_INFO.isolatie, order: 6 },
 };
 
@@ -196,7 +194,7 @@ const HSB_VOORZETWAND_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2600' },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600 },
-  // Leidingkoof
+  // Koof
   { key: 'koof_lengte', label: 'Lengte Koof', type: 'number', suffix: 'mm', group: 'koof', optional: true },
   { key: 'koof_hoogte', label: 'Hoogte Koof', type: 'number', suffix: 'mm', group: 'koof', optional: true },
   { key: 'koof_diepte', label: 'Diepte Koof', type: 'number', suffix: 'mm', group: 'koof', optional: true },
@@ -368,7 +366,7 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
 
-  // 4. LEIDINGKOOF
+  // 4. KOOF
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -413,7 +411,7 @@ const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat_1', category_ultra_filter: '' },
   { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat_2', category_ultra_filter: '' },
 
-  // 4. LEIDINGKOOF
+  // 4. KOOF
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -462,7 +460,7 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_1', category_ultra_filter: '' },
   { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_2', category_ultra_filter: '' },
 
-  // 4. LEIDINGKOOF (Omkasting voor buizen/afvoer)
+  // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -510,7 +508,7 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_1', category_ultra_filter: '' },
   { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_2', category_ultra_filter: '' },
 
-  // 4. LEIDINGKOOF (Omkasting voor buizen/afvoer)
+  // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -599,7 +597,7 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
   { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
-  // 4. LEIDINGKOOF (Omkasting voor buizen/afvoer)
+  // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -642,7 +640,7 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_vloer', category_ultra_filter: '' },
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'afwerklatten', category_ultra_filter: '' },
 
-  // 5. LEIDINGKOOF (Omkasting voor buizen/afvoer)
+  // 5. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -678,7 +676,7 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   { label: 'Balklaag', categoryFilter: 'Vuren hout', category: 'hout', key: 'randhout', category_ultra_filter: '' },
   { label: 'Rachelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachels', category_ultra_filter: '' },
 
-  // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
+  // 2. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -712,7 +710,7 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   { label: 'Randprofielen', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'randprofielen', category_ultra_filter: '' },
   { label: 'Draagprofielen', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'draagprofielen', category_ultra_filter: '' },
 
-  // 2. LEIDINGKOOF (Omkasting voor buizen/afvoer)
+  // 2. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
@@ -868,7 +866,7 @@ const PLINTEN_MATS: MaterialSection[] = [
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'vloerplinten', category_ultra_filter: '' },
 ];
 
-const LEIDINGKOOF_MATS: MaterialSection[] = [
+const KOOF_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
   { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
@@ -1450,9 +1448,9 @@ const WATERSLAGEN_DORPELS_MATS: MaterialSection[] = [
 export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
   //#region --- TRAPPEN ---
-  trappen: {
-    title: 'Trappen',
-    searchPlaceholder: 'Zoek traptype...',
+  overzettreden: {
+    title: 'Overzettreden',
+    searchPlaceholder: 'Zoek traprenovatie...',
     items: [
       {
         title: 'Overzettreden',
@@ -1466,6 +1464,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           afwerking: { title: 'Veiligheid', order: 2 },
         },
       },
+    ]
+  },
+  vlizotrap: {
+    title: 'Vlizotrappen',
+    searchPlaceholder: 'Zoek vlizotrap...',
+    items: [
       {
         title: 'Vlizotrap',
         description: 'Plaatsen van vlizotrap',
@@ -1481,8 +1485,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           afwerking: { title: 'Afwerking', order: 5 },
         },
       },
-
-    ],
+    ]
   },
 
   //#endregion
@@ -1528,7 +1531,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           gips_afwerking: { title: 'Naden & Stucwerk', order: 7 },
           Kozijnen: { title: 'Kozijnen', order: 8 },
           Deuren: { title: 'Deuren', order: 9 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 10 },
+          Koof: { title: 'Koof', order: 10 },
           Dagkant: { title: 'Dagkanten', order: 12 },
           Vensterbank: { title: 'Vensterbanken', order: 13 },
         }
@@ -1544,7 +1547,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           hout: { title: 'Framewerk (Hout)', order: 1 },
           isolatie: { title: 'Isolatie', order: 2 },
           beplating: { title: 'Beplating', order: 3 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 6 },
+          Koof: { title: 'Koof', order: 6 },
           afwerking: { title: 'Afwerken', order: 7 },
           gips_afwerking: { title: 'Naden & Stucwerk', order: 8 },
           Kozijnen: { title: 'Kozijnen', order: 9 },
@@ -1564,7 +1567,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           metaal: { title: 'Metal Stud Framewerk', order: 1 },
           isolatie: { title: 'Isolatie & Folies', order: 2 },
           beplating: { title: 'Beplating', order: 3 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 6 },
+          Koof: { title: 'Koof', order: 6 },
           afwerking: { title: 'Afwerken', order: 7 },
           gips_afwerking: { title: 'Naden & Stucwerk', order: 8 },
           Kozijnen: { title: 'Kozijnen', order: 9 },
@@ -1584,7 +1587,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           metaal: { title: 'Metal Stud Framewerk', order: 1 },
           isolatie: { title: 'Isolatie', order: 2 },
           beplating: { title: 'Beplating', order: 3 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 6 },
+          Koof: { title: 'Koof', order: 6 },
           afwerking: { title: 'Afwerken', order: 7 },
           gips_afwerking: { title: 'Naden & Stucwerk', order: 8 },
           Kozijnen: { title: 'Kozijnen', order: 9 },
@@ -1637,7 +1640,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           beplating: { title: 'Beplating', order: 3 },
           afwerking: { title: 'Afwerken', order: 4 },
           gips_afwerking: { title: 'Naden & Stucwerk', order: 5 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 6 },
+          Koof: { title: 'Koof', order: 6 },
           Toegang: { title: 'Toegang & Vlizotrap', order: 10 },
         }
       },
@@ -1654,7 +1657,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           beplating: { title: 'Beplating', order: 3 },
           afwerking: { title: 'Afwerken', order: 4 },
           gips_afwerking: { title: 'Naden & Stucwerk', order: 5 },
-          Koof: { title: 'Leidingkoof / Omkasting', order: 6 },
+          Koof: { title: 'Koof', order: 6 },
           Toegang: { title: 'Toegang & Vlizotrap', order: 10 },
         }
       },
@@ -1680,7 +1683,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           beplating: { title: 'Beplating', order: 2 },
           isolatie: { title: 'Isolatie & Folies', order: 3 },
           Toegang: { title: 'Toegang & Vlizotrap', order: 4 },
-          Koof: { title: 'Leidingkoof', order: 7 },
+          Koof: { title: 'Koof', order: 7 },
           afwerking: { title: 'Afwerken', order: 12 },
         }
       },
@@ -1861,12 +1864,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         },
       },
       {
-        title: 'Leidingkoof',
+        title: 'Koof',
         description: 'Leidingen en afvoeren wegwerken',
-        slug: 'leidingkoof',
+        slug: 'koof',
         measurementLabel: 'Koof',
         measurements: KOOF_FIELDS,
-        materialSections: LEIDINGKOOF_MATS,
+        materialSections: KOOF_MATS,
         categoryConfig: {
           hout: { title: 'Constructie & Regelwerk', order: 1 },
           beplating: { title: 'Beplating', order: 2 },
@@ -2262,7 +2265,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
 
   //#region --- DAKRAMEN ---
   dakramen: {
-    title: 'Dakramen / Lichtkoepel',
+    title: 'Dakramen',
     searchPlaceholder: 'Zoek dakraamklus...',
     items: [
       {
@@ -2279,6 +2282,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           afwerking: { title: 'Aftimmering', order: 3 },
         },
       },
+    ]
+  },
+  lichtkoepel: {
+    title: 'Lichtkoepel',
+    searchPlaceholder: 'Zoek lichtkoepelklus...',
+    items: [
       {
         title: 'Lichtkoepel',
         description: 'Voor plat dak',

@@ -6,6 +6,8 @@ export interface PDFQuoteData {
     offerteNummer: string;
     datum: string;
     geldigTot: string;
+    logoUrl?: string;
+    logoScale?: number;
     bedrijf: {
         naam: string;
         adres: string;
@@ -65,6 +67,32 @@ export interface PDFQuoteData {
     drawingImages?: string[];
 }
 
+/**
+ * Converts an image URL to base64 data URL for jsPDF
+ * Uses server-side API route to bypass CORS issues with Firebase Storage
+ */
+async function urlToBase64(url: string): Promise<string> {
+    try {
+        // Use API route to fetch and convert the image server-side (no CORS issues)
+        const response = await fetch(`/api/logo-to-base64?url=${encodeURIComponent(url)}`);
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch logo from API');
+        }
+
+        const data = await response.json();
+
+        if (!data.dataUrl) {
+            throw new Error('No data URL returned from API');
+        }
+
+        return data.dataUrl;
+    } catch (error) {
+        console.error('Failed to convert logo to base64:', error);
+        throw error;
+    }
+}
+
 export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -98,12 +126,47 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     // PAGE 1: HEADER + SUMMARY
     // ═══════════════════════════════════════════════════════════════
 
-    // Logo placeholder
-    doc.setFillColor(245, 245, 245);
-    doc.rect(margin, y, 40, 18, 'F');
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('LOGO', margin + 20, y + 10, { align: 'center' });
+    // Logo (if available)
+    if (data.logoUrl) {
+        try {
+            const logoBase64 = await urlToBase64(data.logoUrl);
+            const logoImg = doc.getImageProperties(logoBase64);
+
+            // Apply user-defined scale factor (default 1.0 = 100%)
+            const scale = data.logoScale || 1.0;
+            const maxWidth = 40 * scale;
+            const maxHeight = 18 * scale;
+            let logoWidth = maxWidth;
+            let logoHeight = (logoImg.height * maxWidth) / logoImg.width;
+
+            // Scale down if height exceeds max
+            if (logoHeight > maxHeight) {
+                logoHeight = maxHeight;
+                logoWidth = (logoImg.width * maxHeight) / logoImg.height;
+            }
+
+            // Center the logo in the allocated space
+            const xPos = margin + (maxWidth - logoWidth) / 2;
+            const yPos = y + (maxHeight - logoHeight) / 2;
+
+            doc.addImage(logoBase64, 'PNG', xPos, yPos, logoWidth, logoHeight);
+        } catch (error) {
+            console.error('Error adding logo to PDF:', error);
+            // Fall back to placeholder if logo fails to load
+            doc.setFillColor(245, 245, 245);
+            doc.rect(margin, y, 40, 18, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text('LOGO', margin + 20, y + 10, { align: 'center' });
+        }
+    } else {
+        // Show placeholder if no logo uploaded
+        doc.setFillColor(245, 245, 245);
+        doc.rect(margin, y, 40, 18, 'F');
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text('LOGO', margin + 20, y + 10, { align: 'center' });
+    }
 
     // Title: OFFERTE
     doc.setFontSize(28);

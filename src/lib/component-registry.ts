@@ -93,9 +93,9 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         ]
     }
     ,
-    // 6. Leidingkoof
-    leidingkoof: {
-        title: 'Leidingkoof',
+    // 6. Koof
+    koof: {
+        title: 'Koof',
         description: 'Leidingen en afvoeren wegwerken',
         measurements: [
             { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm' },

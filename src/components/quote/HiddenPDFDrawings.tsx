@@ -373,7 +373,7 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
                                 onOpeningsChange={() => { }}
                                 onEdgeChange={() => { }}
                                 onDataGenerated={() => { }}
-                                onLeidingkoofChange={() => { }}
+                                onKoofChange={() => { }}
                                 className="w-full h-full text-black" // Force text color for PDF
                             />
                         </div>

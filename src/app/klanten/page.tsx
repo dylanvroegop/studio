@@ -289,7 +289,7 @@ export default function KlantenPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background pb-40">
+    <main className="min-h-screen bg-background pb-[280px]">
       <DashboardHeader user={user} title="Klantenbeheer" />
       <div className="container mx-auto p-4 md:p-8 space-y-6">
         <div className="flex items-center justify-between gap-4">

@@ -615,6 +615,8 @@ export default function QuotePage() {
                 month: 'long',
                 year: 'numeric'
             }),
+            logoUrl: userProfile?.settings?.logoUrl || undefined,
+            logoScale: userProfile?.settings?.logoScale || 1.0,
             bedrijf: {
                 naam: userProfile?.bedrijfsnaam || userProfile?.companyName || 'Uw Bedrijfsnaam',
                 adres: userProfile?.adres || userProfile?.address || 'Straatnaam 123',
@@ -721,6 +723,8 @@ export default function QuotePage() {
             offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
             datum: new Date().toLocaleDateString('nl-NL'),
             geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL'),
+            logoUrl: userProfile?.settings?.logoUrl || userProfile?.logoUrl || undefined,
+            logoScale: userProfile?.settings?.logoScale || userProfile?.logoScale || 1.0,
             bedrijf: {
                 naam: userProfile?.bedrijfsnaam || userProfile?.companyName || businessData?.bedrijfsnaam || 'Mijn Bedrijf',
                 adres: businessData?.adres || '',
@@ -830,11 +834,11 @@ export default function QuotePage() {
                             <Link href="/dashboard"><ArrowLeft size={20} /></Link>
                         </Button>
                         <div>
-                            <div className="flex items-center gap-2">
-                                <QuoteSwitcher
-                                    currentQuoteId={id}
-                                    currentQuoteNumber={(quote as any)?.offerteNummer || 'Concept'}
-                                />
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-xl font-bold text-foreground">
+                                    Offerte {(quote as any)?.offerteNummer || 'Concept'}
+                                </h1>
+                                <QuoteSwitcher currentQuoteId={id} />
                                 {quote?.titel && <span className="text-muted-foreground font-normal hidden sm:inline">• {quote.titel}</span>}
                             </div>
                             {klantInfo && (
@@ -888,7 +892,7 @@ export default function QuotePage() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-40">
+            <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-[280px]">
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
@@ -1001,6 +1005,37 @@ export default function QuotePage() {
                                         </span>
                                     </div>
                                 )}
+
+                                {/* Total materials summary */}
+                                <div className="bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm mb-8">
+                                    <div className="flex justify-between items-center px-6 py-4 bg-muted/20">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                                                <Package size={18} />
+                                            </div>
+                                            <h3 className="font-semibold text-foreground tracking-tight text-sm uppercase">TOTAAL MATERIALEN</h3>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <div className="text-right w-32 px-6">
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
+                                                <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
+                                                <p className="text-primary font-bold tracking-tight">
+                                                    {formatCurrency(grootSubtotal + verbruikSubtotal)}
+                                                </p>
+                                            </div>
+                                            <div className="text-right w-32 px-6">
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
+                                                <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
+                                                <p className="text-primary font-bold tracking-tight">
+                                                    {formatCurrency((grootSubtotal + verbruikSubtotal) * (1 + (quoteSettings?.btwTarief || 21) / 100))}
+                                                </p>
+                                            </div>
+                                            {/* Spacer to align with trash icon column */}
+                                            <div className="w-12" />
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <MaterialEditor
                                     title="GROOTMATERIALEN"
                                     items={materials.groot}
@@ -1021,14 +1056,6 @@ export default function QuotePage() {
                                     vatRate={quoteSettings?.btwTarief}
                                     onAddClick={() => setActiveCategory('verbruik')}
                                 />
-
-                                {/* Total materials summary */}
-                                <div className="bg-card rounded-lg p-4 flex justify-between items-center">
-                                    <span className="text-foreground">Totaal materialen</span>
-                                    <span className="text-xl font-bold text-emerald-400">
-                                        {formatCurrency(grootSubtotal + verbruikSubtotal)}
-                                    </span>
-                                </div>
                             </>
                         )}
                     </TabsContent>
@@ -1111,6 +1138,9 @@ export default function QuotePage() {
                         </div>
                     </TabsContent>
                 </Tabs>
+
+                {/* Bottom Spacer to ensure content visibility above fixed footer */}
+                <div className="h-20 w-full" aria-hidden="true" />
             </main>
 
             <SendQuoteModal

@@ -17,6 +17,8 @@ import {
   Pencil,
   Eye,
   EyeOff,
+  Save,
+  Box,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -262,6 +264,7 @@ type GebruikerInstellingen = {
   bouwplaatsKostenPakketten?: BouwplaatsKostenPakket[];
   bouwplaatsKostenStandaardId?: string | null;
   collapsedSections?: Record<string, boolean>;
+  standaardUurTarief?: number | null;
 };
 
 /* ---------------------------------------------
@@ -464,6 +467,7 @@ export default function OverzichtPage() {
   const [defaultsConfirmed, setDefaultsConfirmed] = useState(false);
   const [standaardTransport, setStandaardTransport] = useState<StandaardTransport | null>(null);
   const [standaardWinstMarge, setStandaardWinstMarge] = useState<StandaardWinstMarge | null>(null);
+  const [standaardUurTarief, setStandaardUurTarief] = useState<number | null>(null);
 
   // Preset Names Cache
   const [presetNames, setPresetNames] = useState<Record<string, string>>({});
@@ -471,6 +475,7 @@ export default function OverzichtPage() {
   // Modals (gescheiden scope)
   const [transportInstellingenOpen, setTransportInstellingenOpen] = useState(false);
   const [winstInstellingenOpen, setWinstInstellingenOpen] = useState(false);
+  const [uurTariefInstellingenOpen, setUurTariefInstellingenOpen] = useState(false);
   const [bouwplaatsBeheerOpen, setBouwplaatsBeheerOpen] = useState(false);
   const [bouwplaatsOpslaanOpen, setBouwplaatsOpslaanOpen] = useState(false);
 
@@ -620,7 +625,7 @@ export default function OverzichtPage() {
 
         const data = snap.data() as Quote;
 
-        const ownerUid = (data as any)?.klantinformatie?.userId;
+        const ownerUid = (data as any)?.klantinformatie?.userId || (data as any)?.userId;
         if (!ownerUid) {
           setError('Geen eigenaar gevonden bij deze offerte.');
           return;
@@ -683,6 +688,7 @@ export default function OverzichtPage() {
         setDefaultsConfirmed(!!instellingen.defaultsConfirmed);
         setStandaardTransport((instellingen.standaardTransport as any) ?? null);
         setStandaardWinstMarge((instellingen.standaardWinstMarge as any) ?? null);
+        setStandaardUurTarief(instellingen.standaardUurTarief ?? null);
 
         // Load collapsed sections state
         if (instellingen.collapsedSections && typeof instellingen.collapsedSections === 'object') {
@@ -705,7 +711,7 @@ export default function OverzichtPage() {
         setTransportMode('perKm');
         setPrijsPerKm('');
         setVasteTransportkosten('');
-        setUurTarief(numberToEuroInputString(data.instellingen?.uurTariefExclBtw ?? 50)); // Fallback 50 if missing
+        setUurTarief(numberToEuroInputString(data.instellingen?.uurTariefExclBtw ?? instellingen.standaardUurTarief ?? 50)); // Fallback 50 if missing
         setBouwplaatskosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
 
@@ -1124,6 +1130,24 @@ export default function OverzichtPage() {
     setDefaultsConfirmed(true);
     setStandaardWinstMarge(sw);
     toast({ title: 'Opgeslagen', description: 'Winstmarge standaard is bijgewerkt.' });
+  }
+  async function saveUurTariefStandaardAlleen() {
+    const val = euroNLToNumberOrNull(uurTarief);
+    if (val === null || val <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Ongeldig',
+        description: 'Vul eerst een geldig uurtarief in.',
+      });
+      return;
+    }
+
+    await schrijfGebruikerInstellingen({
+      standaardUurTarief: val,
+    });
+
+    setStandaardUurTarief(val);
+    toast({ title: 'Opgeslagen', description: 'Uurtarief standaard is bijgewerkt.' });
   }
 
   async function bevestigDefaultsZonderOpslaan() {
@@ -1768,6 +1792,54 @@ export default function OverzichtPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Uurtarief instellingen */}
+      <AlertDialog open={uurTariefInstellingenOpen} onOpenChange={setUurTariefInstellingenOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Uurtarief instellingen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sla dit uurtarief op als standaard voor volgende offertes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="rounded-lg border p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-medium text-sm">Huidige keuze</div>
+                <div className="text-xs text-muted-foreground">€ {uurTarief} per uur</div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Standaard: <span className="font-medium">{standaardUurTarief !== null ? `€ ${numberToEuroInputString(standaardUurTarief)}` : '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="secondary">
+                Sluiten
+              </Button>
+            </AlertDialogCancel>
+
+            <AlertDialogAction asChild>
+              <Button
+                variant="success"
+                onClick={(e) => {
+                  e.preventDefault();
+                  saveUurTariefStandaardAlleen()
+                    .then(() => setUurTariefInstellingenOpen(false))
+                    .catch(() => { });
+                }}
+              >
+                Opslaan als standaard
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+
+        </AlertDialogContent>
+      </AlertDialog>
+
+
       {/* Bouwplaats: Opslaan als pakket (nieuw/overschrijven) */}
       <AlertDialog open={bouwplaatsOpslaanOpen} onOpenChange={setBouwplaatsOpslaanOpen}>
         <AlertDialogContent>
@@ -1977,7 +2049,7 @@ export default function OverzichtPage() {
       />
 
 
-      <div className="flex-1 px-4 py-6 md:py-10 pb-40">
+      <div className="flex-1 px-4 py-6 md:py-10 pb-[280px]">
         <div className="mx-auto max-w-5xl space-y-8">
 
           {/* Klussen */}
@@ -2165,32 +2237,49 @@ export default function OverzichtPage() {
               onSettings={() => setBouwplaatsBeheerOpen(true)}
             >
               <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
-                {/* Pakket Selector */}
-                <div className="px-4 py-3 border-b border-white/5">
-                  <Select
-                    value={geselecteerdPakketId || 'LEEG'}
-                    onValueChange={(v) => {
-                      if (!v || v === 'LEEG') {
-                        setGeselecteerdPakketId('');
-                        setBouwplaatskosten(defaultBouwplaatskosten());
-                        return;
-                      }
-                      handleSelectPakket(v);
-                    }}
+                {/* Werkpakket Selector */}
+                <div className="flex items-center gap-1.5 px-3 py-3 border-b border-white/5 bg-white/5">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-0.5">
+                      Werkpakket
+                    </Label>
+                    <Select
+                      value={geselecteerdPakketId || 'LEEG'}
+                      onValueChange={(v) => {
+                        if (!v || v === 'LEEG') {
+                          setGeselecteerdPakketId('');
+                          setBouwplaatskosten(defaultBouwplaatskosten());
+                          return;
+                        }
+                        handleSelectPakket(v);
+                      }}
+                    >
+                      <SelectTrigger className="h-10 bg-black/40 border-emerald-500/20 focus:ring-emerald-500/20 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Box className="w-4 h-4 text-emerald-500" />
+                          <SelectValue placeholder="Nieuw" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LEEG">Nieuw</SelectItem>
+                        {pakketten.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.naam}
+                            {p.id === standaardPakketId ? ' (standaard)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 mt-5 text-muted-foreground hover:text-emerald-500"
+                    title="Opslaan als werkpakket"
+                    onClick={() => setBouwplaatsOpslaanOpen(true)}
                   >
-                    <SelectTrigger className="bg-black/20 border-white/5 rounded-lg">
-                      <SelectValue placeholder="Leeg (handmatig)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LEEG">Leeg (handmatig)</SelectItem>
-                      {pakketten.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.naam}
-                          {p.id === standaardPakketId ? ' (standaard)' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Save className="h-4 w-4" />
+                  </Button>
                 </div>
 
                 {/* Items List */}
@@ -2333,6 +2422,7 @@ export default function OverzichtPage() {
               title="Standaard Uurtarief"
               isCollapsed={!!collapsedSections['uurtarief']}
               onToggle={() => toggleSection('uurtarief')}
+              onSettings={() => setUurTariefInstellingenOpen(true)}
             >
               <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
                 <div className="flex items-center gap-4">
