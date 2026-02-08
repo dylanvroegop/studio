@@ -1,86 +1,90 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-
 import {
   collection,
+  getDocs,
   onSnapshot,
   query,
-  where,
   Timestamp,
-  doc as fsDoc,
-  deleteDoc,
+  where,
 } from 'firebase/firestore';
-
-import { useFirestore, useUser } from '@/firebase';
-import type { Quote } from '@/lib/types';
-import { cn } from '@/lib/utils';
-import { AppNavigation } from '@/components/AppNavigation';
-
-import { DashboardHeader } from '@/components/DashboardHeader';
-
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
-
-
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
-
-import {
-  Plus,
-  Pencil,
-  Settings,
-  Boxes,
-  Users,
-  Calendar,
-  Trash2,
-  FilePlus,
-  LayoutDashboard,
+  CalendarDays,
   Loader2,
-  Circle,
-  Clock,
-  Send,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
 } from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
-import { createEmptyQuote } from '@/lib/firestore-actions';
+import { AppNavigation } from '@/components/AppNavigation';
+import { DashboardHeader } from '@/components/DashboardHeader';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useFirestore, useUser } from '@/firebase';
 
-import { format } from 'date-fns';
-import { nl } from 'date-fns/locale';
+type QuoteStatus =
+  | 'concept'
+  | 'in_behandeling'
+  | 'verzonden'
+  | 'geaccepteerd'
+  | 'afgewezen'
+  | 'verlopen';
 
-type Status = Quote['status'];
+type InvoiceStatus =
+  | 'concept'
+  | 'verzonden'
+  | 'gedeeltelijk_betaald'
+  | 'betaald'
+  | 'geannuleerd';
 
-type QuoteMetDatums = Quote & {
+interface DashboardQuote {
   id: string;
-  createdAtDate?: Date | null;
-  updatedAtDate?: Date | null;
-  sentAtDate?: Date | null;
-  offerteNummer?: number | null;
-};
+  status?: QuoteStatus;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  archived?: boolean;
+  totals?: {
+    winstMarge?: number;
+  };
+}
 
+interface DashboardInvoice {
+  id: string;
+  status?: InvoiceStatus;
+  dueDate?: Timestamp;
+  archived?: boolean;
+  paymentSummary?: {
+    openAmount?: number;
+  };
+}
 
+interface PlanningEntry {
+  id: string;
+  quoteId?: string;
+  startDate?: Timestamp;
+  endDate?: Timestamp;
+  cache?: {
+    clientName?: string;
+    projectTitle?: string;
+  };
+}
 
-// --- Helpers ---
+interface PaymentPoint {
+  invoiceId: string;
+  amount: number;
+  date: Date;
+}
 
-function naarDate(value: any): Date | null {
+function parseDate(value: any): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (value instanceof Timestamp) return value.toDate();
@@ -90,239 +94,39 @@ function naarDate(value: any): Date | null {
   return null;
 }
 
-function formatCurrency(amount?: number) {
-  if (amount === undefined || amount === null || amount === 0) return '€ 0,00';
-  return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
-}
-
-function getTitel(q: any): string {
-  if (q?.titel || q?.title) return q.titel || q.title;
-  const info = q?.klantinformatie;
-  if (info?.straat) return `${info.straat} ${info.huisnummer || ''}`.trim();
-  return 'Naamloze klus';
-}
-
-function getKlantNaam(q: any): string {
-  const info = q?.klantinformatie;
-  if (!info) return 'Onbekende klant';
-  const naam = [info.voornaam, info.achternaam].filter(Boolean).join(' ');
-  return naam || 'Onbekende klant';
-}
-
-function getOfferteNummerLabel(q: any): string | null {
-  const n = q?.offerteNummer;
-  if (typeof n === 'number' && Number.isFinite(n)) return `Offerte #${n}`;
-  return null;
-}
-
-// ✅ Bepaal waar de 'bewerk' knop heen gaat (klant info of overzicht)
-function getEditHref(quote: any) {
-  const info = quote?.klantinformatie;
-  const hasClient = !!(info?.voornaam || info?.achternaam || info?.bedrijfsnaam);
-
-  if (!hasClient) {
-    return `/offertes/${quote.id}/klant`;
-  }
-  return `/offertes/${quote.id}/overzicht`;
-}
-
-// ✅ Altijd naar overzicht (Financiële details / Edit flow)
-function getOverzichtHref(quoteId: string) {
-  return `/offertes/${quoteId}/overzicht`;
-}
-
-// ✅ Naar Project Details (Tekeningen / Technische info)
-function getDetailHref(quoteId: string) {
-  return `/offertes/${quoteId}`;
-}
-
-// Helper to check if a single job (klus) is complete
-function jobIsComplete(job: any): boolean {
-  // Legacy support
-  const selections = job?.materialen?.selections;
-  const hasSelections =
-    selections &&
-    typeof selections === 'object' &&
-    Object.keys(selections).length > 0;
-
-  // New structure support
-  const materialenLijst = job?.materialen?.materialen_lijst;
-  const hasMaterialenLijst =
-    materialenLijst &&
-    typeof materialenLijst === 'object' &&
-    Object.keys(materialenLijst).length > 0;
-
-  // Check preset usage (legacy label or new ID)
-  const presetLabel = job?.werkwijze?.presetLabel;
-  const hasWerkwijzePreset =
-    !!presetLabel && presetLabel.trim().toLowerCase() !== 'nieuw';
-
-  const workMethodId = job?.werkwijze?.workMethodId;
-  const hasWorkMethodId = !!workMethodId && workMethodId !== 'default';
-
-  return hasSelections || hasMaterialenLijst || hasWerkwijzePreset || hasWorkMethodId;
-}
-
-// Calculate work completion status for a quote
-type WorkStatus =
-  | { type: 'no_jobs' }
-  | { type: 'in_progress'; complete: number; total: number }
-  | { type: 'ready'; total: number }
-  | { type: 'calculating' }
-  | { type: 'calculated' }
-  | { type: 'sent'; status: Status };
-
-function getQuoteWorkStatus(quote: any, hasSupabaseData: boolean = false): WorkStatus {
-  const status = quote.status as Status;
-  const amount = quote.totaalbedrag || quote.amount || 0;
-
-  // If already sent/accepted/rejected, show that status
-  if (status === 'verzonden' || status === 'geaccepteerd' || status === 'afgewezen' || status === 'verlopen') {
-    return { type: 'sent', status };
-  }
-
-  // If we have data in Supabase, it's calculated even if Firestore hasn't updated yet
-  if (hasSupabaseData) {
-    return { type: 'calculated' };
-  }
-
-  // If currently being processed by n8n
-  if (status === 'in_behandeling') {
-    // Heuristic: If we have an amount and it hasn't been updated in >60s, it's likely stuck/done
-    // This avoids showing "Wordt berekend..." for old quotes where Firestore wasn't updated correctly
-    const val = quote.updatedAtDate || (quote.updatedAt?.toDate ? quote.updatedAt.toDate() : null);
-    if (val && amount > 0) {
-      const diff = new Date().getTime() - val.getTime();
-      if (diff > 60000) {
-        return { type: 'calculated' };
-      }
-    }
-
-    return { type: 'calculating' };
-  }
-
-  // If we have an amount and we're in concept, it means it's calculated but not yet sent
-  if (status === 'concept' && amount > 0) {
-    return { type: 'calculated' };
-  }
-
-  // Extract jobs from the quote
-  const klussen = quote.klussen;
-  if (!klussen || typeof klussen !== 'object') {
-    return { type: 'no_jobs' };
-  }
-
-  const jobIds = Object.keys(klussen);
-  if (jobIds.length === 0) {
-    return { type: 'no_jobs' };
-  }
-
-  const total = jobIds.length;
-  const complete = jobIds.filter(id => jobIsComplete(klussen[id])).length;
-
-  if (complete === total) {
-    return { type: 'ready', total };
-  }
-
-  return { type: 'in_progress', complete, total };
-}
-
-function WorkStatusBadge({ quote, hasSupabaseData }: { quote: any; hasSupabaseData: boolean }) {
-  const workStatus = getQuoteWorkStatus(quote, hasSupabaseData);
-
-  if (workStatus.type === 'no_jobs') {
-    return (
-      <Badge
-        variant="outline"
-        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-zinc-800/50 text-zinc-400 border-zinc-700/50"
-      >
-        <Circle className="h-3 w-3" />
-        Geen klussen
-      </Badge>
-    );
-  }
-
-  if (workStatus.type === 'in_progress') {
-    return (
-      <Badge
-        variant="outline"
-        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border-amber-500/20"
-      >
-        <Clock className="h-3 w-3" />
-        {workStatus.complete}/{workStatus.total} klaar
-      </Badge>
-    );
-  }
-
-  if (workStatus.type === 'ready') {
-    return (
-      <Badge
-        variant="outline"
-        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-      >
-        <CheckCircle2 className="h-3 w-3" />
-        Klaar voor offerte
-      </Badge>
-    );
-  }
-
-  if (workStatus.type === 'calculating') {
-    return (
-      <Badge
-        variant="outline"
-        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border-amber-500/20"
-      >
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Wordt berekend
-      </Badge>
-    );
-  }
-
-  if (workStatus.type === 'calculated') {
-    return (
-      <Badge
-        variant="outline"
-        className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-blue-500/10 text-blue-400 border-blue-500/20"
-      >
-        <CheckCircle2 className="h-3 w-3" />
-        Klaar om te versturen
-      </Badge>
-    );
-  }
-
-  // workStatus.type === 'sent'
-  const sentStatusMap: Record<Status, { text: string; className: string; icon: React.ReactNode }> = {
-    concept: { text: 'Concept', className: 'bg-zinc-700/50 text-zinc-300 border-zinc-600/30', icon: <Circle className="h-3 w-3" /> },
-    in_behandeling: { text: 'In bewerking', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: <Clock className="h-3 w-3" /> },
-    verzonden: { text: 'Verzonden', className: 'bg-sky-500/10 text-sky-400 border-sky-500/20', icon: <Send className="h-3 w-3" /> },
-    geaccepteerd: { text: 'Geaccepteerd', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: <CheckCircle2 className="h-3 w-3" /> },
-    afgewezen: { text: 'Afgewezen', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: <XCircle className="h-3 w-3" /> },
-    verlopen: { text: 'Verlopen', className: 'bg-zinc-800 text-zinc-500 border-zinc-700', icon: <AlertCircle className="h-3 w-3" /> },
-  };
-
-  const { text, className, icon } = sentStatusMap[workStatus.status] || sentStatusMap.concept;
-
+function isSameDay(a: Date, b: Date): boolean {
   return (
-    <Badge
-      variant="outline"
-      className={`font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 ${className}`}
-    >
-      {icon}
-      {text}
-    </Badge>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
   );
 }
 
-// Helper to check if a quote is still being worked on (not sent/completed)
-function isLopendeKlus(quote: any, hasSupabaseData: boolean): boolean {
-  const workStatus = getQuoteWorkStatus(quote, hasSupabaseData);
-  return (
-    workStatus.type === 'no_jobs' ||
-    workStatus.type === 'in_progress' ||
-    workStatus.type === 'ready' ||
-    workStatus.type === 'calculating' ||
-    workStatus.type === 'calculated'
-  );
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function lastMonths(count: number): Array<{ key: string; label: string }> {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - (count - 1), 1);
+  const formatMonth = new Intl.DateTimeFormat('nl-NL', { month: 'short' });
+
+  return Array.from({ length: count }).map((_, idx) => {
+    const d = new Date(start.getFullYear(), start.getMonth() + idx, 1);
+    return { key: monthKey(d), label: formatMonth.format(d) };
+  });
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('nl-NL', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(amount || 0);
+}
+
+function formatTime(value: Date | null): string {
+  if (!value) return '—';
+  return value.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
 function DashboardSkeleton() {
@@ -331,10 +135,7 @@ function DashboardSkeleton() {
       <DashboardHeader user={null} />
       <main className="flex flex-1 items-center justify-center p-6">
         <div className="flex items-center gap-3 rounded-3xl border bg-card/50 p-8 text-muted-foreground shadow-sm backdrop-blur-xl">
-          <svg className="h-6 w-6 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
+          <Loader2 className="h-6 w-6 animate-spin" />
           Laden...
         </div>
       </main>
@@ -342,97 +143,31 @@ function DashboardSkeleton() {
   );
 }
 
-export default function Dashboard() {
+export default function DashboardPage() {
+  const router = useRouter();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const router = useRouter();
 
-  const begroeting = useMemo(() => {
-    let naam =
+  const [quotes, setQuotes] = useState<DashboardQuote[]>([]);
+  const [invoices, setInvoices] = useState<DashboardInvoice[]>([]);
+  const [planningEntries, setPlanningEntries] = useState<PlanningEntry[]>([]);
+  const [payments, setPayments] = useState<PaymentPoint[]>([]);
+
+  const [quotesReady, setQuotesReady] = useState(false);
+  const [invoicesReady, setInvoicesReady] = useState(false);
+  const [planningReady, setPlanningReady] = useState(false);
+
+  const loading = !quotesReady || !invoicesReady || !planningReady;
+
+  const greeting = useMemo(() => {
+    let name =
       (user as any)?.displayName ||
       (user as any)?.name ||
       (user as any)?.email?.split('@')?.[0] ||
       '';
-    if (naam) naam = naam.charAt(0).toUpperCase() + naam.slice(1);
-    return naam ? `Welkom, ${naam}` : 'Welkom';
+    if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
+    return name ? `Welkom, ${name}` : 'Welkom';
   }, [user]);
-
-  const [laden, setLaden] = useState(true);
-  const [offertes, setOffertes] = useState<QuoteMetDatums[]>([]);
-  const [zoek, setZoek] = useState('');
-  const [fout, setFout] = useState<string | null>(null);
-
-  // ✅ delete flow
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<QuoteMetDatums | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  // ✅ creating flow
-  const [isCreating, setIsCreating] = useState(false);
-
-  // ✅ Supabase calculation check
-  const [supabaseQuotesWithData, setSupabaseQuotesWithData] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchSupabaseStatus = async () => {
-      const { data, error } = await supabase
-        .from('quotes_collection')
-        .select('quoteid, data_json')
-        .eq('gebruikerid', user.uid);
-
-      if (error) {
-        console.error('Error fetching Supabase quotes:', error);
-        return;
-      }
-
-      if (data) {
-        const idsWithData = new Set(
-          data
-            .filter((d) => d.data_json && Object.keys(d.data_json).length > 0)
-            .map((d) => d.quoteid)
-        );
-        setSupabaseQuotesWithData(idsWithData);
-      }
-    };
-
-    fetchSupabaseStatus();
-
-    // Subscribe to changes in quotes_collection
-    const channel = supabase
-      .channel('quotes_dashboard_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'quotes_collection',
-          filter: `gebruikerid=eq.${user.uid}`,
-        },
-        () => {
-          fetchSupabaseStatus();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
-  async function handleNewQuote() {
-    if (!user || !firestore) return;
-    setIsCreating(true);
-    try {
-      const id = await createEmptyQuote(firestore, user.uid);
-      router.push(`/offertes/${id}/klant`);
-    } catch (e: any) {
-      console.error(e);
-      setFout(e.message || 'Kon nieuwe klus niet aanmaken.');
-      setIsCreating(false);
-    }
-  }
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -441,312 +176,389 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user || !firestore) return;
 
-    setLaden(true);
-    setFout(null);
-
-    const ref = collection(firestore, 'quotes');
-    const q = query(ref, where('userId', '==', user.uid));
-
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const data: QuoteMetDatums[] = snapshot.docs.map((docSnap) => {
-          const raw = docSnap.data() as any;
-          return {
-            ...raw,
-            id: docSnap.id,
-            createdAtDate: naarDate(raw?.createdAt),
-            updatedAtDate: naarDate(raw?.updatedAt),
-            sentAtDate: naarDate(raw?.sentAt),
-            offerteNummer: typeof raw?.offerteNummer === 'number' ? raw.offerteNummer : null,
-          };
-        });
-        setOffertes(data);
-        setLaden(false);
-      },
-      (err: any) => {
-        console.error('Fout bij ophalen klussen:', err);
-        setFout(`${err.code}: ${err.message}`);
-        setLaden(false);
-      }
+    const quotesQuery = query(collection(firestore, 'quotes'), where('userId', '==', user.uid));
+    const invoicesQuery = query(collection(firestore, 'invoices'), where('userId', '==', user.uid));
+    const planningQuery = query(
+      collection(firestore, 'planning_entries'),
+      where('userId', '==', user.uid)
     );
 
-    return () => unsub();
+    const unsubQuotes = onSnapshot(
+      quotesQuery,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as DashboardQuote[];
+        setQuotes(list);
+        setQuotesReady(true);
+      },
+      () => setQuotesReady(true)
+    );
+
+    const unsubInvoices = onSnapshot(
+      invoicesQuery,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as DashboardInvoice[];
+        setInvoices(list);
+        setInvoicesReady(true);
+      },
+      () => setInvoicesReady(true)
+    );
+
+    const unsubPlanning = onSnapshot(
+      planningQuery,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PlanningEntry[];
+        setPlanningEntries(list);
+        setPlanningReady(true);
+      },
+      () => setPlanningReady(true)
+    );
+
+    return () => {
+      unsubQuotes();
+      unsubInvoices();
+      unsubPlanning();
+    };
   }, [user, firestore]);
 
-  const sortedByRecent = useMemo(() => {
-    const arr = [...offertes];
-    arr.sort((a, b) => {
-      const aT = (a.updatedAtDate ?? a.createdAtDate)?.getTime() ?? 0;
-      const bT = (b.updatedAtDate ?? b.createdAtDate)?.getTime() ?? 0;
-      return bT - aT;
-    });
-    return arr;
-  }, [offertes]);
+  useEffect(() => {
+    if (!firestore) return;
+    const nonArchivedInvoices = invoices.filter((inv) => !inv.archived);
+    if (nonArchivedInvoices.length === 0) {
+      setPayments([]);
+      return;
+    }
 
-
-
-  const recenteKlussen = useMemo(() => {
-    const s = zoek.trim().toLowerCase();
-    let result = [...sortedByRecent];
-    if (s) {
-      result = result.filter((o) => {
-        const nr = getOfferteNummerLabel(o)?.toLowerCase() || '';
-        return (
-          getTitel(o).toLowerCase().includes(s) ||
-          getKlantNaam(o).toLowerCase().includes(s) ||
-          nr.includes(s)
+    let cancelled = false;
+    (async () => {
+      try {
+        const nested = await Promise.all(
+          nonArchivedInvoices.map(async (inv) => {
+            const snap = await getDocs(collection(firestore, 'invoices', inv.id, 'payments'));
+            return snap.docs.map((d) => {
+              const raw = d.data() as any;
+              return {
+                invoiceId: inv.id,
+                amount: Number(raw?.amount || 0),
+                date: parseDate(raw?.date) || new Date(0),
+              } as PaymentPoint;
+            });
+          })
         );
-      });
-    }
-    return result.slice(0, 12);
-  }, [sortedByRecent, zoek]);
 
-  function openDeleteDialog(offerte: QuoteMetDatums) {
-    setDeleteTarget(offerte);
-    setDeleteOpen(true);
-  }
+        if (!cancelled) {
+          setPayments(nested.flat());
+        }
+      } catch (e) {
+        console.error('Fout bij ophalen betalingen voor dashboard:', e);
+        if (!cancelled) setPayments([]);
+      }
+    })();
 
-  async function confirmDelete() {
-    if (!firestore || !deleteTarget) return;
-    setDeleting(true);
+    return () => {
+      cancelled = true;
+    };
+  }, [firestore, invoices]);
 
-    try {
-      await deleteDoc(fsDoc(firestore, 'quotes', deleteTarget.id));
-      setDeleteOpen(false);
-      setDeleteTarget(null);
-    } catch (e) {
-      console.error('Fout bij verwijderen offerte:', e);
-      // bewust geen toast hier: jij gebruikt dat niet op deze pagina nu
-    } finally {
-      setDeleting(false);
-    }
-  }
+  const monthBuckets = useMemo(() => lastMonths(6), []);
+  const monthKeySet = useMemo(() => new Set(monthBuckets.map((m) => m.key)), [monthBuckets]);
 
-  if (isUserLoading || !user) return <DashboardSkeleton />;
+  const activeQuotes = useMemo(() => quotes.filter((q) => !q.archived), [quotes]);
+  const archivedQuotes = useMemo(() => quotes.filter((q) => !!q.archived), [quotes]);
+  const activeInvoices = useMemo(() => invoices.filter((i) => !i.archived), [invoices]);
 
-  const dialogNr = deleteTarget ? getOfferteNummerLabel(deleteTarget) : null;
-  const dialogKlant = deleteTarget ? getKlantNaam(deleteTarget) : '';
+  const projectStats = useMemo(() => {
+    const count = (status: QuoteStatus) => activeQuotes.filter((q) => q.status === status).length;
+    return {
+      concept: count('concept'),
+      inBehandeling: count('in_behandeling'),
+      verzonden: count('verzonden'),
+      geaccepteerd: count('geaccepteerd'),
+      afgewezen: count('afgewezen'),
+      verlopen: count('verlopen'),
+      totaal: activeQuotes.length,
+      archief: archivedQuotes.length,
+    };
+  }, [activeQuotes, archivedQuotes.length]);
+
+  const invoiceStats = useMemo(() => {
+    const now = new Date();
+    const concept = activeInvoices.filter((inv) => inv.status === 'concept').length;
+    const openstaand = activeInvoices.filter((inv) => (inv.paymentSummary?.openAmount ?? 0) > 0).length;
+    const gedeeltelijk = activeInvoices.filter((inv) => inv.status === 'gedeeltelijk_betaald').length;
+    const betaald = activeInvoices.filter((inv) => inv.status === 'betaald').length;
+    const teLaat = activeInvoices.filter((inv) => {
+      const due = parseDate(inv.dueDate);
+      const open = inv.paymentSummary?.openAmount ?? 0;
+      return !!due && due.getTime() < now.getTime() && open > 0;
+    }).length;
+
+    return { concept, openstaand, gedeeltelijk, betaald, teLaat };
+  }, [activeInvoices]);
+
+  const planningTodayTomorrow = useMemo(() => {
+    const now = new Date();
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+    const normalized = planningEntries
+      .map((entry) => {
+        const start = parseDate(entry.startDate);
+        const end = parseDate(entry.endDate);
+        return {
+          ...entry,
+          start,
+          end,
+          title:
+            entry.cache?.projectTitle ||
+            entry.cache?.clientName ||
+            'Onbekend project',
+        };
+      })
+      .filter((entry) => !!entry.start)
+      .sort((a, b) => (a.start!.getTime() - b.start!.getTime()));
+
+    const today = normalized.filter((entry) => isSameDay(entry.start!, now)).slice(0, 5);
+    const tomorrowItems = normalized
+      .filter((entry) => isSameDay(entry.start!, tomorrow))
+      .slice(0, 5);
+
+    return { today, tomorrow: tomorrowItems };
+  }, [planningEntries]);
+
+  const acceptedPerMonth = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of monthBuckets) map.set(m.key, 0);
+
+    activeQuotes.forEach((q) => {
+      if (q.status !== 'geaccepteerd') return;
+      const d = parseDate(q.createdAt);
+      if (!d) return;
+      const key = monthKey(d);
+      if (monthKeySet.has(key)) {
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    });
+
+    return monthBuckets.map((m) => ({
+      maand: m.label,
+      value: map.get(m.key) || 0,
+    }));
+  }, [activeQuotes, monthBuckets, monthKeySet]);
+
+  const offerProfitPerMonth = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of monthBuckets) map.set(m.key, 0);
+
+    activeQuotes.forEach((q) => {
+      if (q.status !== 'geaccepteerd') return;
+      const d = parseDate(q.createdAt);
+      if (!d) return;
+      const key = monthKey(d);
+      if (!monthKeySet.has(key)) return;
+      const winst = Number(q?.totals?.winstMarge || 0);
+      map.set(key, (map.get(key) || 0) + (Number.isFinite(winst) ? winst : 0));
+    });
+
+    return monthBuckets.map((m) => ({
+      maand: m.label,
+      value: map.get(m.key) || 0,
+    }));
+  }, [activeQuotes, monthBuckets, monthKeySet]);
+
+  const invoicePaymentsPerMonth = useMemo(() => {
+    const invoiceIds = new Set(activeInvoices.map((i) => i.id));
+    const map = new Map<string, number>();
+    for (const m of monthBuckets) map.set(m.key, 0);
+
+    payments.forEach((p) => {
+      if (!invoiceIds.has(p.invoiceId)) return;
+      const key = monthKey(p.date);
+      if (!monthKeySet.has(key)) return;
+      map.set(key, (map.get(key) || 0) + p.amount);
+    });
+
+    return monthBuckets.map((m) => ({
+      maand: m.label,
+      value: map.get(m.key) || 0,
+    }));
+  }, [activeInvoices, monthBuckets, monthKeySet, payments]);
+
+  if (isUserLoading || !user || loading) return <DashboardSkeleton />;
 
   return (
-    <TooltipProvider>
-      <div className="app-shell min-h-screen">
-        <AppNavigation />
-        <DashboardHeader user={user} title="Dashboard" />
+    <div className="app-shell min-h-screen bg-background">
+      <AppNavigation />
+      <DashboardHeader user={user} title="Dashboard" />
 
-        <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
-          <div className="w-full max-w-3xl space-y-14">
-            <div className="px-1">
-              <div className="text-3xl font-light tracking-tight">{begroeting}</div>
-            </div>
+      <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
+        <div className="w-full max-w-7xl space-y-6">
+          <div className="px-1">
+            <div className="text-3xl font-light tracking-tight">{greeting}</div>
+          </div>
 
-            <Card
-              className="relative overflow-hidden border-0 bg-gradient-to-br from-zinc-900/90 via-zinc-900/80 to-emerald-900/20 shadow-2xl shadow-black/50 ring-1 ring-white/10 group cursor-pointer transition-transform duration-200 active:scale-[0.99]"
-              onClick={handleNewQuote}
-            >
-              <div className="absolute -right-6 -top-6 text-emerald-500/5 rotate-12 transition-transform duration-700 group-hover:rotate-6 group-hover:scale-110">
-                <FilePlus className="h-64 w-64" />
-              </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Planning</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Vandaag</div>
+                  {planningTodayTomorrow.today.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Geen planning voor vandaag</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {planningTodayTomorrow.today.map((entry) => (
+                        <button
+                          key={entry.id}
+                          className="w-full text-left rounded-md border border-border/60 bg-card/40 p-2 hover:bg-card/60 transition-colors"
+                          onClick={() => router.push('/planning')}
+                        >
+                          <div className="text-sm font-medium truncate">{entry.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatTime(entry.start || null)} - {formatTime(entry.end || null)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-              <CardContent className="relative p-8 md:p-10 pointer-events-none">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
-                  <div className="min-w-0 max-w-lg relative z-10 space-y-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Morgen</div>
+                  {planningTodayTomorrow.tomorrow.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Geen planning voor morgen</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {planningTodayTomorrow.tomorrow.map((entry) => (
+                        <button
+                          key={entry.id}
+                          className="w-full text-left rounded-md border border-border/60 bg-card/40 p-2 hover:bg-card/60 transition-colors"
+                          onClick={() => router.push('/planning')}
+                        >
+                          <div className="text-sm font-medium truncate">{entry.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatTime(entry.start || null)} - {formatTime(entry.end || null)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-                    <h1 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight text-white drop-shadow-sm">Nieuwe klus starten</h1>
-                    <p className="text-lg text-zinc-400 max-w-md">
-                      Maak direct een nieuwe calculatie. Kies een werkwijze en voeg materialen toe in enkele seconden.
-                    </p>
-                  </div>
-                  <div className="shrink-0 relative z-10">
-                    <Button
-                      variant="success"
-                      size="lg"
-                      className="gap-3 h-14 px-8 text-base shadow-xl shadow-emerald-500/20 transition-all group-hover:scale-105 hover:shadow-emerald-500/40 font-semibold pointer-events-auto"
-                      onClick={(e) => {
-                        // Allow this internal button to still work independently if needed, though parent click handles it too.
-                        // But stopping propagation here prevents double-firing if both have handlers.
-                        e.stopPropagation();
-                        handleNewQuote();
-                      }}
-                      disabled={isCreating}
-                    >
-                      {isCreating ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <Plus className="h-5 w-5" />
-                      )}
-                      {isCreating ? 'Mee bezig...' : 'Nieuwe klus'}
-                    </Button>
-                  </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-9"
+                  onClick={() => router.push('/planning')}
+                >
+                  <CalendarDays className="h-4 w-4 mr-2" />
+                  Open planning
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-cyan-300">Projecten / Offertes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex items-center justify-between"><span>Concept</span><span>{projectStats.concept}</span></div>
+                <div className="flex items-center justify-between"><span>In behandeling</span><span>{projectStats.inBehandeling}</span></div>
+                <div className="flex items-center justify-between"><span>Verzonden</span><span>{projectStats.verzonden}</span></div>
+                <div className="flex items-center justify-between"><span>Geaccepteerd</span><span>{projectStats.geaccepteerd}</span></div>
+                <div className="flex items-center justify-between"><span>Afgewezen</span><span>{projectStats.afgewezen}</span></div>
+                <div className="flex items-center justify-between"><span>Verlopen</span><span>{projectStats.verlopen}</span></div>
+                <div className="pt-2 mt-2 border-t border-border flex items-center justify-between font-semibold">
+                  <span>Totaal</span><span>{projectStats.totaal}</span>
                 </div>
               </CardContent>
             </Card>
 
-
-
-            <Card className="border-none bg-transparent shadow-none">
-              <CardContent className="p-0">
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6 px-1">
-                  <div>
-                    <div className="text-lg font-semibold tracking-tight text-white">Recente klussen</div>
-                    <div className="text-sm text-zinc-400">Terugvinden en openen.</div>
-                  </div>
-                  <Input
-                    placeholder="Zoek op klus..."
-                    className="w-full md:w-[280px] bg-zinc-900/50 border-zinc-800 focus:bg-zinc-900 transition-colors"
-                    value={zoek}
-                    onChange={(e) => setZoek(e.target.value)}
-                  />
-                </div>
-
-                <div className="mt-4">
-                  {fout ? (
-                    <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-                      Firestore fout: <span className="font-mono">{fout}</span>
-                    </div>
-                  ) : laden ? (
-                    <div className="space-y-2">
-                      {[...Array(5)].map((_, i) => (
-                        <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/30" />
-                      ))}
-                    </div>
-                  ) : recenteKlussen.length === 0 ? (
-                    <div className="rounded-2xl border bg-background/20 p-6 text-center text-muted-foreground">
-                      Nog geen klussen gevonden.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recenteKlussen.map((o, index) => {
-                        const datum = o.updatedAtDate ?? o.createdAtDate;
-                        const nrLabel = getOfferteNummerLabel(o);
-                        const totaal = (o as any).totaalbedrag || (o as any).amount || 0;
-                        const hasSupabaseData = supabaseQuotesWithData.has(o.id);
-                        const lopend = isLopendeKlus(o, hasSupabaseData);
-
-                        return (
-                          <div
-                            key={o.id}
-                            style={{ animationDelay: `${index * 50}ms` }}
-                            className={cn(
-                              "group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
-                              lopend
-                                ? "border-l-4 border-l-emerald-500" // Accent for active jobs
-                                : ""
-                            )}
-                          >
-                            {/* Full row click target */}
-                            <Link href={getDetailHref(o.id)} className="absolute inset-0 z-0" />
-
-                            <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
-                                  {getKlantNaam(o)}
-                                </span>
-
-                                {nrLabel && (
-                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
-                                    {nrLabel}
-                                  </span>
-                                )}
-
-                                <WorkStatusBadge quote={o} hasSupabaseData={hasSupabaseData} />
-                              </div>
-
-                              <div className="flex items-center gap-3 text-sm text-zinc-500">
-                                <span className="truncate max-w-[200px] text-zinc-400 font-medium">
-                                  {getTitel(o)}
-                                </span>
-                                <span className="opacity-20">•</span>
-                                <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
-                                  <Calendar className="h-3.5 w-3.5 opacity-70" />
-                                  {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
-                                </span>
-                                <span className="opacity-20">•</span>
-                                <span className={cn(
-                                  "font-semibold tracking-wide",
-                                  totaal > 0 ? "text-emerald-400" : "text-zinc-600"
-                                )}>
-                                  {formatCurrency(totaal)}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Actions - visible always but subtler */}
-                            <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button asChild variant="secondary" size="sm" className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm">
-                                    <Link href={getEditHref(o)}>
-                                      <Pencil className="h-3.5 w-3.5" />
-                                      <span className="hidden sm:inline">Bewerken</span>
-                                    </Link>
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Bewerk deze klus</TooltipContent>
-                              </Tooltip>
-
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-9 w-9 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  openDeleteDialog(o);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Verwijderen</span>
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-emerald-300">Facturen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex items-center justify-between"><span>Concept</span><span>{invoiceStats.concept}</span></div>
+                <div className="flex items-center justify-between"><span>Openstaand</span><span>{invoiceStats.openstaand}</span></div>
+                <div className="flex items-center justify-between"><span>Gedeeltelijk betaald</span><span>{invoiceStats.gedeeltelijk}</span></div>
+                <div className="flex items-center justify-between"><span>Betaald</span><span>{invoiceStats.betaald}</span></div>
+                <div className="pt-2 mt-2 border-t border-border flex items-center justify-between font-semibold text-amber-300">
+                  <span>Te laat</span><span>{invoiceStats.teLaat}</span>
                 </div>
               </CardContent>
             </Card>
           </div>
-        </main>
 
-        {/* ✅ Confirm dialog met exact jouw delete-button look (soft destructive) */}
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent className="rounded-2xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Offerte verwijderen?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Weet je zeker dat je deze offerte definitief wilt verwijderen? Dit kan niet ongedaan gemaakt worden.
-                {deleteTarget ? (
-                  <div className="mt-3 text-xs text-muted-foreground">
-                    <span className="font-mono text-zinc-300">
-                      {dialogNr ?? 'Offerte'}
-                    </span>
-                    <span className="opacity-30 mx-2">•</span>
-                    <span>{dialogKlant}</span>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Goedgekeurde offertes per maand</CardTitle>
+              </CardHeader>
+              <CardContent className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={acceptedPerMonth}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="maand" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fill: '#a1a1aa', fontSize: 12 }} />
+                    <RechartsTooltip
+                      formatter={(value: any) => [value, 'Aantal']}
+                      contentStyle={{ background: '#18181b', border: '1px solid #27272a' }}
+                      labelStyle={{ color: '#d4d4d8' }}
+                    />
+                    <Bar dataKey="value" fill="#22d3ee" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Mini winstgrafieken (6 maanden)</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="text-sm text-cyan-300 font-medium">Offertes - Prognose winst</div>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={offerProfitPerMonth}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="maand" tick={{ fill: '#a1a1aa', fontSize: 11 }} />
+                        <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} />
+                        <RechartsTooltip
+                          formatter={(value: any) => [formatCurrency(Number(value || 0)), 'Winst']}
+                          contentStyle={{ background: '#18181b', border: '1px solid #27272a' }}
+                          labelStyle={{ color: '#d4d4d8' }}
+                        />
+                        <Bar dataKey="value" fill="#22d3ee" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                ) : null}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
+                </div>
 
-            <AlertDialogFooter className="gap-2 sm:gap-2">
-              <AlertDialogCancel disabled={deleting} className="rounded-xl">
-                Annuleren
-              </AlertDialogCancel>
-
-              <Button
-                type="button"
-                onClick={confirmDelete}
-                disabled={deleting}
-                variant="destructiveSoft"
-              >
-                {deleting ? 'Verwijderen...' : 'Verwijderen'}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-      </div >
-    </TooltipProvider >
+                <div className="space-y-2">
+                  <div className="text-sm text-emerald-300 font-medium">Facturen - Ontvangen betalingen</div>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={invoicePaymentsPerMonth}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="maand" tick={{ fill: '#a1a1aa', fontSize: 11 }} />
+                        <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} />
+                        <RechartsTooltip
+                          formatter={(value: any) => [formatCurrency(Number(value || 0)), 'Ontvangen']}
+                          contentStyle={{ background: '#18181b', border: '1px solid #27272a' }}
+                          labelStyle={{ color: '#d4d4d8' }}
+                        />
+                        <Bar dataKey="value" fill="#10b981" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

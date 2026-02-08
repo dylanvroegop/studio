@@ -645,7 +645,7 @@ export default function MaterialenPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="app-shell flex min-h-screen flex-col">
       <AppNavigation />
       <DashboardHeader user={user} title="Materialen & Prijzen" />
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Archive, Menu, LayoutDashboard, FileText, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus } from 'lucide-react';
+import { Archive, Menu, LayoutDashboard, FileText, ReceiptText, TrendingUp, CalendarDays, Boxes, Users, Settings, Clock3, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -20,11 +20,12 @@ const navItems: NavigationItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/offertes', label: 'Offertes', icon: FileText },
     { href: '/facturen', label: 'Facturen', icon: ReceiptText },
-    { href: '/archief', label: 'Archief', icon: Archive },
+    { href: '/winst', label: 'Winst', icon: TrendingUp },
     { href: '/planning', label: 'Planning', icon: CalendarDays },
-    { href: '/materialen', label: 'Producten beheren', icon: Boxes },
-    { href: '/klanten', label: 'Klanten beheren', icon: Users },
+    { href: '/materialen', label: 'Producten', icon: Boxes },
+    { href: '/klanten', label: 'Klanten', icon: Users },
     { href: '/urenregistratie', label: 'Urenregistratie', icon: Clock3 },
+    { href: '/archief', label: 'Archief', icon: Archive },
     { href: '/instellingen', label: 'Instellingen', icon: Settings },
 ];
 
@@ -52,10 +53,15 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
             </div>
 
             <div className="px-4 py-5">
-                <Button asChild variant="success" className="w-full justify-start font-semibold" onClick={onNavigate}>
+                <Button
+                    asChild
+                    variant="outline"
+                    className="w-full justify-start font-semibold border-amber-500/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25 hover:text-amber-50"
+                    onClick={onNavigate}
+                >
                     <Link href="/offertes/nieuw">
                         <Plus className="h-4 w-4" />
-                        Nieuwe klus toevoegen
+                        Nieuwe calculatie maken
                     </Link>
                 </Button>
             </div>

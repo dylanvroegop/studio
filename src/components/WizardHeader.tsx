@@ -144,7 +144,7 @@ export function WizardHeader({
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2 h-10" onClick={() => setMenuOpen(false)}>
                                                 <Link href={`/offertes/${quoteId}/klus/nieuw`}>
                                                     <Plus className="h-4 w-4 text-emerald-600" />
-                                                    <span className="font-semibold text-emerald-600">Nieuwe klus toevoegen</span>
+                                                    <span className="font-semibold text-emerald-600">Nieuwe calculatie</span>
                                                 </Link>
                                             </Button>
                                         </div>
@@ -237,13 +237,13 @@ export function WizardHeader({
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
                                                 <Link href="/materialen">
                                                     <Boxes className="h-4 w-4" />
-                                                    Producten beheren
+                                                    Producten
                                                 </Link>
                                             </Button>
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
                                                 <Link href="/klanten">
                                                     <Users className="h-4 w-4" />
-                                                    Klanten beheren
+                                                    Klanten
                                                 </Link>
                                             </Button>
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
