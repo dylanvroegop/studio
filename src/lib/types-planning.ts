@@ -58,6 +58,7 @@ export interface PlanningSettings {
     defaultStartTime: string;
     defaultEndTime: string;
     workDays: number[];
+    pauzeMinuten?: number;
 }
 
 export const DEFAULT_PLANNING_SETTINGS: PlanningSettings = {

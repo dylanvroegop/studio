@@ -118,6 +118,17 @@
   }
 }
 
+@media (min-width: 768px) {
+  .app-shell {
+    padding-left: 0;
+    transition: padding-left 200ms ease-out;
+  }
+
+  .app-nav-open .app-shell {
+    padding-left: 22rem;
+  }
+}
+
 @layer utilities {
   .glass {
     @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-lg;

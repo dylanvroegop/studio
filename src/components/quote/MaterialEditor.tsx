@@ -268,14 +268,14 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                 <div className="flex items-center">
                     <div className="text-right w-32 px-6">
                         <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Subtotaal</p>
-                        <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
+                        <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
                         <p className="text-primary font-bold tracking-tight">
                             {formatCurrency(subtotal)}
                         </p>
                     </div>
                     <div className="text-right w-32 px-6">
                         <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Subtotaal</p>
-                        <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
+                        <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
                         <p className="text-primary font-bold tracking-tight">
                             {formatCurrency(subtotalInclVAT)}
                         </p>
@@ -290,23 +290,23 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                 <table className="w-full border-collapse">
                     <thead>
                         <tr className="bg-muted/20 text-left">
-                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider">
                                 Product
                             </th>
-                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-24">
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-24">
                                 Aantal
                             </th>
-                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-36">
-                                Prijs <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl. btw)</span>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-36">
+                                Prijs <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
-                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-24">
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-24">
                                 Eenheid
                             </th>
-                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-32">
-                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(excl. btw)</span>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
+                                Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
-                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-32">
-                                Totaal <span className="text-[9px] font-normal opacity-40 lowercase ml-1">(incl. btw)</span>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
+                                Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(incl. btw)</span>
                             </th>
                             {onRemoveItem && <th className="px-6 py-3 w-12" />}
                         </tr>

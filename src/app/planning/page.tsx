@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { DashboardHeader } from '@/components/DashboardHeader';
-import { BottomNav } from '@/components/BottomNav';
+import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, ChevronLeft, ChevronRight, Plus, CalendarDays } from 'lucide-react';
 import { useEmployees } from '@/hooks/useEmployees';
@@ -341,10 +341,11 @@ export default function PlanningPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background flex flex-col">
+        <div className="app-shell min-h-screen bg-background flex flex-col">
+            <AppNavigation />
             <DashboardHeader user={user} title="Planning" />
 
-            <div className="flex-1 flex flex-col p-4 pb-[280px] space-y-4 overflow-hidden">
+            <div className="flex-1 flex flex-col space-y-4 overflow-hidden p-4 pb-10">
                 {/* Scheduling Mode Banner */}
                 {schedulingMode && schedulingQuote && (
                     <SchedulingBanner
@@ -465,7 +466,6 @@ export default function PlanningPage() {
                 existingEntry={selectedEntry}
             />
 
-            <BottomNav />
         </div>
     );
 }

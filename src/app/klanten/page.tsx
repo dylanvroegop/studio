@@ -61,7 +61,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
-import { BottomNav } from '@/components/BottomNav';
+import { AppNavigation } from '@/components/AppNavigation';
 
 type Client = {
   id: string;
@@ -289,7 +289,8 @@ export default function KlantenPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background pb-[280px]">
+    <main className="app-shell min-h-screen bg-background pb-10">
+      <AppNavigation />
       <DashboardHeader user={user} title="Klantenbeheer" />
       <div className="container mx-auto p-4 md:p-8 space-y-6">
         <div className="flex items-center justify-between gap-4">
@@ -670,7 +671,6 @@ export default function KlantenPage() {
 
 
 
-      <BottomNav />
     </main>
   );
 }

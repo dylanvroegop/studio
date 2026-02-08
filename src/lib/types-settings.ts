@@ -25,6 +25,7 @@ export interface PlanningSettings {
     defaultStartTime: string;
     defaultEndTime: string;
     workDays: number[];
+    pauzeMinuten?: number;
 }
 
 export interface UserSettings {

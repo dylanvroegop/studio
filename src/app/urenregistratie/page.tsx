@@ -16,7 +16,7 @@ import {
     X,
     Check
 } from 'lucide-react';
-import { BottomNav } from '@/components/BottomNav';
+import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -470,7 +470,8 @@ export default function UrenRegistratiePage() {
     const needsQuoteSelection = !selectedQuoteId || selectedQuoteId === 'none';
 
     return (
-        <div className="min-h-screen pb-[280px] bg-background">
+        <div className="app-shell min-h-screen bg-background pb-10">
+            <AppNavigation />
             {/* Header */}
             <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold flex items-center gap-2">
@@ -955,8 +956,6 @@ export default function UrenRegistratiePage() {
             </AlertDialog>
 
             {/* Quick Save Safety Confirmation REMOVED */}
-
-            <BottomNav />
         </div >
     );
 }

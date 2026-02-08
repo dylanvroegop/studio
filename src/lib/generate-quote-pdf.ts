@@ -17,6 +17,7 @@ export interface PDFQuoteData {
         email: string;
         kvk: string;
         btw: string;
+        iban?: string;
     };
     klant: {
         naam: string;
@@ -93,6 +94,15 @@ async function urlToBase64(url: string): Promise<string> {
     }
 }
 
+function getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' | 'WEBP' {
+    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/i);
+    const subtype = match?.[1]?.toLowerCase() || 'png';
+
+    if (subtype === 'jpeg' || subtype === 'jpg') return 'JPEG';
+    if (subtype === 'webp') return 'WEBP';
+    return 'PNG';
+}
+
 export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -104,6 +114,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
     let y = margin;
+    let headerBlockHeight = 28;
 
     // Helper: draw horizontal line
     const drawLine = (yPos: number, color: number = 200) => {
@@ -130,26 +141,36 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     if (data.logoUrl) {
         try {
             const logoBase64 = await urlToBase64(data.logoUrl);
+            const logoFormat = getImageFormatFromDataUrl(logoBase64);
             const logoImg = doc.getImageProperties(logoBase64);
 
-            // Apply user-defined scale factor (default 1.0 = 100%)
-            const scale = data.logoScale || 1.0;
-            const maxWidth = 40 * scale;
-            const maxHeight = 18 * scale;
-            let logoWidth = maxWidth;
-            let logoHeight = (logoImg.height * maxWidth) / logoImg.width;
+            // Base logo box at 100%
+            const baseBoxWidth = 40;
+            const baseBoxHeight = 18;
 
-            // Scale down if height exceeds max
-            if (logoHeight > maxHeight) {
-                logoHeight = maxHeight;
-                logoWidth = (logoImg.width * maxHeight) / logoImg.height;
+            // Fit intrinsic image in base box
+            let fittedWidth = baseBoxWidth;
+            let fittedHeight = (logoImg.height * baseBoxWidth) / logoImg.width;
+            if (fittedHeight > baseBoxHeight) {
+                fittedHeight = baseBoxHeight;
+                fittedWidth = (logoImg.width * baseBoxHeight) / logoImg.height;
             }
 
-            // Center the logo in the allocated space
-            const xPos = margin + (maxWidth - logoWidth) / 2;
-            const yPos = y + (maxHeight - logoHeight) / 2;
+            // Apply user-defined scale factor (default 1.0 = 100%), clamped
+            const scale = Math.min(2, Math.max(0.5, data.logoScale || 1.0));
+            const logoWidth = fittedWidth * scale;
+            const logoHeight = fittedHeight * scale;
 
-            doc.addImage(logoBase64, 'PNG', xPos, yPos, logoWidth, logoHeight);
+            // Scale around the same center point so sizing feels stable
+            const centerX = margin + (baseBoxWidth / 2);
+            const centerY = y + (baseBoxHeight / 2);
+            const xPos = centerX - (logoWidth / 2);
+            const yPos = centerY - (logoHeight / 2);
+
+            doc.addImage(logoBase64, logoFormat, xPos, yPos, logoWidth, logoHeight);
+
+            // Increase header spacing when logo is larger
+            headerBlockHeight = Math.max(28, Math.ceil(logoHeight + 10));
         } catch (error) {
             console.error('Error adding logo to PDF:', error);
             // Fall back to placeholder if logo fails to load
@@ -179,7 +200,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setTextColor(100, 100, 100);
     doc.text(`#${data.offerteNummer}`, pageWidth - margin, y + 14, { align: 'right' });
 
-    y += 28;
+    y += headerBlockHeight;
     drawLine(y);
     y += 12;
 
@@ -225,6 +246,10 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.text(`KVK: ${data.bedrijf.kvk}`, colLeft, y);
     y += 5;
     doc.text(`BTW: ${data.bedrijf.btw}`, colLeft, y);
+    y += 5;
+    if (data.bedrijf.iban) {
+        doc.text(`IBAN: ${data.bedrijf.iban}`, colLeft, y);
+    }
 
     y += 12;
     drawLine(y);

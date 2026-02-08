@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { FileText, Download, RefreshCw } from 'lucide-react';
 
@@ -13,43 +13,64 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const latestObjectUrlRef = useRef<string | null>(null);
+    const inFlightSignatureRef = useRef<string | null>(null);
+    const lastCompletedSignatureRef = useRef<string | null>(null);
+    const generationIdRef = useRef(0);
+    const dataSignature = useMemo(() => (pdfData ? JSON.stringify(pdfData) : null), [pdfData]);
 
-    const generatePreview = async () => {
+    const generatePreview = async (signature: string) => {
         if (!pdfData) return;
+        const generationId = ++generationIdRef.current;
 
         setLoading(true);
         setError(null);
+        inFlightSignatureRef.current = signature;
 
         try {
             const blob = await generateQuotePDF(pdfData);
             const url = URL.createObjectURL(blob);
 
-            // Cleanup old URL
-            if (previewUrl) {
-                URL.revokeObjectURL(previewUrl);
+            // Ignore stale runs if a newer generation started
+            if (generationId !== generationIdRef.current) {
+                URL.revokeObjectURL(url);
+                return;
             }
 
+            // Cleanup old URL
+            if (latestObjectUrlRef.current) {
+                URL.revokeObjectURL(latestObjectUrlRef.current);
+            }
+
+            latestObjectUrlRef.current = url;
             setPreviewUrl(url);
+            lastCompletedSignatureRef.current = signature;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Fout bij genereren PDF');
         } finally {
+            if (inFlightSignatureRef.current === signature) {
+                inFlightSignatureRef.current = null;
+            }
             setLoading(false);
         }
     };
 
     // Generate preview when data changes
     useEffect(() => {
-        if (pdfData) {
-            generatePreview();
+        if (pdfData && dataSignature) {
+            if (inFlightSignatureRef.current === dataSignature) return;
+            if (lastCompletedSignatureRef.current === dataSignature) return;
+            generatePreview(dataSignature);
         }
 
         // Cleanup on unmount
         return () => {
-            if (previewUrl) {
-                URL.revokeObjectURL(previewUrl);
+            if (latestObjectUrlRef.current) {
+                URL.revokeObjectURL(latestObjectUrlRef.current);
+                latestObjectUrlRef.current = null;
             }
         };
-    }, [pdfData]);
+    }, [dataSignature]);
 
     if (!pdfData) {
         return (
@@ -68,8 +89,8 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
             {/* Header removed as requested */}
 
             {/* Preview Area */}
-            <div className="p-4">
-                {loading && (
+            <div className="p-4 relative">
+                {loading && !previewUrl && (
                     <div className="h-[600px] flex items-center justify-center">
                         <div className="text-zinc-400">PDF genereren...</div>
                     </div>
@@ -81,12 +102,18 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
                     </div>
                 )}
 
-                {!loading && !error && previewUrl && (
+                {!error && previewUrl && (
                     <iframe
                         src={previewUrl}
                         className="w-full h-[850px] rounded border border-zinc-700"
                         title="PDF Preview"
                     />
+                )}
+
+                {loading && previewUrl && (
+                    <div className="absolute right-8 top-8 bg-zinc-900/85 text-zinc-200 text-xs px-3 py-1.5 rounded border border-zinc-700">
+                        PDF vernieuwen...
+                    </div>
                 )}
             </div>
         </div>

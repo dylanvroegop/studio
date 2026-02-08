@@ -8,7 +8,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { DashboardHeader } from '@/components/DashboardHeader';
-import { BottomNav } from '@/components/BottomNav';
+import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +38,12 @@ export default function InstellingenPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('bedrijf');
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+    const sanitizeForFirestore = <T,>(value: T): T => {
+        // Firestore rejects `undefined` values in nested objects.
+        // JSON roundtrip strips undefined while keeping strings/numbers/booleans.
+        return JSON.parse(JSON.stringify(value));
+    };
 
     // Bouwplaats CRUD State
     const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
@@ -161,7 +167,8 @@ export default function InstellingenPage() {
         setIsSaving(true);
         try {
             const docRef = doc(firestore, 'users', user.uid);
-            await setDoc(docRef, { settings: settings }, { merge: true });
+            const cleanSettings = sanitizeForFirestore(settings);
+            await setDoc(docRef, { settings: cleanSettings }, { merge: true });
             toast({ title: 'Opgeslagen', description: 'Uw instellingen zijn bijgewerkt.' });
             router.push('/dashboard');
         } catch (error) {
@@ -191,14 +198,15 @@ export default function InstellingenPage() {
     // Handle logo change with auto-save
     const handleLogoChange = async (url: string | null) => {
         setLogoUrl(url);
-        const updatedSettings = { ...settings, logoUrl: url || undefined };
+        const updatedSettings = { ...settings, logoUrl: url || '' };
         setSettings(updatedSettings);
 
         // Auto-save to Firestore immediately
         if (user && firestore) {
             try {
                 const docRef = doc(firestore, 'users', user.uid);
-                await setDoc(docRef, { settings: updatedSettings }, { merge: true });
+                const cleanSettings = sanitizeForFirestore(updatedSettings);
+                await setDoc(docRef, { settings: cleanSettings }, { merge: true });
                 toast({
                     title: url ? 'Logo opgeslagen' : 'Logo verwijderd',
                     description: url ? 'Uw logo is automatisch opgeslagen.' : 'Uw logo is verwijderd.'
@@ -223,7 +231,8 @@ export default function InstellingenPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background pb-[280px]">
+        <div className="app-shell min-h-screen bg-background pb-10">
+            <AppNavigation />
             <DashboardHeader user={user} title="Instellingen" />
 
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -635,13 +644,23 @@ export default function InstellingenPage() {
                                         <Label className="font-semibold">Werkuren per dag</Label>
                                         <p className="text-xs text-muted-foreground">Standaard aantal uur per werkdag voor automatische planning.</p>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-4">
                                         <Label>Uren per dag</Label>
                                         <Input
                                             type="number"
                                             value={settings.planningSettings?.defaultWorkdayHours ?? 8}
                                             onChange={e => updateDeep('planningSettings', 'defaultWorkdayHours', Number(e.target.value))}
                                         />
+                                        <div className="space-y-2">
+                                            <Label>Pauze (minuten)</Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                step={5}
+                                                value={settings.planningSettings?.pauzeMinuten ?? ''}
+                                                onChange={e => updateDeep('planningSettings', 'pauzeMinuten', e.target.value === '' ? undefined : Number(e.target.value))}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -961,11 +980,6 @@ export default function InstellingenPage() {
 
                 </Tabs>
             </div>
-
-            {/* FAB for Save */}
-
-
-            <BottomNav />
         </div>
     );
 }

@@ -10,7 +10,7 @@ import { useUser } from '@/firebase';
 
 import { cn, parsePriceToNumber } from '@/lib/utils';
 import { DashboardHeader } from '@/components/DashboardHeader';
-import { BottomNav } from '@/components/BottomNav';
+import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -79,7 +79,7 @@ function formatEuro(amount: number | null): string {
 
 function PageSkeleton() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="app-shell flex min-h-screen flex-col">
       <DashboardHeader user={null} />
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 md:gap-8 md:p-6">
         <div className="flex items-center p-8 text-center text-gray-500">
@@ -646,9 +646,10 @@ export default function MaterialenPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <AppNavigation />
       <DashboardHeader user={user} title="Materialen & Prijzen" />
 
-      <main className="flex-1 space-y-6 p-4 md:p-6 pb-40">
+      <main className="flex-1 space-y-6 p-4 pb-10 md:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <Input
@@ -880,9 +881,6 @@ export default function MaterialenPage() {
             </CardFooter>
           ) : null}
         </Card>
-
-        {/* Spacer to ensure content is not hidden behind fixed bottom nav */}
-        <div className="h-24 md:h-32" aria-hidden="true" />
 
         {/* ✅ Add custom dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -1162,10 +1160,6 @@ export default function MaterialenPage() {
         </AlertDialog>
       </main >
 
-
-
-
-      <BottomNav />
     </div >
   );
 }

@@ -19,7 +19,7 @@ import {
 import { useFirestore, useUser } from '@/firebase';
 import type { Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { BottomNav } from '@/components/BottomNav';
+import { AppNavigation } from '@/components/AppNavigation';
 
 import { DashboardHeader } from '@/components/DashboardHeader';
 
@@ -530,10 +530,11 @@ export default function Dashboard() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen">
+      <div className="app-shell min-h-screen">
+        <AppNavigation />
         <DashboardHeader user={user} title="Dashboard" />
 
-        <main className="flex flex-col items-center p-4 md:px-6 md:pt-6 pb-[280px]">
+        <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
           <div className="w-full max-w-3xl space-y-14">
             <div className="px-1">
               <div className="text-3xl font-light tracking-tight">{begroeting}</div>
@@ -745,7 +746,6 @@ export default function Dashboard() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <BottomNav />
       </div >
     </TooltipProvider >
   );

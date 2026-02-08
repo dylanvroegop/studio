@@ -14,20 +14,22 @@ import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/comp
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, ArrowLeft, Pencil, Settings, PenTool, CalendarDays, Eye } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Button } from "@/components/ui/button";
+import { Label } from '@/components/ui/label';
 import Link from "next/link";
 import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { QuoteSwitcher } from '@/components/quote/QuoteSwitcher';
-import { BottomNav } from '@/components/BottomNav';
+import { AppNavigation } from '@/components/AppNavigation';
+import { LogoUpload } from '@/components/settings/LogoUpload';
 
 import { Quote } from "@/lib/types";
 
@@ -63,6 +65,7 @@ export default function QuotePage() {
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
     const [activeTab, setActiveTab] = useState('pdf');
+    const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
 
     const [materials, setMaterials] = useState<{
         groot: MaterialItem[];
@@ -76,6 +79,7 @@ export default function QuotePage() {
     useEffect(() => {
         if (activeTab !== 'pdf') return;
         setCapturedDrawings([]);
+        setIsDrawingsReady(false);
     }, [activeTab, quote?.id, calculation?.data_json]);
 
     // State for Material Selection Modal
@@ -88,6 +92,7 @@ export default function QuotePage() {
     // PDF Generation State
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [capturedDrawings, setCapturedDrawings] = useState<string[]>([]);
+    const [isDrawingsReady, setIsDrawingsReady] = useState(false);
     const [pendingPDFAction, setPendingPDFAction] = useState<((images: string[]) => void) | null>(null);
 
 
@@ -618,14 +623,21 @@ export default function QuotePage() {
             logoUrl: userProfile?.settings?.logoUrl || undefined,
             logoScale: userProfile?.settings?.logoScale || 1.0,
             bedrijf: {
-                naam: userProfile?.bedrijfsnaam || userProfile?.companyName || 'Uw Bedrijfsnaam',
-                adres: userProfile?.adres || userProfile?.address || 'Straatnaam 123',
-                postcode: userProfile?.postcode || userProfile?.zipcode || '1234 AB',
-                plaats: userProfile?.plaats || userProfile?.city || 'Plaats',
-                telefoon: userProfile?.telefoon || userProfile?.phone || '06-12345678',
-                email: userProfile?.email || user?.email || 'email@voorbeeld.nl',
-                kvk: userProfile?.kvk || '12345678',
-                btw: userProfile?.btw || 'NL123456789B01',
+                naam: (
+                    userProfile?.settings?.bedrijfsnaam ||
+                    businessData?.bedrijfsnaam ||
+                    userProfile?.bedrijfsnaam ||
+                    userProfile?.companyName ||
+                    'Uw Bedrijfsnaam'
+                ),
+                adres: userProfile?.settings?.adres || businessData?.adres || userProfile?.adres || userProfile?.address || 'Straatnaam 123',
+                postcode: userProfile?.settings?.postcode || businessData?.postcode || userProfile?.postcode || userProfile?.zipcode || '1234 AB',
+                plaats: userProfile?.settings?.plaats || businessData?.plaats || userProfile?.plaats || userProfile?.city || 'Plaats',
+                telefoon: userProfile?.settings?.telefoon || businessData?.telefoon || userProfile?.telefoon || userProfile?.phone || '06-12345678',
+                email: userProfile?.settings?.email || businessData?.email || userProfile?.email || user?.email || 'email@voorbeeld.nl',
+                kvk: userProfile?.settings?.kvkNummer || businessData?.kvkNummer || businessData?.kvk || userProfile?.kvkNummer || userProfile?.kvk || '12345678',
+                btw: userProfile?.settings?.btwNummer || businessData?.btwNummer || businessData?.btw || userProfile?.btwNummer || userProfile?.btw || 'NL123456789B01',
+                iban: userProfile?.settings?.iban || businessData?.iban || userProfile?.iban || '',
             },
             klant: {
                 naam: `${klantInfo.voornaam} ${klantInfo.achternaam}`,
@@ -679,6 +691,7 @@ export default function QuotePage() {
     // Updated PDF Download Handler
     const handleDownloadPDF = async () => {
         setCapturedDrawings([]);
+        setIsDrawingsReady(false);
         setIsGeneratingPDF(true);
         // The actual generation is triggered by the onReady callback of HiddenPDFDrawings
         setPendingPDFAction(() => async (images: string[]) => {
@@ -710,6 +723,7 @@ export default function QuotePage() {
     const handleDrawingsCaptured = (images: string[]) => {
         // Always store the captured drawings for preview
         setCapturedDrawings(images);
+        setIsDrawingsReady(true);
 
         if (pendingPDFAction) {
             pendingPDFAction(images);
@@ -726,14 +740,21 @@ export default function QuotePage() {
             logoUrl: userProfile?.settings?.logoUrl || userProfile?.logoUrl || undefined,
             logoScale: userProfile?.settings?.logoScale || userProfile?.logoScale || 1.0,
             bedrijf: {
-                naam: userProfile?.bedrijfsnaam || userProfile?.companyName || businessData?.bedrijfsnaam || 'Mijn Bedrijf',
-                adres: businessData?.adres || '',
-                postcode: businessData?.postcode || '',
-                plaats: businessData?.plaats || '',
-                telefoon: businessData?.telefoon || '',
-                email: businessData?.email || user?.email || '',
-                kvk: businessData?.kvk || '',
-                btw: businessData?.btw || '',
+                naam: (
+                    userProfile?.settings?.bedrijfsnaam ||
+                    businessData?.bedrijfsnaam ||
+                    userProfile?.bedrijfsnaam ||
+                    userProfile?.companyName ||
+                    'Mijn Bedrijf'
+                ),
+                adres: userProfile?.settings?.adres || businessData?.adres || userProfile?.adres || userProfile?.address || '',
+                postcode: userProfile?.settings?.postcode || businessData?.postcode || userProfile?.postcode || userProfile?.zipcode || '',
+                plaats: userProfile?.settings?.plaats || businessData?.plaats || userProfile?.plaats || userProfile?.city || '',
+                telefoon: userProfile?.settings?.telefoon || businessData?.telefoon || userProfile?.telefoon || userProfile?.phone || '',
+                email: userProfile?.settings?.email || businessData?.email || userProfile?.email || user?.email || '',
+                kvk: userProfile?.settings?.kvkNummer || businessData?.kvkNummer || businessData?.kvk || userProfile?.kvkNummer || userProfile?.kvk || '',
+                btw: userProfile?.settings?.btwNummer || businessData?.btwNummer || businessData?.btw || userProfile?.btwNummer || userProfile?.btw || '',
+                iban: userProfile?.settings?.iban || businessData?.iban || userProfile?.iban || '',
             },
             klant: {
                 naam: klantInfo ? `${klantInfo.voornaam} ${klantInfo.achternaam}`.trim() : '',
@@ -801,6 +822,54 @@ export default function QuotePage() {
         }
     };
 
+    const handlePdfLogoChange = async (url: string | null) => {
+        if (!user || !firestore) return;
+
+        try {
+            const userRef = doc(firestore, 'users', user.uid);
+            await setDoc(userRef, {
+                settings: {
+                    ...(userProfile?.settings || {}),
+                    logoUrl: url || ''
+                }
+            }, { merge: true });
+
+            setUserProfile((prev: any) => ({
+                ...(prev || {}),
+                settings: {
+                    ...(prev?.settings || {}),
+                    logoUrl: url || ''
+                }
+            }));
+        } catch (err) {
+            console.error("Error saving logo preference:", err);
+        }
+    };
+
+    const handleLogoScaleChange = async (scale: number) => {
+        if (!user || !firestore) return;
+
+        try {
+            const userRef = doc(firestore, 'users', user.uid);
+            await setDoc(userRef, {
+                settings: {
+                    ...(userProfile?.settings || {}),
+                    logoScale: scale
+                }
+            }, { merge: true });
+
+            setUserProfile((prev: any) => ({
+                ...(prev || {}),
+                settings: {
+                    ...(prev?.settings || {}),
+                    logoScale: scale
+                }
+            }));
+        } catch (err) {
+            console.error("Error saving logo scale:", err);
+        }
+    };
+
     // Old handleDownloadPDF removed to fix duplicate declaration.
     // The new one is defined above at line ~523.
 
@@ -825,7 +894,8 @@ export default function QuotePage() {
     }
 
     return (
-        <div className="min-h-screen bg-background font-sans selection:bg-emerald-500/30">
+        <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
+            <AppNavigation />
             {/* Header */}
             <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -892,7 +962,7 @@ export default function QuotePage() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-[280px]">
+            <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
@@ -918,20 +988,72 @@ export default function QuotePage() {
                         </TabsList>
 
                         {activeTab === 'pdf' && (
-                            <Popover>
-                                <PopoverTrigger asChild>
+                            <Dialog open={isPdfSettingsOpen} onOpenChange={setIsPdfSettingsOpen}>
+                                <DialogTrigger asChild>
                                     <Button variant="ghost" size="sm" className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1">
                                         <Settings size={16} className="mr-2" /> PDF Instellingen
                                     </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80 bg-popover border-border p-0" align="end">
-                                    <QuoteSettings
-                                        settings={pdfSettings}
-                                        onChange={handlePdfSettingsChange}
-                                        variant="flat"
-                                    />
-                                </PopoverContent>
-                            </Popover>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-background border-border shadow-2xl">
+                                    <DialogHeader className="px-6 pt-6">
+                                        <DialogTitle>PDF Instellingen</DialogTitle>
+                                        <DialogDescription>
+                                            Settings voor inhoud en logo in de PDF.
+                                        </DialogDescription>
+                                    </DialogHeader>
+
+                                    <div className="px-6 pb-6 space-y-6 max-h-[75vh] overflow-y-auto">
+                                        <div className="rounded-lg border border-border bg-card">
+                                            <QuoteSettings
+                                                settings={pdfSettings}
+                                                onChange={handlePdfSettingsChange}
+                                                variant="flat"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-4 rounded-lg border border-border p-4">
+                                            <div>
+                                                <h3 className="font-semibold">Bedrijfslogo</h3>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Dit logo wordt getoond op uw offertes en facturen.
+                                                </p>
+                                            </div>
+
+                                            {user && (
+                                                <LogoUpload
+                                                    currentLogoUrl={userProfile?.settings?.logoUrl || undefined}
+                                                    userId={user.uid}
+                                                    onLogoChange={handlePdfLogoChange}
+                                                />
+                                            )}
+
+                                            {(userProfile?.settings?.logoUrl || '').trim() !== '' && (
+                                                <div className="space-y-2 pt-2 border-t">
+                                                    <Label htmlFor="pdfLogoScale">Logogrootte in PDF</Label>
+                                                    <div className="flex items-center gap-4">
+                                                        <input
+                                                            id="pdfLogoScale"
+                                                            type="range"
+                                                            min="0.5"
+                                                            max="2"
+                                                            step="0.1"
+                                                            value={userProfile?.settings?.logoScale || 1.0}
+                                                            onChange={e => handleLogoScaleChange(parseFloat(e.target.value))}
+                                                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                        />
+                                                        <span className="text-sm font-semibold min-w-[60px] text-right">
+                                                            {Math.round((userProfile?.settings?.logoScale || 1.0) * 100)}%
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Pas de grootte van het logo in de PDF aan (50% - 200%). Standaard is 100%.
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         )}
                     </div>
 
@@ -1018,14 +1140,14 @@ export default function QuotePage() {
                                         <div className="flex items-center">
                                             <div className="text-right w-32 px-6">
                                                 <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
-                                                <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
+                                                <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
                                                 <p className="text-primary font-bold tracking-tight">
                                                     {formatCurrency(grootSubtotal + verbruikSubtotal)}
                                                 </p>
                                             </div>
                                             <div className="text-right w-32 px-6">
                                                 <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
-                                                <p className="text-[9px] text-zinc-500 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
+                                                <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
                                                 <p className="text-primary font-bold tracking-tight">
                                                     {formatCurrency((grootSubtotal + verbruikSubtotal) * (1 + (quoteSettings?.btwTarief || 21) / 100))}
                                                 </p>
@@ -1115,10 +1237,16 @@ export default function QuotePage() {
 
                     {/* PDF Tab */}
                     <TabsContent value="pdf" className="mt-6 space-y-4">
-                        <PDFPreview
-                            pdfData={buildPDFData()}
-                            onDownload={handleDownloadPDF}
-                        />
+                        {!isDrawingsReady ? (
+                            <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                <div className="text-muted-foreground">PDF voorbereiden...</div>
+                            </div>
+                        ) : (
+                            <PDFPreview
+                                pdfData={buildPDFData()}
+                                onDownload={handleDownloadPDF}
+                            />
+                        )}
                     </TabsContent>
 
                     {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
@@ -1139,8 +1267,6 @@ export default function QuotePage() {
                     </TabsContent>
                 </Tabs>
 
-                {/* Bottom Spacer to ensure content visibility above fixed footer */}
-                <div className="h-20 w-full" aria-hidden="true" />
             </main>
 
             <SendQuoteModal
@@ -1156,7 +1282,13 @@ export default function QuotePage() {
                     month: 'long',
                     year: 'numeric'
                 })}
-                bedrijfsnaam={userProfile?.bedrijfsnaam || userProfile?.companyName || businessData?.bedrijfsnaam || ''}
+                bedrijfsnaam={
+                    userProfile?.settings?.bedrijfsnaam ||
+                    userProfile?.bedrijfsnaam ||
+                    userProfile?.companyName ||
+                    businessData?.bedrijfsnaam ||
+                    ''
+                }
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
                 korteTitel={normalizedData?.korteTitel}
                 korteBeschrijving={normalizedData?.korteBeschrijving}
@@ -1172,14 +1304,13 @@ export default function QuotePage() {
             />
 
             {/* Hidden Drawing Generator - render when on PDF tab OR during download */}
-            {(activeTab === 'pdf' || isGeneratingPDF) && quote && capturedDrawings.length === 0 && (
+            {(activeTab === 'pdf' || isGeneratingPDF) && quote && !isDrawingsReady && (
                 <HiddenPDFDrawings
                     quote={quote}
                     onReady={handleDrawingsCaptured}
                 />
             )}
 
-            <BottomNav />
         </div>
 
     );
