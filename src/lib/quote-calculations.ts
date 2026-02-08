@@ -271,8 +271,16 @@ export function normalizeDataJson(input: any): DataJson {
             ? root.uren_specificatie
             : [];
 
-    const totaal_uren = toNumber(urenSpecRoot.totaal_uren ?? root.totaal_uren ?? urenSpecRoot.totaaluren ?? root.totaaluren, 0)
-        || urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0);
+    console.log('🔍 [NORMALIZE] totaal_uren lookup:', {
+        urenSpecRoot_totaal: urenSpecRoot.totaal_uren,
+        root_totaal: root.totaal_uren,
+        spec_sum: urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0)
+    });
+
+    const totaal_uren = toNumber(urenSpecRoot.totaal_uren ?? root.totaal_uren ?? urenSpecRoot.totaaluren ?? root.totaaluren, null)
+        ?? urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0);
+
+    console.log('🔍 [NORMALIZE] Final totaal_uren:', totaal_uren);
 
     return {
         ...root,

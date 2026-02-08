@@ -44,6 +44,14 @@ export default function QuotePage() {
     // Normalize calculation data
     const normalizedData = calculation?.data_json ? normalizeDataJson(calculation.data_json) : null;
 
+    // Debug: Log calculation and normalized data
+    console.log('🔄 [RENDER] Component rendering:', {
+        has_calculation: !!calculation,
+        raw_totaal: (calculation?.data_json as any)?.totaal_uren,
+        normalized_totaal: normalizedData?.totaal_uren,
+        data_is_array: Array.isArray(calculation?.data_json)
+    });
+
     // Firebase hooks
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -804,15 +812,15 @@ export default function QuotePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-                <div className="text-zinc-400">Laden...</div>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-muted-foreground">Laden...</div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
+            <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
                 <div className="text-red-400">Fout: {error}</div>
                 <Button asChild variant="secondary"><Link href="/dashboard">Terug naar Dashboard</Link></Button>
             </div>
@@ -820,12 +828,12 @@ export default function QuotePage() {
     }
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-emerald-500/30">
+        <div className="min-h-screen bg-background font-sans selection:bg-emerald-500/30">
             {/* Header */}
-            <header className="border-b border-zinc-800 px-6 py-4 bg-zinc-900/40 backdrop-blur-md sticky top-0 z-50">
+            <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <Button asChild variant="ghost" size="icon" className="text-zinc-400 hover:text-white hover:bg-zinc-800">
+                        <Button asChild variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted">
                             <Link href="/dashboard"><ArrowLeft size={20} /></Link>
                         </Button>
                         <div>
@@ -834,10 +842,10 @@ export default function QuotePage() {
                                     currentQuoteId={id}
                                     currentQuoteNumber={(quote as any)?.offerteNummer || 'Concept'}
                                 />
-                                {quote?.titel && <span className="text-zinc-500 font-normal hidden sm:inline">• {quote.titel}</span>}
+                                {quote?.titel && <span className="text-muted-foreground font-normal hidden sm:inline">• {quote.titel}</span>}
                             </div>
                             {klantInfo && (
-                                <p className="text-zinc-400 text-sm">
+                                <p className="text-muted-foreground text-sm">
                                     {klantInfo.voornaam} {klantInfo.achternaam} • {klantInfo.plaats}
                                 </p>
                             )}
@@ -855,7 +863,7 @@ export default function QuotePage() {
                         </button>
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border"
                             disabled={!normalizedData?.totaal_uren}
                         >
                             <CalendarDays size={16} />
@@ -863,13 +871,13 @@ export default function QuotePage() {
                         </button>
                         <button
                             onClick={() => setIsSendModalOpen(true)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-zinc-700"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border"
                         >
                             <Mail size={16} />
                             Versturen
                         </button>
 
-                        <Button asChild variant="secondary" className="gap-2 h-10 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-100 shadow-sm">
+                        <Button asChild variant="secondary" className="gap-2 h-10 bg-card hover:bg-accent border border-border text-foreground shadow-sm">
                             <Link href={`/offertes/${id}/klus`}>
                                 <Pencil className="w-4 h-4" />
                                 <span className="hidden sm:inline">Bewerken</span>
@@ -882,24 +890,24 @@ export default function QuotePage() {
             <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-24">
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900 border border-zinc-800 p-1 rounded-lg w-full sm:w-auto">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
                         <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
-                            <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                 <FileText size={16} /> PDF Preview
                             </TabsTrigger>
-                            <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                 <Euro size={16} /> Overzicht
                             </TabsTrigger>
-                            <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                 <PenTool size={16} /> Tekeningen
                             </TabsTrigger>
-                            <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                 <Package size={16} /> Materialen
                             </TabsTrigger>
-                            <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                 <Clock size={16} /> Arbeid
                             </TabsTrigger>
-                            <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400">
+                            <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                 <MessageSquare size={16} /> Notities
                             </TabsTrigger>
                         </TabsList>
@@ -907,11 +915,11 @@ export default function QuotePage() {
                         {activeTab === 'pdf' && (
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white mr-1">
+                                    <Button variant="ghost" size="sm" className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1">
                                         <Settings size={16} className="mr-2" /> PDF Instellingen
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-80 bg-zinc-900 border-zinc-800 p-0" align="end">
+                                <PopoverContent className="w-80 bg-popover border-border p-0" align="end">
                                     <QuoteSettings
                                         settings={pdfSettings}
                                         onChange={handlePdfSettingsChange}
@@ -925,10 +933,10 @@ export default function QuotePage() {
                     {/* Overzicht Tab */}
                     <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {!calculation?.data_json ? (
-                            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
-                                <Package size={48} className="mx-auto text-zinc-600 mb-4" />
-                                <h3 className="text-lg font-medium text-zinc-300 mb-2">Nog geen calculatie</h3>
-                                <p className="text-zinc-500">
+                            <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                <Package size={48} className="mx-auto text-muted mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-2">Nog geen calculatie</h3>
+                                <p className="text-muted-foreground">
                                     De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
                                 </p>
                             </div>
@@ -942,7 +950,7 @@ export default function QuotePage() {
                                         <CostSummaryCard
                                             totals={totals}
                                             settings={quoteSettings}
-                                            totalUren={normalizedData?.totaal_uren || 0}
+                                            totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
                                             onUpdateHourlyRate={(newRate) => {
                                                 if (!quoteSettings) return;
                                                 handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
@@ -973,10 +981,10 @@ export default function QuotePage() {
                     {/* Materialen Tab */}
                     <TabsContent value="materialen" className="mt-6 space-y-6">
                         {!calculation?.data_json ? (
-                            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
-                                <Package size={48} className="mx-auto text-zinc-600 mb-4" />
-                                <h3 className="text-lg font-medium text-zinc-300 mb-2">Nog geen materialen</h3>
-                                <p className="text-zinc-500">
+                            <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                <Package size={48} className="mx-auto text-muted mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-2">Nog geen materialen</h3>
+                                <p className="text-muted-foreground">
                                     De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
                                 </p>
                             </div>
@@ -1014,8 +1022,8 @@ export default function QuotePage() {
                                 />
 
                                 {/* Total materials summary */}
-                                <div className="bg-zinc-800 rounded-lg p-4 flex justify-between items-center">
-                                    <span className="text-zinc-300">Totaal materialen</span>
+                                <div className="bg-card rounded-lg p-4 flex justify-between items-center">
+                                    <span className="text-foreground">Totaal materialen</span>
                                     <span className="text-xl font-bold text-emerald-400">
                                         {formatCurrency(grootSubtotal + verbruikSubtotal)}
                                     </span>
@@ -1027,28 +1035,31 @@ export default function QuotePage() {
                     {/* Arbeid Tab */}
                     <TabsContent value="arbeid" className="mt-6">
                         {!calculation?.data_json || !quoteSettings ? (
-                            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
-                                <Clock size={48} className="mx-auto text-zinc-600 mb-4" />
-                                <h3 className="text-lg font-medium text-zinc-300 mb-2">Nog geen uren</h3>
-                                <p className="text-zinc-500">
+                            <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                <Clock size={48} className="mx-auto text-muted mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
+                                <p className="text-muted-foreground">
                                     De urenspecificatie wordt automatisch gegenereerd zodra de calculatie is voltooid.
                                 </p>
                             </div>
                         ) : (
                             <LaborBreakdown
                                 urenSpecificatie={normalizedData?.uren_specificatie || []}
-                                totaalUren={normalizedData?.totaal_uren || 0}
+                                totaalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
                                 uurTarief={quoteSettings?.uurTariefExclBtw || 0}
                                 onUpdateHourlyRate={(newRate) => {
                                     if (!quoteSettings) return;
                                     handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
                                 }}
                                 onUpdateTotalHours={async (newHours) => {
+                                    console.log('⏰ [TOTAL UREN] Updating total hours:', { newHours });
                                     if (!calculation) return;
+                                    const root = unwrapRoot(calculation.data_json);
                                     await updateDataJson({
-                                        ...calculation.data_json,
+                                        ...root,
                                         totaal_uren: newHours,
                                     });
+                                    console.log('✅ [TOTAL UREN] Update complete');
                                 }}
                                 onUpdateItem={async (index, newHours) => {
                                     console.log('⏰ [UREN] Updating hours:', { index, newHours });
@@ -1084,17 +1095,17 @@ export default function QuotePage() {
 
                     {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
                     <TabsContent value="notities" className="mt-6">
-                        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-                            <div className="flex-1 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-8 relative">
-                                <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <div className="bg-card rounded-lg border border-border p-6">
+                            <div className="flex-1 bg-muted/50 border border-border/50 rounded-2xl p-8 relative">
+                                <h3 className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
                                     <MessageSquare className="w-4 h-4" /> Veldnotities
                                 </h3>
-                                {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes. 
-                                     The original code showed activeJob.notities. 
-                                     Since we don't have activeJob selector here yet (simplified view), 
+                                {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes.
+                                     The original code showed activeJob.notities.
+                                     Since we don't have activeJob selector here yet (simplified view),
                                      we might just show a placeholder or aggregates.
                                  */}
-                                <p className="text-zinc-500 italic">Notities functionaliteit wordt bijgewerkt.</p>
+                                <p className="text-muted-foreground italic">Notities functionaliteit wordt bijgewerkt.</p>
                             </div>
                         </div>
                     </TabsContent>

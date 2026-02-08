@@ -103,26 +103,26 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
     const totaalArbeid = totaalUren * uurTarief;
 
     return (
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+        <div className="bg-card rounded-lg border border-border overflow-hidden">
             {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-zinc-800">
+            <div className="flex justify-between items-center p-4 border-b border-border">
                 <div className="flex items-center gap-3">
-                    <Clock size={18} className="text-zinc-400" />
-                    <h3 className="font-semibold text-white">URENSPECIFICATIE</h3>
+                    <Clock size={18} className="text-muted-foreground" />
+                    <h3 className="font-semibold text-foreground">URENSPECIFICATIE</h3>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
-                    <span className="text-zinc-400 flex items-center gap-2">
+                    <span className="text-muted-foreground flex items-center gap-2">
                         Uurtarief:
                         {isEditingRate ? (
                             <div className="flex items-center gap-1">
-                                <span className="text-zinc-500">€</span>
+                                <span className="text-muted-foreground">€</span>
                                 <Input
                                     ref={rateInputRef}
                                     type="number"
                                     value={tempRate}
                                     onChange={(e) => setTempRate(e.target.value)}
                                     onBlur={saveRate}
-                                    className="h-7 w-20 px-2 py-1 text-sm bg-zinc-800 border-zinc-700"
+                                    className="h-7 w-20 px-2 py-1 text-sm bg-background border-border"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') saveRate();
                                         if (e.key === 'Escape') cancelEditingRate();
@@ -130,12 +130,12 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                                 />
                             </div>
                         ) : (
-                            <span className="text-zinc-200 flex items-center gap-2 cursor-pointer" onClick={startEditingRate}>
+                            <span className="text-foreground/90 flex items-center gap-2 cursor-pointer" onClick={startEditingRate}>
                                 {formatCurrency(uurTarief)}
-                                <Pencil size={12} className="text-zinc-500" />
+                                <Pencil size={12} className="text-muted-foreground" />
                             </span>
                         )}
-                        <span className="text-xs text-zinc-500">excl. btw</span>
+                        <span className="text-xs text-muted-foreground">excl. btw</span>
                     </span>
                     <span className="text-emerald-400 font-medium flex items-center gap-2">
                         Totaal:
@@ -147,7 +147,7 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                                     value={tempHours}
                                     onChange={(e) => setTempHours(e.target.value)}
                                     onBlur={saveHours}
-                                    className="h-7 w-20 px-2 py-1 text-sm bg-zinc-800 border-zinc-700"
+                                    className="h-7 w-20 px-2 py-1 text-sm bg-background border-border"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') saveHours();
                                         if (e.key === 'Escape') cancelEditingHours();
@@ -167,15 +167,15 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
             {/* Table */}
             <div className="overflow-x-auto">
                 <table className="w-full">
-                    <thead className="bg-zinc-800/50">
+                    <thead className="bg-muted/50">
                         <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-zinc-400 w-20">
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground w-20">
                                 Uren
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-zinc-400">
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
                                 Taak
                             </th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-zinc-400 w-28">
+                            <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-28">
                                 Bedrag
                             </th>
                         </tr>
@@ -184,9 +184,9 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                         {urenSpecificatie.map((item, index) => (
                             <tr
                                 key={index}
-                                className="border-b border-zinc-800 hover:bg-zinc-800/30 transition-colors"
+                                className="border-b border-border hover:bg-muted/30 transition-colors"
                             >
-                                <td className="px-4 py-3 text-zinc-300 font-medium">
+                                <td className="px-4 py-3 text-foreground/80 font-medium">
                                     {editingRowIndex === index ? (
                                         <Input
                                             ref={rowInputRef}
@@ -194,26 +194,26 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                                             value={tempRowHours}
                                             onChange={(e) => setTempRowHours(e.target.value)}
                                             onBlur={() => saveRow(index)}
-                                            className="h-7 w-20 px-2 py-1 text-sm bg-zinc-800 border-zinc-700 font-medium"
+                                            className="h-7 w-20 px-2 py-1 text-sm bg-background border-border font-medium"
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') saveRow(index);
                                                 if (e.key === 'Escape') cancelEditingRow();
                                             }}
                                         />
                                     ) : (
-                                        <div className="flex items-center gap-2 cursor-pointer text-zinc-300 hover:text-white transition-colors" onClick={() => startEditingRow(index, item.uren)}>
+                                        <div className="flex items-center gap-2 cursor-pointer text-foreground/80 hover:text-foreground transition-colors" onClick={() => startEditingRow(index, item.uren)}>
                                             {formatNumber(item.uren)}
-                                            <Pencil size={12} className="text-zinc-500" />
+                                            <Pencil size={12} className="text-muted-foreground" />
                                         </div>
                                     )}
                                 </td>
-                                <td className="px-4 py-3 text-zinc-300">
+                                <td className="px-4 py-3 text-foreground/80">
                                     <div className="flex items-start gap-2">
-                                        <Wrench size={14} className="mt-1 text-zinc-500 flex-shrink-0" />
+                                        <Wrench size={14} className="mt-1 text-muted-foreground flex-shrink-0" />
                                         {item.taak}
                                     </div>
                                 </td>
-                                <td className="px-4 py-3 text-right text-zinc-300">
+                                <td className="px-4 py-3 text-right text-foreground/80">
                                     {formatCurrency(item.uren * uurTarief)}
                                 </td>
                             </tr>
@@ -221,12 +221,12 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                     </tbody>
 
                     {/* Footer with totals */}
-                    <tfoot className="bg-zinc-800/50">
+                    <tfoot className="bg-muted/50">
                         <tr>
-                            <td className="px-4 py-4 font-semibold text-white">
+                            <td className="px-4 py-4 font-semibold text-foreground">
                                 {formatNumber(totaalUren)}
                             </td>
-                            <td className="px-4 py-4 font-semibold text-white">
+                            <td className="px-4 py-4 font-semibold text-foreground">
                                 Totaal
                             </td>
                             <td className="px-4 py-4 text-right font-bold text-emerald-400">

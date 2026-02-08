@@ -112,7 +112,16 @@ export function useQuoteData(quoteId: string) {
             // Update was successful, use the returned data
             if (result.data) {
                 console.log('✅ [updateDataJson] Update successful, setting calculation');
-                setCalculation(prev => prev ? { ...prev, data_json: result.data.data_json } : null);
+                console.log('🔍 [DEBUG] Returned data_json totaal_uren:', (result.data.data_json as any)?.totaal_uren);
+                setCalculation(prev => {
+                    const updated = prev ? { ...prev, data_json: result.data.data_json } : null;
+                    console.log('🔧 [STATE] setCalculation called:', {
+                        prev_totaal: (prev?.data_json as any)?.totaal_uren,
+                        new_totaal: (result.data.data_json as any)?.totaal_uren,
+                        same_ref: prev?.data_json === result.data.data_json
+                    });
+                    return updated;
+                });
             } else {
                 console.log('⚠️ [updateDataJson] No data returned, using optimistic update');
                 setCalculation(prev => prev ? { ...prev, data_json: newDataJson } : null);

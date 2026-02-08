@@ -18,8 +18,8 @@ export function WorkDescriptionCard({ werkbeschrijving }: WorkDescriptionCardPro
     const summary = generateWorkSummary(werkbeschrijving, 300);
 
     return (
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-            <h3 className="font-semibold text-zinc-400 text-sm mb-4 flex items-center gap-2">
+        <div className="bg-card rounded-lg border border-border p-6">
+            <h3 className="font-semibold text-muted-foreground text-sm mb-4 flex items-center gap-2">
                 <FileText size={14} />
                 WERKBESCHRIJVING
             </h3>
@@ -27,13 +27,13 @@ export function WorkDescriptionCard({ werkbeschrijving }: WorkDescriptionCardPro
             {expanded ? (
                 <div className="space-y-2">
                     {werkbeschrijving.map((item, index) => (
-                        <p key={index} className="text-zinc-300 text-sm leading-relaxed">
+                        <p key={index} className="text-foreground/80 text-sm leading-relaxed">
                             • {item}
                         </p>
                     ))}
                 </div>
             ) : (
-                <p className="text-zinc-300 text-sm leading-relaxed">
+                <p className="text-foreground/80 text-sm leading-relaxed">
                     {summary}
                 </p>
             )}
