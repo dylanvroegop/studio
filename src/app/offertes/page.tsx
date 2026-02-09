@@ -202,7 +202,7 @@ export default function OffertesPage() {
         data.sort((a, b) => {
           const aNum = typeof a.offerteNummer === 'number' ? a.offerteNummer : 0;
           const bNum = typeof b.offerteNummer === 'number' ? b.offerteNummer : 0;
-          return aNum - bNum;
+          return bNum - aNum;
         });
 
         setQuotes(data);

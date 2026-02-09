@@ -19,6 +19,8 @@ import {
   EyeOff,
   Save,
   Box,
+  Ruler,
+  Maximize2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -43,6 +45,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 import type { Quote, Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -109,6 +118,20 @@ function jobIsComplete(job: any): boolean {
   const hasWorkMethodId = !!workMethodId && workMethodId !== 'default';
 
   return hasSelections || hasMaterialenLijst || hasWerkwijzePreset || hasWorkMethodId;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  wanden: 'Wanden',
+  daken: 'Daken',
+  vloeren: 'Vloeren',
+  plafonds: 'Plafonds',
+  prefab: 'Prefab',
+  tuin: 'Tuin & Schutting',
+  trap: 'Trappen',
+};
+
+function getCategoryLabel(type: string): string {
+  return CATEGORY_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 /* ---------------------------------------------
@@ -2077,14 +2100,17 @@ export default function OverzichtPage() {
         <div className="mx-auto max-w-5xl space-y-8">
 
           {/* Klussen */}
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground px-1">Huidige Klussen</h2>
+          <TooltipProvider>
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground px-1">Huidige Klussen</h2>
 
-            <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
+            <div className="space-y-3">
               {jobs.length === 0 && (
-                <p className="text-sm text-muted-foreground italic text-center py-8">
-                  Er zijn nog geen klussen toegevoegd.
-                </p>
+                <div className="rounded-xl bg-white/5 border border-white/5 py-12">
+                  <p className="text-sm text-muted-foreground italic text-center">
+                    Er zijn nog geen klussen toegevoegd.
+                  </p>
+                </div>
               )}
 
               {jobs.map((job: any, index: number) => {
@@ -2164,93 +2190,111 @@ export default function OverzichtPage() {
                   }
                 }
 
+                const categoryLabel = getCategoryLabel(type);
+
                 return (
                   <div
                     key={job.id}
                     className={cn(
-                      "group flex items-center justify-between py-3 px-4 hover:bg-white/5 transition-colors cursor-pointer",
-                      index > 0 && "border-t border-white/5"
+                      'group relative flex flex-col gap-2 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md',
+                      isComplete
+                        ? 'border-l-4 border-l-emerald-500'
+                        : 'border-l-4 border-l-red-500/30'
                     )}
-                    onClick={() => router.push(bewerkenHref)}
                   >
-                    {/* Left: Title & Info */}
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm text-foreground truncate">{title}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          {dimensionsSummary && <span className="font-mono">{dimensionsSummary}</span>}
-                          {areaSummary && (
-                            <>
-                              <span className="text-muted-foreground/40">•</span>
-                              <span className="font-mono">{areaSummary}</span>
-                            </>
-                          )}
-                          {preset && (
-                            <>
-                              <span className="text-muted-foreground/40">•</span>
-                              <span>{preset}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
+                    {/* Top: Title */}
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-sm text-foreground truncate group-hover:text-white transition-colors">
+                        {title}
+                      </h3>
                     </div>
 
-                    {/* Right: Status Pill + Actions */}
-                    <div className="flex items-center gap-2 shrink-0 ml-3">
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
-                          isComplete
-                            ? 'bg-emerald-500/15 text-emerald-400'
-                            : 'bg-red-500/15 text-red-400'
+                    {/* Metadata & Actions */}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                        {dimensionsSummary && (
+                          <div className="flex items-center gap-1.5">
+                            <Ruler className="h-3.5 w-3.5 opacity-70" />
+                            <span className="font-mono">{dimensionsSummary}</span>
+                          </div>
                         )}
-                      >
-                        {isComplete ? 'Ingesteld' : 'Onvolledig'}
-                      </span>
+                        {areaSummary && (
+                          <>
+                            <span className="opacity-20">•</span>
+                            <div className="flex items-center gap-1.5">
+                              <Maximize2 className="h-3.5 w-3.5 opacity-70" />
+                              <span className="font-mono">{areaSummary}</span>
+                            </div>
+                          </>
+                        )}
+                        {preset && (
+                          <>
+                            <span className="opacity-20">•</span>
+                            <span className="text-zinc-400">{preset}</span>
+                          </>
+                        )}
+                        <span className="opacity-20">•</span>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
+                            isComplete
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : 'bg-red-500/15 text-red-400'
+                          )}
+                        >
+                          {isComplete ? 'Ingesteld' : 'Onvolledig'}
+                        </span>
+                      </div>
 
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(bewerkenHref);
-                        }}
-                        aria-label="Bewerken"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-2 opacity-70 group-hover:opacity-100 md:opacity-70 transition-opacity shrink-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-2 h-8 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(bewerkenHref);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Bewerken</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Bewerk deze klus</TooltipContent>
+                        </Tooltip>
 
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteDialogForJob(job);
-                        }}
-                        aria-label="Klus verwijderen"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteDialogForJob(job);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Verwijderen</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
-
-              {/* Add Klus Link */}
-              <button
-                type="button"
-                onClick={handleAddJob}
-                className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Een klus toevoegen</span>
-              </button>
             </div>
-          </section>
+
+            {/* Add Klus Button */}
+            <button
+              type="button"
+              onClick={handleAddJob}
+              className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-emerald-500 hover:text-emerald-400 transition-all font-medium text-xs"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Een klus toevoegen</span>
+            </button>
+            </section>
+          </TooltipProvider>
 
           {/* Bouwplaatskosten */}
           <section className="space-y-3">
