@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
-import { DimensionLine, DrawingData, WallOpening } from '@/lib/drawing-types';
+import { DimensionLine, DrawingData, WallOpening, Beam } from '@/lib/drawing-types';
 import { OverallDimensions, OpeningMeasurements, GridMeasurements } from './shared/measurements';
 import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
@@ -106,6 +106,7 @@ export interface CeilingDrawingProps {
     gridLabel?: string | null;
     title?: string;
     showEdgeControls?: boolean; // Whether to show edge toggle controls
+    onDataGenerated?: (data: DrawingData) => void;
 }
 
 export function CeilingWoodDrawing({
@@ -119,7 +120,8 @@ export function CeilingWoodDrawing({
     onEdgeChange,
     gridLabel,
     title,
-    showEdgeControls = false
+    showEdgeControls = false,
+    onDataGenerated
 }: CeilingDrawingProps) {
     // 1. EXTRACT PROPS
     const shape = item.shape || 'rectangle';
@@ -136,6 +138,15 @@ export function CeilingWoodDrawing({
     const hRight = parseFloat(String(item.hoogteRechts || 0));
     const hPeak = parseFloat(String(item.hoogteNok || 0));
     const lengte1 = parseFloat(String(item.lengte1 || 0));
+
+    // STABLE CALLBACK REF
+    const onDataGeneratedRef = useRef(onDataGenerated);
+    useEffect(() => {
+        onDataGeneratedRef.current = onDataGenerated;
+    }, [onDataGenerated]);
+
+    // PREVENT REDUNDANT EMISSIONS
+    const lastDataRef = useRef<string>('');
     const hoogte1 = parseFloat(String(item.hoogte1 || 0));
     const lengte2 = parseFloat(String(item.lengte2 || 0));
     const hoogte2 = parseFloat(String(item.hoogte2 || 0));
@@ -311,17 +322,146 @@ export function CeilingWoodDrawing({
     }, [handlePointerUp, handleKoofPointerUp]);
 
     // 4. GENERATE DRAWING DATA (Dimensions & Openings)
-    const generateDrawingData = (): DrawingData => {
-        return {
-            walls: [{ label: 'Main', lengte, hoogte: effectiveHeight, shape }],
-            beams: [], // We render beams via children
-            openings: [], // We render openings via our overlay loop to ensure correct Z-index and interaction
-            dimensions: [], // Universal components replace this
-            params: {}
-        };
-    };
+    useEffect(() => {
+        if (!onDataGenerated) return;
 
-    const drawingData = generateDrawingData();
+        const beams: Beam[] = [];
+        const STUDY_WIDTH_MM = 70;
+
+        // 1. Surrounding beams
+        if (item.surroundingBeams) {
+            beams.push({ type: 'plate', xMm: 0, yMm: effectiveHeight - 70, wMm: lengte, hMm: 70, x: 0, y: effectiveHeight - 70 });
+            beams.push({ type: 'plate', xMm: 0, yMm: 0, wMm: lengte, hMm: 70, x: 0, y: 0 });
+        }
+
+        // 2. Vertical beams
+        const framing = calculateGridGaps({
+            wallLength: lengte,
+            spacing: balkafstand,
+            studWidth: 70,
+            startFromRight
+        });
+
+        const opsForOverlay = mappingOpeningsForOverlay(rawOpenings, effectiveHeight);
+
+        framing.beamCenters.forEach(cx => {
+            const intersectingOpening = opsForOverlay.find(op => {
+                const opLeft = op.fromLeft;
+                const opRight = op.fromLeft + op.width;
+                const beamLeft = cx - 35;
+                const beamRight = cx + 35;
+                return beamRight > opLeft && beamLeft < opRight;
+            });
+
+            if (intersectingOpening && intersectingOpening.requires_raveelwerk) {
+                const opTopMm = intersectingOpening.fromBottom + intersectingOpening.height;
+                const opBottomMm = intersectingOpening.fromBottom;
+                const studY = item.surroundingBeams ? 70 : 0;
+
+                // Top segment
+                if (effectiveHeight - 70 > opTopMm + 70) {
+                    beams.push({
+                        type: 'beam',
+                        xMm: cx - 35,
+                        yMm: opTopMm + 70,
+                        wMm: 70,
+                        hMm: (effectiveHeight - studY) - (opTopMm + 70),
+                        x: cx - 35,
+                        y: opTopMm + 70
+                    });
+                }
+                // Bottom segment
+                if (opBottomMm - 70 > studY) {
+                    beams.push({
+                        type: 'beam',
+                        xMm: cx - 35,
+                        yMm: studY,
+                        wMm: 70,
+                        hMm: (opBottomMm - 70) - studY,
+                        x: cx - 35,
+                        y: studY
+                    });
+                }
+            } else {
+                const studY = item.surroundingBeams ? 70 : 0;
+                const studHeight = item.surroundingBeams ? effectiveHeight - 140 : effectiveHeight;
+                beams.push({
+                    type: 'beam',
+                    xMm: cx - 35,
+                    yMm: studY,
+                    wMm: 70,
+                    hMm: Math.max(0, studHeight),
+                    x: cx - 35,
+                    y: studY
+                });
+            }
+        });
+
+        // 3. Horizontal latten
+        const lattenFraming = calculateGridGaps({
+            wallLength: effectiveHeight,
+            spacing: latafstand,
+            studWidth: 50,
+            startFromRight: startLattenFromBottom
+        });
+
+        lattenFraming.beamCenters.forEach(cy => {
+            beams.push({ type: 'beam', xMm: 0, yMm: cy - 25, wMm: lengte, hMm: 50, x: 0, y: cy - 25 });
+        });
+
+        // 4. Raveelwerk
+        opsForOverlay.forEach(op => {
+            if (op.requires_raveelwerk && framing.beamCenters.length > 0) {
+                const raveelGeometry = calculateRaveelwerk({
+                    openingFromLeft: op.fromLeft,
+                    openingWidth: op.width,
+                    openingHeight: op.height,
+                    openingFromBottom: op.fromBottom,
+                    existingBeamCenters: framing.beamCenters,
+                    beamWidth: 70,
+                    totalHeight: effectiveHeight
+                });
+
+                raveelGeometry.beams.forEach(rb => {
+                    beams.push({
+                        type: rb.type === 'header' ? 'header' : 'stud',
+                        xMm: rb.x,
+                        yMm: rb.y,
+                        wMm: rb.width,
+                        hMm: rb.length, // RaveelwerkBeam uses 'length' for its span
+                        x: rb.x,
+                        y: rb.y
+                    });
+                });
+            }
+        });
+
+        const data: DrawingData = {
+            walls: [{ label: 'Main', lengte, hoogte: effectiveHeight, shape }],
+            beams,
+            openings: opsForOverlay as any,
+            dimensions: [],
+            params: {
+                ...item,
+                startFromRight,
+                startLattenFromBottom
+            }
+        };
+
+        const dataString = JSON.stringify(data);
+        if (dataString !== lastDataRef.current) {
+            lastDataRef.current = dataString;
+            onDataGeneratedRef.current?.(data);
+        }
+    }, [lengte, effectiveHeight, shape, balkafstand, latafstand, startFromRight, startLattenFromBottom, rawOpenings, item.surroundingBeams]);
+
+    const drawingData = {
+        walls: [{ label: 'Main', lengte, hoogte: effectiveHeight, shape }],
+        beams: [],
+        openings: [],
+        dimensions: [],
+        params: {}
+    };
 
     // 5. CALCULATE AREA (M2)
     const areaStats = React.useMemo(() => {

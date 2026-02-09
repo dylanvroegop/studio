@@ -22,7 +22,7 @@ export interface WallOpening {
 }
 
 export interface Beam {
-    type: 'stud' | 'plate' | 'header' | 'sill' | 'king' | 'cripple-top' | 'cripple-bottom' | 'beam';
+    type: 'stud' | 'plate' | 'header' | 'sill' | 'king' | 'cripple-top' | 'cripple-bottom' | 'beam' | 'latten';
     x: number; // Logical MM relative to Wall Bottom-Left
     y: number; // Logical MM relative to Wall Bottom-Left (Y-Up preferably, or follow convention)
     // NOTE: WallDrawing uses Y-Down (SVG). We should try to normalize to Cartesian if possible, 
@@ -57,6 +57,7 @@ export interface DrawingData {
         shape: string;
     }[];
     beams: Beam[];
+    latten?: Beam[];
     openings?: WallOpening[];
     dimensions: DimensionLine[];
 

@@ -3908,6 +3908,7 @@ export default function GenericMaterialsPageRedesigned() {
                     }
                   }
 
+                  let remaining = missingPriceItems;
                   if (updatedById.size > 0 || updatedByName.size > 0) {
                     // Update custom groups
                     setCustomGroups(prev => prev.map(group => ({
@@ -3946,16 +3947,15 @@ export default function GenericMaterialsPageRedesigned() {
                       })
                     })));
 
-                    // Remove resolved items from the dialog list
-                    setMissingPriceItems(prev => prev.filter((item, idx) => {
+                    // Remove resolved items from the dialog list and use that list for continuation logic.
+                    remaining = missingPriceItems.filter((item) => {
                       const id = item.row_id || item.id;
                       if (id && updatedById.has(String(id))) return false;
                       if (item.materiaalnaam && updatedByName.has(item.materiaalnaam)) return false;
                       return true;
-                    }));
+                    });
                   }
 
-                  const remaining = getMissingPriceItems();
                   setMissingPriceItems(remaining);
                   if (remaining.length === 0) {
                     setShowMissingPriceDialog(false);

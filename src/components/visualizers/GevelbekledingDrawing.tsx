@@ -155,6 +155,12 @@ export function GevelbekledingDrawing({
     const heights = [hStd, hLeft, hRight, hPeak, h1, h2, h3];
     const maxH = Math.max(...heights);
 
+    // STABLE CALLBACK REF
+    const onDataGeneratedRef = useRef(onDataGenerated);
+    useEffect(() => {
+        onDataGeneratedRef.current = onDataGenerated;
+    }, [onDataGenerated]);
+
     // Calculate effective dimensions for BaseDrawingFrame
     let effectiveLength = lengteNum;
     if (shape === 'l-shape') effectiveLength = l1 + l2;
@@ -409,9 +415,9 @@ export function GevelbekledingDrawing({
         const json = JSON.stringify(data);
         if (json !== lastEmittedRef.current) {
             lastEmittedRef.current = json;
-            onDataGenerated(data);
+            onDataGeneratedRef.current?.(data);
         }
-    }, [structure, onDataGenerated, lengteNum, maxH, shape, openings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand, latafstand, dagkanten, vensterbanken]);
+    }, [structure, lengteNum, maxH, shape, openings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand, latafstand, dagkanten, vensterbanken]);
 
 
     // Internal Drag State

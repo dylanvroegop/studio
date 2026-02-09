@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import {
     OverallDimensions,
@@ -8,6 +8,7 @@ import {
 } from './shared/measurements';
 import { DEFAULT_MEASUREMENT_STYLE } from './shared/measurements/types';
 import { calculateGridGaps } from './shared/framing-utils';
+import { DrawingData, Beam } from '@/lib/drawing-types';
 
 interface BoeiboordDrawingProps {
     lengte: number;
@@ -27,6 +28,7 @@ interface BoeiboordDrawingProps {
     fitContainer?: boolean;
     className?: string;
     shape?: 'rectangle' | 'slope' | 'gable';
+    onDataGenerated?: (data: DrawingData) => void;
 }
 
 interface Point {
@@ -52,9 +54,19 @@ export function BoeiboordDrawing({
     fitContainer,
     className,
     shape,
+    onDataGenerated
 }: BoeiboordDrawingProps) {
     const clipId = React.useId().replace(/:/g, '');
     const clipIdRight = React.useId().replace(/:/g, '');
+
+    // STABLE CALLBACK REF
+    const onDataGeneratedRef = useRef(onDataGenerated);
+    useEffect(() => {
+        onDataGeneratedRef.current = onDataGenerated;
+    }, [onDataGenerated]);
+
+    // PREVENT REDUNDANT EMISSIONS
+    const lastDataRef = useRef<string>('');
 
     const structure = useMemo(() => {
         if (lengte <= 0 || hoogte <= 0) return {
@@ -85,6 +97,89 @@ export function BoeiboordDrawing({
             latGaps: latFraming.gaps,
         };
     }, [lengte, hoogte, balkafstand, latafstand, startLattenFromBottom, startFromRight]);
+
+    useEffect(() => {
+        if (!onDataGenerated) return;
+
+        const beams: Beam[] = [];
+
+        if (surroundingBeams) {
+            // Top plate
+            beams.push({
+                type: 'plate',
+                xMm: 0,
+                yMm: hoogte - 70,
+                wMm: lengte,
+                hMm: 70,
+                x: 0,
+                y: hoogte - 70
+            });
+            // Bottom plate
+            beams.push({
+                type: 'plate',
+                xMm: 0,
+                yMm: 0,
+                wMm: lengte,
+                hMm: 70,
+                x: 0,
+                y: 0
+            });
+        }
+
+        // Vertical beams (studs)
+        const studHeight = surroundingBeams ? hoogte - 140 : hoogte;
+        const studY = surroundingBeams ? 70 : 0;
+        structure.beamCenters.forEach((cx) => {
+            beams.push({
+                type: 'latten',
+                xMm: cx - 35,
+                yMm: studY,
+                wMm: 70,
+                hMm: Math.max(0, studHeight),
+                x: cx - 35,
+                y: studY
+            });
+        });
+
+        // Horizontal latten
+        structure.latCenters.forEach((cy) => {
+            beams.push({
+                type: 'latten',
+                xMm: 0,
+                yMm: cy - 11,
+                wMm: lengte,
+                hMm: 22,
+                x: 0,
+                y: cy - 11
+            });
+        });
+
+        const data: DrawingData = {
+            walls: [{ label: 'Main', lengte, hoogte, shape: shape || 'rectangle' }],
+            beams,
+            latten: beams.filter(b => b.type === 'latten'),
+            dimensions: [],
+            params: {
+                balkafstand,
+                latafstand,
+                surroundingBeams,
+                lattenOrientation,
+                startLattenFromBottom,
+                startFromRight,
+                doubleEndBattens,
+                boeiboordOrientation,
+                boeiboordAngle,
+                boeiboordMirror,
+                multiplier: boeiboordMirror ? 2 : 1,
+            }
+        };
+
+        const dataString = JSON.stringify(data);
+        if (dataString !== lastDataRef.current) {
+            lastDataRef.current = dataString;
+            onDataGeneratedRef.current?.(data);
+        }
+    }, [structure, lengte, hoogte, shape, surroundingBeams, lattenOrientation, startLattenFromBottom, startFromRight, doubleEndBattens, boeiboordOrientation, boeiboordAngle, boeiboordMirror, balkafstand, latafstand]);
 
     // Determine if we should use rotated board view
     const useRotatedView = shape === 'slope' || shape === 'gable' || boeiboordOrientation === 'slope';
@@ -124,6 +219,7 @@ export function BoeiboordDrawing({
                             : parseFloat(String(boeiboordAngle ?? '')) || 45;
                         const angleDeg = Math.max(0, Math.min(89.9, angleDegRaw));
                         const mirrorLatten = !!boeiboordMirror;
+
                         const midX = startX + rectW / 2;
                         const yBottom = startY + rectH;
 
@@ -503,93 +599,93 @@ export function BoeiboordDrawing({
                                 return (
                                     <>
                                         <g transform={transform}>
-                                        {/* Left board outline */}
-                                        {leftPath && (
-                                            <path
-                                                d={leftPath}
-                                                fill="none"
-                                                stroke={structureColor}
-                                                strokeWidth="1.5"
-                                            />
-                                        )}
+                                            {/* Left board outline */}
+                                            {leftPath && (
+                                                <path
+                                                    d={leftPath}
+                                                    fill="none"
+                                                    stroke={structureColor}
+                                                    strokeWidth="1.5"
+                                                />
+                                            )}
 
-                                        {/* Right board outline (mirrored) */}
-                                        {rightPath && (
-                                            <path
-                                                d={rightPath}
-                                                fill="none"
-                                                stroke={structureColor}
-                                                strokeWidth="1.5"
-                                            />
-                                        )}
+                                            {/* Right board outline (mirrored) */}
+                                            {rightPath && (
+                                                <path
+                                                    d={rightPath}
+                                                    fill="none"
+                                                    stroke={structureColor}
+                                                    strokeWidth="1.5"
+                                                />
+                                            )}
 
-                                        {/* Left board latten */}
-                                        {leftLatten.map((line, idx) => (
+                                            {/* Left board latten */}
+                                            {leftLatten.map((line, idx) => (
+                                                <line
+                                                    key={`lat-left-${idx}`}
+                                                    x1={line.x1}
+                                                    y1={line.y1}
+                                                    x2={line.x2}
+                                                    y2={line.y2}
+                                                    {...dashProps}
+                                                />
+                                            ))}
+
+                                            {/* Right board latten (mirrored) */}
+                                            {rightLatten.map((line, idx) => (
+                                                <line
+                                                    key={`lat-right-${idx}`}
+                                                    x1={line.x1}
+                                                    y1={line.y1}
+                                                    x2={line.x2}
+                                                    y2={line.y2}
+                                                    {...dashProps}
+                                                />
+                                            ))}
+
+                                            {/* Inner seam at ridge */}
                                             <line
-                                                key={`lat-left-${idx}`}
-                                                x1={line.x1}
-                                                y1={line.y1}
-                                                x2={line.x2}
-                                                y2={line.y2}
-                                                {...dashProps}
+                                                x1={peakX}
+                                                y1={peakY}
+                                                x2={peakX}
+                                                y2={leftTopSeam.y}
+                                                stroke={structureColor}
+                                                strokeWidth="1"
                                             />
-                                        ))}
 
-                                        {/* Right board latten (mirrored) */}
-                                        {rightLatten.map((line, idx) => (
+                                            {/* Peak indicator for mirrored */}
                                             <line
-                                                key={`lat-right-${idx}`}
-                                                x1={line.x1}
-                                                y1={line.y1}
-                                                x2={line.x2}
-                                                y2={line.y2}
-                                                {...dashProps}
+                                                x1={midX}
+                                                y1={startY}
+                                                x2={midX}
+                                                y2={yBottom}
+                                                stroke={structureColor}
+                                                strokeWidth="0.5"
+                                                strokeDasharray="2,6"
+                                                opacity="0.35"
                                             />
-                                        ))}
 
-                                        {/* Inner seam at ridge */}
-                                        <line
-                                            x1={peakX}
-                                            y1={peakY}
-                                            x2={peakX}
-                                            y2={leftTopSeam.y}
-                                            stroke={structureColor}
-                                            strokeWidth="1"
-                                        />
-
-                                        {/* Peak indicator for mirrored */}
-                                        <line
-                                            x1={midX}
-                                            y1={startY}
-                                            x2={midX}
-                                            y2={yBottom}
-                                            stroke={structureColor}
-                                            strokeWidth="0.5"
-                                            strokeDasharray="2,6"
-                                            opacity="0.35"
-                                        />
-
-                                        {/* Dimensions - height at kopkant, length per side */}
-                                        {renderAlignedDimension(
-                                            leftEdges.bottomStart,
-                                            leftEdges.topStart,
-                                            hoogte,
-                                            heightOffset
-                                        )}
-                                        {renderMirrorLengthDimension(
-                                            leftEdges.bottomStart,
-                                            leftEdges.bottomEnd,
-                                            lengte,
-                                            lengthOffsetLeft,
-                                            peakX
-                                        )}
-                                        {renderMirrorLengthDimension(
-                                            rightEdges.bottomEnd,
-                                            rightEdges.bottomStart,
-                                            lengte,
-                                            lengthOffsetRight,
-                                            peakX
-                                        )}
+                                            {/* Dimensions - height at kopkant, length per side */}
+                                            {renderAlignedDimension(
+                                                leftEdges.bottomStart,
+                                                leftEdges.topStart,
+                                                hoogte,
+                                                heightOffset
+                                            )}
+                                            {renderMirrorLengthDimension(
+                                                leftEdges.bottomStart,
+                                                leftEdges.bottomEnd,
+                                                lengte,
+                                                lengthOffsetLeft,
+                                                peakX
+                                            )}
+                                            {renderMirrorLengthDimension(
+                                                rightEdges.bottomEnd,
+                                                rightEdges.bottomStart,
+                                                lengte,
+                                                lengthOffsetRight,
+                                                peakX
+                                            )}
                                         </g>
 
                                         {title && (
@@ -673,38 +769,38 @@ export function BoeiboordDrawing({
                                 return (
                                     <>
                                         <g transform={transform}>
-                                        {leftPath && (
-                                            <path
-                                                d={leftPath}
-                                                fill="none"
-                                                stroke={structureColor}
-                                                strokeWidth="1.5"
-                                            />
-                                        )}
+                                            {leftPath && (
+                                                <path
+                                                    d={leftPath}
+                                                    fill="none"
+                                                    stroke={structureColor}
+                                                    strokeWidth="1.5"
+                                                />
+                                            )}
 
-                                        {leftLatten.map((line, idx) => (
-                                            <line
-                                                key={`lat-single-${idx}`}
-                                                x1={line.x1}
-                                                y1={line.y1}
-                                                x2={line.x2}
-                                                y2={line.y2}
-                                                {...dashProps}
-                                            />
-                                        ))}
+                                            {leftLatten.map((line, idx) => (
+                                                <line
+                                                    key={`lat-single-${idx}`}
+                                                    x1={line.x1}
+                                                    y1={line.y1}
+                                                    x2={line.x2}
+                                                    y2={line.y2}
+                                                    {...dashProps}
+                                                />
+                                            ))}
 
-                                        {renderAlignedDimension(
-                                            edges.bottomStart,
-                                            edges.topStart,
-                                            hoogte,
-                                            heightOffset
-                                        )}
-                                        {renderAlignedDimension(
-                                            edges.bottomStart,
-                                            edges.bottomEnd,
-                                            lengte,
-                                            lengthOffset
-                                        )}
+                                            {renderAlignedDimension(
+                                                edges.bottomStart,
+                                                edges.topStart,
+                                                hoogte,
+                                                heightOffset
+                                            )}
+                                            {renderAlignedDimension(
+                                                edges.bottomStart,
+                                                edges.bottomEnd,
+                                                lengte,
+                                                lengthOffset
+                                            )}
                                         </g>
 
                                         {title && (

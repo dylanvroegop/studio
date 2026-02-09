@@ -13,7 +13,8 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2 } from 'lucide-react';
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
@@ -1038,22 +1039,7 @@ export default function QuotePage() {
     const loading = calculationLoading || firebaseLoading || isUserLoading;
     const error = calculationError || firebaseError;
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="text-muted-foreground">Laden...</div>
-            </div>
-        );
-    }
 
-    if (error) {
-        return (
-            <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
-                <div className="text-red-400">Fout: {error}</div>
-                <Button asChild variant="secondary"><Link href="/dashboard">Terug naar Dashboard</Link></Button>
-            </div>
-        );
-    }
 
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
@@ -1078,430 +1064,459 @@ export default function QuotePage() {
                         </div>
                     </div>
                     <div className="flex gap-3 w-full sm:w-auto">
-                        {/* Placeholder Actions */}
                         <button
                             onClick={handleDownloadPDF}
                             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={!totals}
+                            disabled={!totals || loading}
                         >
-                            <Download size={16} />
+                            {isGeneratingPDF ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Download size={18} />
+                            )}
                             Download
                         </button>
-                        <button
-                            onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={!totals}
-                        >
-                            <ReceiptText size={16} />
-                            Maak factuur
-                        </button>
-                        <button
-                            onClick={() => {
-                                const params = new URLSearchParams({
-                                    mode: 'schedule',
-                                    quoteId: id,
-                                    hours: String(normalizedData?.totaal_uren || 0),
-                                    view: 'week'
-                                });
-                                router.push(`/planning?${params.toString()}`);
-                            }}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border"
-                            disabled={!normalizedData?.totaal_uren}
-                        >
-                            <CalendarDays size={16} />
-                            Inplannen
-                        </button>
-                        <button
-                            onClick={() => setIsSendModalOpen(true)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-card hover:bg-accent px-4 py-2 rounded-lg transition-colors text-sm font-medium border border-border"
-                        >
-                            <Mail size={16} />
-                            Versturen
-                        </button>
 
+                        {!loading && (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 sm:flex-none gap-2"
+                                    onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
+                                >
+                                    <ReceiptText size={16} /> Maak factuur
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 sm:flex-none gap-2"
+                                    onClick={() => {
+                                        const params = new URLSearchParams({
+                                            mode: 'schedule',
+                                            quoteId: id,
+                                            hours: String(normalizedData?.totaal_uren || 0),
+                                            view: 'week'
+                                        });
+                                        router.push(`/planning?${params.toString()}`);
+                                    }}
+                                >
+                                    <CalendarDays size={16} /> Inplannen
+                                </Button>
+                                <Button
+                                    className="flex-1 sm:flex-none gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                                    onClick={() => setIsSendModalOpen(true)}
+                                >
+                                    <Mail size={16} /> Versturen
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
             </header>
 
             <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
-                {/* Tabs */}
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
-                        <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
-                            <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                <FileText size={16} /> PDF Preview
-                            </TabsTrigger>
-                            <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                <Euro size={16} /> Overzicht
-                            </TabsTrigger>
-                            <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                <PenTool size={16} /> Tekeningen
-                            </TabsTrigger>
-                            <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                <Package size={16} /> Materialen
-                            </TabsTrigger>
-                            <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                <Clock size={16} /> Arbeid
-                            </TabsTrigger>
-                            <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                <MessageSquare size={16} /> Notities
-                            </TabsTrigger>
-                        </TabsList>
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-6">
+                        <div className="relative">
+                            <Loader2 className="h-12 w-12 animate-spin text-emerald-500/80" />
+                            <div className="absolute inset-0 blur-xl bg-emerald-500/20 rounded-full animate-pulse" />
+                        </div>
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="text-emerald-400 font-medium tracking-wide">
+                                {quote?.status === 'in_behandeling' ? 'MATERIALEN BEREKENEN' : 'LADEN'}
+                            </div>
+                            <div className="text-muted-foreground text-sm animate-pulse">
+                                {quote?.status === 'in_behandeling'
+                                    ? 'De AI berekent de benodigde materialen en uren...'
+                                    : 'Even geduld afrubelen...'}
+                            </div>
+                        </div>
+                    </div>
+                ) : error ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
+                        <div className="text-red-400 font-medium">Fout bij laden: {error}</div>
+                        <Button asChild variant="secondary">
+                            <Link href="/dashboard">Terug naar Dashboard</Link>
+                        </Button>
+                    </div>
+                ) : (
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
+                            <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
+                                <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <FileText size={16} /> PDF Preview
+                                </TabsTrigger>
+                                <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <Euro size={16} /> Overzicht
+                                </TabsTrigger>
+                                <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <PenTool size={16} /> Tekeningen
+                                </TabsTrigger>
+                                <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <Package size={16} /> Materialen
+                                </TabsTrigger>
+                                <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <Clock size={16} /> Arbeid
+                                </TabsTrigger>
+                                <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <MessageSquare size={16} /> Notities
+                                </TabsTrigger>
+                            </TabsList>
 
-                        {activeTab === 'pdf' && (
-                            <Dialog open={isPdfSettingsOpen} onOpenChange={setIsPdfSettingsOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1">
-                                        <Settings size={16} className="mr-2" /> PDF Instellingen
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-background border-border shadow-2xl">
-                                    <DialogHeader className="px-6 pt-6">
-                                        <DialogTitle>PDF Instellingen</DialogTitle>
-                                        <DialogDescription>
-                                            Settings voor inhoud en logo in de PDF.
-                                        </DialogDescription>
-                                    </DialogHeader>
+                            {activeTab === 'pdf' && (
+                                <Dialog open={isPdfSettingsOpen} onOpenChange={setIsPdfSettingsOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1">
+                                            <Settings size={16} className="mr-2" /> PDF Instellingen
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-background border-border shadow-2xl">
+                                        <DialogHeader className="px-6 pt-6">
+                                            <DialogTitle>PDF Instellingen</DialogTitle>
+                                            <DialogDescription>
+                                                Settings voor inhoud en logo in de PDF.
+                                            </DialogDescription>
+                                        </DialogHeader>
 
-                                    <div className="px-6 pb-6 space-y-6 max-h-[75vh] overflow-y-auto">
-                                        <div className="rounded-lg border border-border bg-card">
-                                            <QuoteSettings
-                                                settings={pdfSettings}
-                                                onChange={handlePdfSettingsChange}
-                                                variant="flat"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-4 rounded-lg border border-border p-4">
-                                            <div>
-                                                <h3 className="font-semibold">Bedrijfslogo</h3>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Dit logo wordt getoond op uw offertes en facturen.
-                                                </p>
+                                        <div className="px-6 pb-6 space-y-6 max-h-[75vh] overflow-y-auto">
+                                            <div className="rounded-lg border border-border bg-card">
+                                                <QuoteSettings
+                                                    settings={pdfSettings}
+                                                    onChange={handlePdfSettingsChange}
+                                                    variant="flat"
+                                                />
                                             </div>
 
-                                            {user && (
-                                                <LogoUpload
-                                                    currentLogoUrl={userProfile?.settings?.logoUrl || undefined}
-                                                    userId={user.uid}
-                                                    onLogoChange={handlePdfLogoChange}
-                                                />
-                                            )}
-
-                                            {(userProfile?.settings?.logoUrl || '').trim() !== '' && (
-                                                <div className="space-y-2 pt-2 border-t">
-                                                    <Label htmlFor="pdfLogoScale">Logogrootte in PDF</Label>
-                                                    <div className="flex items-center gap-4">
-                                                        <input
-                                                            id="pdfLogoScale"
-                                                            type="range"
-                                                            min="0.5"
-                                                            max="2"
-                                                            step="0.1"
-                                                            value={userProfile?.settings?.logoScale || 1.0}
-                                                            onChange={e => handleLogoScaleChange(parseFloat(e.target.value))}
-                                                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                                        />
-                                                        <span className="text-sm font-semibold min-w-[60px] text-right">
-                                                            {Math.round((userProfile?.settings?.logoScale || 1.0) * 100)}%
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Pas de grootte van het logo in de PDF aan (50% - 200%). Standaard is 100%.
+                                            <div className="space-y-4 rounded-lg border border-border p-4">
+                                                <div>
+                                                    <h3 className="font-semibold">Bedrijfslogo</h3>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Dit logo wordt getoond op uw offertes en facturen.
                                                     </p>
                                                 </div>
-                                            )}
+
+                                                {user && (
+                                                    <LogoUpload
+                                                        currentLogoUrl={userProfile?.settings?.logoUrl || undefined}
+                                                        userId={user.uid}
+                                                        onLogoChange={handlePdfLogoChange}
+                                                    />
+                                                )}
+
+                                                {(userProfile?.settings?.logoUrl || '').trim() !== '' && (
+                                                    <div className="space-y-2 pt-2 border-t">
+                                                        <Label htmlFor="pdfLogoScale">Logogrootte in PDF</Label>
+                                                        <div className="flex items-center gap-4">
+                                                            <input
+                                                                id="pdfLogoScale"
+                                                                type="range"
+                                                                min="0.5"
+                                                                max="2"
+                                                                step="0.1"
+                                                                value={userProfile?.settings?.logoScale || 1.0}
+                                                                onChange={e => handleLogoScaleChange(parseFloat(e.target.value))}
+                                                                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                            />
+                                                            <span className="text-sm font-semibold min-w-[60px] text-right">
+                                                                {Math.round((userProfile?.settings?.logoScale || 1.0) * 100)}%
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Pas de grootte van het logo in de PDF aan (50% - 200%). Standaard is 100%.
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+                            )}
+                        </div>
+
+                        {/* Overzicht Tab */}
+                        <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {!calculation?.data_json ? (
+                                <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                    <Package size={48} className="mx-auto text-muted mb-4" />
+                                    <h3 className="text-lg font-medium text-foreground mb-2">Nog geen calculatie</h3>
+                                    <p className="text-muted-foreground">
+                                        De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* Top row: Client + Cost Summary */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        <ClientInfoCard klantInfo={klantInfo} />
+                                        <div className="lg:col-span-2 flex flex-col gap-4">
+
+                                            <CostSummaryCard
+                                                totals={totals}
+                                                settings={quoteSettings}
+                                                totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
+                                                onUpdateHourlyRate={(newRate) => {
+                                                    if (!quoteSettings) return;
+                                                    handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
+                                                }}
+                                                onUpdateTotalHours={async (newHours) => {
+                                                    if (!calculation) return;
+                                                    // Assuming we can just update the total, note: this might desync from uren_specificatie
+                                                    // but since user explicitly requested editing total hours, we allow it.
+                                                    const root = unwrapRoot(calculation.data_json);
+                                                    await updateDataJson({
+                                                        ...root,
+                                                        totaal_uren: newHours,
+                                                    });
+                                                }}
+                                            />
                                         </div>
                                     </div>
-                                </DialogContent>
-                            </Dialog>
-                        )}
-                    </div>
 
-                    {/* Overzicht Tab */}
-                    <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        {!calculation?.data_json ? (
-                            <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                <Package size={48} className="mx-auto text-muted mb-4" />
-                                <h3 className="text-lg font-medium text-foreground mb-2">Nog geen calculatie</h3>
-                                <p className="text-muted-foreground">
-                                    De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                                {/* Top row: Client + Cost Summary */}
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    <ClientInfoCard klantInfo={klantInfo} />
-                                    <div className="lg:col-span-2 flex flex-col gap-4">
-
-                                        <CostSummaryCard
-                                            totals={totals}
-                                            settings={quoteSettings}
-                                            totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
-                                            onUpdateHourlyRate={(newRate) => {
-                                                if (!quoteSettings) return;
-                                                handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
-                                            }}
-                                            onUpdateTotalHours={async (newHours) => {
-                                                if (!calculation) return;
-                                                // Assuming we can just update the total, note: this might desync from uren_specificatie
-                                                // but since user explicitly requested editing total hours, we allow it.
-                                                const root = unwrapRoot(calculation.data_json);
-                                                await updateDataJson({
-                                                    ...root,
-                                                    totaal_uren: newHours,
-                                                });
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Facturatie (Voorschot) */}
-                                {totals && (
-                                    <Card className="border border-border bg-card/50">
-                                        <CardHeader className="pb-3">
-                                            <CardTitle className="text-base">Facturatie</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div className="space-y-1">
-                                                    <div className="font-medium text-foreground">Voorschot gebruiken</div>
-                                                    <div className="text-sm text-muted-foreground">
-                                                        Gebruik een voorschotpercentage voor de eindfactuur.
+                                    {/* Facturatie (Voorschot) */}
+                                    {totals && (
+                                        <Card className="border border-border bg-card/50">
+                                            <CardHeader className="pb-3">
+                                                <CardTitle className="text-base">Facturatie</CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-4">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div className="space-y-1">
+                                                        <div className="font-medium text-foreground">Voorschot gebruiken</div>
+                                                        <div className="text-sm text-muted-foreground">
+                                                            Gebruik een voorschotpercentage voor de eindfactuur.
+                                                        </div>
                                                     </div>
-                                                </div>
-                                                <Switch
-                                                    checked={voorschotIngeschakeld}
-                                                    onCheckedChange={(checked) => {
-                                                        const wasOn = voorschotIngeschakeld;
-                                                        setVoorschotIngeschakeld(checked);
-                                                        if (checked && !wasOn) {
-                                                            const defaultPct = Number(userProfile?.settings?.standaardVoorschotPercentage);
-                                                            if (Number.isFinite(defaultPct)) {
-                                                                setVoorschotPercentage(defaultPct);
+                                                    <Switch
+                                                        checked={voorschotIngeschakeld}
+                                                        onCheckedChange={(checked) => {
+                                                            const wasOn = voorschotIngeschakeld;
+                                                            setVoorschotIngeschakeld(checked);
+                                                            if (checked && !wasOn) {
+                                                                const defaultPct = Number(userProfile?.settings?.standaardVoorschotPercentage);
+                                                                if (Number.isFinite(defaultPct)) {
+                                                                    setVoorschotPercentage(defaultPct);
+                                                                }
                                                             }
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
+                                                        }}
+                                                    />
+                                                </div>
 
-                                            <div className="grid gap-4 md:grid-cols-3">
-                                                <div className="space-y-2">
-                                                    <Label>Voorschot (%)</Label>
-                                                    <div className="relative">
-                                                        <input
-                                                            type="number"
-                                                            min={0}
-                                                            max={100}
-                                                            value={voorschotPercentage}
-                                                            onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
-                                                            disabled={!voorschotIngeschakeld}
-                                                            className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
-                                                        />
-                                                        <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                                                <div className="grid gap-4 md:grid-cols-3">
+                                                    <div className="space-y-2">
+                                                        <Label>Voorschot (%)</Label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                min={0}
+                                                                max={100}
+                                                                value={voorschotPercentage}
+                                                                onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                                                                disabled={!voorschotIngeschakeld}
+                                                                className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
+                                                            />
+                                                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-2 md:col-span-2">
+                                                        <Label>Preview (incl. BTW)</Label>
+                                                        <div className="h-10 rounded-md border border-border bg-background px-3 flex items-center justify-between">
+                                                            <span className="text-sm text-muted-foreground">Voorschotbedrag</span>
+                                                            <span className="text-sm font-semibold text-foreground">
+                                                                {formatCurrency(
+                                                                    Math.round((totals.totaalInclBtw * (Math.max(0, Math.min(100, voorschotPercentage)) / 100)) * 100) / 100
+                                                                )}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="space-y-2 md:col-span-2">
-                                                    <Label>Preview (incl. BTW)</Label>
-                                                    <div className="h-10 rounded-md border border-border bg-background px-3 flex items-center justify-between">
-                                                        <span className="text-sm text-muted-foreground">Voorschotbedrag</span>
-                                                        <span className="text-sm font-semibold text-foreground">
-                                                            {formatCurrency(
-                                                                Math.round((totals.totaalInclBtw * (Math.max(0, Math.min(100, voorschotPercentage)) / 100)) * 100) / 100
-                                                            )}
-                                                        </span>
-                                                    </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => existingVoorschotInvoiceId && router.push(`/facturen/${existingVoorschotInvoiceId}`)}
+                                                        disabled={!existingVoorschotInvoiceId}
+                                                    >
+                                                        Open voorschotfactuur
+                                                    </Button>
                                                 </div>
-                                            </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
 
-                                            <div className="flex flex-wrap gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    onClick={() => existingVoorschotInvoiceId && router.push(`/facturen/${existingVoorschotInvoiceId}`)}
-                                                    disabled={!existingVoorschotInvoiceId}
-                                                >
-                                                    Open voorschotfactuur
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                )}
-
-                                {/* Work Description */}
-                                <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
-                            </div>
-                        )}
-                    </TabsContent>
-
-                    <TabsContent value="tekeningen" className="mt-6 space-y-6">
-                        {quote && <DrawingsTab quote={quote} />}
-                    </TabsContent>
-
-                    {/* Materialen Tab */}
-                    <TabsContent value="materialen" className="mt-6 space-y-6">
-                        {!calculation?.data_json ? (
-                            <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                <Package size={48} className="mx-auto text-muted mb-4" />
-                                <h3 className="text-lg font-medium text-foreground mb-2">Nog geen materialen</h3>
-                                <p className="text-muted-foreground">
-                                    De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
-                                </p>
-                            </div>
-                        ) : (
-                            <>
-                                {lastSyncedAt && (
-                                    <div className="flex items-center justify-end mb-4">
-                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                            <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Opgeslagen {formatDistanceToNow(lastSyncedAt, { addSuffix: true, locale: nl })}
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* Total materials summary */}
-                                <div className="bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm mb-8">
-                                    <div className="flex justify-between items-center px-6 py-4 bg-muted/20">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
-                                                <Package size={18} />
-                                            </div>
-                                            <h3 className="font-semibold text-foreground tracking-tight text-sm uppercase">TOTAAL MATERIALEN</h3>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <div className="text-right w-32 px-6">
-                                                <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
-                                                <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
-                                                <p className="text-primary font-bold tracking-tight">
-                                                    {formatCurrency(grootSubtotal + verbruikSubtotal)}
-                                                </p>
-                                            </div>
-                                            <div className="text-right w-32 px-6">
-                                                <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
-                                                <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
-                                                <p className="text-primary font-bold tracking-tight">
-                                                    {formatCurrency((grootSubtotal + verbruikSubtotal) * (1 + (quoteSettings?.btwTarief || 21) / 100))}
-                                                </p>
-                                            </div>
-                                            {/* Spacer to align with trash icon column */}
-                                            <div className="w-12" />
-                                        </div>
-                                    </div>
+                                    {/* Work Description */}
+                                    <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
                                 </div>
+                            )}
+                        </TabsContent>
 
-                                <MaterialEditor
-                                    title="GROOTMATERIALEN"
-                                    items={materials.groot}
-                                    onUpdateItem={handleUpdateGrootItem}
-                                    onRemoveItem={(index) => handleRemoveItem('groot', index)}
-                                    onAddItem={(item) => handleAddItem('groot', item)}
-                                    subtotal={grootSubtotal}
-                                    vatRate={quoteSettings?.btwTarief}
-                                    onAddClick={() => setActiveCategory('groot')}
-                                    enableCalculationViewToggle
-                                />
-                                <MaterialEditor
-                                    title="VERBRUIKSARTIKELEN"
-                                    items={materials.verbruik}
-                                    onUpdateItem={handleUpdateVerbruiksItem}
-                                    onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
-                                    onAddItem={(item) => handleAddItem('verbruik', item)}
-                                    subtotal={verbruikSubtotal}
-                                    vatRate={quoteSettings?.btwTarief}
-                                    onAddClick={() => setActiveCategory('verbruik')}
-                                />
-                            </>
-                        )}
-                    </TabsContent>
+                        <TabsContent value="tekeningen" className="mt-6 space-y-6">
+                            {quote && <DrawingsTab quote={quote} />}
+                        </TabsContent>
 
-                    {/* Arbeid Tab */}
-                    <TabsContent value="arbeid" className="mt-6">
-                        {!calculation?.data_json || !quoteSettings ? (
-                            <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                <Clock size={48} className="mx-auto text-muted mb-4" />
-                                <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
-                                <p className="text-muted-foreground">
-                                    De urenspecificatie wordt automatisch gegenereerd zodra de calculatie is voltooid.
-                                </p>
-                            </div>
-                        ) : (
-                            <LaborBreakdown
-                                urenSpecificatie={normalizedData?.uren_specificatie || []}
-                                totaalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
-                                uurTarief={quoteSettings?.uurTariefExclBtw || 0}
-                                onUpdateHourlyRate={(newRate) => {
-                                    if (!quoteSettings) return;
-                                    handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
-                                }}
-                                onUpdateTotalHours={async (newHours) => {
-                                    console.log('⏰ [TOTAL UREN] Updating total hours:', { newHours });
-                                    if (!calculation) return;
-                                    const root = unwrapRoot(calculation.data_json);
-                                    await updateDataJson({
-                                        ...root,
-                                        totaal_uren: newHours,
-                                    });
-                                    console.log('✅ [TOTAL UREN] Update complete');
-                                }}
-                                onUpdateItem={async (index, newHours) => {
-                                    console.log('⏰ [UREN] Updating hours:', { index, newHours });
-                                    if (!calculation || !normalizedData) return;
-                                    const updatedItems = [...(normalizedData.uren_specificatie || [])];
-                                    if (updatedItems[index]) {
-                                        updatedItems[index] = { ...updatedItems[index], uren: newHours };
+                        {/* Materialen Tab */}
+                        <TabsContent value="materialen" className="mt-6 space-y-6">
+                            {!calculation?.data_json ? (
+                                <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                    <Package size={48} className="mx-auto text-muted mb-4" />
+                                    <h3 className="text-lg font-medium text-foreground mb-2">Nog geen materialen</h3>
+                                    <p className="text-muted-foreground">
+                                        De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    {lastSyncedAt && (
+                                        <div className="flex items-center justify-end mb-4">
+                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Opgeslagen {formatDistanceToNow(lastSyncedAt, { addSuffix: true, locale: nl })}
+                                            </span>
+                                        </div>
+                                    )}
 
-                                        // Recalculate total hours based on the new item value
-                                        const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
+                                    {/* Total materials summary */}
+                                    <div className="bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm mb-8">
+                                        <div className="flex justify-between items-center px-6 py-4 bg-muted/20">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                                                    <Package size={18} />
+                                                </div>
+                                                <h3 className="font-semibold text-foreground tracking-tight text-sm uppercase">TOTAAL MATERIALEN</h3>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <div className="text-right w-32 px-6">
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
+                                                    <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
+                                                    <p className="text-primary font-bold tracking-tight">
+                                                        {formatCurrency(grootSubtotal + verbruikSubtotal)}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right w-32 px-6">
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
+                                                    <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
+                                                    <p className="text-primary font-bold tracking-tight">
+                                                        {formatCurrency((grootSubtotal + verbruikSubtotal) * (1 + (quoteSettings?.btwTarief || 21) / 100))}
+                                                    </p>
+                                                </div>
+                                                {/* Spacer to align with trash icon column */}
+                                                <div className="w-12" />
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                        console.log('📤 [UREN] Saving to Supabase...', { newTotal, items: updatedItems.length });
+                                    <MaterialEditor
+                                        title="GROOTMATERIALEN"
+                                        items={materials.groot}
+                                        onUpdateItem={handleUpdateGrootItem}
+                                        onRemoveItem={(index) => handleRemoveItem('groot', index)}
+                                        onAddItem={(item) => handleAddItem('groot', item)}
+                                        subtotal={grootSubtotal}
+                                        vatRate={quoteSettings?.btwTarief}
+                                        onAddClick={() => setActiveCategory('groot')}
+                                        enableCalculationViewToggle
+                                    />
+                                    <MaterialEditor
+                                        title="VERBRUIKSARTIKELEN"
+                                        items={materials.verbruik}
+                                        onUpdateItem={handleUpdateVerbruiksItem}
+                                        onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
+                                        onAddItem={(item) => handleAddItem('verbruik', item)}
+                                        subtotal={verbruikSubtotal}
+                                        vatRate={quoteSettings?.btwTarief}
+                                        onAddClick={() => setActiveCategory('verbruik')}
+                                    />
+                                </>
+                            )}
+                        </TabsContent>
+
+                        {/* Arbeid Tab */}
+                        <TabsContent value="arbeid" className="mt-6">
+                            {!calculation?.data_json || !quoteSettings ? (
+                                <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                    <Clock size={48} className="mx-auto text-muted mb-4" />
+                                    <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
+                                    <p className="text-muted-foreground">
+                                        De urenspecificatie wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                    </p>
+                                </div>
+                            ) : (
+                                <LaborBreakdown
+                                    urenSpecificatie={normalizedData?.uren_specificatie || []}
+                                    totaalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
+                                    uurTarief={quoteSettings?.uurTariefExclBtw || 0}
+                                    onUpdateHourlyRate={(newRate) => {
+                                        if (!quoteSettings) return;
+                                        handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
+                                    }}
+                                    onUpdateTotalHours={async (newHours) => {
+                                        console.log('⏰ [TOTAL UREN] Updating total hours:', { newHours });
+                                        if (!calculation) return;
                                         const root = unwrapRoot(calculation.data_json);
                                         await updateDataJson({
                                             ...root,
-                                            uren_specificatie: updatedItems,
-                                            totaal_uren: newTotal
+                                            totaal_uren: newHours,
                                         });
-                                        console.log('✅ [UREN] Saved successfully');
-                                    }
-                                }}
-                            />
-                        )}
-                    </TabsContent>
+                                        console.log('✅ [TOTAL UREN] Update complete');
+                                    }}
+                                    onUpdateItem={async (index, newHours) => {
+                                        console.log('⏰ [UREN] Updating hours:', { index, newHours });
+                                        if (!calculation || !normalizedData) return;
+                                        const updatedItems = [...(normalizedData.uren_specificatie || [])];
+                                        if (updatedItems[index]) {
+                                            updatedItems[index] = { ...updatedItems[index], uren: newHours };
 
-                    {/* PDF Tab */}
-                    <TabsContent value="pdf" className="mt-6 space-y-4">
-                        {!isDrawingsReady ? (
-                            <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                <div className="text-muted-foreground">PDF voorbereiden...</div>
-                            </div>
-                        ) : (
-                            <PDFPreview
-                                pdfData={buildPDFData()}
-                                onDownload={handleDownloadPDF}
-                            />
-                        )}
-                    </TabsContent>
+                                            // Recalculate total hours based on the new item value
+                                            const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
 
-                    {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
-                    <TabsContent value="notities" className="mt-6">
-                        <div className="bg-card rounded-lg border border-border p-6">
-                            <div className="flex-1 bg-muted/50 border border-border/50 rounded-2xl p-8 relative">
-                                <h3 className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
-                                    <MessageSquare className="w-4 h-4" /> Veldnotities
-                                </h3>
-                                {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes.
+                                            console.log('📤 [UREN] Saving to Supabase...', { newTotal, items: updatedItems.length });
+                                            const root = unwrapRoot(calculation.data_json);
+                                            await updateDataJson({
+                                                ...root,
+                                                uren_specificatie: updatedItems,
+                                                totaal_uren: newTotal
+                                            });
+                                            console.log('✅ [UREN] Saved successfully');
+                                        }
+                                    }}
+                                />
+                            )}
+                        </TabsContent>
+
+                        {/* PDF Tab */}
+                        <TabsContent value="pdf" className="mt-6 space-y-4">
+                            {!isDrawingsReady ? (
+                                <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                    <div className="text-muted-foreground">PDF voorbereiden...</div>
+                                </div>
+                            ) : (
+                                <PDFPreview
+                                    pdfData={buildPDFData()}
+                                    onDownload={handleDownloadPDF}
+                                />
+                            )}
+                        </TabsContent>
+
+                        {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
+                        <TabsContent value="notities" className="mt-6">
+                            <div className="bg-card rounded-lg border border-border p-6">
+                                <div className="flex-1 bg-muted/50 border border-border/50 rounded-2xl p-8 relative">
+                                    <h3 className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
+                                        <MessageSquare className="w-4 h-4" /> Veldnotities
+                                    </h3>
+                                    {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes.
                                      The original code showed activeJob.notities.
                                      Since we don't have activeJob selector here yet (simplified view),
                                      we might just show a placeholder or aggregates.
                                  */}
-                                <p className="text-muted-foreground italic">Notities functionaliteit wordt bijgewerkt.</p>
+                                    <p className="text-muted-foreground italic">Notities functionaliteit wordt bijgewerkt.</p>
+                                </div>
                             </div>
-                        </div>
-                    </TabsContent>
-                </Tabs>
+                        </TabsContent>
+                    </Tabs>
+                )}
 
             </main>
 
@@ -1540,14 +1555,16 @@ export default function QuotePage() {
             />
 
             {/* Hidden Drawing Generator - render when on PDF tab OR during download */}
-            {(activeTab === 'pdf' || isGeneratingPDF) && quote && !isDrawingsReady && (
-                <HiddenPDFDrawings
-                    quote={quote}
-                    onReady={handleDrawingsCaptured}
-                />
-            )}
+            {
+                (activeTab === 'pdf' || isGeneratingPDF) && quote && !isDrawingsReady && (
+                    <HiddenPDFDrawings
+                        quote={quote}
+                        onReady={handleDrawingsCaptured}
+                    />
+                )
+            }
 
-        </div>
+        </div >
 
     );
 }

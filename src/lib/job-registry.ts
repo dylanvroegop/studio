@@ -305,7 +305,7 @@ const BOEIBOORD_FIELDS: MeasurementField[] = [
   { key: 'hoogte', label: 'Hoogte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 250' },
   { key: 'lengte_onderzijde', label: 'Lengte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'breedte', label: 'Breedte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', optional: true },
   { key: 'latafstand', label: 'Latafstand Voorzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
   { key: 'onderzijde_latafstand', label: 'Latafstand Onderzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
   { key: 'kopkanten', label: 'Kopkanten', type: 'boolean', defaultValue: false },
@@ -316,8 +316,8 @@ const BOEIBOORD_FIELDS: MeasurementField[] = [
 const GEVELBEKLEDING_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2500' },
-  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm' },
-  { key: 'tengelafstand', label: 'Tengelafstand (h.o.h.) *', type: 'number', suffix: 'mm' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', optional: true },
+  { key: 'tengelafstand', label: 'Tengelafstand (h.o.h.) *', type: 'number', suffix: 'mm', optional: true },
   { key: 'latafstand', label: 'Latafstand (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
 ];
 
@@ -1752,7 +1752,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Rockpanel',
         slug: 'boeiboorden-rockpanel',
         measurementLabel: 'Boeiboord',
-        measurements: GEVELBEKLEDING_FIELDS,
+        measurements: BOEIBOORD_FIELDS,
         materialSections: BOEIBOORD_ROCKPANEL_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1767,7 +1767,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Trespa/HPL',
         slug: 'boeiboorden-trespa',
         measurementLabel: 'Boeiboord',
-        measurements: GEVELBEKLEDING_FIELDS,
+        measurements: BOEIBOORD_FIELDS,
         materialSections: BOEIBOORD_TRESPA_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1782,7 +1782,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Hardhout/Meranti',
         slug: 'boeiboorden-hout',
         measurementLabel: 'Boeiboord',
-        measurements: GEVELBEKLEDING_FIELDS,
+        measurements: BOEIBOORD_FIELDS,
         materialSections: BOEIBOORD_HOUT_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1797,7 +1797,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vervangen door Keralit',
         slug: 'boeiboorden-keralit',
         measurementLabel: 'Boeiboord',
-        measurements: GEVELBEKLEDING_FIELDS,
+        measurements: BOEIBOORD_FIELDS,
         materialSections: BOEIBOORD_KERALIT_MATS,
         categoryConfig: {
           hout: { title: 'Regelwerk', order: 1 },
@@ -1844,7 +1844,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Vloer- en wandafwerking',
         slug: 'plinten-afwerklatten',
         measurementLabel: 'Ruimte',
-        measurements: BOEIBOORD_FIELDS,
+        measurements: STANDARD_FIELDS,
         materialSections: PLINTEN_MATS,
         categoryConfig: {
           plinten: { title: 'Plinten', order: 1 },
@@ -1993,7 +1993,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Op houten constructie',
         slug: 'golfplaat-dak',
         measurementLabel: 'Dakvlak',
-        measurements: BOEIBOORD_FIELDS,
+        measurements: GEVELBEKLEDING_FIELDS,
         materialSections: DAK_GOLFPLAAT_MATS,
         categoryConfig: {
           hout: { title: 'Framewerk', order: 1 },

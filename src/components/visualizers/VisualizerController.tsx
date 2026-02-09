@@ -42,6 +42,7 @@ export function VisualizerController({
     onOpeningsChange,
     onEdgeChange,
     onKoofChange,
+    onDataGenerated,
     ...props
 }: VisualizerControllerProps) {
     const normalizedItem = {
@@ -83,6 +84,7 @@ export function VisualizerController({
                 onOpeningsChange={onOpeningsChange}
                 onKoofChange={onKoofChange}
                 onEdgeChange={onEdgeChange}
+                onDataGenerated={onDataGenerated}
                 showEdgeControls={slug.includes('vliering')}
                 gridLabel={props.gridLabel !== undefined ? props.gridLabel : ((slug.includes('vloer') || slug.includes('vlonder') || slug.includes('balklaag')) ? null : undefined)}
                 title={props.title}
@@ -134,7 +136,7 @@ export function VisualizerController({
         }
 
         return (
-                <RoofDrawing
+            <RoofDrawing
                 {...normalizedItem}
                 balkafstand={item.balkafstand}
                 latafstand={item.latafstand || item.rachelafstand}
@@ -189,6 +191,20 @@ export function VisualizerController({
         const boeiAngle = toNum(item.boeiboord_angle, 45);
         const boeiMirror = !!item.boeiboord_mirror;
 
+        // Internal handler to merge emissions from two drawings
+        const handleBoeiData = (side: 'voorzijde' | 'onderzijde', data: any) => {
+            // We use a functional update approach if we had local state, 
+            // but here we just pass a combined object to the parent's onDataGenerated.
+            // Note: Since this controller is re-rendered on setiap change, we can't easily
+            // keep a persistent 'merged' object without local state.
+            // However, the parent updateItem will overwrite the whole 'calculatedData' field.
+            // To properly merge, we might need a local state in this component.
+            onDataGenerated?.({
+                ...item.calculatedData,
+                [side]: data
+            });
+        };
+
         return (
             <div className="flex flex-col gap-4">
                 <BoeiboordDrawing
@@ -206,6 +222,7 @@ export function VisualizerController({
                     boeiboordAngle={boeiAngle}
                     boeiboordMirror={boeiMirror}
                     shape={item.shape as 'rectangle' | 'slope' | 'gable' | undefined}
+                    onDataGenerated={(data) => handleBoeiData('voorzijde', data)}
                 />
                 <BoeiboordDrawing
                     lengte={ozLengte}
@@ -218,7 +235,9 @@ export function VisualizerController({
                     startLattenFromBottom={item.startLattenFromBottom}
                     startFromRight={item.startFromRight}
                     doubleEndBattens={item.doubleEndBattens}
+                    boeiboordMirror={boeiMirror}
                     mirrorBadgeText={boeiMirror ? '2x calculatie' : undefined}
+                    onDataGenerated={(data) => handleBoeiData('onderzijde', data)}
                 />
             </div>
         );
@@ -268,6 +287,7 @@ export function VisualizerController({
                 // Plates
                 doubleTopPlate={item.doubleTopPlate}
                 doubleBottomPlate={item.doubleBottomPlate}
+                onDataGenerated={onDataGenerated}
             />
         );
     }
@@ -284,7 +304,7 @@ export function VisualizerController({
                 className={className}
                 onOpeningsChange={onOpeningsChange}
                 onKoofChange={onKoofChange}
-                onDataGenerated={props.onDataGenerated}
+                onDataGenerated={onDataGenerated}
                 {...props}
             />
         );

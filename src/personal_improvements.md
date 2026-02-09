@@ -41,3 +41,8 @@
 - Systeem plafond new job type under 'plafonds', make sure to implement a basic mats into job-registry.
 - able to export drawings as pdf
 - able to expand drawings on phone or desktop. 
+- make sure theres some form of better sync with 'done with calculation' on the quotes page. because currently the user might sit there waiting. im not sure how to do that because now we use webhook - calculate - supabase - fetch from supabase. because return webhook is too long, since the calculation happens for 10 minutes maybe. 
+- make n8n berekening simpler for user to read.
+- make a 'export material list' 
+- make them able to edit total amount on the verbruiks materialen, keeping the list itself but it converts to '% or euro' conversion that they can then fill in. 
+- add more information to the 'section_key' so for example the 'balklaag' has things like 'this is a balklaag constructie etc' also adding extra information like 'gebruik hiervoor pluggen 8x100'

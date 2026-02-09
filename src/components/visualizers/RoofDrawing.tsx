@@ -1,11 +1,11 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
 import { OverallDimensions, GridMeasurements } from './shared/measurements';
 import { OpeningMeasurements } from './shared/measurements/OpeningMeasurements';
 import { calculateGridGaps } from './shared/framing-utils';
 import { useDraggableOpenings } from './shared/useDraggableOpenings';
 import { OpeningLabels } from './shared/OpeningLabels';
+import { DrawingData, Beam } from '@/lib/drawing-types';
 
 export interface RoofOpening {
     id: string;
@@ -50,6 +50,7 @@ export interface RoofDrawingProps {
     edgeLeft?: 'gevel' | 'buren'; // Default 'gevel' (Free/Verge)
     edgeRight?: 'gevel' | 'buren';
     onEdgeChange?: (side: 'left' | 'right', value: 'gevel' | 'buren') => void;
+    onDataGenerated?: (data: DrawingData) => void;
 }
 
 export function RoofDrawing({
@@ -80,7 +81,8 @@ export function RoofDrawing({
     includeOuterBattens,
     edgeLeft = 'buren',
     edgeRight = 'buren',
-    onEdgeChange
+    onEdgeChange,
+    onDataGenerated
 }: RoofDrawingProps) {
     const uniqueId = React.useId().replace(/:/g, '');
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
@@ -96,6 +98,15 @@ export function RoofDrawing({
     // L-Shape / U-Shape specific vars
     let h1 = 0;
     let h2 = 0;
+
+    // STABLE CALLBACK REF
+    const onDataGeneratedRef = useRef(onDataGenerated);
+    useEffect(() => {
+        onDataGeneratedRef.current = onDataGenerated;
+    }, [onDataGenerated]);
+
+    // PREVENT REDUNDANT EMISSIONS
+    const lastDataRef = useRef<string>('');
     let h3 = 0;
     let l1 = 0;
     let l2 = 0;
@@ -156,6 +167,80 @@ export function RoofDrawing({
         pxPerMm: metricsRef.current?.pxPerMm || 1,
         isMagnifier
     });
+
+    useEffect(() => {
+        if (!onDataGenerated) return;
+
+        const beams: Beam[] = [];
+        // 1. Vertical tengels
+        if (balkafstandNum > 0) {
+            const framing = calculateGridGaps({
+                wallLength: lengteNum,
+                spacing: balkafstandNum,
+                startFromRight
+            });
+            framing.beamCenters.forEach(cx => {
+                beams.push({
+                    type: 'beam',
+                    xMm: cx - 25, // 50mm width
+                    yMm: 0,
+                    wMm: 50,
+                    hMm: effectiveHeight,
+                    x: cx - 25,
+                    y: 0
+                });
+            });
+            // Edge beams
+            beams.push({ type: 'beam', xMm: 0, yMm: 0, wMm: 50, hMm: effectiveHeight, x: 0, y: 0 });
+            beams.push({ type: 'beam', xMm: lengteNum - 50, yMm: 0, wMm: 50, hMm: effectiveHeight, x: lengteNum - 50, y: 0 });
+        }
+
+        // 2. Horizontal rachels
+        if (latafstandNum > 0) {
+            const rachelFraming = calculateGridGaps({
+                wallLength: effectiveHeight,
+                spacing: latafstandNum,
+                studWidth: 50,
+                startFromRight: startLattenFromBottom
+            });
+            rachelFraming.beamCenters.forEach(cy => {
+                beams.push({
+                    type: 'beam',
+                    xMm: 0,
+                    yMm: cy - 25,
+                    wMm: lengteNum,
+                    hMm: 50,
+                    x: 0,
+                    y: cy - 25
+                });
+            });
+        }
+
+        const data: DrawingData = {
+            walls: [{ label: title, lengte: lengteNum, hoogte: effectiveHeight, shape }],
+            beams,
+            openings: (openings || []) as any,
+            dimensions: [],
+            params: {
+                balkafstand,
+                latafstand,
+                shape,
+                variant,
+                startFromRight,
+                startLattenFromBottom,
+                doubleEndBattens,
+                includeOuterBattens,
+                edgeLeft,
+                edgeRight
+            }
+        };
+
+        const dataString = JSON.stringify(data);
+        if (dataString !== lastDataRef.current) {
+            lastDataRef.current = dataString;
+            onDataGeneratedRef.current?.(data);
+        }
+    }, [lengteNum, effectiveHeight, shape, balkafstandNum, latafstandNum, startFromRight, startLattenFromBottom, doubleEndBattens, includeOuterBattens, edgeLeft, edgeRight, openings, title, variant, balkafstand, latafstand]);
 
     // Calculate M2
     const areaStats = React.useMemo(() => {

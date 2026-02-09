@@ -408,31 +408,30 @@ export async function POST(req: Request) {
             // B. INVENTORY LIST (materialen) — Unified, enriched, labeled
             // ═══════════════════════════════════════════
 
-            const unifiedList: any[] = [];
             const normalizedMaterialenLijst: Record<string, any> = {};
 
             // B1. Materials from materialen_lijst (primary source)
             const materialenLijst = enrichedJob.materialen?.materialen_lijst || {};
             Object.entries(materialenLijst).forEach(([slotKey, entry]: [string, any]) => {
               const enriched = enrichMaterial(entry);
-              normalizedMaterialenLijst[slotKey] = enriched;
               if (!enriched?.material) return;
-              unifiedList.push({
-                slotKey,
+
+              const qty = enriched.quantity ?? enriched.aantal ?? null;
+              normalizedMaterialenLijst[slotKey] = {
                 ...enriched,
-                quantity: enriched.quantity ?? enriched.aantal ?? null,
+                quantity: qty,
+                aantal: qty,
                 context: enriched.context || `Basis: ${jobTitle}`,
-              });
+              };
             });
 
             // B2. Fallback: legacy selections (if materialen_lijst is empty)
-            if (unifiedList.length === 0 && enrichedJob.materialen?.selections) {
+            if (Object.keys(normalizedMaterialenLijst).length === 0 && enrichedJob.materialen?.selections) {
               Object.entries(enrichedJob.materialen.selections).forEach(([slotKey, sel]: [string, any]) => {
                 if (!sel?.id) return;
                 const full = materialMap.get(sel.id);
                 if (full) {
-                  unifiedList.push({
-                    slotKey,
+                  normalizedMaterialenLijst[slotKey] = {
                     material: {
                       id: full.row_id,
                       materiaalnaam: full.materiaalnaam,
@@ -445,27 +444,27 @@ export async function POST(req: Request) {
                       breedte: full.breedte ?? null,
                     },
                     quantity: null,
+                    aantal: null,
                     context: `Basis: ${jobTitle}`,
-                  });
+                  };
                 } else {
-                  // Keep whatever we have
-                  unifiedList.push({
-                    slotKey,
+                  normalizedMaterialenLijst[slotKey] = {
                     material: sel,
                     quantity: null,
+                    aantal: null,
                     context: `Basis: ${jobTitle}`,
-                  });
+                  };
                 }
               });
             }
 
             // B3. Component materials are already in materialen_lijst with comp_ keys (picked up by B1)
 
-            // B4. Overwrite materialen with the unified, labeled list
+            // B4. Overwrite materialen with the unified, labeled map
             enrichedJob.materialen = {
               ...enrichedJob.materialen,
               materialen_lijst: normalizedMaterialenLijst,
-              lijst: unifiedList,
+              // lijst: removed to prevent double-counting
               kleinMateriaal: enrichedJob.kleinMateriaal || enrichedJob.materialen?.kleinMateriaal || null,
             };
 

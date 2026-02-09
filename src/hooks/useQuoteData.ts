@@ -19,47 +19,58 @@ export function useQuoteData(quoteId: string) {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        let isMounted = true;
+        let pollTimer: NodeJS.Timeout;
+
         async function fetchQuoteData() {
             try {
-                setLoading(true);
+                // Only set loading to true on the very first call if we don't have data yet
+                // But generally, we want the UI to know we are "waiting" for completion.
+                // We'll keep loading=true as long as we don't have a 'completed' status.
+
                 console.log('Fetching for quoteId:', quoteId);
 
                 const { data, error } = await supabase
                     .from('quotes_collection')
                     .select('*')
                     .eq('quoteid', quoteId)
-                    .eq('status', 'completed')
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .single();
+                    .maybeSingle();
 
                 console.log('Supabase response:', { data, error });
 
-                if (error) {
-                    if (error.code === 'PGRST116') {
-                        // No rows found - this is fine, just means no calculation yet
-                        setCalculation(null);
-                    } else {
-                        throw error;
-                    }
-                } else {
+                if (error) throw error;
+
+                if (isMounted) {
                     setCalculation(data);
+
+                    if (data?.status === 'completed') {
+                        setLoading(false);
+                    } else {
+                        // Not completed yet (or no record at all), poll in 3s
+                        pollTimer = setTimeout(fetchQuoteData, 3000);
+                    }
                 }
             } catch (err) {
                 console.error('Fetch error:', err);
-                // Only set error if it wasn't handled above
-                if ((err as any)?.code !== 'PGRST116') {
+                if (isMounted) {
                     setError(err instanceof Error ? err.message : 'Failed to fetch quote data');
+                    setLoading(false);
                 }
-            } finally {
-                setLoading(false);
             }
         }
 
         if (quoteId) {
             fetchQuoteData();
         }
+
+        return () => {
+            isMounted = false;
+            if (pollTimer) clearTimeout(pollTimer);
+        };
     }, [quoteId]);
+
 
     // Function to update the data_json (for price edits)
     const updateDataJson = async (newDataJson: QuoteCalculation['data_json']) => {

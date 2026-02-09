@@ -98,7 +98,15 @@ export function WallDrawing({
     // Resolve heights based on shape
     let hLeft = hStd;
     let hRight = hStd;
-    let hPeak = 0; // For gable
+
+    // STABLE CALLBACK REF
+    const onDataGeneratedRef = useRef(onDataGenerated);
+    useEffect(() => {
+        onDataGeneratedRef.current = onDataGenerated;
+    }, [onDataGenerated]);
+
+    let hPeak = 0;
+    // For gable
 
     // L-Shape / U-Shape specific vars
     let h1 = 0;
@@ -391,9 +399,9 @@ export function WallDrawing({
         const json = JSON.stringify(data);
         if (json !== lastEmittedRef.current) {
             lastEmittedRef.current = json;
-            onDataGenerated(data);
+            onDataGeneratedRef.current?.(data);
         }
-    }, [structure, onDataGenerated, lengteNum, maxH, shape, openings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand]);
+    }, [structure, lengteNum, maxH, shape, openings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand]);
 
 
     // Internal Drag State
