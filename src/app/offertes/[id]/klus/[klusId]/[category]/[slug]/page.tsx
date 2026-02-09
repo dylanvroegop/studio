@@ -1515,6 +1515,131 @@ export default function GenericMeasurementPage() {
     updateItem(itemIdx, 'koven', currentKofen.map((k: any) => k.id === id ? { ...k, ...updates } : k));
   };
 
+  const buildBoeiboordPanelen = (item: any) => {
+    const toNum = (value: any) => {
+      const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const lengteVoorzijde = toNum(item.lengte);
+    const hoogteVoorzijde = toNum(item.hoogte);
+    const lengteOnderzijde = toNum(item.lengte_onderzijde);
+    const breedteOnderzijde = toNum(item.breedte);
+    const mirrorCount = item.boeiboord_mirror ? 2 : 1;
+
+    const panelen: Array<{
+      id: string;
+      zijde: 'voorzijde' | 'onderzijde';
+      lengte: number;
+      hoogte?: number;
+      breedte?: number;
+      label: string;
+    }> = [];
+
+    if (lengteVoorzijde > 0 && hoogteVoorzijde > 0) {
+      for (let i = 0; i < mirrorCount; i += 1) {
+        panelen.push({
+          id: crypto.randomUUID(),
+          zijde: 'voorzijde',
+          lengte: lengteVoorzijde,
+          hoogte: hoogteVoorzijde,
+          label: `Voorzijde ${i + 1}`,
+        });
+      }
+    }
+
+    if (lengteOnderzijde > 0 && breedteOnderzijde > 0) {
+      for (let i = 0; i < mirrorCount; i += 1) {
+        panelen.push({
+          id: crypto.randomUUID(),
+          zijde: 'onderzijde',
+          lengte: lengteOnderzijde,
+          breedte: breedteOnderzijde,
+          label: mirrorCount > 1 ? `Onderzijde ${i + 1}` : 'Onderzijde',
+        });
+      }
+    }
+
+    return panelen;
+  };
+
+  const buildBoeiboordLattenSamenvatting = (item: any) => {
+    const calc = item?.calculatedData;
+    if (!calc) return null;
+
+    const orientation = item?.latten_orientation === 'vertical' ? 'vertical' : 'horizontal';
+    const mirrorMultiplier = item?.boeiboord_mirror ? 2 : 1;
+
+    const toNum = (value: any) => {
+      const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const formatMeters = (mm: number) => {
+      const meters = mm / 1000;
+      const rounded = Number.isFinite(meters) ? Number(meters.toFixed(2)) : 0;
+      return `${rounded}m`;
+    };
+
+    const buildSummaryForSide = (sideKey: 'voorzijde' | 'onderzijde') => {
+      const sideData = calc?.[sideKey];
+      const latten = Array.isArray(sideData?.latten) ? sideData.latten : [];
+      const map = new Map<number, number>();
+
+      latten.forEach((lat: any) => {
+        const w = toNum(lat?.wMm ?? lat?.w);
+        const h = toNum(lat?.hMm ?? lat?.h);
+        if (w <= 0 || h <= 0) return;
+
+        const isHorizontal = w >= h;
+        if (orientation === 'horizontal' && !isHorizontal) return;
+        if (orientation === 'vertical' && isHorizontal) return;
+
+        const lengthMm = orientation === 'horizontal' ? w : h;
+        if (lengthMm <= 0) return;
+        map.set(lengthMm, (map.get(lengthMm) ?? 0) + 1);
+      });
+
+      const items = Array.from(map.entries())
+        .sort((a, b) => b[0] - a[0])
+        .map(([lengthMm, count]) => ({
+          lengte_mm: lengthMm,
+          aantal: count * mirrorMultiplier,
+        }));
+
+      const label = items.length > 0
+        ? `Latten; ${items.map(i => `${i.aantal}x ${formatMeters(i.lengte_mm)}`).join(' + ')}`
+        : undefined;
+
+      return { zijde: sideKey, items, label };
+    };
+
+    const perZijde = [
+      buildSummaryForSide('voorzijde'),
+      buildSummaryForSide('onderzijde'),
+    ].filter(Boolean) as Array<{ zijde: string; items: Array<{ lengte_mm: number; aantal: number }>; label?: string }>;
+
+    const totalMap = new Map<number, number>();
+    perZijde.forEach(side => {
+      side.items.forEach(item => {
+        totalMap.set(item.lengte_mm, (totalMap.get(item.lengte_mm) ?? 0) + item.aantal);
+      });
+    });
+
+    const totaalItems = Array.from(totalMap.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([lengthMm, count]) => ({ lengte_mm: lengthMm, aantal: count }));
+
+    const totaalLabel = totaalItems.length > 0
+      ? `Latten; ${totaalItems.map(i => `${i.aantal}x ${formatMeters(i.lengte_mm)}`).join(' + ')}`
+      : undefined;
+
+    return {
+      per_zijde: perZijde,
+      totaal: { items: totaalItems, label: totaalLabel },
+    };
+  };
+
   const handleSave = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!firestore || !jobConfig) return;
@@ -1590,6 +1715,38 @@ export default function GenericMeasurementPage() {
             processed.tussenstijlen = buildTussenstijlenForSave(processed);
             const stijlen = buildStijlenForSave(processed);
             if (stijlen) processed.stijlen = stijlen;
+          }
+
+          if (isBoeiboord) {
+            const isTrespa = jobSlug.toLowerCase().includes('trespa');
+            const isRockpanel = jobSlug.toLowerCase().includes('rockpanel');
+            const seamThickness = isTrespa
+              ? (userData?.trespa_seam_thickness ?? 8)
+              : (isRockpanel ? (userData?.rockpanel_seam_thickness ?? 8) : 8);
+
+            processed.boeiboord_panelen = buildBoeiboordPanelen(processed);
+            processed.boeiboord_aantallen = {
+              voorzijde: processed.boeiboord_mirror ? 2 : 1,
+              onderzijde: processed.boeiboord_mirror ? 2 : 1,
+            };
+            processed['naad dikte tussen 2 platen kopkant'] = seamThickness;
+            processed.latten_samenvatting = buildBoeiboordLattenSamenvatting(processed);
+            processed.voorzijde_latafstand = processed.latafstand;
+            delete processed.calculatedData;
+            delete processed.boeiboord_orientation;
+            delete processed.boeiboord_mirror;
+            delete processed.boeiboord_angle;
+            delete processed.lengte;
+            delete processed.hoogte;
+            delete processed.lengte_onderzijde;
+            delete processed.breedte;
+            delete processed.latafstand;
+
+            if (!processed.kopkanten) {
+              delete processed.kopkant_breedte;
+              delete processed.kopkant_hoogte;
+              delete processed.kopkanten;
+            }
           }
 
           if (processed.openings && Array.isArray(processed.openings)) {
@@ -1803,57 +1960,110 @@ export default function GenericMeasurementPage() {
 
                         // Boeiboord: grouped Voorzijde / Onderzijde fields
                         if (isBoeiboord) {
+                          const fLengte = fields.find(f => f.key === 'lengte');
+                          const fHoogte = fields.find(f => f.key === 'hoogte');
+                          const fLengteOnderzijde = fields.find(f => f.key === 'lengte_onderzijde');
+                          const fBreedte = fields.find(f => f.key === 'breedte');
+
                           return (
                             <div className="space-y-4">
-                              <Label className="text-xs uppercase text-zinc-500 tracking-wider">Voorzijde</Label>
-                              {fields.find(f => f.key === 'lengte') && (
-                                <DynamicInput field={fields.find(f => f.key === 'lengte')!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                              )}
-
-                              {fields.find(f => f.key === 'lengte') && fields.find(f => f.key === 'hoogte') && (
-                                <div className="flex justify-center -my-2 relative z-10">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-full bg-zinc-900 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all shadow-md group/swap"
-                                    onClick={() => handleSwapDimensions(index, 'lengte', 'hoogte')}
+                              <Label className="text-xs uppercase text-white tracking-wider">Voorzijde</Label>
+                              {fLengte && fHoogte ? (
+                                <div className="grid grid-cols-2 gap-3 items-end">
+                                  <DynamicInput
+                                    field={fLengte}
+                                    value={item.lengte}
+                                    onChange={v => updateItem(index, 'lengte', v)}
+                                    onKeyDown={handleKeyDown}
                                     disabled={disabledAll}
-                                    title="Wissel afmetingen"
-                                  >
-                                    <ArrowDownUp className="h-4 w-4" />
-                                  </Button>
+                                    labelOverride="Lengte"
+                                    labelClassName="text-white"
+                                  />
+                                  <DynamicInput
+                                    field={fHoogte}
+                                    value={item.hoogte}
+                                    onChange={v => updateItem(index, 'hoogte', v)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={disabledAll}
+                                    labelOverride="Hoogte"
+                                    labelClassName="text-white"
+                                  />
                                 </div>
-                              )}
-
-                              {fields.find(f => f.key === 'hoogte') && (
-                                <DynamicInput field={fields.find(f => f.key === 'hoogte')!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              ) : (
+                                <>
+                                  {fLengte && (
+                                    <DynamicInput
+                                      field={fLengte}
+                                      value={item.lengte}
+                                      onChange={v => updateItem(index, 'lengte', v)}
+                                      onKeyDown={handleKeyDown}
+                                      disabled={disabledAll}
+                                      labelOverride="Lengte"
+                                      labelClassName="text-white"
+                                    />
+                                  )}
+                                  {fHoogte && (
+                                    <DynamicInput
+                                      field={fHoogte}
+                                      value={item.hoogte}
+                                      onChange={v => updateItem(index, 'hoogte', v)}
+                                      onKeyDown={handleKeyDown}
+                                      disabled={disabledAll}
+                                      labelOverride="Hoogte"
+                                      labelClassName="text-white"
+                                    />
+                                  )}
+                                </>
                               )}
 
                               <div className="pt-2 border-t border-white/5" />
-                              <Label className="text-xs uppercase text-zinc-500 tracking-wider">Onderzijde</Label>
-                              {fields.find(f => f.key === 'lengte_onderzijde') && (
-                                <DynamicInput field={fields.find(f => f.key === 'lengte_onderzijde')!} value={item.lengte_onderzijde} onChange={v => updateItem(index, 'lengte_onderzijde', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                              )}
-
-                              {fields.find(f => f.key === 'lengte_onderzijde') && fields.find(f => f.key === 'breedte') && (
-                                <div className="flex justify-center -my-2 relative z-10">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-full bg-zinc-900 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all shadow-md group/swap"
-                                    onClick={() => handleSwapDimensions(index, 'lengte_onderzijde', 'breedte')}
+                              <Label className="text-xs uppercase text-white tracking-wider">Onderzijde</Label>
+                              {fLengteOnderzijde && fBreedte ? (
+                                <div className="grid grid-cols-2 gap-3 items-end">
+                                  <DynamicInput
+                                    field={fLengteOnderzijde}
+                                    value={item.lengte_onderzijde}
+                                    onChange={v => updateItem(index, 'lengte_onderzijde', v)}
+                                    onKeyDown={handleKeyDown}
                                     disabled={disabledAll}
-                                    title="Wissel afmetingen"
-                                  >
-                                    <ArrowDownUp className="h-4 w-4" />
-                                  </Button>
+                                    labelOverride="Lengte"
+                                    labelClassName="text-white"
+                                  />
+                                  <DynamicInput
+                                    field={fBreedte}
+                                    value={item.breedte}
+                                    onChange={v => updateItem(index, 'breedte', v)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={disabledAll}
+                                    labelOverride="Breedte"
+                                    labelClassName="text-white"
+                                  />
                                 </div>
-                              )}
-
-                              {fields.find(f => f.key === 'breedte') && (
-                                <DynamicInput field={fields.find(f => f.key === 'breedte')!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              ) : (
+                                <>
+                                  {fLengteOnderzijde && (
+                                    <DynamicInput
+                                      field={fLengteOnderzijde}
+                                      value={item.lengte_onderzijde}
+                                      onChange={v => updateItem(index, 'lengte_onderzijde', v)}
+                                      onKeyDown={handleKeyDown}
+                                      disabled={disabledAll}
+                                      labelOverride="Lengte"
+                                      labelClassName="text-white"
+                                    />
+                                  )}
+                                  {fBreedte && (
+                                    <DynamicInput
+                                      field={fBreedte}
+                                      value={item.breedte}
+                                      onChange={v => updateItem(index, 'breedte', v)}
+                                      onKeyDown={handleKeyDown}
+                                      disabled={disabledAll}
+                                      labelOverride="Breedte"
+                                      labelClassName="text-white"
+                                    />
+                                  )}
+                                </>
                               )}
 
                               {/* Latten Orientation Options (inside Latten card) */}
@@ -1879,6 +2089,7 @@ export default function GenericMeasurementPage() {
                                     type="button"
                                     onClick={() => {
                                       updateItem(index, 'boeiboord_orientation', 'slope');
+                                      updateItem(index, 'boeiboord_mirror', true);
                                       if (item.boeiboord_angle === undefined || item.boeiboord_angle === null || item.boeiboord_angle === '') {
                                         updateItem(index, 'boeiboord_angle', 45);
                                       }

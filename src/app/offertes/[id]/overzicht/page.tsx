@@ -2196,22 +2196,31 @@ export default function OverzichtPage() {
                   <div
                     key={job.id}
                     className={cn(
-                      'group relative flex flex-col gap-2 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md',
+                      'group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md',
                       isComplete
                         ? 'border-l-4 border-l-emerald-500'
                         : 'border-l-4 border-l-red-500/30'
                     )}
                   >
-                    {/* Top: Title */}
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-semibold text-sm text-foreground truncate group-hover:text-white transition-colors">
-                        {title}
-                      </h3>
-                    </div>
+                    <Link href={bewerkenHref} className="absolute inset-0 z-0" />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <h3 className="font-semibold text-sm text-foreground truncate group-hover:text-white transition-colors">
+                          {title}
+                        </h3>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0',
+                            isComplete
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : 'bg-red-500/15 text-red-400'
+                          )}
+                        >
+                          {isComplete ? 'Ingesteld' : 'Onvolledig'}
+                        </span>
+                      </div>
 
-                    {/* Metadata & Actions */}
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         {dimensionsSummary && (
                           <div className="flex items-center gap-1.5">
                             <Ruler className="h-3.5 w-3.5 opacity-70" />
@@ -2233,50 +2242,47 @@ export default function OverzichtPage() {
                             <span className="text-zinc-400">{preset}</span>
                           </>
                         )}
-                        <span className="opacity-20">•</span>
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
-                            isComplete
-                              ? 'bg-emerald-500/15 text-emerald-400'
-                              : 'bg-red-500/15 text-red-400'
-                          )}
-                        >
-                          {isComplete ? 'Ingesteld' : 'Onvolledig'}
-                        </span>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-2 opacity-70 group-hover:opacity-100 md:opacity-70 transition-opacity shrink-0">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="gap-2 h-8 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(bewerkenHref);
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Bewerken</span>
-                            </Button>
-                          </TooltipTrigger>
+                    <div className="flex items-center gap-2 opacity-70 group-hover:opacity-100 md:opacity-70 transition-opacity shrink-0 z-10">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="gap-2 h-8 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(bewerkenHref);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Bewerken</span>
+                          </Button>
+                        </TooltipTrigger>
                           <TooltipContent>Bewerk deze klus</TooltipContent>
                         </Tooltip>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
-                          onClick={(e) => {
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Verwijderen"
+                        className="ml-2 -mr-2 px-3 py-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 transition-all cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteDialogForJob(job);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
                             e.stopPropagation();
                             openDeleteDialogForJob(job);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Verwijderen</span>
-                        </Button>
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Verwijderen</span>
                       </div>
                     </div>
                   </div>

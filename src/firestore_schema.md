@@ -112,6 +112,33 @@ interface JobDefinition {
       x: number;            // Position relative to start
       y: number;            // Position relative to floor
     }>;
+
+    // Boeidelen (AI-agent-proof, optional)
+    boeiboord_panelen?: Array<{
+      id: string;
+      zijde: 'voorzijde' | 'onderzijde';
+      lengte: number;
+      hoogte?: number;
+      breedte?: number;
+      label: string;
+    }>;
+    boeiboord_aantallen?: {
+      voorzijde: number;    // meestal 1 of 2 (spiegeling)
+      onderzijde: number;
+    };
+    'naad dikte tussen 2 platen kopkant'?: number; // mm
+    latten_samenvatting?: {
+      per_zijde: Array<{
+        zijde: 'voorzijde' | 'onderzijde';
+        items: Array<{ lengte_mm: number; aantal: number }>;
+        label?: string; // bijv. "Latten; 10x 5m"
+      }>;
+      totaal: {
+        items: Array<{ lengte_mm: number; aantal: number }>;
+        label?: string;
+      };
+    };
+    voorzijde_latafstand?: number; // mm
   }>;
 
   // --- MATERIAL SELECTIONS ---

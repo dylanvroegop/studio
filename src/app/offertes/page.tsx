@@ -116,10 +116,15 @@ function getTitel(q: QuoteRow): string {
   );
 }
 
-function getStatusMeta(status: Quote['status'] | undefined): { label: string; className: string } {
+function getStatusMeta(
+  status: Quote['status'] | undefined,
+  isCalculated?: boolean
+): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
     concept: { label: 'Concept', className: 'bg-zinc-800 text-zinc-200 border-zinc-700' },
-    in_behandeling: { label: 'In behandeling', className: 'bg-sky-500/10 text-sky-300 border-sky-500/30' },
+    in_behandeling: isCalculated
+      ? { label: 'Berekend', className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' }
+      : { label: 'Berekenen', className: 'bg-amber-500/10 text-amber-300 border-amber-500/30' },
     verzonden: { label: 'Verzonden', className: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30' },
     geaccepteerd: { label: 'Geaccepteerd', className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' },
     afgewezen: { label: 'Afgewezen', className: 'bg-red-500/10 text-red-300 border-red-500/30' },
@@ -353,13 +358,28 @@ export default function OffertesPage() {
     }
   }
 
-  if (isUserLoading || loading) {
+  if (isUserLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="animate-spin text-primary w-8 h-8" />
       </div>
     );
   }
+
+  const LoadingListPanel = () => (
+    <div className="flex flex-col items-center justify-center py-14 gap-5">
+      <div className="relative">
+        <Loader2 className="h-10 w-10 animate-spin text-amber-400/90" />
+        <div className="absolute inset-0 blur-xl bg-amber-500/20 rounded-full animate-pulse" />
+      </div>
+      <div className="flex flex-col items-center gap-1">
+        <div className="text-amber-300 font-medium tracking-wide">OFFERTES LADEN</div>
+        <div className="text-muted-foreground text-sm animate-pulse">
+          Even geduld afrubelen...
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <TooltipProvider>
@@ -515,7 +535,13 @@ export default function OffertesPage() {
               </CardContent>
             </Card>
 
-            {filteredQuotes.length === 0 ? (
+            {loading ? (
+              <Card>
+                <CardContent className="p-6">
+                  <LoadingListPanel />
+                </CardContent>
+              </Card>
+            ) : filteredQuotes.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center space-y-3">
                   <div className="font-semibold">Geen offertes gevonden</div>
@@ -535,12 +561,14 @@ export default function OffertesPage() {
             ) : (
               <div className="space-y-3">
                 {filteredQuotes.map((q) => {
-                  const statusMeta = getStatusMeta(q.status);
                   const totaal = q.totaalbedrag || q.amount || 0;
+                  const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
+                  const statusMeta = getStatusMeta(q.status, hasCalculated);
                   const datum = q.updatedAtDate ?? q.createdAtDate;
                   const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : null;
                   const klant = getKlantNaam(q);
                   const lopend = q.status === 'concept' || q.status === 'in_behandeling';
+                  const isCalculating = q.status === 'in_behandeling' && !hasCalculated;
 
                   return (
                     <div
@@ -564,7 +592,13 @@ export default function OffertesPage() {
                             </span>
                           )}
 
-                          <span className={cn('text-[10px] font-semibold px-2 py-1 rounded-full border shrink-0', statusMeta.className)}>
+                          <span
+                            className={cn(
+                              'text-[10px] font-semibold px-2 py-1 rounded-full border shrink-0 inline-flex items-center gap-1.5',
+                              statusMeta.className
+                            )}
+                          >
+                            {isCalculating && <Loader2 className="h-3 w-3 animate-spin" />}
                             {statusMeta.label}
                           </span>
                         </div>
@@ -579,7 +613,7 @@ export default function OffertesPage() {
                             {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
                           </span>
                           <span className="opacity-20">•</span>
-                          <span className={cn('font-semibold tracking-wide', totaal > 0 ? 'text-cyan-300' : 'text-zinc-600')}>
+                          <span className={cn('font-semibold tracking-wide', totaal > 0 ? 'text-emerald-300' : 'text-zinc-600')}>
                             {formatCurrency(totaal)}
                           </span>
                         </div>
@@ -589,9 +623,9 @@ export default function OffertesPage() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="secondary"
+                              variant="outline"
                               size="sm"
-                              className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                              className="gap-2 h-9 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
@@ -599,10 +633,10 @@ export default function OffertesPage() {
                               }}
                             >
                               <FileText className="h-3.5 w-3.5" />
-                              <span>Openen</span>
+                              <span>Offerte</span>
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Open deze offerte</TooltipContent>
+                          <TooltipContent>Open de offerte</TooltipContent>
                         </Tooltip>
 
                         <Tooltip>
@@ -618,10 +652,10 @@ export default function OffertesPage() {
                               }}
                             >
                               <Pencil className="h-3.5 w-3.5" />
-                              <span>Bewerken</span>
+                              <span>Calculatie</span>
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Bewerk de calculatie</TooltipContent>
+                          <TooltipContent>Open de calculatie</TooltipContent>
                         </Tooltip>
 
                         <Button

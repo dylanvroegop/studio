@@ -1047,6 +1047,25 @@ export default function QuotePage() {
 
 
 
+    const LoadingPanel = () => (
+        <div className="flex flex-col items-center justify-center py-20 gap-6">
+            <div className="relative">
+                <Loader2 className="h-12 w-12 animate-spin text-emerald-500/80" />
+                <div className="absolute inset-0 blur-xl bg-emerald-500/20 rounded-full animate-pulse" />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+                <div className="text-emerald-400 font-medium tracking-wide">
+                    {quote?.status === 'in_behandeling' ? 'MATERIALEN BEREKENEN' : 'LADEN'}
+                </div>
+                <div className="text-muted-foreground text-sm animate-pulse">
+                    {quote?.status === 'in_behandeling'
+                        ? 'De AI berekent de benodigde materialen en uren...'
+                        : 'Even geduld afrubelen...'}
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
             <AppNavigation />
@@ -1120,24 +1139,7 @@ export default function QuotePage() {
             </header>
 
             <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-6">
-                        <div className="relative">
-                            <Loader2 className="h-12 w-12 animate-spin text-emerald-500/80" />
-                            <div className="absolute inset-0 blur-xl bg-emerald-500/20 rounded-full animate-pulse" />
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="text-emerald-400 font-medium tracking-wide">
-                                {quote?.status === 'in_behandeling' ? 'MATERIALEN BEREKENEN' : 'LADEN'}
-                            </div>
-                            <div className="text-muted-foreground text-sm animate-pulse">
-                                {quote?.status === 'in_behandeling'
-                                    ? 'De AI berekent de benodigde materialen en uren...'
-                                    : 'Even geduld afrubelen...'}
-                            </div>
-                        </div>
-                    </div>
-                ) : error ? (
+                {error ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <div className="text-red-400 font-medium">Fout bij laden: {error}</div>
                         <Button asChild variant="secondary">
@@ -1247,7 +1249,9 @@ export default function QuotePage() {
 
                         {/* Overzicht Tab */}
                         <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {!calculation?.data_json ? (
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <Package size={48} className="mx-auto text-muted mb-4" />
                                     <h3 className="text-lg font-medium text-foreground mb-2">Nog geen calculatie</h3>
@@ -1364,12 +1368,14 @@ export default function QuotePage() {
                         </TabsContent>
 
                         <TabsContent value="tekeningen" className="mt-6 space-y-6">
-                            {quote && <DrawingsTab quote={quote} />}
+                            {loading ? <LoadingPanel /> : quote && <DrawingsTab quote={quote} />}
                         </TabsContent>
 
                         {/* Materialen Tab */}
                         <TabsContent value="materialen" className="mt-6 space-y-6">
-                            {!calculation?.data_json ? (
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <Package size={48} className="mx-auto text-muted mb-4" />
                                     <h3 className="text-lg font-medium text-foreground mb-2">Nog geen materialen</h3>
@@ -1447,7 +1453,9 @@ export default function QuotePage() {
 
                         {/* Arbeid Tab */}
                         <TabsContent value="arbeid" className="mt-6">
-                            {!calculation?.data_json || !quoteSettings ? (
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : !calculation?.data_json || !quoteSettings ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <Clock size={48} className="mx-auto text-muted mb-4" />
                                     <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
@@ -1500,7 +1508,9 @@ export default function QuotePage() {
 
                         {/* PDF Tab */}
                         <TabsContent value="pdf" className="mt-6 space-y-4">
-                            {!isDrawingsReady ? (
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : !isDrawingsReady ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <div className="text-muted-foreground">PDF voorbereiden...</div>
                                 </div>
@@ -1514,19 +1524,23 @@ export default function QuotePage() {
 
                         {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
                         <TabsContent value="notities" className="mt-6">
-                            <div className="bg-card rounded-lg border border-border p-6">
-                                <div className="flex-1 bg-muted/50 border border-border/50 rounded-2xl p-8 relative">
-                                    <h3 className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
-                                        <MessageSquare className="w-4 h-4" /> Veldnotities
-                                    </h3>
-                                    {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes.
-                                     The original code showed activeJob.notities.
-                                     Since we don't have activeJob selector here yet (simplified view),
-                                     we might just show a placeholder or aggregates.
-                                 */}
-                                    <p className="text-muted-foreground italic">Notities functionaliteit wordt bijgewerkt.</p>
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : (
+                                <div className="bg-card rounded-lg border border-border p-6">
+                                    <div className="flex-1 bg-muted/50 border border-border/50 rounded-2xl p-8 relative">
+                                        <h3 className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
+                                            <MessageSquare className="w-4 h-4" /> Veldnotities
+                                        </h3>
+                                        {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes.
+                                         The original code showed activeJob.notities.
+                                         Since we don't have activeJob selector here yet (simplified view),
+                                         we might just show a placeholder or aggregates.
+                                     */}
+                                        <p className="text-muted-foreground italic">Notities functionaliteit wordt bijgewerkt.</p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </TabsContent>
                     </Tabs>
                 )}

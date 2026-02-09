@@ -13,6 +13,8 @@ interface DynamicInputProps {
     onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
     disabled?: boolean;
     className?: string;
+    labelOverride?: string;
+    labelClassName?: string;
 }
 
 export function DynamicInput({
@@ -21,12 +23,14 @@ export function DynamicInput({
     onChange,
     onKeyDown,
     disabled,
-    className
+    className,
+    labelOverride,
+    labelClassName
 }: DynamicInputProps) {
     return (
         <div className={cn("space-y-2", className)}>
-            <Label htmlFor={field.key}>
-                {field.label}
+            <Label htmlFor={field.key} className={labelClassName}>
+                {labelOverride ?? field.label}
                 {field.type === 'number' && !field.optional && ' *'}
             </Label>
 
