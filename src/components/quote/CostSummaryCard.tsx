@@ -11,9 +11,8 @@ interface CostSummaryCardProps {
     onUpdateTotalHours?: (hours: number) => void;
 }
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Pencil } from 'lucide-react';
 
 export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRate, onUpdateTotalHours }: CostSummaryCardProps) {
@@ -58,6 +57,13 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
         setIsEditingHours(false);
     };
 
+    const totalTravelMinutesPerKlus = totals ? totals.transportDurationPerDagMinutes * totals.transportAantalDagen : 0;
+    const totalTravelHoursPerKlus = totalTravelMinutesPerKlus / 60;
+    const btwFactor = settings ? settings.btwTarief / 100 : 0;
+    const totaalExclZonderMarge = totals ? totals.subtotaalExclBtw : 0;
+    const btwZonderMarge = totaalExclZonderMarge * btwFactor;
+    const winstMargeInclBtw = totals ? totals.winstMarge * (1 + btwFactor) : 0;
+
     if (!totals || !settings) {
         return (
             <div className="bg-card rounded-lg border border-border p-6">
@@ -74,121 +80,124 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                 KOSTENOVERZICHT
             </h3>
 
-            <div className="space-y-3">
-                {/* Materials */}
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Materialen (groot)</span>
-                    <span className="text-foreground">{formatCurrency(totals.materialenGroot)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Verbruiksartikelen</span>
-                    <span className="text-foreground">{formatCurrency(totals.materialenVerbruik)}</span>
+            <div className="space-y-4">
+                <div className="rounded-lg border border-border p-3 space-y-2 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Materialen (groot)</span>
+                        <span className="text-foreground">{formatCurrency(totals.materialenGroot)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Verbruiksartikelen</span>
+                        <span className="text-foreground">{formatCurrency(totals.materialenVerbruik)}</span>
+                    </div>
+                    <div className="border-t border-border pt-2 flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotaal materialen</span>
+                        <span className="text-foreground">{formatCurrency(totals.materialenTotaal)}</span>
+                    </div>
                 </div>
 
-                <div className="border-t border-border pt-3 flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotaal materialen</span>
-                    <span className="text-foreground">{formatCurrency(totals.materialenTotaal)}</span>
+                <div className="h-px bg-border/70" />
+
+                <div className="rounded-lg border border-border p-3 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground flex flex-wrap items-center gap-1">
+                            Arbeid (
+                            {isEditingHours ? (
+                                <div className="flex items-center gap-1">
+                                    <Input
+                                        autoFocus
+                                        type="number"
+                                        value={tempHours}
+                                        onChange={(e) => setTempHours(e.target.value)}
+                                        onBlur={saveHours}
+                                        className="h-6 w-16 px-1 py-0 text-sm bg-muted border-border text-center"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') saveHours();
+                                            if (e.key === 'Escape') cancelEditingHours();
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors" onClick={startEditingHours}>
+                                    {totalUren} uur
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </span>
+                            )}
+                            ×
+                            {isEditingRate ? (
+                                <div className="flex items-center gap-1 ml-1">
+                                    <span className="text-muted-foreground">€</span>
+                                    <Input
+                                        autoFocus
+                                        type="number"
+                                        value={tempRate}
+                                        onChange={(e) => setTempRate(e.target.value)}
+                                        onBlur={saveRate}
+                                        className="h-6 w-20 px-1 py-0 text-sm bg-muted border-border"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') saveRate();
+                                            if (e.key === 'Escape') cancelEditingRate();
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors ml-1" onClick={startEditingRate}>
+                                    {formatCurrency(settings.uurTariefExclBtw)}
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </span>
+                            )}
+                            <span className="text-xs text-muted-foreground ml-1">excl. btw</span>)
+                        </span>
+                        <span className="text-foreground">{formatCurrency(totals.arbeidTotaal)}</span>
+                    </div>
                 </div>
 
-                {/* Labor */}
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground flex flex-wrap items-center gap-1">
-                        Arbeid (
+                <div className="h-px bg-border/70" />
 
-                        {/* Hours Editing */}
-                        {isEditingHours ? (
-                            <div className="flex items-center gap-1">
-                                <Input
-                                    autoFocus
-                                    type="number"
-                                    value={tempHours}
-                                    onChange={(e) => setTempHours(e.target.value)}
-                                    onBlur={saveHours}
-                                    className="h-6 w-16 px-1 py-0 text-sm bg-muted border-border text-center"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveHours();
-                                        if (e.key === 'Escape') cancelEditingHours();
-                                    }}
-                                />
-                            </div>
-                        ) : (
-                            <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors" onClick={startEditingHours}>
-                                {totalUren} uur
-                                <Pencil size={12} className="text-muted-foreground" />
+                <div className="rounded-lg border border-border p-3 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                            <span className="block">
+                                Transport ({totals.transportRatePerKm.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x {totals.transportDistanceKmOneWay.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}km = {formatCurrency(totals.transportOneWayCost)} x 2 = {formatCurrency(totals.transportRoundTripCost)} x {totals.transportAantalDagen} dagen)
                             </span>
-                        )}
-
-                        ×
-
-                        {/* Rate Editing */}
-                        {isEditingRate ? (
-                            <div className="flex items-center gap-1 ml-1">
-                                <span className="text-muted-foreground">€</span>
-                                <Input
-                                    autoFocus
-                                    type="number"
-                                    value={tempRate}
-                                    onChange={(e) => setTempRate(e.target.value)}
-                                    onBlur={saveRate}
-                                    className="h-6 w-20 px-1 py-0 text-sm bg-muted border-border"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveRate();
-                                        if (e.key === 'Escape') cancelEditingRate();
-                                    }}
-                                />
-                            </div>
-                        ) : (
-                            <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors ml-1" onClick={startEditingRate}>
-                                {formatCurrency(settings.uurTariefExclBtw)}
-                                <Pencil size={12} className="text-muted-foreground" />
+                            <span className="block text-xs">
+                                totaal reistijd per dag; {totals.transportDurationPerDagMinutes} {totals.transportDurationPerDagMinutes === 1 ? 'minuut' : 'minuten'}
                             </span>
-                        )}
-                        <span className="text-xs text-muted-foreground ml-1">excl. btw</span>)
-                    </span>
-                    <span className="text-foreground">{formatCurrency(totals.arbeidTotaal)}</span>
+                            <span className="block text-xs">
+                                totaal reistijd per klus; {totalTravelHoursPerKlus.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} uur
+                            </span>
+                        </span>
+                        <span className="text-foreground">{formatCurrency(totals.transportTotaal)}</span>
+                    </div>
                 </div>
 
-                {/* Transport */}
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Transport</span>
-                    <span className="text-foreground">{formatCurrency(totals.transportTotaal)}</span>
+                <div className="h-px bg-border/70" />
+
+                <div className="rounded-lg border border-border p-3 space-y-2 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Totaal excl. BTW</span>
+                        <span className="text-foreground">{formatCurrency(totaalExclZonderMarge)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
+                        <span className="text-foreground">{formatCurrency(btwZonderMarge)}</span>
+                    </div>
+                    <div className="border-t border-border pt-2 flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                            {settings.extras.winstMarge.mode === 'percentage' ? (
+                                <>
+                                    Winstmarge ({settings.extras.winstMarge.percentage}% over totaal)
+                                    {settings.extras.winstMarge.basis === 'materiaal' && <span className="text-xs text-muted-foreground ml-1">(over mat.)</span>}
+                                    {settings.extras.winstMarge.basis === 'arbeid' && <span className="text-xs text-muted-foreground ml-1">(over arb.)</span>}
+                                </>
+                            ) : (
+                                <>Winstmarge (vast)</>
+                            )}
+                        </span>
+                        <span className="text-foreground">{formatCurrency(winstMargeInclBtw)}</span>
+                    </div>
                 </div>
 
-                {/* Subtotal */}
-                <div className="border-t border-border pt-3 flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotaal excl. BTW</span>
-                    <span className="text-foreground">{formatCurrency(totals.subtotaalExclBtw)}</span>
-                </div>
-
-                {/* Margin */}
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                        {settings.extras.winstMarge.mode === 'percentage' ? (
-                            <>
-                                Winstmarge ({settings.extras.winstMarge.percentage}%)
-                                {settings.extras.winstMarge.basis === 'materiaal' && <span className="text-xs text-muted-foreground ml-1">(over mat.)</span>}
-                                {settings.extras.winstMarge.basis === 'arbeid' && <span className="text-xs text-muted-foreground ml-1">(over arb.)</span>}
-                            </>
-                        ) : (
-                            <>Winstmarge (vast)</>
-                        )}
-                    </span>
-                    <span className="text-foreground">{formatCurrency(totals.winstMarge)}</span>
-                </div>
-
-                {/* Total excl BTW */}
-                <div className="border-t border-border pt-3 flex justify-between text-sm">
-                    <span className="text-muted-foreground">Totaal excl. BTW</span>
-                    <span className="text-foreground">{formatCurrency(totals.totaalExclBtw)}</span>
-                </div>
-
-                {/* BTW */}
-                <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
-                    <span className="text-foreground">{formatCurrency(totals.btw)}</span>
-                </div>
-
-                {/* Grand Total */}
                 <div className="border-t-2 border-primary/50 pt-3 flex justify-between">
                     <span className="font-semibold text-foreground">TOTAAL INCL. BTW</span>
                     <span className="font-bold text-lg text-primary">

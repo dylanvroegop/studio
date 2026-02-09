@@ -183,9 +183,55 @@ export const getFullQuoteDetails = async (quoteId: string) => {
     })
   );
 
+  // ✅ Company info (Bedrijfsgegevens) snapshot or live fallback
+  const bedrijf = {
+    naam: (quote as any).bedrijfsgegevens?.naam || (quote as any).bedrijfsnaam || '',
+    adress: (quote as any).bedrijfsgegevens?.adress || '',
+    straat: (quote as any).bedrijfsgegevens?.straat || '',
+    huisnummer: (quote as any).bedrijfsgegevens?.huisnummer || '',
+    postcode: (quote as any).bedrijfsgegevens?.postcode || '',
+    plaats: (quote as any).bedrijfsgegevens?.plaats || '',
+    email: (quote as any).bedrijfsgegevens?.email || '',
+    telefoon: (quote as any).bedrijfsgegevens?.telefoon || ''
+  };
+
+  // If missing in quote snapshot, fetch from user/business live data
+  const { firestore } = initializeFirebaseServer();
+  const userRef = doc(firestore, 'users', quote.userId);
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    const uData = userSnap.data();
+    bedrijf.naam = bedrijf.naam || uData.settings?.bedrijfsnaam || uData.bedrijfsnaam || 'Uw Bedrijf';
+    bedrijf.straat = bedrijf.straat || uData.bedrijfsgegevens?.straat || uData.settings?.adres || '';
+    bedrijf.huisnummer = bedrijf.huisnummer || uData.bedrijfsgegevens?.huisnummer || uData.settings?.huisnummer || '';
+    bedrijf.adress = bedrijf.adress || uData.bedrijfsgegevens?.adress || `${bedrijf.straat} ${bedrijf.huisnummer}`.trim();
+    bedrijf.postcode = bedrijf.postcode || uData.bedrijfsgegevens?.postcode || uData.settings?.postcode || '';
+    bedrijf.plaats = bedrijf.plaats || uData.bedrijfsgegevens?.plaats || uData.settings?.plaats || '';
+    bedrijf.email = bedrijf.email || uData.settings?.email || uData.email || '';
+    bedrijf.telefoon = bedrijf.telefoon || uData.settings?.telefoon || uData.telefoon || '';
+  }
+
+  const businessRef = doc(firestore, 'businesses', quote.userId);
+  const businessSnap = await getDoc(businessRef);
+  if (businessSnap.exists()) {
+    const bData = businessSnap.data();
+    bedrijf.naam = bedrijf.naam || bData.bedrijfsnaam || bData.contactNaam || 'Uw Bedrijf';
+    bedrijf.straat = bedrijf.straat || bData.bedrijfsgegevens?.straat || bData.adres || '';
+    bedrijf.huisnummer = bedrijf.huisnummer || bData.bedrijfsgegevens?.huisnummer || '';
+    bedrijf.adress = bedrijf.adress || bData.bedrijfsgegevens?.adress || '';
+    bedrijf.postcode = bedrijf.postcode || bData.bedrijfsgegevens?.postcode || bData.postcode || '';
+    bedrijf.plaats = bedrijf.plaats || bData.bedrijfsgegevens?.plaats || bData.plaats || '';
+    bedrijf.email = bedrijf.email || bData.email || '';
+    bedrijf.telefoon = bedrijf.telefoon || bData.telefoon || '';
+  }
+
+  bedrijf.adress = bedrijf.adress || `${bedrijf.straat} ${bedrijf.huisnummer}`.trim();
+
   return {
     quote,
     client,
+    bedrijf,
     jobs: jobsWithMaterials,
   };
 };

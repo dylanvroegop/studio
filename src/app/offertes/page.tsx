@@ -345,7 +345,6 @@ export default function OffertesPage() {
       } as any);
       setArchiveOpen(false);
       setArchiveTarget(null);
-      router.push('/archief?tab=offertes');
     } catch (e: any) {
       console.error(e);
       setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon offerte niet archiveren.'}`);
@@ -590,18 +589,39 @@ export default function OffertesPage() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              asChild
                               variant="secondary"
                               size="sm"
                               className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                router.push(`/offertes/${q.id}`);
+                              }}
                             >
-                              <Link href={`/offertes/${q.id}`}>
-                                <Pencil className="h-3.5 w-3.5" />
-                                <span className="hidden sm:inline">Openen</span>
-                              </Link>
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>Openen</span>
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Open deze offerte</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                router.push(`/offertes/${q.id}/overzicht`);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              <span>Bewerken</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Bewerk de calculatie</TooltipContent>
                         </Tooltip>
 
                         <Button
@@ -782,4 +802,3 @@ export default function OffertesPage() {
     </TooltipProvider>
   );
 }
-

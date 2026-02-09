@@ -2,7 +2,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Menu, Plus, LayoutDashboard, FileText, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle, CalendarDays } from 'lucide-react';
+import { Menu, Plus, LayoutDashboard, FileText, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle, CalendarDays, ReceiptText, TrendingUp, Clock3, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,6 +29,35 @@ function humanizeJobKey(jobKey?: string | null): string {
         default:
             return jobKey.replace(/-/g, ' ');
     }
+}
+
+function hasObjectEntries(value: unknown): boolean {
+    return !!value && typeof value === 'object' && Object.keys(value as Record<string, unknown>).length > 0;
+}
+
+function hasFilledMetingen(job: any): boolean {
+    const maatwerk = job?.maatwerk;
+    if (Array.isArray(maatwerk) && maatwerk.length > 0) return true;
+    if (Array.isArray(maatwerk?.basis) && maatwerk.basis.length > 0) return true;
+    if (Array.isArray(maatwerk?.items) && maatwerk.items.length > 0) return true;
+
+    return Object.entries(job || {}).some(([key, value]) => {
+        return key.endsWith('_maatwerk') && Array.isArray(value) && value.length > 0;
+    });
+}
+
+function hasFilledMaterialen(job: any): boolean {
+    const mat = job?.materialen || {};
+    const hasSelections = hasObjectEntries(mat.selections);
+    const hasMaterialenLijst = hasObjectEntries(mat.materialen_lijst);
+    const hasExtraMaterials = Array.isArray(mat.extraMaterials) && mat.extraMaterials.length > 0;
+    const hasCustom = hasObjectEntries(mat.custommateriaal);
+    const presetLabel = job?.werkwijze?.presetLabel;
+    const hasWerkwijzePreset = !!presetLabel && presetLabel.trim().toLowerCase() !== 'nieuw';
+    const workMethodId = job?.werkwijze?.workMethodId;
+    const hasWorkMethodId = !!workMethodId && workMethodId !== 'default';
+
+    return hasSelections || hasMaterialenLijst || hasExtraMaterials || hasCustom || hasWerkwijzePreset || hasWorkMethodId;
 }
 
 interface WizardHeaderProps {
@@ -87,13 +116,8 @@ export function WizardHeader({
                         slugify(title);
 
                     // Determine completion status
-                    const metingenCompleted = Array.isArray(job?.maatwerk) && job.maatwerk.length > 0;
-
-                    const mat = job?.materialen || {};
-                    const materialenCompleted =
-                        (mat.selections && Object.keys(mat.selections).length > 0) ||
-                        (Array.isArray(mat.extraMaterials) && mat.extraMaterials.length > 0) ||
-                        (mat.custommateriaal && Object.keys(mat.custommateriaal).length > 0);
+                    const metingenCompleted = hasFilledMetingen(job);
+                    const materialenCompleted = hasFilledMaterialen(job);
 
                     extractedJobs.push({
                         id,
@@ -229,6 +253,18 @@ export function WizardHeader({
                                                 </Link>
                                             </Button>
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/facturen">
+                                                    <ReceiptText className="h-4 w-4" />
+                                                    Facturen
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/winst">
+                                                    <TrendingUp className="h-4 w-4" />
+                                                    Winst
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
                                                 <Link href="/planning">
                                                     <CalendarDays className="h-4 w-4" />
                                                     Planning
@@ -244,6 +280,18 @@ export function WizardHeader({
                                                 <Link href="/klanten">
                                                     <Users className="h-4 w-4" />
                                                     Klanten
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/urenregistratie">
+                                                    <Clock3 className="h-4 w-4" />
+                                                    Urenregistratie
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/archief">
+                                                    <Archive className="h-4 w-4" />
+                                                    Archief
                                                 </Link>
                                             </Button>
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>

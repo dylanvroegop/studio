@@ -101,7 +101,7 @@ function InputMetSuffix(props: {
 // 3. TYPES & MAIN COMPONENT
 // ==========================================
 
-const EENHEDEN: string[] = ['m1', 'm2', 'p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
+const EENHEDEN: string[] = ['m1', 'm2', 'p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set', 'koker', 'zak'];
 
 
 export type ExistingMaterial = {

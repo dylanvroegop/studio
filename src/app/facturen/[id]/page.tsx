@@ -183,7 +183,7 @@ export default function FactuurDetailPage() {
       logoScale: settings.logoScale || 1.0,
       bedrijf: {
         naam: bedrijfNaam,
-        adres: settings.adres || '',
+        adres: `${settings.adres || ''} ${settings.huisnummer || ''}`.trim(),
         postcode: settings.postcode || '',
         plaats: settings.plaats || '',
         telefoon: settings.telefoon || businessData?.telefoon || '',

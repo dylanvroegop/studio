@@ -4,15 +4,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, ChevronLeft, ChevronRight, Plus, CalendarDays } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Plus, Settings } from 'lucide-react';
 import { useEmployees } from '@/hooks/useEmployees';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { TimelineView, PlanningEntry } from '@/lib/types-planning';
-import { getDateRangeForView, getDaysInRange, formatDateHeader, autoSplitJob } from '@/lib/planning-utils';
+import { getDateRangeForView, autoSplitJob, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { PlanningGrid } from '@/components/planning/PlanningGrid';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
 import { SchedulingBanner } from '@/components/planning/SchedulingBanner';
@@ -21,6 +21,11 @@ import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { DEFAULT_PLANNING_SETTINGS, PlanningSettings } from '@/lib/types-planning';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 
 interface Quote {
     id: string;
@@ -51,6 +56,9 @@ export default function PlanningPage() {
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<PlanningEntry | null>(null);
     const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
+    const [draftPlanningSettings, setDraftPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
+    const [isPlanningSettingsOpen, setIsPlanningSettingsOpen] = useState(false);
+    const [isSavingPlanningSettings, setIsSavingPlanningSettings] = useState(false);
     const [schedulingQuote, setSchedulingQuote] = useState<Quote | null>(null);
     const [isLoadingSchedulingQuote, setIsLoadingSchedulingQuote] = useState(false);
 
@@ -72,7 +80,9 @@ export default function PlanningPage() {
                 if (userDoc.exists()) {
                     const settings = userDoc.data()?.settings?.planningSettings;
                     if (settings) {
-                        setPlanningSettings({ ...DEFAULT_PLANNING_SETTINGS, ...settings });
+                        const mergedSettings = { ...DEFAULT_PLANNING_SETTINGS, ...settings };
+                        setPlanningSettings(mergedSettings);
+                        setDraftPlanningSettings(mergedSettings);
                     }
                 }
             } catch (err) {
@@ -119,6 +129,59 @@ export default function PlanningPage() {
         fetchQuote();
     }, [schedulingMode, schedulingQuoteId, user, firestore, toast, router]);
 
+    const updateDraftPlanningSetting = <K extends keyof PlanningSettings>(key: K, value: PlanningSettings[K]) => {
+        setDraftPlanningSettings(prev => ({ ...prev, [key]: value }));
+    };
+
+    const normalizePlanningSettings = (input: PlanningSettings): PlanningSettings => {
+        const normalizedWorkDays = Array.from(new Set((input.workDays || DEFAULT_PLANNING_SETTINGS.workDays)
+            .filter(day => Number.isFinite(day) && day >= 1 && day <= 7)))
+            .sort((a, b) => a - b);
+
+        return {
+            defaultWorkdayHours: Math.max(0.5, Number(input.defaultWorkdayHours) || DEFAULT_PLANNING_SETTINGS.defaultWorkdayHours),
+            allowAutoSplit: !!input.allowAutoSplit,
+            defaultStartTime: input.defaultStartTime || DEFAULT_PLANNING_SETTINGS.defaultStartTime,
+            defaultEndTime: input.defaultEndTime || DEFAULT_PLANNING_SETTINGS.defaultEndTime,
+            workDays: normalizedWorkDays.length > 0 ? normalizedWorkDays : [...DEFAULT_PLANNING_SETTINGS.workDays],
+            pauzeMinuten: input.pauzeMinuten === undefined || input.pauzeMinuten === null
+                ? undefined
+                : Math.max(0, Math.round(Number(input.pauzeMinuten) || 0))
+        };
+    };
+
+    const handleOpenPlanningSettings = () => {
+        setDraftPlanningSettings(planningSettings);
+        setIsPlanningSettingsOpen(true);
+    };
+
+    const handleSavePlanningSettings = async () => {
+        if (!user || !firestore) return;
+        setIsSavingPlanningSettings(true);
+        try {
+            const normalized = normalizePlanningSettings(draftPlanningSettings);
+            await setDoc(
+                doc(firestore, 'users', user.uid),
+                { settings: { planningSettings: normalized } },
+                { merge: true }
+            );
+
+            setPlanningSettings(normalized);
+            setDraftPlanningSettings(normalized);
+            setIsPlanningSettingsOpen(false);
+            toast({ title: 'Planning instellingen opgeslagen' });
+        } catch (error) {
+            console.error('Error saving planning settings:', error);
+            toast({
+                title: 'Opslaan mislukt',
+                description: 'Kon planning instellingen niet opslaan.',
+                variant: 'destructive'
+            });
+        } finally {
+            setIsSavingPlanningSettings(false);
+        }
+    };
+
     const navigateDate = (direction: 'prev' | 'next' | 'today') => {
         if (direction === 'today') {
             setCurrentDate(new Date());
@@ -150,6 +213,20 @@ export default function PlanningPage() {
                 return format(currentDate, 'MMMM yyyy', { locale: nl });
         }
     };
+
+    const isWeekView = view === 'day';
+    const isMonthView = view === 'week' || view === 'month';
+    const weekRangeLabel = `${format(dateRange.start, 'd MMM', { locale: nl })} - ${format(dateRange.end, 'd MMM', { locale: nl })}`;
+
+    const dateSwitchLabel = isWeekView
+        ? weekRangeLabel
+        : isMonthView
+            ? format(currentDate, 'MMMM', { locale: nl })
+            : 'Vandaag';
+
+    const periodLabel = isWeekView || isMonthView
+        ? format(currentDate, 'yyyy', { locale: nl })
+        : getDateRangeLabel();
 
     const handleEntryClick = (entry: PlanningEntry) => {
         setSelectedEntry(entry);
@@ -220,11 +297,13 @@ export default function PlanningPage() {
                 } else {
                     // Single entry
                     const startTime = planningSettings.defaultStartTime.split(':');
-                    const endTime = planningSettings.defaultEndTime.split(':');
                     const startDate = new Date(date);
                     startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), 0);
-                    const endDate = new Date(date);
-                    endDate.setHours(parseInt(endTime[0]), parseInt(endTime[1]), 0);
+                    const endDate = calculateEndDateFromHours(
+                        startDate,
+                        schedulingHours,
+                        planningSettings.pauzeMinuten ?? 0
+                    );
 
                     await addEntry({
                         quoteId: schedulingQuote.id,
@@ -398,7 +477,7 @@ export default function PlanningPage() {
                                 className="h-8 px-3 text-sm"
                                 onClick={() => navigateDate('today')}
                             >
-                                Vandaag
+                                {dateSwitchLabel}
                             </Button>
                             <Button
                                 variant="ghost"
@@ -411,8 +490,17 @@ export default function PlanningPage() {
                         </div>
 
                         <span className="text-sm font-medium text-zinc-300 min-w-[180px] text-center hidden sm:block">
-                            {getDateRangeLabel()}
+                            {periodLabel}
                         </span>
+
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-10 w-10"
+                            onClick={handleOpenPlanningSettings}
+                        >
+                            <Settings className="h-4 w-4" />
+                        </Button>
 
                         <Button
                             variant="success"
@@ -450,6 +538,7 @@ export default function PlanningPage() {
                         onEmptyCellClick={handleEmptyCellClick}
                         schedulingMode={schedulingMode}
                         currentDate={currentDate}
+                        pauseMinutes={planningSettings.pauzeMinuten ?? 0}
                     />
                 )}
             </div>
@@ -465,6 +554,121 @@ export default function PlanningPage() {
                 view={view}
                 existingEntry={selectedEntry}
             />
+
+            <Dialog open={isPlanningSettingsOpen} onOpenChange={setIsPlanningSettingsOpen}>
+                <DialogContent className="sm:max-w-[560px]">
+                    <DialogHeader>
+                        <DialogTitle>Planning instellingen</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-5 py-2">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <Label>Uren per dag</Label>
+                                <Input
+                                    type="number"
+                                    min={0.5}
+                                    step={0.5}
+                                    value={draftPlanningSettings.defaultWorkdayHours}
+                                    onChange={e => updateDraftPlanningSetting('defaultWorkdayHours', Number(e.target.value))}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Pauze (minuten)</Label>
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    step={5}
+                                    value={draftPlanningSettings.pauzeMinuten ?? ''}
+                                    onChange={e => updateDraftPlanningSetting('pauzeMinuten', e.target.value === '' ? undefined : Number(e.target.value))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <Label>Start</Label>
+                                <Input
+                                    type="time"
+                                    value={draftPlanningSettings.defaultStartTime}
+                                    onChange={e => updateDraftPlanningSetting('defaultStartTime', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Eind</Label>
+                                <Input
+                                    type="time"
+                                    value={draftPlanningSettings.defaultEndTime}
+                                    onChange={e => updateDraftPlanningSetting('defaultEndTime', e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Werkdagen</Label>
+                            <div className="flex flex-wrap gap-4">
+                                {[
+                                    { day: 1, label: 'Ma' },
+                                    { day: 2, label: 'Di' },
+                                    { day: 3, label: 'Wo' },
+                                    { day: 4, label: 'Do' },
+                                    { day: 5, label: 'Vr' },
+                                    { day: 6, label: 'Za' },
+                                    { day: 7, label: 'Zo' },
+                                ].map(({ day, label }) => {
+                                    const checked = draftPlanningSettings.workDays.includes(day);
+                                    return (
+                                        <label key={day} className="flex items-center gap-2 cursor-pointer">
+                                            <Checkbox
+                                                checked={checked}
+                                                onCheckedChange={(nextChecked) => {
+                                                    const current = draftPlanningSettings.workDays;
+                                                    const updated = nextChecked
+                                                        ? [...current, day].sort((a, b) => a - b)
+                                                        : current.filter(d => d !== day);
+                                                    updateDraftPlanningSetting('workDays', updated);
+                                                }}
+                                            />
+                                            <span className="text-sm">{label}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-md border border-border p-3">
+                            <div className="space-y-0.5">
+                                <Label className="text-sm">Automatisch opdelen</Label>
+                                <p className="text-xs text-muted-foreground">
+                                    Verdeel klussen over meerdere werkdagen.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={draftPlanningSettings.allowAutoSplit}
+                                onCheckedChange={(checked) => updateDraftPlanningSetting('allowAutoSplit', checked)}
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="ghost"
+                            onClick={() => setIsPlanningSettingsOpen(false)}
+                            disabled={isSavingPlanningSettings}
+                        >
+                            Annuleren
+                        </Button>
+                        <Button
+                            variant="success"
+                            onClick={handleSavePlanningSettings}
+                            disabled={isSavingPlanningSettings}
+                        >
+                            {isSavingPlanningSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Opslaan
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
         </div>
     );

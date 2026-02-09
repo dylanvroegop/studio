@@ -25,6 +25,15 @@ export type DataJson = {
     totaal_uren?: number;
     uren_specificatie?: UrenItem[];
     werkbeschrijving?: string[] | any;
+    transport_berekening?: {
+        ratePerKm?: number;
+        distanceKm?: number;
+        durationText?: string;
+        roundTripDistanceKm?: number;
+        oneWayTravelCost?: number;
+        roundTripTravelCost?: number;
+        [key: string]: any;
+    };
     [key: string]: any;
 };
 
@@ -54,9 +63,10 @@ export type QuoteSettings = {
     schattingUren?: boolean;
     extras: {
         transport: {
-            prijsPerKm: number; // 0.31
-            vasteTransportkosten: number; // 0
-            mode: "perKm" | "vast";
+            prijsPerKm?: number; // 0.31
+            vasteTransportkosten?: number; // 0
+            tunnelkosten?: number; // 0
+            mode?: "perKm" | "vast" | "fixed" | "none";
             // optioneel: afstandKm kan in dataJson zitten, maar settings kan het ook dragen als je later wilt
             afstandKm?: number;
         };
@@ -75,6 +85,16 @@ export type QuoteTotals = {
     materialenTotaal: number;
     arbeidTotaal: number;
     transportTotaal: number;
+    transportPerDag: number;
+    transportAantalDagen: number;
+    transportRatePerKm: number;
+    transportDistanceKmOneWay: number;
+    transportOneWayCost: number;
+    transportRoundTripCost: number;
+    transportDurationPerDagMinutes: number;
+    transportDurationOneWayText: string;
+    transportDurationRoundTripText: string;
+    transportDurationTotaalText: string;
     subtotaalExclBtw: number;
     winstMarge: number;
     totaalExclBtw: number;
@@ -99,6 +119,27 @@ function toNumber(value: any, fallback = 0): number {
     // ondersteunt "12,34" en strings
     const n = typeof value === "string" ? Number(value.replace(",", ".")) : Number(value);
     return Number.isFinite(n) ? n : fallback;
+}
+
+function parseDurationToMinutes(input: string): number {
+    if (!input) return 0;
+    const s = input.toLowerCase();
+    const hourMatch = s.match(/(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours|uur|uren)/);
+    const minMatch = s.match(/(\d+(?:[.,]\d+)?)\s*(m|min|mins|minute|minutes)/);
+    const hours = hourMatch ? Number(hourMatch[1].replace(",", ".")) : 0;
+    const mins = minMatch ? Number(minMatch[1].replace(",", ".")) : 0;
+    if (hours > 0 || mins > 0) return Math.round(hours * 60 + mins);
+    const plainNumber = s.match(/(\d+(?:[.,]\d+)?)/);
+    return plainNumber ? Math.round(Number(plainNumber[1].replace(",", "."))) : 0;
+}
+
+function formatMinutesShort(totalMinutes: number): string {
+    const safe = Math.max(0, Math.round(totalMinutes));
+    const h = Math.floor(safe / 60);
+    const m = safe % 60;
+    if (h > 0 && m > 0) return `${h}u ${m}m`;
+    if (h > 0) return `${h}u`;
+    return `${m} min`;
 }
 
 function safeJsonParse(value: any): any {
@@ -241,64 +282,157 @@ export function normalizeVerbruiksartikelen(input: any): MaterialItem[] {
 
 export function normalizeDataJson(input: any): DataJson {
     const root = unwrapRoot(input);
+    const rootFromZero =
+        isObject(root) && "0" in root
+            ? safeJsonParse((root as any)["0"])
+            : undefined;
+    const rootForSearch = rootFromZero ?? root;
+    const base = isObject(rootForSearch) ? rootForSearch : root;
+    const firstDataNode = Array.isArray(root?.data) && root.data.length > 0 ? root.data[0] : null;
+    const firstNestedDataNode = Array.isArray(firstDataNode?.data)
+        ? (firstDataNode.data.length > 0 ? firstDataNode.data[0] : null)
+        : isObject(firstDataNode?.data)
+            ? firstDataNode.data
+            : null;
 
-    // Deep search for properties (handle body.quote structure)
+    // Deep search for properties (handle root + nested n8n wrappers)
     const findProp = (obj: any, key: string): any => {
-        if (!obj || typeof obj !== 'object') return undefined;
-        if (key in obj) return obj[key];
-        if (obj.body?.quote?.[key]) return obj.body.quote[key];
+        if (!obj || typeof obj !== "object") return undefined;
+        const candidates = [
+            obj,
+            obj.body,
+            obj.body?.quote,
+            rootFromZero,
+            (rootFromZero as any)?.body,
+            (rootFromZero as any)?.body?.quote,
+            firstDataNode,
+            firstDataNode?.body,
+            firstDataNode?.body?.quote,
+        ];
+        for (const candidate of candidates) {
+            if (candidate && typeof candidate === "object" && key in candidate) {
+                return candidate[key];
+            }
+        }
         return undefined;
     };
 
-    const rawKlant = findProp(root, 'klantinformatie');
-    const rawInst = findProp(root, 'instellingen');
-    const rawExtras = findProp(root, 'extras');
-    const rawWerk = findProp(root, 'werkbeschrijving');
+    const rawKlant = findProp(base, 'klantinformatie');
+    const rawInst = findProp(base, 'instellingen');
+    const rawExtras = findProp(base, 'extras');
+    const rawWerk = findProp(base, 'werkbeschrijving');
+    const looksLikeTravelCalc = (value: any): boolean => {
+        if (!isObject(value)) return false;
+        return (
+            "ratePerKm" in value ||
+            "distanceKm" in value ||
+            "roundTripDistanceKm" in value ||
+            "oneWayTravelCost" in value ||
+            "roundTripTravelCost" in value
+        );
+    };
+    const findTravelCalcDeep = (value: any, depth = 0): any => {
+        if (depth > 8 || value == null) return undefined;
+        if (typeof value === "string") {
+            const parsed = safeJsonParse(value);
+            if (parsed !== value) {
+                return findTravelCalcDeep(parsed, depth + 1);
+            }
+            return undefined;
+        }
+        if (looksLikeTravelCalc(value)) return value;
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                const found = findTravelCalcDeep(item, depth + 1);
+                if (found) return found;
+            }
+            return undefined;
+        }
+        if (isObject(value)) {
+            for (const nested of Object.values(value)) {
+                const found = findTravelCalcDeep(nested, depth + 1);
+                if (found) return found;
+            }
+        }
+        return undefined;
+    };
+    const explicitTransportBerekening =
+        findProp(base, "transport_berekening") ||
+        findProp(base, "transportBerekening");
+    const transportCandidate = findProp(base, "transport");
+    const rawTransportBerekening =
+        (looksLikeTravelCalc(explicitTransportBerekening) ? explicitTransportBerekening : undefined) ||
+        (looksLikeTravelCalc(firstNestedDataNode) ? firstNestedDataNode : undefined) ||
+        (looksLikeTravelCalc(transportCandidate) ? transportCandidate : undefined) ||
+        findTravelCalcDeep(rootForSearch);
 
     // Zoek korteTitel/Beschrijving op root of binnen werkbeschrijving object
-    const rawKorteTitel = findProp(root, 'korteTitel') ||
-        findProp(root, 'korte_titel') ||
+    const rawKorteTitel = findProp(base, 'korteTitel') ||
+        findProp(base, 'korte_titel') ||
         (isObject(rawWerk) ? (rawWerk as any).korteTitel || (rawWerk as any).korte_titel : undefined);
 
-    const rawKorteBeschrijving = findProp(root, 'korteBeschrijving') ||
-        findProp(root, 'korte_beschrijving') ||
+    const rawKorteBeschrijving = findProp(base, 'korteBeschrijving') ||
+        findProp(base, 'korte_beschrijving') ||
         (isObject(rawWerk) ? (rawWerk as any).korteBeschrijving || (rawWerk as any).korte_beschrijving : undefined);
 
-    const urenSpecRoot = root.uren_specificatie || {};
+    const urenSpecRoot = (base as any).uren_specificatie || {};
     const urenSpecificatie = Array.isArray(urenSpecRoot.uren_specificatie)
         ? urenSpecRoot.uren_specificatie
-        : Array.isArray(root.uren_specificatie)
-            ? root.uren_specificatie
+        : Array.isArray((base as any).uren_specificatie)
+            ? (base as any).uren_specificatie
             : [];
 
+    const directRootTotaalCandidate = toNumber(
+        (root as any)?.totaal_uren ?? (root as any)?.totaaluren,
+        Number.NaN
+    );
+    const baseTotaalCandidate = toNumber(
+        (base as any)?.totaal_uren ?? (base as any)?.totaaluren,
+        Number.NaN
+    );
+    const urenSpecTotaalCandidate = toNumber(
+        urenSpecRoot.totaal_uren ?? urenSpecRoot.totaaluren,
+        Number.NaN
+    );
+
     console.log('🔍 [NORMALIZE] totaal_uren lookup:', {
-        urenSpecRoot_totaal: urenSpecRoot.totaal_uren,
-        root_totaal: root.totaal_uren,
+        direct_root_totaal: directRootTotaalCandidate,
+        base_root_totaal: baseTotaalCandidate,
+        uren_spec_totaal: urenSpecTotaalCandidate,
         spec_sum: urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0)
     });
 
-    const totaalUrenCandidate = toNumber(
-        urenSpecRoot.totaal_uren ?? root.totaal_uren ?? urenSpecRoot.totaaluren ?? root.totaaluren,
-        Number.NaN
-    );
+    const totaalUrenCandidate = Number.isFinite(directRootTotaalCandidate)
+        ? directRootTotaalCandidate
+        : Number.isFinite(urenSpecTotaalCandidate)
+            ? urenSpecTotaalCandidate
+            : baseTotaalCandidate;
     const totaal_uren = Number.isFinite(totaalUrenCandidate)
         ? totaalUrenCandidate
         : urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0);
 
     console.log('🔍 [NORMALIZE] Final totaal_uren:', totaal_uren);
+    console.log('🔍 [NORMALIZE] transport_berekening lookup:', {
+        has_zero_root: !!rootFromZero,
+        has_transport: !!rawTransportBerekening,
+        ratePerKm: rawTransportBerekening?.ratePerKm,
+        distanceKm: rawTransportBerekening?.distanceKm,
+        roundTripTravelCost: rawTransportBerekening?.roundTripTravelCost,
+    });
 
     return {
-        ...root,
-        grootmaterialen: normalizeMaterialen(root.grootmaterialen),
-        verbruiksartikelen: normalizeVerbruiksartikelen(root.verbruiksartikelen),
+        ...base,
+        grootmaterialen: normalizeMaterialen((base as any).grootmaterialen),
+        verbruiksartikelen: normalizeVerbruiksartikelen((base as any).verbruiksartikelen),
         klantinformatie: safeJsonParse(rawKlant),
         instellingen: safeJsonParse(rawInst),
         extras: safeJsonParse(rawExtras),
+        transport_berekening: safeJsonParse(rawTransportBerekening),
         korteTitel: rawKorteTitel,
         korteBeschrijving: rawKorteBeschrijving,
         totaal_uren,
         uren_specificatie: urenSpecificatie,
-        werkbeschrijving: normalizeWerkbeschrijving(rawWerk ?? root.werkbeschrijving)
+        werkbeschrijving: normalizeWerkbeschrijving(rawWerk ?? (base as any).werkbeschrijving)
     };
 }
 
@@ -326,22 +460,60 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     // 3) Extras: transport & winst
     const instellingen = normalized.instellingen as any;
     const extrasFromRoot = normalized.extras as any;
+    const transportBerekening = normalized.transport_berekening as any;
 
     // Transport
     const transportMode = quoteSettings.extras.transport.mode;
-    const prijsPerKm = toNumber(quoteSettings.extras.transport.prijsPerKm, toNumber(instellingen?.transportPrijsPerKm, 0));
+    const prijsPerKm = toNumber(
+        quoteSettings.extras.transport.prijsPerKm,
+        toNumber(transportBerekening?.ratePerKm, toNumber(instellingen?.transportPrijsPerKm, 0))
+    );
     const vasteTransportkosten = toNumber(quoteSettings.extras.transport.vasteTransportkosten, 0);
+    const tunnelkosten = toNumber(quoteSettings.extras.transport.tunnelkosten, toNumber(extrasFromRoot?.transport?.tunnelkosten, 0));
 
     const afstandKm =
         toNumber(quoteSettings.extras.transport.afstandKm, undefined as any) ||
+        toNumber(transportBerekening?.roundTripDistanceKm, undefined as any) ||
+        toNumber(transportBerekening?.distanceKm, undefined as any) ||
         toNumber(extrasFromRoot?.transport?.afstandKm, 0);
 
-    let transportExclBtw = 0;
-    if (transportMode === "vast") {
-        transportExclBtw = vasteTransportkosten;
+    const transportDistanceKmOneWay = toNumber(transportBerekening?.distanceKm, 0);
+    const durationText = typeof transportBerekening?.durationText === "string" ? transportBerekening.durationText : "";
+    const oneWayMinutes = parseDurationToMinutes(durationText);
+    const roundTripMinutes = oneWayMinutes * 2;
+    const transportOneWayCost = toNumber(
+        transportBerekening?.oneWayTravelCost,
+        toNumber(transportDistanceKmOneWay, 0) * toNumber(prijsPerKm, 0)
+    );
+    const transportRoundTripCost = toNumber(
+        transportBerekening?.roundTripTravelCost,
+        transportOneWayCost * 2
+    );
+    const transportPerDagFromDistance = transportRoundTripCost > 0
+        ? transportRoundTripCost
+        : toNumber(afstandKm, 0) * toNumber(prijsPerKm, 0);
+    const resolvedTransportMode: "perKm" | "vast" | "fixed" | "none" =
+        transportMode === "vast" || transportMode === "fixed" || transportMode === "none" || transportMode === "perKm"
+            ? transportMode
+            : vasteTransportkosten > 0
+                ? "fixed"
+                : transportPerDagFromDistance > 0
+                    ? "perKm"
+                    : "none";
+    const transportAantalDagen = resolvedTransportMode === "none" ? 0 : Math.max(1, Math.ceil(totaalUren / 8));
+    const totaalReistijdMinutes = roundTripMinutes * transportAantalDagen;
+
+    let transportPerDag = 0;
+    if (resolvedTransportMode === "none") {
+        transportPerDag = 0;
+    } else if (resolvedTransportMode === "vast" || resolvedTransportMode === "fixed") {
+        transportPerDag = vasteTransportkosten;
     } else {
-        transportExclBtw = toNumber(afstandKm, 0) * toNumber(prijsPerKm, 0);
+        transportPerDag = toNumber(transportPerDagFromDistance, 0);
     }
+
+    let transportExclBtw = transportPerDag * transportAantalDagen;
+    transportExclBtw += tunnelkosten;
 
     // Winstmarge
     const margeMode = quoteSettings.extras.winstMarge.mode;
@@ -378,6 +550,16 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         materialenTotaal: materiaalSubtotalExclBtw,
         arbeidTotaal: arbeidSubtotalExclBtw,
         transportTotaal: transportExclBtw,
+        transportPerDag,
+        transportAantalDagen,
+        transportRatePerKm: toNumber(prijsPerKm, 0),
+        transportDistanceKmOneWay,
+        transportOneWayCost,
+        transportRoundTripCost,
+        transportDurationPerDagMinutes: roundTripMinutes,
+        transportDurationOneWayText: durationText || "0 min",
+        transportDurationRoundTripText: formatMinutesShort(roundTripMinutes),
+        transportDurationTotaalText: formatMinutesShort(totaalReistijdMinutes),
         subtotaalExclBtw: subtotaalExclBtw,
         winstMarge: winstMargeExclBtw,
         totaalExclBtw: totaalExclBtw,

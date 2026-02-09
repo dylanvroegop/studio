@@ -7,7 +7,7 @@ export async function POST(request: Request) {
         console.log('N8N_HEADER_SECRET exists:', !!process.env.N8N_HEADER_SECRET);
         console.log('Request body:', JSON.stringify(body, null, 2));
 
-        const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_EMAIL_WEBHOOK || 'https://n8n.dylan8n.org/webhook-test/025e690d-bca9-44a2-8359-9c724ce9d426';
+        const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_EMAIL_WEBHOOK || 'https://n8n.dylan8n.org/webhook/025e690d-bca9-44a2-8359-9c724ce9d426';
 
         let data;
         try {

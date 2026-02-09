@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getFullQuoteDetails, updateJob } from './data';
 import type { JobCategory } from './types';
-import { addDoc, serverTimestamp, collection, doc, updateDoc } from 'firebase/firestore';
+import { addDoc, serverTimestamp, collection, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { initializeFirebaseServer } from '@/firebase/server';
 
 /* ---------------------------------------------
@@ -122,9 +122,84 @@ export async function createQuoteAction(formData: FormData): Promise<CreateQuote
         plaats: projectPlaats || null,
       },
     },
+    bedrijfsgegevens: {
+      naam: '',
+      adress: '',
+      straat: '',
+      huisnummer: '',
+      postcode: '',
+      plaats: '',
+      email: '',
+      telefoon: '',
+    }
   };
 
   try {
+    // Snapshot bedrijfsgegevens for downstream webhook/PDF usage.
+    const userDocSnap = await getDoc(doc(firestore, 'users', userId));
+    const businessDocSnap = await getDoc(doc(firestore, 'businesses', userId));
+
+    if (userDocSnap.exists()) {
+      const userData = userDocSnap.data();
+      quoteData.bedrijfsgegevens.naam =
+        userData.settings?.bedrijfsnaam || userData.bedrijfsnaam || '';
+      quoteData.bedrijfsgegevens.straat =
+        userData.bedrijfsgegevens?.straat || userData.settings?.adres || '';
+      quoteData.bedrijfsgegevens.huisnummer =
+        userData.bedrijfsgegevens?.huisnummer || userData.settings?.huisnummer || '';
+      quoteData.bedrijfsgegevens.adress =
+        userData.bedrijfsgegevens?.adress ||
+        `${quoteData.bedrijfsgegevens.straat} ${quoteData.bedrijfsgegevens.huisnummer}`.trim();
+      quoteData.bedrijfsgegevens.postcode =
+        userData.bedrijfsgegevens?.postcode || userData.settings?.postcode || '';
+      quoteData.bedrijfsgegevens.plaats =
+        userData.bedrijfsgegevens?.plaats || userData.settings?.plaats || '';
+      quoteData.bedrijfsgegevens.email =
+        userData.settings?.email || userData.email || '';
+      quoteData.bedrijfsgegevens.telefoon =
+        userData.settings?.telefoon || userData.telefoon || '';
+    }
+
+    if (businessDocSnap.exists()) {
+      const businessData = businessDocSnap.data();
+      quoteData.bedrijfsgegevens.naam =
+        quoteData.bedrijfsgegevens.naam ||
+        businessData.bedrijfsnaam ||
+        businessData.contactNaam ||
+        '';
+      quoteData.bedrijfsgegevens.straat =
+        quoteData.bedrijfsgegevens.straat ||
+        businessData.bedrijfsgegevens?.straat ||
+        businessData.adres ||
+        '';
+      quoteData.bedrijfsgegevens.huisnummer =
+        quoteData.bedrijfsgegevens.huisnummer ||
+        businessData.bedrijfsgegevens?.huisnummer ||
+        '';
+      quoteData.bedrijfsgegevens.adress =
+        quoteData.bedrijfsgegevens.adress ||
+        businessData.bedrijfsgegevens?.adress ||
+        `${quoteData.bedrijfsgegevens.straat} ${quoteData.bedrijfsgegevens.huisnummer}`.trim();
+      quoteData.bedrijfsgegevens.postcode =
+        quoteData.bedrijfsgegevens.postcode ||
+        businessData.bedrijfsgegevens?.postcode ||
+        businessData.postcode ||
+        '';
+      quoteData.bedrijfsgegevens.plaats =
+        quoteData.bedrijfsgegevens.plaats ||
+        businessData.bedrijfsgegevens?.plaats ||
+        businessData.plaats ||
+        '';
+      quoteData.bedrijfsgegevens.email =
+        quoteData.bedrijfsgegevens.email ||
+        businessData.email ||
+        '';
+      quoteData.bedrijfsgegevens.telefoon =
+        quoteData.bedrijfsgegevens.telefoon ||
+        businessData.telefoon ||
+        '';
+    }
+
     const docRef = await addDoc(collection(firestore, 'quotes'), quoteData);
     revalidatePath('/');
     return { redirect: `/offertes/${docRef.id}/klus/nieuw` };
@@ -243,7 +318,7 @@ export async function submitQuoteAction(quoteId: string) {
     const fullQuoteData = await getFullQuoteDetails(quoteId);
     if (!fullQuoteData) throw new Error('Offerte niet gevonden.');
 
-    const webhookUrl = 'https://placeholder.webhook.url/n8n';
+    const webhookUrl = 'https://n8n.dylan8n.org/webhook-test/offerte-test';
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

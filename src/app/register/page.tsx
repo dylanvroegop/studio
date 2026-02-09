@@ -115,6 +115,9 @@ export default function RegisterPage() {
         rol,
         offertesPerMaand,
         createdAt: serverTimestamp(),
+        bedrijfsgegevens: {
+          adress: ''
+        }
       };
 
       const businessDocRef = doc(firestore, 'businesses', newUser.uid);

@@ -236,6 +236,7 @@ type StandaardTransport = {
   mode: TransportMode;
   prijsPerKm?: number | null;
   vasteTransportkosten?: number | null;
+  tunnelkosten?: number | null;
 };
 
 type StandaardWinstMarge = {
@@ -442,6 +443,7 @@ export default function OverzichtPage() {
   const [transportMode, setTransportMode] = useState<TransportMode>('perKm');
   const [prijsPerKm, setPrijsPerKm] = useState('');
   const [vasteTransportkosten, setVasteTransportkosten] = useState('');
+  const [tunnelkosten, setTunnelkosten] = useState('');
 
   // Uurtarief
   const [uurTarief, setUurTarief] = useState('');
@@ -711,6 +713,7 @@ export default function OverzichtPage() {
         setTransportMode('perKm');
         setPrijsPerKm('');
         setVasteTransportkosten('');
+        setTunnelkosten('');
         setUurTarief(numberToEuroInputString(data.instellingen?.uurTariefExclBtw ?? instellingen.standaardUurTarief ?? 50)); // Fallback 50 if missing
         setBouwplaatskosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
@@ -722,6 +725,7 @@ export default function OverzichtPage() {
         // Transport: quote extras, anders user standaard
         const applyTransport = (t: any) => {
           const mode = (t?.mode as TransportMode) ?? 'perKm';
+          setTunnelkosten(numberToEuroInputString(t?.tunnelkosten ?? null));
           if (mode === 'perKm') {
             setTransportMode('perKm');
             setPrijsPerKm(numberToEuroInputString(t?.prijsPerKm ?? null));
@@ -734,6 +738,7 @@ export default function OverzichtPage() {
             setTransportMode('none');
             setPrijsPerKm('');
             setVasteTransportkosten('');
+            setTunnelkosten('');
           }
         };
 
@@ -833,6 +838,7 @@ export default function OverzichtPage() {
 
   const prijsPerKmNum = useMemo(() => euroNLToNumberOrNull(prijsPerKm), [prijsPerKm]);
   const vasteTransportNum = useMemo(() => euroNLToNumberOrNull(vasteTransportkosten), [vasteTransportkosten]);
+  const tunnelkostenNum = useMemo(() => euroNLToNumberOrNull(tunnelkosten), [tunnelkosten]);
 
   const transportIsValid = useMemo(() => {
     if (transportMode === 'none') return true;
@@ -890,11 +896,19 @@ export default function OverzichtPage() {
 
     if (transportMode === 'perKm') {
       if (prijsPerKmNum === null || prijsPerKmNum <= 0) return null;
-      return { mode: 'perKm', prijsPerKm: prijsPerKmNum };
+      return {
+        mode: 'perKm',
+        prijsPerKm: prijsPerKmNum,
+        ...(tunnelkostenNum !== null && tunnelkostenNum > 0 ? { tunnelkosten: tunnelkostenNum } : {}),
+      };
     }
 
     if (vasteTransportNum === null || vasteTransportNum <= 0) return null;
-    return { mode: 'fixed', vasteTransportkosten: vasteTransportNum };
+    return {
+      mode: 'fixed',
+      vasteTransportkosten: vasteTransportNum,
+      ...(tunnelkostenNum !== null && tunnelkostenNum > 0 ? { tunnelkosten: tunnelkostenNum } : {}),
+    };
   }
 
   function buildWinstSparse() {
@@ -1001,6 +1015,7 @@ export default function OverzichtPage() {
     transportMode,
     prijsPerKm,
     vasteTransportkosten,
+    tunnelkosten,
     JSON.stringify(bouwplaatskosten),
     winstMarge.mode,
     winstMarge.percentage,
@@ -1072,10 +1087,18 @@ export default function OverzichtPage() {
     if (transportMode === 'none') return { mode: 'none' };
     if (transportMode === 'perKm') {
       if (prijsPerKmNum === null || prijsPerKmNum <= 0) return null;
-      return { mode: 'perKm', prijsPerKm: prijsPerKmNum };
+      return {
+        mode: 'perKm',
+        prijsPerKm: prijsPerKmNum,
+        ...(tunnelkostenNum !== null && tunnelkostenNum > 0 ? { tunnelkosten: tunnelkostenNum } : {}),
+      };
     }
     if (vasteTransportNum === null || vasteTransportNum <= 0) return null;
-    return { mode: 'fixed', vasteTransportkosten: vasteTransportNum };
+    return {
+      mode: 'fixed',
+      vasteTransportkosten: vasteTransportNum,
+      ...(tunnelkostenNum !== null && tunnelkostenNum > 0 ? { tunnelkosten: tunnelkostenNum } : {}),
+    };
   }
 
   function buildStandaardWinstVanUI(): StandaardWinstMarge | null {
@@ -1372,9 +1395,10 @@ export default function OverzichtPage() {
 
   const transportPopupLabel = useMemo(() => {
     if (transportMode === 'none') return 'Geen';
-    if (transportMode === 'perKm') return `€ ${prijsPerKm || '—'} / km`;
-    return `€ ${vasteTransportkosten || '—'} (vast)`;
-  }, [transportMode, prijsPerKm, vasteTransportkosten]);
+    const tunnelLabel = tunnelkosten ? ` + tunnel € ${tunnelkosten}` : '';
+    if (transportMode === 'perKm') return `€ ${prijsPerKm || '—'} / km${tunnelLabel}`;
+    return `€ ${vasteTransportkosten || '—'} (vast)${tunnelLabel}`;
+  }, [transportMode, prijsPerKm, vasteTransportkosten, tunnelkosten]);
 
   const winstPopupLabel = useMemo(() => {
     if (winstMode === 'none') return 'Geen';
@@ -2380,7 +2404,7 @@ export default function OverzichtPage() {
 
                 {/* DYNAMIC INPUTS ROW */}
                 {transportMode === 'perKm' && (
-                  <div className="animate-in fade-in slide-in-from-top-1">
+                  <div className="animate-in fade-in slide-in-from-top-1 space-y-3">
                     <div className="flex items-center gap-3">
                       <EuroInput
                         value={prijsPerKm}
@@ -2393,11 +2417,20 @@ export default function OverzichtPage() {
                       />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">per km</span>
                     </div>
+                    <div className="flex items-center gap-3">
+                      <EuroInput
+                        value={tunnelkosten}
+                        onChange={setTunnelkosten}
+                        inputClassName="bg-black/20 border-white/5 rounded-lg"
+                        placeholder="0,00"
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">tunnelkosten</span>
+                    </div>
                   </div>
                 )}
 
                 {transportMode === 'fixed' && (
-                  <div className="animate-in fade-in slide-in-from-top-1">
+                  <div className="animate-in fade-in slide-in-from-top-1 space-y-3">
                     <div className="flex items-center gap-3">
                       <EuroInput
                         value={vasteTransportkosten}
@@ -2409,6 +2442,15 @@ export default function OverzichtPage() {
                         placeholder="0,00"
                       />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">vast bedrag</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <EuroInput
+                        value={tunnelkosten}
+                        onChange={setTunnelkosten}
+                        inputClassName="bg-black/20 border-white/5 rounded-lg"
+                        placeholder="0,00"
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">tunnelkosten</span>
                     </div>
                   </div>
                 )}

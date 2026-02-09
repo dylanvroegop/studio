@@ -176,7 +176,6 @@ export default function FacturenPage() {
 
       setArchiveOpen(false);
       setArchiveTarget(null);
-      router.push('/archief');
     } catch (e: any) {
       console.error(e);
       setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon factuur niet archiveren.'}`);

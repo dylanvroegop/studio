@@ -86,9 +86,10 @@ export default function ClientViewPage() {
                 schattingUren: rawInst?.schattingUren ?? false,
                 extras: {
                     transport: {
-                        prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? 0.30,
-                        vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? 0,
-                        mode: rawExtras?.transport?.mode ?? 'perKm'
+                        prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
+                        vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
+                        tunnelkosten: rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
+                        mode: rawExtras?.transport?.mode ?? rawInst?.extras?.transport?.mode
                     },
                     winstMarge: {
                         percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
@@ -257,4 +258,3 @@ export default function ClientViewPage() {
         </div>
     );
 }
-

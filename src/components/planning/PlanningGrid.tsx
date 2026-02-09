@@ -21,6 +21,7 @@ interface PlanningGridProps {
     onEmptyCellClick: (date: Date, employeeId: string) => void;
     schedulingMode?: boolean;
     currentDate?: Date;
+    pauseMinutes?: number;
 }
 
 export function PlanningGrid({
@@ -33,7 +34,8 @@ export function PlanningGrid({
     onEntryResize,
     onEmptyCellClick,
     schedulingMode = false,
-    currentDate = new Date()
+    currentDate = new Date(),
+    pauseMinutes = 0
 }: PlanningGridProps) {
     const days = useMemo(() => getDaysInRange(dateRange.start, dateRange.end), [dateRange]);
     const hours = useMemo(() => getHoursInDay(6, 20), []);
@@ -171,6 +173,7 @@ export function PlanningGrid({
                                                     view={view}
                                                     day={day}
                                                     hours={hours}
+                                                    pauseMinutes={pauseMinutes}
                                                     onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                     onDragStart={onDragStart}
                                                 />
@@ -259,6 +262,7 @@ export function PlanningGrid({
                                                             view={view}
                                                             day={date}
                                                             hours={hours}
+                                                            pauseMinutes={pauseMinutes}
                                                             stackIndex={idx}
                                                             onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                             onDragStart={onDragStart}
@@ -360,6 +364,7 @@ export function PlanningGrid({
                                                                 view={view}
                                                                 day={day}
                                                                 hours={hours}
+                                                                pauseMinutes={pauseMinutes}
                                                                 stackIndex={idx}
                                                                 onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                                 onDragStart={onDragStart}
@@ -452,6 +457,7 @@ export function PlanningGrid({
                                             view={view}
                                             day={day}
                                             hours={hours}
+                                            pauseMinutes={pauseMinutes}
                                             stackIndex={idx}
                                         onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                         onDragStart={onDragStart}

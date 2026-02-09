@@ -56,6 +56,73 @@ async function haalQuoteOp(db: FirebaseFirestore.Firestore, quoteId: string) {
   return { id: snap.id, ...snap.data() };
 }
 
+async function haalBedrijfsgegevensOp(db: FirebaseFirestore.Firestore, quote: any) {
+  const splitAddress = (value: string): { straat: string; huisnummer: string } => {
+    const raw = (value || '').trim();
+    const match = raw.match(/^(.*?)(?:\s+(\d+\S*))$/);
+    if (!match) return { straat: raw, huisnummer: '' };
+    return {
+      straat: (match[1] || '').trim(),
+      huisnummer: (match[2] || '').trim(),
+    };
+  };
+
+  const ownerUid = quote?.userId;
+  if (!ownerUid) {
+    const split = splitAddress(quote?.bedrijfsgegevens?.adress || '');
+    return {
+      naam: quote?.bedrijfsgegevens?.naam || quote?.bedrijfsnaam || '',
+      straat: quote?.bedrijfsgegevens?.straat || split.straat,
+      huisnummer: quote?.bedrijfsgegevens?.huisnummer || split.huisnummer,
+      postcode: quote?.bedrijfsgegevens?.postcode || '',
+      plaats: quote?.bedrijfsgegevens?.plaats || '',
+      email: quote?.bedrijfsgegevens?.email || '',
+      telefoon: quote?.bedrijfsgegevens?.telefoon || '',
+    };
+  }
+
+  const bedrijf = {
+    naam: quote?.bedrijfsgegevens?.naam || quote?.bedrijfsnaam || '',
+    straat: quote?.bedrijfsgegevens?.straat || '',
+    huisnummer: quote?.bedrijfsgegevens?.huisnummer || '',
+    postcode: quote?.bedrijfsgegevens?.postcode || '',
+    plaats: quote?.bedrijfsgegevens?.plaats || '',
+    email: quote?.bedrijfsgegevens?.email || '',
+    telefoon: quote?.bedrijfsgegevens?.telefoon || '',
+  };
+
+  const [userSnap, businessSnap] = await Promise.all([
+    db.collection('users').doc(ownerUid).get(),
+    db.collection('businesses').doc(ownerUid).get(),
+  ]);
+
+  if (userSnap.exists) {
+    const u = userSnap.data() || {};
+    const splitFromUserAdress = splitAddress(u.bedrijfsgegevens?.adress || '');
+    bedrijf.naam = bedrijf.naam || u.settings?.bedrijfsnaam || u.bedrijfsnaam || '';
+    bedrijf.straat = bedrijf.straat || u.bedrijfsgegevens?.straat || u.settings?.adres || splitFromUserAdress.straat || '';
+    bedrijf.huisnummer = bedrijf.huisnummer || u.bedrijfsgegevens?.huisnummer || u.settings?.huisnummer || splitFromUserAdress.huisnummer || '';
+    bedrijf.postcode = bedrijf.postcode || u.bedrijfsgegevens?.postcode || u.settings?.postcode || u.postcode || '';
+    bedrijf.plaats = bedrijf.plaats || u.bedrijfsgegevens?.plaats || u.settings?.plaats || u.plaats || u.city || '';
+    bedrijf.email = bedrijf.email || u.settings?.email || u.email || '';
+    bedrijf.telefoon = bedrijf.telefoon || u.settings?.telefoon || u.telefoon || '';
+  }
+
+  if (businessSnap.exists) {
+    const b = businessSnap.data() || {};
+    const splitFromBusinessAdress = splitAddress(b.bedrijfsgegevens?.adress || b.adres || '');
+    bedrijf.naam = bedrijf.naam || b.bedrijfsnaam || b.contactNaam || '';
+    bedrijf.straat = bedrijf.straat || b.bedrijfsgegevens?.straat || splitFromBusinessAdress.straat || '';
+    bedrijf.huisnummer = bedrijf.huisnummer || b.bedrijfsgegevens?.huisnummer || splitFromBusinessAdress.huisnummer || '';
+    bedrijf.postcode = bedrijf.postcode || b.bedrijfsgegevens?.postcode || b.postcode || '';
+    bedrijf.plaats = bedrijf.plaats || b.bedrijfsgegevens?.plaats || b.plaats || '';
+    bedrijf.email = bedrijf.email || b.email || '';
+    bedrijf.telefoon = bedrijf.telefoon || b.telefoon || '';
+  }
+
+  return bedrijf;
+}
+
 /**
  * POST
  */
@@ -384,10 +451,15 @@ export async function POST(req: Request) {
     // Clean the entire quote object to remove empty arrays, objects, strings, nulls
     const optimizedQuote = removeEmptyFields(quote);
 
+    const klantinformatie = optimizedQuote?.klantinformatie || {};
+    const { klantinformatie: _skipKlantinformatie, ...quoteZonderKlantinformatie } = optimizedQuote || {};
+    const bedrijf = await haalBedrijfsgegevensOp(db, optimizedQuote);
     const payload = {
       quoteId,
       uid,
-      quote: optimizedQuote,
+      quote: quoteZonderKlantinformatie,
+      klantinformatie,
+      bedrijf,
     };
 
     const res = await fetch(process.env.N8N_WEBHOOK_URL, {

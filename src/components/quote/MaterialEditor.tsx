@@ -41,7 +41,7 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
     const [localEenheid, setLocalEenheid] = useState<string>(item.eenheid || 'stuk');
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-    const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak'];
+    const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak', 'koker', 'zak'];
 
     const formatPrice = (val: number) => {
         return val.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -122,18 +122,15 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
                     />
                 </td>
                 <td className="px-6 py-3">
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="number"
-                            value={localAantal}
-                            onChange={(e) => setLocalAantal(e.target.value)}
-                            onBlur={handleAantalBlur}
-                            onKeyDown={handleKeyDown}
-                            placeholder="0"
-                            className="w-12 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                        <span className="text-zinc-600 text-[10px] font-bold">×</span>
-                    </div>
+                    <input
+                        type="number"
+                        value={localAantal}
+                        onChange={(e) => setLocalAantal(e.target.value)}
+                        onBlur={handleAantalBlur}
+                        onKeyDown={handleKeyDown}
+                        placeholder="0"
+                        className="w-12 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
                 </td>
                 <td className="px-6 py-3 text-right">
                     <label className={`flex items-center justify-end w-28 bg-zinc-900/40 border rounded px-2 py-1 hover:bg-zinc-800/50 transition-all focus-within:ring-1 focus-within:ring-emerald-500/50 focus-within:border-emerald-500/50 hover:border-zinc-600 cursor-text ${needsPrice ? 'border-amber-500/50' : 'border-zinc-700/60'}`}>
@@ -221,7 +218,7 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
     });
     const [localNewPrice, setLocalNewPrice] = useState<string>('');
 
-    const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak'];
+    const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak', 'koker', 'zak'];
 
     const itemsNeedingPrice = items.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0).length;
 
@@ -284,24 +281,6 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                             </span>
                         )}
                     </div>
-                </div>
-                <div className="flex items-center">
-                    <div className="text-right w-32 px-6">
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Subtotaal</p>
-                        <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
-                        <p className="text-primary font-bold tracking-tight">
-                            {formatCurrency(subtotal)}
-                        </p>
-                    </div>
-                    <div className="text-right w-32 px-6">
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Subtotaal</p>
-                        <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
-                        <p className="text-primary font-bold tracking-tight">
-                            {formatCurrency(subtotalInclVAT)}
-                        </p>
-                    </div>
-                    {/* Spacer to align with trash icon column */}
-                    {onRemoveItem && <div className="w-12" />}
                 </div>
             </div>
 
@@ -431,6 +410,24 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                     </Button>
                 </div>
             )}
+
+            <div className="border-t-2 border-border/80 bg-muted/10">
+                <div className="px-6 py-3 flex justify-end items-center">
+                    <div className="flex items-center">
+                        <div className="text-right w-32 px-6">
+                            <p className="text-primary font-bold tracking-tight">
+                                {formatCurrency(subtotal)}
+                            </p>
+                        </div>
+                        <div className="text-right w-32 px-6">
+                            <p className="text-primary font-bold tracking-tight">
+                                {formatCurrency(subtotalInclVAT)}
+                            </p>
+                        </div>
+                        {onRemoveItem && <div className="w-12" />}
+                    </div>
+                </div>
+            </div>
 
             {items.length === 0 && !isAdding && (
                 <div className="p-12 text-center text-muted-foreground">

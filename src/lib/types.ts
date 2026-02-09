@@ -80,6 +80,7 @@ export type Quote = {
       mode: 'perKm' | 'fixed' | 'none';
       prijsPerKm?: number;
       vasteTransportkosten?: number;
+      tunnelkosten?: number;
     };
     winstMarge?: {
       mode: 'percentage' | 'fixed' | 'none';

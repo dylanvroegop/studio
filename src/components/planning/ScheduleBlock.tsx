@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
-import { formatHoursDisplay, calculateDayBlockPosition } from '@/lib/planning-utils';
+import { formatHoursDisplay, calculateDayBlockPosition, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { format, isSameDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Timestamp } from 'firebase/firestore';
@@ -24,6 +24,7 @@ interface ScheduleBlockProps {
     stackIndex?: number;
     onClick: () => void;
     onDragStart?: (e: React.PointerEvent, entryId: string, type: 'move' | 'resize-start' | 'resize-end') => void;
+    pauseMinutes?: number;
 }
 
 export function ScheduleBlock({
@@ -34,7 +35,8 @@ export function ScheduleBlock({
     hours,
     stackIndex = 0,
     onClick,
-    onDragStart
+    onDragStart,
+    pauseMinutes = 0
 }: ScheduleBlockProps) {
     const startDate = entry.startDate instanceof Timestamp
         ? entry.startDate.toDate()
@@ -43,9 +45,15 @@ export function ScheduleBlock({
         ? entry.endDate.toDate()
         : new Date(entry.endDate as unknown as string);
 
+    const rawDurationMinutes = Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60)));
+    const expectedDurationWithPauseMinutes = Math.max(0, Math.round(entry.scheduledHours * 60)) + Math.max(0, pauseMinutes);
+    const displayEndDate = view === 'day' && pauseMinutes > 0 && rawDurationMinutes < expectedDurationWithPauseMinutes
+        ? calculateEndDateFromHours(startDate, entry.scheduledHours, pauseMinutes)
+        : endDate;
+
     const getBlockStyle = (): React.CSSProperties => {
         if (view === 'day') {
-            const position = calculateDayBlockPosition(startDate, endDate, day);
+            const position = calculateDayBlockPosition(startDate, displayEndDate, day);
             if (!position) return { display: 'none' };
             return {
                 position: 'absolute',
@@ -66,7 +74,7 @@ export function ScheduleBlock({
     };
 
     const timeLabel = view === 'day'
-        ? `${format(startDate, 'HH:mm')} - ${format(endDate, 'HH:mm')}`
+        ? `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`
         : formatHoursDisplay(entry.scheduledHours);
 
     const blendWithBackground = (hex: string, alpha: number, base: string = '#0f0f12') => {
@@ -172,7 +180,7 @@ export function ScheduleBlock({
                         <div className="flex items-center gap-2 text-zinc-400 text-xs">
                             <Clock className="w-3 h-3" />
                             <span>
-                                {format(startDate, 'HH:mm')} - {format(endDate, 'HH:mm')}
+                                {format(startDate, 'HH:mm')} - {format(displayEndDate, 'HH:mm')}
                             </span>
                         </div>
 

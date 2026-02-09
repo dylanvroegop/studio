@@ -33,6 +33,7 @@ import { LogoUpload } from '@/components/settings/LogoUpload';
 import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
 
 import { Quote } from "@/lib/types";
 
@@ -40,6 +41,7 @@ export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
     const router = useRouter();
+    const { toast } = useToast();
 
     // Fetch calculation data from Supabase
     const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id);
@@ -77,6 +79,7 @@ export default function QuotePage() {
 
     // Ref to track if we're currently updating materials to prevent race conditions
     const isUpdatingRef = useRef(false);
+    const lastSmallSaveToastAtRef = useRef<number>(0);
 
     // Refresh captured drawings when entering the PDF tab or when data changes
     useEffect(() => {
@@ -259,9 +262,10 @@ export default function QuotePage() {
                     schattingUren: rawInst?.schattingUren ?? false,
                     extras: {
                         transport: {
-                            prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? 0.30,
-                            vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? 0,
-                            mode: rawExtras?.transport?.mode ?? 'perKm'
+                            prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
+                            vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
+                            tunnelkosten: rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
+                            mode: rawExtras?.transport?.mode ?? rawInst?.extras?.transport?.mode
                         },
                         winstMarge: {
                             percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
@@ -354,9 +358,14 @@ export default function QuotePage() {
                         schattingUren: inst.schattingUren ?? false,
                         extras: {
                             transport: {
-                                prijsPerKm: inst.reiskosten_prijs_per_km || 0.30,
-                                vasteTransportkosten: 0,
-                                mode: inst.reiskosten_type === 'vast' ? 'vast' : 'perKm'
+                                prijsPerKm: inst.reiskosten_prijs_per_km ?? inst?.extras?.transport?.prijsPerKm,
+                                vasteTransportkosten: inst?.extras?.transport?.vasteTransportkosten,
+                                tunnelkosten: inst?.extras?.transport?.tunnelkosten,
+                                mode: inst.reiskosten_type === 'vast'
+                                    ? 'vast'
+                                    : inst.reiskosten_type === 'perKm'
+                                        ? 'perKm'
+                                        : inst?.extras?.transport?.mode
                             },
                             winstMarge: {
                                 percentage: inst.winstmarge_percentage || 10,
@@ -452,6 +461,34 @@ export default function QuotePage() {
         }
     };
 
+    // Sync verbruiksartikelen to small material list (insert-or-update by name)
+    const upsertSmallMaterial = async (name: string, priceExclBtw: number, oldName?: string): Promise<boolean> => {
+        if (!user) return false;
+        if (!name?.trim() || Number.isNaN(priceExclBtw) || priceExclBtw < 0) return false;
+
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/materialen/upsert-small', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    naam: name.trim(),
+                    old_naam: oldName?.trim() || null,
+                    prijs_excl_btw: Number(priceExclBtw.toFixed(2)),
+                })
+            });
+
+            const result = await response.json();
+            return response.ok && result.ok === true;
+        } catch (err) {
+            console.error("Failed to upsert small material:", err);
+            return false;
+        }
+    };
+
     // Handler for updating grootmaterialen items
     const handleUpdateGrootItem = async (index: number, updates: Partial<MaterialItem>) => {
         console.log('🚀 [HANDLER] handleUpdateGrootItem called:', { index, updates, hasCalc: !!calculation });
@@ -531,6 +568,34 @@ export default function QuotePage() {
                 });
             }
 
+            // Keep small material list in sync when name and/or price changes.
+            if (updates.product !== undefined || updates.prijs_per_stuk !== undefined) {
+                const updatedName = (updated[index].product || '').trim();
+                const oldName = (oldItem.product || '').trim();
+                const updatedPrice = Number(updated[index].prijs_per_stuk || 0);
+
+                if (updatedName && updatedPrice >= 0) {
+                    const success = await upsertSmallMaterial(updatedName, updatedPrice, oldName);
+                    if (success) {
+                        setLastSyncedAt(new Date());
+                        const now = Date.now();
+                        if (now - lastSmallSaveToastAtRef.current > 1200) {
+                            toast({
+                                title: 'Opgeslagen',
+                                description: 'Opgeslagen in de producten lijst.',
+                            });
+                            lastSmallSaveToastAtRef.current = now;
+                        }
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Opslaan mislukt',
+                            description: 'Kon niet opslaan in de producten lijst.',
+                        });
+                    }
+                }
+            }
+
             // Update master material price if changed
             if (updates.prijs_per_stuk !== undefined && updated[index].product && quoteSettings?.btwTarief) {
                 console.log('💰 [MASTER] Updating master price:', {
@@ -583,6 +648,36 @@ export default function QuotePage() {
                     [jsonKey]: updated,
                 });
             }
+        } finally {
+            isUpdatingRef.current = false;
+        }
+    };
+
+    const handleRemoveItem = async (category: 'groot' | 'verbruik', index: number) => {
+        isUpdatingRef.current = true;
+
+        try {
+            const listKey = category === 'groot' ? 'groot' : 'verbruik';
+            const jsonKey = category === 'groot' ? 'grootmaterialen' : 'verbruiksartikelen';
+            const current = materials[listKey];
+
+            if (index < 0 || index >= current.length) return;
+
+            const updated = current.filter((_, i) => i !== index);
+            setMaterials(prev => ({ ...prev, [listKey]: updated }));
+
+            if (calculation) {
+                const root = unwrapRoot(calculation.data_json);
+                await updateDataJson({
+                    ...root,
+                    [jsonKey]: updated,
+                });
+            }
+
+            toast({
+                title: 'Materiaal verwijderd',
+                description: 'Rij is verwijderd uit de offerte.',
+            });
         } finally {
             isUpdatingRef.current = false;
         }
@@ -646,10 +741,11 @@ export default function QuotePage() {
     const handleUpdateSettings = async (newSettings: QuoteCalculationSettings) => {
         setQuoteSettings(newSettings);
         if (calculation) {
+            const root = unwrapRoot(calculation.data_json);
             await updateDataJson({
-                ...calculation.data_json,
+                ...root,
                 instellingen: {
-                    ...(calculation.data_json.instellingen as any),
+                    ...(root?.instellingen as any),
                     ...newSettings
                 }
             });
@@ -684,7 +780,13 @@ export default function QuotePage() {
                     userProfile?.companyName ||
                     'Uw Bedrijfsnaam'
                 ),
-                adres: userProfile?.settings?.adres || businessData?.adres || userProfile?.adres || userProfile?.address || 'Straatnaam 123',
+                adres:
+                    `${userProfile?.settings?.adres || ''} ${userProfile?.settings?.huisnummer || ''}`.trim() ||
+                    userProfile?.settings?.adres ||
+                    businessData?.adres ||
+                    userProfile?.adres ||
+                    userProfile?.address ||
+                    'Straatnaam 123',
                 postcode: userProfile?.settings?.postcode || businessData?.postcode || userProfile?.postcode || userProfile?.zipcode || '1234 AB',
                 plaats: userProfile?.settings?.plaats || businessData?.plaats || userProfile?.plaats || userProfile?.city || 'Plaats',
                 telefoon: userProfile?.settings?.telefoon || businessData?.telefoon || userProfile?.telefoon || userProfile?.phone || '06-12345678',
@@ -801,7 +903,13 @@ export default function QuotePage() {
                     userProfile?.companyName ||
                     'Mijn Bedrijf'
                 ),
-                adres: userProfile?.settings?.adres || businessData?.adres || userProfile?.adres || userProfile?.address || '',
+                adres:
+                    `${userProfile?.settings?.adres || ''} ${userProfile?.settings?.huisnummer || ''}`.trim() ||
+                    userProfile?.settings?.adres ||
+                    businessData?.adres ||
+                    userProfile?.adres ||
+                    userProfile?.address ||
+                    '',
                 postcode: userProfile?.settings?.postcode || businessData?.postcode || userProfile?.postcode || userProfile?.zipcode || '',
                 plaats: userProfile?.settings?.plaats || businessData?.plaats || userProfile?.plaats || userProfile?.city || '',
                 telefoon: userProfile?.settings?.telefoon || businessData?.telefoon || userProfile?.telefoon || userProfile?.phone || '',
@@ -1139,17 +1247,15 @@ export default function QuotePage() {
                                                 if (!calculation) return;
                                                 // Assuming we can just update the total, note: this might desync from uren_specificatie
                                                 // but since user explicitly requested editing total hours, we allow it.
+                                                const root = unwrapRoot(calculation.data_json);
                                                 await updateDataJson({
-                                                    ...calculation.data_json,
+                                                    ...root,
                                                     totaal_uren: newHours,
                                                 });
                                             }}
                                         />
                                     </div>
                                 </div>
-
-                                {/* Work Description */}
-                                <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
 
                                 {/* Facturatie (Voorschot) */}
                                 {totals && (
@@ -1223,6 +1329,9 @@ export default function QuotePage() {
                                         </CardContent>
                                     </Card>
                                 )}
+
+                                {/* Work Description */}
+                                <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
                             </div>
                         )}
                     </TabsContent>
@@ -1288,7 +1397,7 @@ export default function QuotePage() {
                                     title="GROOTMATERIALEN"
                                     items={materials.groot}
                                     onUpdateItem={handleUpdateGrootItem}
-                                    onRemoveItem={async () => { }}
+                                    onRemoveItem={(index) => handleRemoveItem('groot', index)}
                                     onAddItem={(item) => handleAddItem('groot', item)}
                                     subtotal={grootSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
@@ -1298,7 +1407,7 @@ export default function QuotePage() {
                                     title="VERBRUIKSARTIKELEN"
                                     items={materials.verbruik}
                                     onUpdateItem={handleUpdateVerbruiksItem}
-                                    onRemoveItem={async () => { }}
+                                    onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
                                     onAddItem={(item) => handleAddItem('verbruik', item)}
                                     subtotal={verbruikSubtotal}
                                     vatRate={quoteSettings?.btwTarief}

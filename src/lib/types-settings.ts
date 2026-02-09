@@ -36,6 +36,7 @@ export interface UserSettings {
 
     contactNaam: string;
     adres: string;
+    huisnummer: string;
     postcode: string;
     plaats: string;
     email: string;
@@ -88,6 +89,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     btwNummer: '',
     contactNaam: '',
     adres: '',
+    huisnummer: '',
     postcode: '',
     plaats: '',
     email: '',

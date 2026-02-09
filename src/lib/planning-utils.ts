@@ -1,4 +1,5 @@
 import {
+    addMinutes,
     addDays,
     startOfDay,
     endOfDay,
@@ -31,13 +32,13 @@ export function autoSplitJob(
     startDate: Date,
     settings: PlanningSettings = DEFAULT_PLANNING_SETTINGS
 ): AutoSplitEntry[] {
-    const { defaultWorkdayHours, workDays, defaultStartTime, defaultEndTime } = settings;
+    const { defaultWorkdayHours, workDays, defaultStartTime } = settings;
     const entries: AutoSplitEntry[] = [];
     let remainingHours = totalHours;
     let currentDate = startOfDay(startDate);
 
     const [startHour, startMin] = defaultStartTime.split(':').map(Number);
-    const [endHour, endMin] = defaultEndTime.split(':').map(Number);
+    const pauseMinutes = Math.max(0, Number(settings.pauzeMinuten || 0));
 
     while (remainingHours > 0) {
         const dayOfWeek = getDay(currentDate);
@@ -54,7 +55,7 @@ export function autoSplitJob(
 
         const hoursThisDay = Math.min(remainingHours, defaultWorkdayHours);
         const entryStartDate = setMinutes(setHours(currentDate, startHour), startMin);
-        const entryEndDate = setMinutes(setHours(currentDate, startHour + hoursThisDay), startMin);
+        const entryEndDate = calculateEndDateFromHours(entryStartDate, hoursThisDay, pauseMinutes);
 
         entries.push({
             startDate: entryStartDate,
@@ -67,6 +68,16 @@ export function autoSplitJob(
     }
 
     return entries;
+}
+
+export function calculateEndDateFromHours(
+    startDate: Date,
+    scheduledHours: number,
+    pauseMinutes: number = 0
+): Date {
+    const workMinutes = Math.max(0, Math.round(scheduledHours * 60));
+    const pause = Math.max(0, Math.round(pauseMinutes));
+    return addMinutes(startDate, workMinutes + pause);
 }
 
 export function getDateRangeForView(view: TimelineView, currentDate: Date): { start: Date; end: Date } {

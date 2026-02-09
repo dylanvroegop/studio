@@ -28,6 +28,7 @@ import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed or use a simple
 
 
 export default function InstellingenPage() {
+    const showEmployeesInSettings = false;
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -38,6 +39,19 @@ export default function InstellingenPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('bedrijf');
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+    const composeAddress = (straat: string, huisnummer: string): string =>
+        `${straat || ''} ${huisnummer || ''}`.trim();
+
+    const splitAddress = (rawAddress: string): { straat: string; huisnummer: string } => {
+        const address = (rawAddress || '').trim();
+        const match = address.match(/^(.*?)(?:\s+(\d+\S*))$/);
+        if (!match) return { straat: address, huisnummer: '' };
+        return {
+            straat: (match[1] || '').trim(),
+            huisnummer: (match[2] || '').trim(),
+        };
+    };
 
     const sanitizeForFirestore = <T,>(value: T): T => {
         // Firestore rejects `undefined` values in nested objects.
@@ -148,6 +162,12 @@ export default function InstellingenPage() {
                     ...userSettings
                 };
 
+                if (!merged.huisnummer && merged.adres) {
+                    const split = splitAddress(merged.adres);
+                    merged.adres = split.straat;
+                    merged.huisnummer = split.huisnummer;
+                }
+
                 setSettings(merged);
                 setLogoUrl(merged.logoUrl || null);
             } catch (error) {
@@ -168,7 +188,19 @@ export default function InstellingenPage() {
         try {
             const docRef = doc(firestore, 'users', user.uid);
             const cleanSettings = sanitizeForFirestore(settings);
-            await setDoc(docRef, { settings: cleanSettings }, { merge: true });
+
+            // Mirror address to top-level bedrijfsgegevens for external tool compatibility
+            await setDoc(docRef, {
+                settings: cleanSettings,
+                bedrijfsgegevens: {
+                    adress: composeAddress(settings.adres, settings.huisnummer),
+                    straat: settings.adres || '',
+                    huisnummer: settings.huisnummer || '',
+                    postcode: settings.postcode || '',
+                    plaats: settings.plaats || ''
+                }
+            }, { merge: true });
+
             toast({ title: 'Opgeslagen', description: 'Uw instellingen zijn bijgewerkt.' });
             router.push('/dashboard');
         } catch (error) {
@@ -206,7 +238,19 @@ export default function InstellingenPage() {
             try {
                 const docRef = doc(firestore, 'users', user.uid);
                 const cleanSettings = sanitizeForFirestore(updatedSettings);
-                await setDoc(docRef, { settings: cleanSettings }, { merge: true });
+
+                // Mirror address to top-level bedrijfsgegevens for external tool compatibility
+                await setDoc(docRef, {
+                    settings: cleanSettings,
+                    bedrijfsgegevens: {
+                        adress: composeAddress(updatedSettings.adres, updatedSettings.huisnummer),
+                        straat: updatedSettings.adres || '',
+                        huisnummer: updatedSettings.huisnummer || '',
+                        postcode: updatedSettings.postcode || '',
+                        plaats: updatedSettings.plaats || ''
+                    }
+                }, { merge: true });
+
                 toast({
                     title: url ? 'Logo opgeslagen' : 'Logo verwijderd',
                     description: url ? 'Uw logo is automatisch opgeslagen.' : 'Uw logo is verwijderd.'
@@ -291,9 +335,13 @@ export default function InstellingenPage() {
                                     <Label>Contactpersoon</Label>
                                     <Input value={settings.contactNaam} onChange={e => update('contactNaam', e.target.value)} placeholder="J. de Vries" />
                                 </div>
-                                <div className="space-y-2 md:col-span-2">
-                                    <Label>Adres</Label>
-                                    <Input value={settings.adres} onChange={e => update('adres', e.target.value)} placeholder="Straatnaam 123" />
+                                <div className="space-y-2">
+                                    <Label>Straat</Label>
+                                    <Input value={settings.adres} onChange={e => update('adres', e.target.value)} placeholder="2e verbindingstraat" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Huisnummer</Label>
+                                    <Input value={settings.huisnummer} onChange={e => update('huisnummer', e.target.value)} placeholder="22" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Postcode</Label>
@@ -789,6 +837,7 @@ export default function InstellingenPage() {
                             </CardContent>
                         </Card>
 
+                        {showEmployeesInSettings && (
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <div>
@@ -862,9 +911,11 @@ export default function InstellingenPage() {
                                 )}
                             </CardContent>
                         </Card>
+                        )}
                     </TabsContent>
 
                     {/* --- EMPLOYEE DIALOG --- */}
+                    {showEmployeesInSettings && (
                     <Dialog open={isEmployeeDialogOpen} onOpenChange={setIsEmployeeDialogOpen}>
                         <DialogContent className="max-w-md">
                             <DialogHeader>
@@ -948,6 +999,7 @@ export default function InstellingenPage() {
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
+                    )}
 
                     {/* --- PACKAGE DIALOG --- */}
                     <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>
