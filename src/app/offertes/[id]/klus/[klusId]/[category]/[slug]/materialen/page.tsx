@@ -910,6 +910,7 @@ export default function GenericMaterialsPageRedesigned() {
   // When set, the modal adds/replaces a specific entry in a multiEntry slot
   const [activeMultiEntryKey, setActiveMultiEntryKey] = useState<string | null>(null); // section.key
   const [activeMultiEntryId, setActiveMultiEntryId] = useState<string | null>(null); // entry id (null = adding new)
+  const [activeSectionMeta, setActiveSectionMeta] = useState<{ key: string; label?: string; categoryFilter?: string | string[] } | null>(null);
 
   // Per-component werkpakket presets
   const [componentPresets, setComponentPresets] = useState<Record<string, any[]>>({});
@@ -917,15 +918,38 @@ export default function GenericMaterialsPageRedesigned() {
   const [saveComponentPresetType, setSaveComponentPresetType] = useState<string | null>(null);
   const [saveComponentPresetCompId, setSaveComponentPresetCompId] = useState<string | null>(null);
 
-  const memoizedDefaultCategory = useMemo(() => {
-    if (!actieveSectie) return undefined;
-    const raw = materialSections.find(s => s.key === actieveSectie)?.categoryFilter;
+  const normalizeCategoryFilter = (raw?: string | string[]) => {
     if (!raw) return undefined;
     if (typeof raw === 'string' && raw.includes(',')) {
       return raw.split(',').map((s: string) => s.trim());
     }
     return raw;
-  }, [actieveSectie, materialSections]);
+  };
+
+  const memoizedDefaultCategory = useMemo(() => {
+    if (!actieveSectie) return undefined;
+
+    // 1) Primary: exact key match in current job-registry sections
+    const byKey = materialSections.find((s) => s.key === actieveSectie)?.categoryFilter;
+    if (byKey) return normalizeCategoryFilter(byKey);
+
+    // 2) If this is a component section, prefer a 1:1 label match in current job-registry
+    if (activeSectionMeta?.label) {
+      const wanted = activeSectionMeta.label.toLowerCase().trim();
+      const byLabel = materialSections.find(
+        (s) => (s.label || '').toLowerCase().trim() === wanted
+      )?.categoryFilter;
+      if (byLabel) return normalizeCategoryFilter(byLabel);
+    }
+
+    // 3) Fallback to the component section's own categoryFilter
+    return normalizeCategoryFilter(activeSectionMeta?.categoryFilter);
+  }, [actieveSectie, materialSections, activeSectionMeta]);
+
+  const normalizeComponentType = (type: string | null | undefined): string | null => {
+    if (!type) return null;
+    return type;
+  };
 
   // Calculate which component types are active for this job configuration
   const activeComponentTypes = useMemo(() => {
@@ -944,7 +968,7 @@ export default function GenericMaterialsPageRedesigned() {
         if (k === 'Kozijnen' || lower === 'kozijnen') type = 'kozijn';
         else if (k === 'Deuren' || lower === 'deuren') type = 'deur';
         else if (k === 'boeiboord' || lower === 'boeiboorden') type = 'boeiboord';
-        else if (k === 'Koof') type = 'leidingkoof';
+        else if (k === 'Koof') type = 'koof';
         else if (k === 'Installatie' || k === 'Schakelmateriaal') type = 'installatie';
         else if (k === 'Dagkant') type = 'dagkant';
         else if (k === 'Vensterbank') type = 'vensterbank';
@@ -952,7 +976,7 @@ export default function GenericMaterialsPageRedesigned() {
 
       if (isCeiling) {
         if (k === 'Toegang' || k === 'Vliering_Toegang' || lower.includes('vlizotrap') || lower.includes('toegang')) type = 'vlizotrap';
-        else if (k === 'Koof') type = 'leidingkoof';
+        else if (k === 'Koof') type = 'koof';
         else if (lower.includes('plafond') || lower.includes('vliering')) type = 'plafond';
 
         // Always allow plafond for ceiling jobs, even if not explicitly in categories (as it might be added via "extra" logic)
@@ -975,7 +999,10 @@ export default function GenericMaterialsPageRedesigned() {
     return map;
   }, [materialSections]);
 
-  const orphanedComponents = components.filter(c => !c.type || !activeComponentTypes.has(c.type));
+  const orphanedComponents = components.filter((c) => {
+    const normalizedType = normalizeComponentType(c.type);
+    return !normalizedType || !activeComponentTypes.has(normalizedType);
+  });
 
   const [variantPickerOpen, setVariantPickerOpen] = useState(false);
   const [variantPickerType, setVariantPickerType] = useState<JobComponentType | null>(null);
@@ -1467,7 +1494,7 @@ export default function GenericMaterialsPageRedesigned() {
 
             return {
               id: compId,
-              type: t.type,
+              type: normalizeComponentType(t.type) || t.type,
               label: t.label,
               measurements: t.afmetingen || {},
               materials: compMaterials,
@@ -1476,7 +1503,10 @@ export default function GenericMaterialsPageRedesigned() {
           });
         } else if (Array.isArray(klusNode?.components) && klusNode.components.length > 0) {
           // Fallback: legacy components field for old data
-          currentComponents = klusNode.components;
+          currentComponents = klusNode.components.map((c: any) => ({
+            ...c,
+            type: normalizeComponentType(c?.type) || c?.type,
+          }));
         } else {
           currentComponents = [];
         }
@@ -2068,7 +2098,16 @@ export default function GenericMaterialsPageRedesigned() {
       return newState;
     });
   };
-  const openMateriaalKiezer = (sectieKey: string, groupId: string | null = null) => { setActieveSectie(sectieKey); setActiveGroupId(groupId); setIsExtraModalOpen(true); };
+  const openMateriaalKiezer = (
+    sectieKey: string,
+    groupId: string | null = null,
+    sectionMeta?: { key: string; label?: string; categoryFilter?: string | string[] }
+  ) => {
+    setActieveSectie(sectieKey);
+    setActiveGroupId(groupId);
+    setActiveSectionMeta(sectionMeta || null);
+    setIsExtraModalOpen(true);
+  };
   const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({ ...prev, [key]: materiaal })); };
   const handleMateriaalVerwijderen = (key: string) => { setGekozenMaterialen(prev => { const n = { ...prev }; delete n[key]; return n; }); };
 
@@ -2118,6 +2157,8 @@ export default function GenericMaterialsPageRedesigned() {
     setActiveMultiEntryKey(sectionKey);
     setActiveMultiEntryId(entryId);
     setActieveSectie(sectionKey);
+    const section = materialSections.find((s) => s.key === sectionKey);
+    setActiveSectionMeta(section ? { key: section.key, label: section.label, categoryFilter: section.categoryFilter } : null);
     setIsExtraModalOpen(true);
   };
 
@@ -2929,7 +2970,7 @@ export default function GenericMaterialsPageRedesigned() {
                 const isDeurenSection = (categoryKey === 'Deuren' || lowerKey === 'deuren');
                 const isBoeiboordSection = (categoryKey === 'boeiboord' || lowerKey === 'boeiboorden');
                 const isVlizotrapSection = (categoryKey === 'Toegang' || categoryKey === 'Vliering_Toegang' || lowerKey.includes('vlizotrap') || lowerKey.includes('toegang'));
-                const isLeidingkoofSection = categoryKey === 'Koof';
+                const isKoofSection = categoryKey === 'Koof';
                 const isPlafondSection = categoryKey === 'plafond';
                 const isInstallatieSection = categoryKey === 'Installatie' || categoryKey === 'Schakelmateriaal';
                 const isDagkantSection = categoryKey === 'Dagkant';
@@ -2957,7 +2998,7 @@ export default function GenericMaterialsPageRedesigned() {
                   const isBoeiboordJob = jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord') || categorySlug === 'boeidelen' || categorySlug === 'boeiboorden';
                   if (isBoeiboordJob) targetComponentType = 'boeiboord';
                 }
-                else if (isLeidingkoofSection) targetComponentType = 'koof';
+                else if (isKoofSection) targetComponentType = 'koof';
                 else if (isInstallatieSection) targetComponentType = 'installatie';
                 else if (isDagkantSection && allowDoorComponents) targetComponentType = 'dagkant';
                 else if (isVensterbankSection && allowDoorComponents) targetComponentType = 'vensterbank';
@@ -3209,8 +3250,11 @@ export default function GenericMaterialsPageRedesigned() {
                                               selected={selectedForThis}
                                               onClick={() => {
                                                 setActiveComponentId(comp.id);
-                                                setActieveSectie(section.key);
-                                                setIsExtraModalOpen(true);
+                                                openMateriaalKiezer(section.key, null, {
+                                                  key: section.key,
+                                                  label: section.label,
+                                                  categoryFilter: section.categoryFilter,
+                                                });
                                               }}
                                               onRemove={() => handleComponentMaterialRemove(comp.id, section.key)}
                                             />
@@ -3259,7 +3303,11 @@ export default function GenericMaterialsPageRedesigned() {
                                       <MaterialRow
                                         label={section.label}
                                         selected={gekozenMaterialen[section.key]}
-                                        onClick={() => openMateriaalKiezer(section.key)}
+                                        onClick={() => openMateriaalKiezer(section.key, null, {
+                                          key: section.key,
+                                          label: section.label,
+                                          categoryFilter: section.categoryFilter,
+                                        })}
                                         onRemove={() => handleMateriaalVerwijderen(section.key)}
                                       />
                                       {/* Beam Height Warning - shows after staanders selection */}
@@ -3372,7 +3420,11 @@ export default function GenericMaterialsPageRedesigned() {
                       key={section.key}
                       label={section.label}
                       selected={gekozenMaterialen[section.key]}
-                      onClick={() => openMateriaalKiezer(section.key)}
+                      onClick={() => openMateriaalKiezer(section.key, null, {
+                        key: section.key,
+                        label: section.label,
+                        categoryFilter: section.categoryFilter,
+                      })}
                       onRemove={() => handleMateriaalVerwijderen(section.key)}
                     />
                   ))}
@@ -3599,6 +3651,7 @@ export default function GenericMaterialsPageRedesigned() {
           if (!open) {
             setActiveComponentId(null);
             setActieveSectie(null);
+            setActiveSectionMeta(null);
             setActiveGroupId(null);
             setActiveMultiEntryKey(null);
             setActiveMultiEntryId(null);
@@ -3671,6 +3724,7 @@ export default function GenericMaterialsPageRedesigned() {
             handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
             setActiveComponentId(null);
             setActieveSectie(null);
+            setActiveSectionMeta(null);
           } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
             setActiveGroupId(null);
@@ -3683,9 +3737,11 @@ export default function GenericMaterialsPageRedesigned() {
             setActiveMultiEntryKey(null);
             setActiveMultiEntryId(null);
             setActieveSectie(null);
+            setActiveSectionMeta(null);
           } else if (actieveSectie) {
             handleMateriaalSelectie(actieveSectie, converted);
             setActieveSectie(null);
+            setActiveSectionMeta(null);
           }
           setIsExtraModalOpen(false);
         }}
@@ -3700,6 +3756,7 @@ export default function GenericMaterialsPageRedesigned() {
             handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
             setActiveComponentId(null);
             setActieveSectie(null);
+            setActiveSectionMeta(null);
           } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
             setActiveGroupId(null);
@@ -3712,9 +3769,11 @@ export default function GenericMaterialsPageRedesigned() {
             setActiveMultiEntryKey(null);
             setActiveMultiEntryId(null);
             setActieveSectie(null);
+            setActiveSectionMeta(null);
           } else if (actieveSectie) {
             handleMateriaalSelectie(actieveSectie, converted);
             setActieveSectie(null);
+            setActiveSectionMeta(null);
           }
           setIsExtraModalOpen(false);
         }}

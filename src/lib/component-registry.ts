@@ -128,9 +128,9 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         description: 'Afwerking van naden en stucwerk',
         measurements: [], // No measurements needed for now
         defaultMaterials: [
-            { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-            { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-            { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'gips_finish', category_ultra_filter: '' },
+            { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+            { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+            { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'afwerking', key: 'gips_finish', category_ultra_filter: '' },
         ]
     },
     // 9. Isolatie

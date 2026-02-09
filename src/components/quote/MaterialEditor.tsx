@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { formatCurrency, MaterialItem } from '@/lib/quote-calculations';
 import { Package, AlertCircle, Plus, Check, X, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
     AlertDialog,
     AlertDialogContent,
@@ -23,6 +24,7 @@ interface MaterialEditorProps {
     subtotal: number;
     vatRate?: number;
     onAddClick?: () => void;
+    enableCalculationViewToggle?: boolean;
 }
 
 interface MaterialRowProps {
@@ -32,9 +34,20 @@ interface MaterialRowProps {
     onUpdateItem: (index: number, updates: Partial<MaterialItem>) => void;
     onRemoveItem?: (index: number) => void;
     handleKeyDown: (e: React.KeyboardEvent) => void;
+    showCalculation: boolean;
+    totalColumns: number;
 }
 
-function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleKeyDown }: MaterialRowProps) {
+function MaterialRow({
+    item,
+    index,
+    vatRate,
+    onUpdateItem,
+    onRemoveItem,
+    handleKeyDown,
+    showCalculation,
+    totalColumns,
+}: MaterialRowProps) {
     const [localAantal, setLocalAantal] = useState<string>(item.aantal?.toString() || '');
     const [localProduct, setLocalProduct] = useState<string>(item.product || '');
     const [localPrijs, setLocalPrijs] = useState<string>(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
@@ -107,6 +120,7 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
 
     const needsPrice = !item.prijs_per_stuk || item.prijs_per_stuk === 0;
     const itemTotal = (item.prijs_per_stuk || 0) * (item.aantal || 0);
+    const calculationText = typeof item.hoe_berekend === 'string' ? item.hoe_berekend : '';
 
     return (
         <>
@@ -179,6 +193,13 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
                     </td>
                 )}
             </tr>
+            {showCalculation && calculationText && (
+                <tr className="bg-zinc-900/20">
+                    <td colSpan={totalColumns} className="px-6 py-3 text-xs text-zinc-300">
+                        <span className="font-semibold text-zinc-200">Berekening:</span> {calculationText}
+                    </td>
+                </tr>
+            )}
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -208,7 +229,17 @@ function MaterialRow({ item, index, vatRate, onUpdateItem, onRemoveItem, handleK
     );
 }
 
-export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAddItem, subtotal, vatRate = 21, onAddClick }: MaterialEditorProps) {
+export function MaterialEditor({
+    title,
+    items,
+    onUpdateItem,
+    onRemoveItem,
+    onAddItem,
+    subtotal,
+    vatRate = 21,
+    onAddClick,
+    enableCalculationViewToggle = false,
+}: MaterialEditorProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newItem, setNewItem] = useState<Partial<MaterialItem>>({
         aantal: 1,
@@ -217,8 +248,11 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
         eenheid: 'stuk'
     });
     const [localNewPrice, setLocalNewPrice] = useState<string>('');
+    const [showCalculation, setShowCalculation] = useState(false);
 
     const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak', 'koker', 'zak'];
+    const totalColumns = onRemoveItem ? 7 : 6;
+    const hasCalculationData = items.some((item) => typeof item.hoe_berekend === 'string' && item.hoe_berekend.trim().length > 0);
 
     const itemsNeedingPrice = items.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0).length;
 
@@ -282,6 +316,12 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                         )}
                     </div>
                 </div>
+                {enableCalculationViewToggle && hasCalculationData && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Laat berekening zien</span>
+                        <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
+                    </div>
+                )}
             </div>
 
             {/* Table */}
@@ -320,6 +360,8 @@ export function MaterialEditor({ title, items, onUpdateItem, onRemoveItem, onAdd
                                 onUpdateItem={onUpdateItem}
                                 onRemoveItem={onRemoveItem}
                                 handleKeyDown={handleKeyDown}
+                                showCalculation={showCalculation}
+                                totalColumns={totalColumns}
                             />
                         ))}
 

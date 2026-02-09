@@ -332,7 +332,7 @@ export default function GenericMeasurementPage() {
   const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
-  const showKoofSection = specificJobConfig.sections.includes('leidingkoof');
+  const showKoofSection = specificJobConfig.sections.includes('koof');
   const showVensterbankSection = specificJobConfig.sections.includes('vensterbanken');
   const showDagkantSection = specificJobConfig.sections.includes('dagkanten');
   const GLAS_MAATWERK_OFFSET_MM = 5;
@@ -684,9 +684,9 @@ export default function GenericMeasurementPage() {
     }
 
     if (showKoofSection) {
-      if (!Array.isArray(item.leidingkofen)) item.leidingkofen = [];
+      if (!Array.isArray(item.koven)) item.koven = [];
     } else {
-      delete item.leidingkofen;
+      delete item.koven;
       delete item.koof_lengte;
       delete item.koof_hoogte;
       delete item.koof_diepte;
@@ -710,7 +710,7 @@ export default function GenericMeasurementPage() {
 
     if (isMaatwerkKozijn) {
       delete item.openings;
-      delete item.leidingkofen;
+      delete item.koven;
       delete item.dagkanten;
       delete item.vensterbanken;
       delete item.koof_lengte;
@@ -852,6 +852,27 @@ export default function GenericMeasurementPage() {
     return found;
   };
 
+  const findBalklaagMaterial = (container: any) => {
+    const materialenLijst = container?.materialen?.materialen_lijst || {};
+    let found: any = null;
+    Object.values(materialenLijst).forEach((entry: any) => {
+      if (!entry || !entry.material) return;
+      const sectionKey = entry.sectionKey || entry.material?.sectionKey;
+      if (sectionKey === 'balklaag') found = entry.material;
+    });
+    return found;
+  };
+
+  const applyCeilingBalkafstandDefault = (item: any, hasBalklaagMaterial: boolean) => {
+    const isCeilingJob = jobSlug === 'plafond-houten-framework' || jobSlug === 'plafond-metalstud';
+    if (!isCeilingJob || !hasBalklaagMaterial) return item;
+    const current = item?.balkafstand;
+    if (current === undefined || current === null || current === '') {
+      return { ...item, balkafstand: 600 };
+    }
+    return item;
+  };
+
 
 
   const syncVlizotrapOpening = (item: any, material: any) => {
@@ -952,6 +973,7 @@ export default function GenericMeasurementPage() {
           const vlizotrapMaterial = findVlizotrapMaterial(container);
           const kozijnhoutMaterial = isMaatwerkKozijn ? findKozijnhoutMaterial(container) : null;
           const tussenstijlMaterial = isMaatwerkKozijn ? findTussenstijlMaterial(container) : null;
+          const balklaagMaterial = findBalklaagMaterial(container);
           const kozijnhoutThickness = kozijnhoutMaterial ? parseDikteToMm(kozijnhoutMaterial?.dikte) : null;
           const tussenstijlThickness = tussenstijlMaterial ? parseDikteToMm(tussenstijlMaterial?.dikte) : null;
           if (isMaatwerkKozijn) {
@@ -988,8 +1010,8 @@ export default function GenericMeasurementPage() {
               if (jobSlug === 'hsb-voorzetwand') {
 
                 // Move single objects to arrays if they exist
-                if (normalizedItem.koof_lengte !== undefined && normalizedItem.leidingkofen.length === 0) {
-                  normalizedItem.leidingkofen.push({
+                if (normalizedItem.koof_lengte !== undefined && normalizedItem.koven.length === 0) {
+                  normalizedItem.koven.push({
                     id: crypto.randomUUID(),
                     lengte: Number(normalizedItem.koof_lengte) || 0,
                     hoogte: Number(normalizedItem.koof_hoogte) || 0,
@@ -1107,13 +1129,17 @@ export default function GenericMeasurementPage() {
             const withVlizotrap = vlizotrapMaterial
               ? normalizedItems.map((item: any) => syncVlizotrapOpening(item, vlizotrapMaterial))
               : normalizedItems;
-            setItems(withVlizotrap);
+            const withCeilingDefault = withVlizotrap.map((item: any) =>
+              applyCeilingBalkafstandDefault(item, !!balklaagMaterial)
+            );
+            setItems(withCeilingDefault);
           } else {
             const emptyItem = createEmptyItem();
             const withVlizotrap = vlizotrapMaterial
               ? syncVlizotrapOpening(emptyItem, vlizotrapMaterial)
               : emptyItem;
-            setItems([withVlizotrap]);
+            const withCeilingDefault = applyCeilingBalkafstandDefault(withVlizotrap, !!balklaagMaterial);
+            setItems([withCeilingDefault]);
           }
 
           // 2. Load Components
@@ -1142,7 +1168,7 @@ export default function GenericMeasurementPage() {
     fields.forEach(f => {
       newItem[f.key] = f.defaultValue !== undefined ? f.defaultValue : '';
     });
-    if (showKoofSection) newItem.leidingkofen = [];
+    if (showKoofSection) newItem.koven = [];
     if (showDagkantSection) newItem.dagkanten = [];
     if (showVensterbankSection) newItem.vensterbanken = [];
     if (isMaatwerkKozijn) {
@@ -1475,18 +1501,18 @@ export default function GenericMeasurementPage() {
 
   const onAddKoof = (itemIdx: number) => {
     const newKoof = { id: crypto.randomUUID(), lengte: '', hoogte: '', diepte: '' };
-    const currentKofen = items[itemIdx].leidingkofen || [];
-    updateItem(itemIdx, 'leidingkofen', [...currentKofen, newKoof]);
+    const currentKofen = items[itemIdx].koven || [];
+    updateItem(itemIdx, 'koven', [...currentKofen, newKoof]);
   };
 
   const onDeleteKoof = (itemIdx: number, id: string) => {
-    const currentKofen = items[itemIdx].leidingkofen || [];
-    updateItem(itemIdx, 'leidingkofen', currentKofen.filter((k: any) => k.id !== id));
+    const currentKofen = items[itemIdx].koven || [];
+    updateItem(itemIdx, 'koven', currentKofen.filter((k: any) => k.id !== id));
   };
 
   const onUpdateKoof = (itemIdx: number, id: string, updates: any) => {
-    const currentKofen = items[itemIdx].leidingkofen || [];
-    updateItem(itemIdx, 'leidingkofen', currentKofen.map((k: any) => k.id === id ? { ...k, ...updates } : k));
+    const currentKofen = items[itemIdx].koven || [];
+    updateItem(itemIdx, 'koven', currentKofen.map((k: any) => k.id === id ? { ...k, ...updates } : k));
   };
 
   const handleSave = async (e: React.MouseEvent) => {
@@ -2863,7 +2889,7 @@ export default function GenericMeasurementPage() {
                     {/* Koof Section */}
                     {showKoofSection && (
                       <KoofSection
-                        koven={item.leidingkofen || []}
+                        koven={item.koven || []}
                         onAdd={() => onAddKoof(index)}
                         onDelete={(id) => onDeleteKoof(index, id)}
                         onUpdate={(id, updates) => onUpdateKoof(index, id, updates)}
@@ -3021,7 +3047,7 @@ export default function GenericMeasurementPage() {
                         onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                         onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                         onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
-                        onLeidingkoofChange={(updated: any) => updateItem(index, 'leidingkofen', updated)}
+                        onKoofChange={(updated: any) => updateItem(index, 'koven', updated)}
                       />
                     </div>
                   ) : (
@@ -3058,7 +3084,7 @@ export default function GenericMeasurementPage() {
                             onOpeningsChange={(newOpenings: any) => updateItem(index, 'openings', newOpenings)}
                             onEdgeChange={(side: string, value: string) => updateItem(index, `edge_${side}`, value)}
                             onDataGenerated={(data: any) => updateItem(index, 'calculatedData', data)}
-                            onKoofChange={(updated: any) => updateItem(index, 'leidingkofen', updated)}
+                            onKoofChange={(updated: any) => updateItem(index, 'koven', updated)}
                             className="w-full h-full"
                           />
                         </div>

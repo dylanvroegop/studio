@@ -1466,7 +1466,7 @@ export default function OverzichtPage() {
       }
 
       toast({ title: 'Offerte verzonden', description: 'De offerte is doorgestuurd naar verwerking.' });
-      router.push('/dashboard');
+      router.push(`/offertes/${quoteId}`);
     } catch (err: any) {
       console.error('Generate error:', err);
       toast({

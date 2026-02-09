@@ -294,6 +294,7 @@ export default function MaterialenPage() {
       "Stenen, Lateien & Mortels",
       "Metalstud Profielen & Systeemplafonds",
       "Gipsplaten",
+      "(knauf) gipsproducten",
       "Gipsvezelplaten",
       "Vloerelementen (Estrich)",
       "Isolatie",

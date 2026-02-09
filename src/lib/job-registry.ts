@@ -64,7 +64,7 @@ export const MATERIAL_CATEGORY_INFO = {
   afwerking_binnen: { title: 'Afwerken (Binnen)', order: 4 },
   afwerking_buiten: { title: 'Afwerken (Buiten)', order: 5 },
   lijstwerk: { title: 'Lijstwerk', order: 4 },
-  gips_afwerking: { title: 'Naden & Stucwerk', order: 6 },
+  gips_afwerking: { title: '(knauf) gipsproducten', order: 6 },
   Koof: { title: 'Koof', order: 9 },
   Cinewall: { title: 'Cinewall Elementen', order: 21 },
   // --- TUIN & SCHUTTING ---
@@ -369,7 +369,7 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 4. KOOF
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
@@ -379,9 +379,9 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
   // 6. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 7. KOZIJNEN
   { label: 'Kozijnen (Complete Set)', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_compleet', category_ultra_filter: '' },
@@ -414,7 +414,7 @@ const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 4. KOOF
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
@@ -426,9 +426,9 @@ const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 8. KOZIJNEN
   { label: 'Kozijnen (Complete Set)', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_compleet', category_ultra_filter: '' },
@@ -463,7 +463,7 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
@@ -475,9 +475,9 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS / STUC)
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 8. KOZIJNEN
   { label: 'Raamkozijnen', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
@@ -511,7 +511,7 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
@@ -523,9 +523,9 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS / STUC)
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 8. KOZIJNEN
   { label: 'Raamkozijnen', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
@@ -569,9 +569,9 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
   { label: 'Gevelhoeken', categoryFilter: 'Exterieur platen, Overig', category: 'afwerking_buiten', key: 'hoek_buiten', category_ultra_filter: '' },
 
   // 6. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 7. KOZIJNEN
   { label: 'Stelkozijnen', categoryFilter: 'Kozijnhout, Vuren hout', category: 'Kozijnen', key: 'stelkozijn', category_ultra_filter: '' },
@@ -600,7 +600,7 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_beplating', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. BEPLATING
@@ -614,9 +614,9 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
   // 7. NADEN & STUCWERK
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 8. CINEWALL ELEMENTEN
   { label: 'Inbouw Sfeerhaard', categoryFilter: 'Overig', category: 'Cinewall', key: 'sfeerhaard', category_ultra_filter: '' },
@@ -643,15 +643,15 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
   // 5. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 
   // 8. SCHUIFWANDEN (Replaces Standard Doors)
   { label: 'Schuifdeurrails', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_rails', category_ultra_filter: '' },
@@ -679,7 +679,7 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 2. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
 
@@ -701,8 +701,8 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'Toegang', key: 'luik_afwerking', category_ultra_filter: '' },
 
   // 10. NADEN & STUCWERK
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 ];
 
 const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
@@ -713,7 +713,7 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   // 2. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
 
@@ -735,8 +735,8 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'Toegang', key: 'luik_afwerking', category_ultra_filter: '' },
 
   // 10. NADEN & STUCWERK
-  { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
+  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 ];
 //#endregion
 
@@ -826,7 +826,7 @@ const VLIERING_MATS: MaterialSection[] = [
   // --- B. SPECIALS (Koven) ---
   { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
 
@@ -1283,7 +1283,7 @@ const TRAPRENOVATIE_OVERZETTREDEN_MATS: MaterialSection[] = [
 
 const VLIZOTRAP_MATS: MaterialSection[] = [
   { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: '' },
-  { label: 'Vlizotrap (Complete set)', categoryFilter: 'Overig', category: 'basis', key: 'trap', category_ultra_filter: '' },
+  { label: 'Vlizotrap (Complete set)', categoryFilter: 'Vlieringtrappen', category: 'basis', key: 'trap', category_ultra_filter: '' },
   { label: 'Zolderluik', categoryFilter: 'Overig, Binnendeuren', category: 'basis', key: 'luik', category_ultra_filter: '' },
   { label: 'Veiligheidshek', categoryFilter: 'Vuren hout, Hardhout geschaafd', category: 'veiligheid', key: 'traphek', category_ultra_filter: '' },
   { label: 'Veiligheidspoortje', categoryFilter: 'Overig', category: 'veiligheid', key: 'poortje', category_ultra_filter: '' },

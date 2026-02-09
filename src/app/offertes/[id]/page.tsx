@@ -1402,6 +1402,7 @@ export default function QuotePage() {
                                     subtotal={grootSubtotal}
                                     vatRate={quoteSettings?.btwTarief}
                                     onAddClick={() => setActiveCategory('groot')}
+                                    enableCalculationViewToggle
                                 />
                                 <MaterialEditor
                                     title="VERBRUIKSARTIKELEN"

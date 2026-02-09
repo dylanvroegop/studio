@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
 import { removeEmptyFields } from '@/lib/utils';
+import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,74 @@ function krijgFirebaseAdminApp() {
 function krijgFirestore() {
   const app = krijgFirebaseAdminApp();
   return admin.firestore(app);
+}
+
+function mapSettingsForTotals(input: any): QuoteCalculationSettings {
+  const normalized = normalizeDataJson(input);
+  const rawInst = (normalized?.instellingen || {}) as any;
+  const rawExtras = (normalized?.extras || {}) as any;
+
+  return {
+    btwTarief: rawInst?.btwTarief || 21,
+    uurTariefExclBtw: rawInst?.uurTariefExclBtw || rawInst?.uurTarief || 50,
+    schattingUren: rawInst?.schattingUren ?? false,
+    extras: {
+      transport: {
+        prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
+        vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
+        tunnelkosten: rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
+        mode: rawExtras?.transport?.mode ?? rawInst?.extras?.transport?.mode,
+      },
+      winstMarge: {
+        percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
+        fixedAmount: rawExtras?.winstMarge?.fixedAmount ?? 0,
+        mode: rawExtras?.winstMarge?.mode ?? 'percentage',
+        basis: rawExtras?.winstMarge?.basis ?? 'totaal',
+      },
+    },
+  };
+}
+
+async function syncQuoteTotalsFromSupabase(db: FirebaseFirestore.Firestore, quoteId: string): Promise<boolean> {
+  try {
+    const { supabaseAdmin } = await import('@/lib/supabase-admin');
+
+    // n8n and Supabase writes can lag briefly; retry a few times.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const { data, error } = await supabaseAdmin
+        .from('quotes_collection')
+        .select('data_json, created_at')
+        .eq('quoteid', quoteId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data?.data_json) {
+        const quoteSettings = mapSettingsForTotals(data.data_json);
+        const totals = calculateQuoteTotals(data.data_json, quoteSettings);
+        const totaalInclBtw = Number(totals?.totaalInclBtw || 0);
+
+        if (Number.isFinite(totaalInclBtw)) {
+          await db.collection('quotes').doc(quoteId).update({
+            totaalbedrag: totaalInclBtw,
+            amount: totaalInclBtw,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          return true;
+        }
+      }
+
+      // Wait before retrying, except after the final attempt.
+      if (attempt < 5) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+  } catch (err) {
+    console.warn('Kon totaalbedrag niet direct syncen vanuit Supabase:', err);
+  }
+
+  return false;
 }
 
 async function leesBodyVeilig(req: Request) {
@@ -340,16 +409,18 @@ export async function POST(req: Request) {
             // ═══════════════════════════════════════════
 
             const unifiedList: any[] = [];
+            const normalizedMaterialenLijst: Record<string, any> = {};
 
             // B1. Materials from materialen_lijst (primary source)
             const materialenLijst = enrichedJob.materialen?.materialen_lijst || {};
             Object.entries(materialenLijst).forEach(([slotKey, entry]: [string, any]) => {
-              if (!entry?.material) return;
               const enriched = enrichMaterial(entry);
+              normalizedMaterialenLijst[slotKey] = enriched;
+              if (!enriched?.material) return;
               unifiedList.push({
                 slotKey,
-                material: enriched.material,
-                quantity: enriched.quantity ?? null,
+                ...enriched,
+                quantity: enriched.quantity ?? enriched.aantal ?? null,
                 context: enriched.context || `Basis: ${jobTitle}`,
               });
             });
@@ -392,8 +463,10 @@ export async function POST(req: Request) {
 
             // B4. Overwrite materialen with the unified, labeled list
             enrichedJob.materialen = {
+              ...enrichedJob.materialen,
+              materialen_lijst: normalizedMaterialenLijst,
               lijst: unifiedList,
-              kleinMateriaal: enrichedJob.kleinMateriaal || null,
+              kleinMateriaal: enrichedJob.kleinMateriaal || enrichedJob.materialen?.kleinMateriaal || null,
             };
 
             // ═══════════════════════════════════════════
@@ -473,6 +546,9 @@ export async function POST(req: Request) {
 
     const tekst = await res.text();
     if (!res.ok) throw new Error(`n8n error ${res.status}: ${tekst}`);
+
+    // Best effort: sync totaal direct to Firestore so quotes list stays up-to-date.
+    await syncQuoteTotalsFromSupabase(db, quoteId);
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, PlusCircle } from 'lucide-react';
+import { Trash2, PlusCircle, RefreshCw } from 'lucide-react';
 import { MeasurementInput } from '@/components/MeasurementInput';
 
 export interface OpeningConstructionOptions {
@@ -115,6 +115,14 @@ export function OpeningCard({
         });
     };
 
+    const handleRotateOpening = () => {
+        onUpdate({
+            ...opening,
+            width: opening.height,
+            height: opening.width,
+        });
+    };
+
     return (
         <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4 animate-in fade-in slide-in-from-top-1">
             <div className="flex items-center justify-between">
@@ -204,6 +212,16 @@ export function OpeningCard({
                         />
                     </div>
                 </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRotateOpening}
+                    className="h-8 w-full border-white/10 bg-zinc-900/50 text-zinc-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-300"
+                >
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    Draai 90°
+                </Button>
 
                 {/* Linked Dagkant & Vensterbank Section */}
                 {isWallCategory && opening.type !== 'opening' && opening.type !== 'other' && (

@@ -44,6 +44,10 @@ export function VisualizerController({
     onKoofChange,
     ...props
 }: VisualizerControllerProps) {
+    const normalizedItem = {
+        ...item,
+        koven: item?.koven ?? []
+    };
 
     // 1. CEILING / SURFACE MODE (Use strict CeilingDrawing)
     // Priority: HIGH (Must be checked before walls to prevent 'balkafstand' confusion)
@@ -58,7 +62,7 @@ export function VisualizerController({
         if (slug.includes('plafond-metalstud')) {
             return (
                 <MetalStudCeilingDrawing
-                    item={item}
+                    item={normalizedItem}
                     className={className}
                     fitContainer={fitContainer}
                     startFromRight={item.startFromRight}
@@ -71,7 +75,7 @@ export function VisualizerController({
         }
         return (
             <CeilingWoodDrawing
-                item={item}
+                item={normalizedItem}
                 className={className}
                 fitContainer={fitContainer}
                 startFromRight={item.startFromRight}
@@ -98,7 +102,7 @@ export function VisualizerController({
         if (slug.includes('epdm-dakbedekking')) {
             return (
                 <EPDMDrawing
-                    {...item}
+                    {...normalizedItem}
                     openings={item.openings}
                     dakrandWidth={item.dakrand_breedte}
                     edgeTop={item.edge_top}
@@ -130,8 +134,8 @@ export function VisualizerController({
         }
 
         return (
-            <RoofDrawing
-                {...item}
+                <RoofDrawing
+                {...normalizedItem}
                 balkafstand={item.balkafstand}
                 latafstand={item.latafstand || item.rachelafstand}
                 openings={item.openings}
@@ -252,7 +256,7 @@ export function VisualizerController({
                 openings={item.openings}
                 dagkanten={item.dagkanten}
                 vensterbanken={item.vensterbanken}
-                koven={item.koven}
+                koven={normalizedItem.koven}
                 onKoofChange={onKoofChange}
                 onOpeningsChange={onOpeningsChange}
                 className={className}
@@ -271,7 +275,7 @@ export function VisualizerController({
     if (isWallCategory) {
         return (
             <WallDrawing
-                {...item}
+                {...normalizedItem}
                 balkafstand={item.balkafstand}
                 openings={item.openings}
                 variant={item.variant}

@@ -2,7 +2,7 @@ import * as hsbVoorzetwand from './hsbVoorzetwand.config';
 import * as metalstudTussenwand from './metalstudTussenwand.config';
 
 // Measurement section types that can be toggled per job type
-export type MeasurementSection = 'openingen' | 'leidingkoof' | 'vensterbanken' | 'dagkanten';
+export type MeasurementSection = 'openingen' | 'koof' | 'vensterbanken' | 'dagkanten';
 
 // Define the interface for the config to ensure type safety
 export interface JobTypeConfig {
@@ -35,10 +35,10 @@ export interface JobTypeConfig {
 // ─── Sections per job slug ───────────────────────────────────────────
 // Add/remove slugs here to control which measurement cards appear.
 // Only slugs listed here get extra sections; everything else gets none.
-const WALL_SECTIONS: MeasurementSection[] = ['openingen', 'leidingkoof', 'vensterbanken', 'dagkanten'];
-const CEILING_SECTIONS: MeasurementSection[] = ['openingen', 'leidingkoof'];
+const WALL_SECTIONS: MeasurementSection[] = ['openingen', 'koof', 'vensterbanken', 'dagkanten'];
+const CEILING_SECTIONS: MeasurementSection[] = ['openingen', 'koof'];
 const ROOF_SECTIONS: MeasurementSection[] = ['openingen'];
-const FACADE_SECTIONS: MeasurementSection[] = ['openingen', 'leidingkoof', 'vensterbanken', 'dagkanten'];
+const FACADE_SECTIONS: MeasurementSection[] = ['openingen', 'koof', 'vensterbanken', 'dagkanten'];
 
 export const jobSections: Record<string, MeasurementSection[]> = {
     // Wanden
@@ -46,7 +46,7 @@ export const jobSections: Record<string, MeasurementSection[]> = {
     'hsb-tussenwand':         WALL_SECTIONS,
     'metalstud-voorzetwand':  WALL_SECTIONS,
     'metalstud-tussenwand':   WALL_SECTIONS,
-    'HBS-buiten-wand':        ['openingen', 'leidingkoof', 'vensterbanken', 'dagkanten'],
+    'HBS-buiten-wand':        ['openingen', 'koof', 'vensterbanken', 'dagkanten'],
     'knieschotten':           WALL_SECTIONS,
     'cinewall-tv-wand':       WALL_SECTIONS,
 
@@ -66,10 +66,10 @@ export const jobSections: Record<string, MeasurementSection[]> = {
     'gevelbekleding-rockpanel': FACADE_SECTIONS,
 
     // Boeiboorden
-    'boeiboorden-vervangen': ['leidingkoof'],
+    'boeiboorden-vervangen': ['koof'],
 
     // Vloeren
-    'balklaag-constructievloer': ['leidingkoof'],
+    'balklaag-constructievloer': ['koof'],
     'vliering-maken': ['openingen'],
 };
 
