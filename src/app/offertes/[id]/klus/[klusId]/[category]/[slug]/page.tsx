@@ -1526,6 +1526,10 @@ export default function GenericMeasurementPage() {
     const lengteOnderzijde = toNum(item.lengte_onderzijde);
     const breedteOnderzijde = toNum(item.breedte);
     const mirrorCount = item.boeiboord_mirror ? 2 : 1;
+    const boeiAngleDeg = toNum(item.boeiboord_angle);
+    const boeiAngleRad = (boeiAngleDeg * Math.PI) / 180;
+    const langeKant = Math.round((lengteVoorzijde + (hoogteVoorzijde * Math.tan(boeiAngleRad))) || 0);
+    const korteKant = Math.round(lengteVoorzijde || 0);
 
     const panelen: Array<{
       id: string;
@@ -1534,6 +1538,7 @@ export default function GenericMeasurementPage() {
       hoogte?: number;
       breedte?: number;
       label: string;
+      measurements?: Array<{ label: string; waarde?: number; tekst?: string }>;
     }> = [];
 
     if (lengteVoorzijde > 0 && hoogteVoorzijde > 0) {
@@ -1544,6 +1549,11 @@ export default function GenericMeasurementPage() {
           lengte: lengteVoorzijde,
           hoogte: hoogteVoorzijde,
           label: `Voorzijde ${i + 1}`,
+          measurements: [
+            ...(langeKant > 0 ? [{ label: 'Lange kant', waarde: langeKant }] : []),
+            ...(korteKant > 0 ? [{ label: 'Korte kant', waarde: korteKant }] : []),
+            ...(boeiAngleDeg > 0 ? [{ label: 'Extra info', tekst: `1 kopkant schuin ${boeiAngleDeg} graden` }] : []),
+          ],
         });
       }
     }
@@ -1568,7 +1578,7 @@ export default function GenericMeasurementPage() {
     if (!calc) return null;
 
     const orientation = item?.latten_orientation === 'vertical' ? 'vertical' : 'horizontal';
-    const mirrorMultiplier = item?.boeiboord_mirror ? 2 : 1;
+    const mirrorMultiplier = 1;
 
     const toNum = (value: any) => {
       const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
@@ -1611,6 +1621,7 @@ export default function GenericMeasurementPage() {
         ? `Latten; ${items.map(i => `${i.aantal}x ${formatMeters(i.lengte_mm)}`).join(' + ')}`
         : undefined;
 
+      if (items.length === 0) return null;
       return { zijde: sideKey, items, label };
     };
 
