@@ -99,6 +99,12 @@ import { COMPONENT_REGISTRY } from '@/lib/component-registry';
 import { getJobConfig } from '@/config/jobTypes/index';
 
 // ==================================
+// CONSTANTS
+// ==================================
+
+const EENHEDEN: string[] = ['m1', 'm2', 'p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set', 'koker', 'zak'];
+
+// ==================================
 // HELPER FUNCTIONS
 // ==================================
 
@@ -208,6 +214,9 @@ function cleanMaterialData(v: any) {
     clean[prop] = val;
   });
   if (!clean.materiaalnaam && v.materiaalnaam) clean.materiaalnaam = v.materiaalnaam;
+  // Preserve material ID for preset references (use field not in blocklist)
+  const matId = v.id || v.row_id || source.id || source.row_id;
+  if (matId) clean.material_ref_id = matId;
   return Object.keys(clean).length > 0 ? clean : null;
 }
 
@@ -901,7 +910,9 @@ export default function GenericMaterialsPageRedesigned() {
   const [missingPriceItems, setMissingPriceItems] = useState<any[]>([]);
   const [showMissingPriceDialog, setShowMissingPriceDialog] = useState(false);
   const [pendingNavigateTo, setPendingNavigateTo] = useState<string | null>(null);
-  const [missingPriceInputs, setMissingPriceInputs] = useState<Record<string, string>>({});
+  const [missingPriceInputsExcl, setMissingPriceInputsExcl] = useState<Record<string, string>>({});
+  const [missingPriceInputsIncl, setMissingPriceInputsIncl] = useState<Record<string, string>>({});
+  const [missingPriceEenheden, setMissingPriceEenheden] = useState<Record<string, string>>({});
   const [missingPriceSaved, setMissingPriceSaved] = useState<Record<string, boolean>>({});
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [components, setComponents] = useState<JobComponent[]>([]);
@@ -1765,7 +1776,10 @@ export default function GenericMaterialsPageRedesigned() {
           setGekozenMaterialen(newGekozen);
           setFirestoreCustommateriaal(newCustomGroupsMap);
           setWasteByEntryKey(newWasteByEntryKey);
-          hasSavedConfigRef.current = true;
+          // Only mark as having saved config if there's actual data
+          if (Object.keys(newGekozen).length > 0 || Object.keys(newCustomGroupsMap).length > 0) {
+            hasSavedConfigRef.current = true;
+          }
         }
         if (klusNode?.werkwijze?.workMethodId) setGekozenPresetId(klusNode.werkwijze.workMethodId);
         if (klusNode?.kleinMateriaal) setKleinMateriaalConfig(klusNode.kleinMateriaal);
@@ -2422,14 +2436,16 @@ export default function GenericMaterialsPageRedesigned() {
     const slots: Record<string, string> = {};
     for (const key of Object.keys(gekozenMaterialen || {})) {
       const materiaal = (gekozenMaterialen as any)[key];
-      if (materiaal?.id) slots[key] = materiaal.id;
+      const matId = materiaal?.id || materiaal?.row_id || materiaal?.material_ref_id;
+      if (matId) slots[key] = matId;
     }
     // Also save component material selections into slots for werkpakket auto-fill
     for (const comp of components) {
       if (comp.materials) {
         for (const m of comp.materials as any[]) {
-          if (m.sectionKey && m.material?.id && !slots[m.sectionKey]) {
-            slots[m.sectionKey] = m.material.id;
+          const matId = m.material?.id || m.material?.row_id || m.material?.material_ref_id;
+          if (m.sectionKey && matId && !slots[m.sectionKey]) {
+            slots[m.sectionKey] = matId;
           }
         }
       }
@@ -2838,7 +2854,9 @@ export default function GenericMaterialsPageRedesigned() {
 
     if (missing.length > 0) {
       setMissingPriceItems(missing);
-      setMissingPriceInputs({});
+      setMissingPriceInputsExcl({});
+      setMissingPriceInputsIncl({});
+      setMissingPriceEenheden({});
       setMissingPriceSaved({});
       setPendingNavigateTo(navigateTo);
       setShowMissingPriceDialog(true);
@@ -3790,40 +3808,104 @@ export default function GenericMaterialsPageRedesigned() {
           <DialogHeader>
             <DialogTitle>Materialen zonder prijs</DialogTitle>
             <DialogDescription>
-              De volgende materialen hebben nog geen prijs. Vul de prijs per stuk in.
+              De volgende materialen hebben nog geen prijs. Vul de prijs per stuk en eenheid in.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-2">
+          <div className="space-y-6 py-4">
             {missingPriceItems.map((item, idx) => {
               const key = item.row_id || item.id || item.materiaalnaam || `idx-${idx}`;
               const name = item.materiaalnaam || `Materiaal ${idx + 1}`;
+              const eenheid = item.eenheid || missingPriceEenheden[key] || 'stuk';
+
               return (
-                <div key={key} className="flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{name}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm text-muted-foreground">€</span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      className="w-24 h-9"
-                      value={missingPriceInputs[key] ?? ''}
-                      onChange={(e) => {
-                        setMissingPriceInputs(prev => ({ ...prev, [key]: e.target.value }));
-                        // Clear saved state if user changes value
-                        if (missingPriceSaved[key]) {
-                          setMissingPriceSaved(prev => ({ ...prev, [key]: false }));
-                        }
-                      }}
-                      disabled={isSavingPrices}
-                    />
+                <div key={key} className="space-y-3 p-4 rounded-lg border border-border bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{name}</p>
                     {missingPriceSaved[key] && (
                       <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                     )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Eenheid *</Label>
+                      <Select
+                        value={eenheid}
+                        onValueChange={(val) => {
+                          setMissingPriceEenheden(prev => ({ ...prev, [key]: val }));
+                          if (missingPriceSaved[key]) {
+                            setMissingPriceSaved(prev => ({ ...prev, [key]: false }));
+                          }
+                        }}
+                        disabled={isSavingPrices}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Kies" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
+                            <SelectItem key={e} value={e}>{e}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Prijs excl. BTW</Label>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground">€</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          className="h-9"
+                          value={missingPriceInputsExcl[key] ?? ''}
+                          onChange={(e) => {
+                            const excl = e.target.value;
+                            setMissingPriceInputsExcl(prev => ({ ...prev, [key]: excl }));
+                            // Auto-calculate incl BTW
+                            if (excl && !isNaN(parseFloat(excl))) {
+                              const inclBtw = (parseFloat(excl) * 1.21).toFixed(2);
+                              setMissingPriceInputsIncl(prev => ({ ...prev, [key]: inclBtw }));
+                            }
+                            if (missingPriceSaved[key]) {
+                              setMissingPriceSaved(prev => ({ ...prev, [key]: false }));
+                            }
+                          }}
+                          disabled={isSavingPrices}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Prijs incl. BTW</Label>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground">€</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          className="h-9"
+                          value={missingPriceInputsIncl[key] ?? ''}
+                          onChange={(e) => {
+                            const incl = e.target.value;
+                            setMissingPriceInputsIncl(prev => ({ ...prev, [key]: incl }));
+                            // Auto-calculate excl BTW
+                            if (incl && !isNaN(parseFloat(incl))) {
+                              const exclBtw = (parseFloat(incl) / 1.21).toFixed(2);
+                              setMissingPriceInputsExcl(prev => ({ ...prev, [key]: exclBtw }));
+                            }
+                            if (missingPriceSaved[key]) {
+                              setMissingPriceSaved(prev => ({ ...prev, [key]: false }));
+                            }
+                          }}
+                          disabled={isSavingPrices}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -3850,12 +3932,20 @@ export default function GenericMaterialsPageRedesigned() {
                   const token = await user!.getIdToken();
                   const entriesToSave = missingPriceItems.flatMap((item, idx) => {
                     const key = item.row_id || item.id || item.materiaalnaam || `idx-${idx}`;
-                    const prijs = missingPriceInputs[key];
-                    const prijsNum = prijs !== '' ? parseFloat(prijs) : 0;
-                    if (!prijsNum || prijsNum <= 0) return [];
+                    const prijsExcl = missingPriceInputsExcl[key];
+                    const prijsIncl = missingPriceInputsIncl[key];
+                    const eenheid = missingPriceEenheden[key] || item.eenheid || 'stuk';
+
+                    const prijsExclNum = prijsExcl !== '' ? parseFloat(prijsExcl) : 0;
+                    const prijsInclNum = prijsIncl !== '' ? parseFloat(prijsIncl) : 0;
+
+                    if ((!prijsExclNum || prijsExclNum <= 0) || !eenheid) return [];
+
                     return [{
                       key,
-                      prijs: prijsNum,
+                      prijsExcl: prijsExclNum,
+                      prijsIncl: prijsInclNum || (prijsExclNum * 1.21),
+                      eenheid,
                       row_id: item.row_id || item.id || null,
                       materiaalnaam: item.materiaalnaam || null,
                     }];
@@ -3875,13 +3965,15 @@ export default function GenericMaterialsPageRedesigned() {
                         body: JSON.stringify({
                           materiaalnaam: entry.materiaalnaam,
                           row_id: entry.row_id,
-                          prijs_incl_btw: entry.prijs,
+                          prijs_incl_btw: entry.prijsIncl,
+                          prijs_excl_btw: entry.prijsExcl,
+                          eenheid: entry.eenheid,
                         }),
                       });
                       const json = await res.json();
                       if (json.ok) {
-                        if (entry.row_id) updatedById.set(String(entry.row_id), entry.prijs);
-                        if (entry.materiaalnaam) updatedByName.set(entry.materiaalnaam, entry.prijs);
+                        if (entry.row_id) updatedById.set(String(entry.row_id), entry.prijsIncl);
+                        if (entry.materiaalnaam) updatedByName.set(entry.materiaalnaam, entry.prijsIncl);
                         setMissingPriceSaved(prev => ({ ...prev, [entry.key]: true }));
                         // Update local gekozenMaterialen state
                         setGekozenMaterialen(prev => {
@@ -3895,8 +3987,9 @@ export default function GenericMaterialsPageRedesigned() {
                               (!entry.row_id && entry.materiaalnaam && source.materiaalnaam === entry.materiaalnaam)
                             ) {
                               const newVal = { ...v as any };
-                              newVal.prijs_incl_btw = entry.prijs;
-                              if (newVal._raw) newVal._raw = { ...newVal._raw, prijs_incl_btw: entry.prijs };
+                              newVal.prijs_incl_btw = entry.prijsIncl;
+                              newVal.eenheid = entry.eenheid;
+                              if (newVal._raw) newVal._raw = { ...newVal._raw, prijs_incl_btw: entry.prijsIncl, eenheid: entry.eenheid };
                               updated[k] = newVal;
                             }
                           }

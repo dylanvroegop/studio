@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { JOB_REGISTRY } from '@/lib/job-registry';
 
 
 // --- Helpers ---
@@ -110,6 +111,7 @@ export function WizardHeader({
                         'wanden'; // Fallback
 
                     const slug =
+                        job?.materialen?.jobKey ||
                         job?.materialen?.jobSlug ||
                         maatwerkMeta?.slug ||
                         job?.meta?.slug ||
@@ -119,6 +121,24 @@ export function WizardHeader({
                     const metingenCompleted = hasFilledMetingen(job);
                     const materialenCompleted = hasFilledMaterialen(job);
 
+                    // Check if this job type has measurements defined in the registry
+                    let hasMeasurements = false;
+                    const categoryRegistry = (JOB_REGISTRY as any)[type];
+                    if (categoryRegistry?.items) {
+                        const jobConfig = categoryRegistry.items.find((item: any) => item.slug === slug);
+                        if (jobConfig?.measurements && Array.isArray(jobConfig.measurements)) {
+                            hasMeasurements = jobConfig.measurements.length > 0;
+                        }
+                    }
+
+                    // Fallback: check if job data has measurements metadata
+                    if (!hasMeasurements) {
+                        const jobMeta = job?.maatwerk?.meta || job?.meta;
+                        if (jobMeta?.measurements && Array.isArray(jobMeta.measurements)) {
+                            hasMeasurements = jobMeta.measurements.length > 0;
+                        }
+                    }
+
                     extractedJobs.push({
                         id,
                         title,
@@ -126,7 +146,8 @@ export function WizardHeader({
                         slug,
                         createdAt: job.createdAt,
                         metingenCompleted,
-                        materialenCompleted
+                        materialenCompleted,
+                        hasMeasurements
                     });
                 });
 
@@ -201,18 +222,20 @@ export function WizardHeader({
                                                                     )}
                                                                     Materialen
                                                                 </Link>
-                                                                <Link
-                                                                    href={`/offertes/${quoteId}/klus/${job.id}/${job.type}/${job.slug}`}
-                                                                    onClick={() => setMenuOpen(false)}
-                                                                    className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                                                                >
-                                                                    {job.metingenCompleted ? (
-                                                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                                                    ) : (
-                                                                        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                                                                    )}
-                                                                    Metingen
-                                                                </Link>
+                                                                {job.hasMeasurements && (
+                                                                    <Link
+                                                                        href={`/offertes/${quoteId}/klus/${job.id}/${job.type}/${job.slug}`}
+                                                                        onClick={() => setMenuOpen(false)}
+                                                                        className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary/50 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                                                                    >
+                                                                        {job.metingenCompleted ? (
+                                                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                                                        ) : (
+                                                                            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                                                                        )}
+                                                                        Metingen
+                                                                    </Link>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}

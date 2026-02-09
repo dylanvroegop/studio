@@ -112,27 +112,58 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
     }
 
     if (drawingJobs.length === 0) {
+        // Check if there are jobs but they just don't have visualizers
+        const hasJobsWithoutVisualizers = jobs.length > 0;
+
+        if (hasJobsWithoutVisualizers) {
+            // Get job types/titles for display
+            const jobTypes = jobs.map(job => {
+                const topMeta = (job as any).meta || {};
+                const maatwerkMeta = (job.maatwerk as any)?.meta || {};
+                const meta = topMeta.type ? topMeta : maatwerkMeta;
+                const categorySlug = meta.type || 'onbekend';
+
+                // Try to get a friendly title
+                const categoryConfig = JOB_REGISTRY[categorySlug];
+                const jobSlug = meta.slug || '';
+                const jobConfig = categoryConfig?.items.find((item) => item.slug === jobSlug);
+                return (job as any).title || jobConfig?.title || categorySlug;
+            }).filter(Boolean);
+
+            return (
+                <div className="flex flex-col items-center justify-center py-20 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800">
+                    <StickyNote className="h-10 w-10 text-zinc-600 mb-4" />
+                    <h3 className="text-zinc-400 font-medium">Geen tekeningen beschikbaar</h3>
+                    <p className="text-zinc-600 text-sm mt-1 max-w-md text-center">
+                        Deze offerte bevat {jobs.length} {jobs.length === 1 ? 'klus' : 'klussen'} waarvoor geen tekeningen beschikbaar zijn.
+                    </p>
+                    <p className="text-zinc-600 text-xs mt-2 max-w-md text-center">
+                        Sommige klussen (zoals deuren, standaardmaten, etc.) hebben geen visuele weergave.
+                    </p>
+
+                    {jobTypes.length > 0 && (
+                        <div className="mt-6 bg-zinc-900/50 p-4 rounded-lg border border-zinc-800 max-w-sm">
+                            <p className="text-zinc-500 text-xs font-medium mb-2">Klussen in deze offerte:</p>
+                            <ul className="text-zinc-400 text-sm space-y-1">
+                                {jobTypes.map((type, idx) => (
+                                    <li key={idx} className="flex items-center gap-2">
+                                        <span className="text-zinc-600">•</span>
+                                        {type}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // No jobs at all
         return (
             <div className="flex flex-col items-center justify-center py-20 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800">
                 <StickyNote className="h-10 w-10 text-zinc-600 mb-4" />
                 <h3 className="text-zinc-400 font-medium">Geen tekeningen beschikbaar</h3>
-                <p className="text-zinc-600 text-sm mt-1 mb-4">Er zijn nog geen maatwerk onderdelen gevonden voor deze offerte.</p>
-
-                {/* Helper for Debugging */}
-                <div className="bg-zinc-900/50 p-4 rounded text-xs font-mono text-zinc-500 border border-zinc-800 max-w-sm">
-                    <p>Debug Info:</p>
-                    <p>Quote ID: {quote.id}</p>
-                    <p>Total Jobs Found: {jobs.length}</p>
-                    <p>Filtered Jobs: {drawingJobs.length}</p>
-                    {jobs.length > 0 && (
-                        <div className="mt-2 border-t border-zinc-800 pt-2">
-                            <p>Sample Job (0):</p>
-                            <p>ID: {(jobs[0] as any).id}</p>
-                            <p>Has Maatwerk: {!!jobs[0].maatwerk ? 'Yes' : 'No'}</p>
-                            <p>Visual URL: {!!(jobs[0] as any).visualisatieUrl ? 'Yes' : 'No'}</p>
-                        </div>
-                    )}
-                </div>
+                <p className="text-zinc-600 text-sm mt-1">Er zijn nog geen klussen toegevoegd aan deze offerte.</p>
             </div>
         );
     }

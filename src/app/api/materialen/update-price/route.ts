@@ -26,9 +26,9 @@ export async function POST(req: Request) {
         }
 
         // 2. Parse Body
-        const { materiaalnaam, prijs_incl_btw, prijs_excl_btw, row_id, new_materiaalnaam } = await req.json();
+        const { materiaalnaam, prijs_incl_btw, prijs_excl_btw, row_id, new_materiaalnaam, eenheid } = await req.json();
 
-        if ((!materiaalnaam && !row_id) || (prijs_incl_btw === undefined && prijs_excl_btw === undefined && new_materiaalnaam === undefined)) {
+        if ((!materiaalnaam && !row_id) || (prijs_incl_btw === undefined && prijs_excl_btw === undefined && new_materiaalnaam === undefined && eenheid === undefined)) {
             return NextResponse.json({ ok: false, message: 'Missing required fields' }, { status: 400 });
         }
 
@@ -43,6 +43,9 @@ export async function POST(req: Request) {
         }
         if (new_materiaalnaam !== undefined && new_materiaalnaam.trim()) {
             updatePayload.materiaalnaam = new_materiaalnaam.trim();
+        }
+        if (eenheid !== undefined && eenheid.trim()) {
+            updatePayload.eenheid = eenheid.trim();
         }
         const query = supabaseAdmin.from('main_material_list').update(updatePayload);
         const { data, error } = row_id

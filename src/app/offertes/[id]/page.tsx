@@ -13,7 +13,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2 } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
@@ -707,6 +707,12 @@ export default function QuotePage() {
         0
     );
 
+    // Count materials without prices
+    const materialsWithoutPrice = [
+        ...materials.groot.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0),
+        ...materials.verbruik.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0)
+    ].length;
+
     // Calculate totals when data is available
     const totals = normalizedData && quoteSettings
         ? calculateQuoteTotals({
@@ -1152,7 +1158,14 @@ export default function QuotePage() {
                                     <PenTool size={16} /> Tekeningen
                                 </TabsTrigger>
                                 <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <Package size={16} /> Materialen
+                                    <Package size={16} />
+                                    {materialsWithoutPrice > 0 && (
+                                        <div className="flex items-center gap-0.5 text-[10px] font-semibold text-red-500">
+                                            <AlertCircle size={10} />
+                                            {materialsWithoutPrice}
+                                        </div>
+                                    )}
+                                    Materialen
                                 </TabsTrigger>
                                 <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <Clock size={16} /> Arbeid

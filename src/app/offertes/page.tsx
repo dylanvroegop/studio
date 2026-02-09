@@ -200,9 +200,9 @@ export default function OffertesPage() {
           .filter((quote) => !quote.archived);
 
         data.sort((a, b) => {
-          const aT = a.updatedAtDate?.getTime() ?? a.createdAtDate?.getTime() ?? 0;
-          const bT = b.updatedAtDate?.getTime() ?? b.createdAtDate?.getTime() ?? 0;
-          return bT - aT;
+          const aNum = typeof a.offerteNummer === 'number' ? a.offerteNummer : 0;
+          const bNum = typeof b.offerteNummer === 'number' ? b.offerteNummer : 0;
+          return aNum - bNum;
         });
 
         setQuotes(data);
