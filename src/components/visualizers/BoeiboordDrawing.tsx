@@ -232,6 +232,8 @@ export function BoeiboordDrawing({
                         // === ROTATED BOARD VIEW ===
                         if (useRotatedView) {
                             const angleRad = (angleDeg * Math.PI) / 180;
+                            const slopeLengthMm = lengte + (hoogte * Math.tan(angleRad));
+                            const slopeLengthLabel = slopeLengthMm.toFixed(2);
 
                             // Simple approach: draw parallelograms directly
                             // Build a slope box inside the available draw area so the angle remains visible
@@ -401,26 +403,17 @@ export function BoeiboordDrawing({
                                 );
                             };
 
-                            const renderMirrorLengthDimension = (
-                                outer: Point,
-                                inner: Point,
-                                label: number | string,
+                            const renderSlantedDimensionWithTicks = (
+                                p1: Point,
+                                p2: Point,
+                                normal: Point,
                                 offset: number,
-                                seamX: number
+                                label: number | string
                             ) => {
-                                const dx = inner.x - outer.x;
-                                const dy = inner.y - outer.y;
-                                const len = Math.hypot(dx, dy) || 1;
-                                const nx = -dy / len;
-                                const ny = dx / len;
-                                const outerOffset = { x: outer.x + nx * offset, y: outer.y + ny * offset };
-                                const innerOffset = { x: inner.x + nx * offset, y: inner.y + ny * offset };
-                                const seamOffset = pointAtX(outerOffset, innerOffset, seamX);
-
-                                const x1 = outerOffset.x;
-                                const y1 = outerOffset.y;
-                                const x2 = seamOffset.x;
-                                const y2 = seamOffset.y;
+                                const x1 = p1.x + normal.x * offset;
+                                const y1 = p1.y + normal.y * offset;
+                                const x2 = p2.x + normal.x * offset;
+                                const y2 = p2.y + normal.y * offset;
                                 const cx = (x1 + x2) / 2;
                                 const cy = (y1 + y2) / 2;
                                 let angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
@@ -429,8 +422,8 @@ export function BoeiboordDrawing({
                                 return (
                                     <g className="text-emerald-500" pointerEvents="none">
                                         <line
-                                            x1={outer.x}
-                                            y1={outer.y}
+                                            x1={p1.x}
+                                            y1={p1.y}
                                             x2={x1}
                                             y2={y1}
                                             stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
@@ -438,9 +431,9 @@ export function BoeiboordDrawing({
                                             opacity="0.5"
                                         />
                                         <line
-                                            x1={inner.x}
-                                            y1={inner.y}
-                                            x2={seamX}
+                                            x1={p2.x}
+                                            y1={p2.y}
+                                            x2={x2}
                                             y2={y2}
                                             stroke={DEFAULT_MEASUREMENT_STYLE.lineColor}
                                             strokeWidth={DEFAULT_MEASUREMENT_STYLE.strokeWidth}
@@ -581,8 +574,7 @@ export function BoeiboordDrawing({
                                 const rightLatten = buildLattenLines(rightEdges);
 
                                 const heightOffset = -40;
-                                const lengthOffsetLeft = lengthOffsetDown(leftEdges.bottomStart, leftEdges.bottomEnd, 40);
-                                const lengthOffsetRight = lengthOffsetDown(rightEdges.bottomEnd, rightEdges.bottomStart, 40);
+                                const slantedOffset = 40;
 
                                 const fitPoints: Point[] = [
                                     leftEdges.bottomStart,
@@ -672,19 +664,19 @@ export function BoeiboordDrawing({
                                                 hoogte,
                                                 heightOffset
                                             )}
-                                            {renderMirrorLengthDimension(
-                                                leftEdges.bottomStart,
-                                                leftEdges.bottomEnd,
-                                                lengte,
-                                                lengthOffsetLeft,
-                                                peakX
+                                            {angleDeg > 0 && renderSlantedDimensionWithTicks(
+                                                rightEdges.topStart,
+                                                rightEdges.topEnd,
+                                                rightNormal,
+                                                slantedOffset,
+                                                slopeLengthLabel
                                             )}
-                                            {renderMirrorLengthDimension(
-                                                rightEdges.bottomEnd,
+                                            {renderSlantedDimensionWithTicks(
                                                 rightEdges.bottomStart,
-                                                lengte,
-                                                lengthOffsetRight,
-                                                peakX
+                                                rightEdges.bottomEnd,
+                                                rightNormal,
+                                                -slantedOffset,
+                                                lengte
                                             )}
                                         </g>
 
