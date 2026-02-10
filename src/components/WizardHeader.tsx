@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { JOB_REGISTRY } from '@/lib/job-registry';
+import { DevVersionBadge } from '@/components/DevVersionBadge';
 
 
 // --- Helpers ---
@@ -182,7 +183,7 @@ export function WizardHeader({
                                     <SheetDescription>Snelle toegang tot alle onderdelen.</SheetDescription>
                                 </SheetHeader>
 
-                                <ScrollArea className="h-[calc(100vh-100px)]">
+                                <ScrollArea className="h-[calc(100vh-140px)]">
                                     <div className="p-4 space-y-6">
                                         {/* Top Section */}
                                         <div className="space-y-2">
@@ -326,6 +327,9 @@ export function WizardHeader({
                                         </div>
                                     </div>
                                 </ScrollArea>
+                                <div className="border-t px-4 py-3">
+                                    <DevVersionBadge />
+                                </div>
                             </SheetContent>
                         </Sheet>
                     )}

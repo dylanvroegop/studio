@@ -328,6 +328,7 @@ export default function GenericMeasurementPage() {
   const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
+  const isHsbVoorzetwand = !!jobSlug && jobSlug.includes('hsb-voorzetwand');
   const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
   const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
@@ -1578,7 +1579,7 @@ export default function GenericMeasurementPage() {
     if (!calc) return null;
 
     const orientation = item?.latten_orientation === 'vertical' ? 'vertical' : 'horizontal';
-    const mirrorMultiplier = 1;
+    const mirrorMultiplier = item?.boeiboord_mirror ? 2 : 1;
 
     const toNum = (value: any) => {
       const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
@@ -2187,6 +2188,8 @@ export default function GenericMeasurementPage() {
                         const showHoogte = shape === 'rectangle' && !!fHoogte;
                         const showBreedte = shape === 'rectangle' && !!fBreedte;
 
+                        const useSideBySideLengteHoogte = isHsbVoorzetwand && showLengte && showHoogte;
+
                         return (
                           <div className="space-y-4">
                             {/* Roof Tile Specific Fields */}
@@ -2197,11 +2200,16 @@ export default function GenericMeasurementPage() {
                               <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_hoogte')!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
 
-                            {showLengte && (
+                            {useSideBySideLengteHoogte ? (
+                              <div className="grid grid-cols-2 gap-3 items-end">
+                                <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                <DynamicInput field={fHoogte!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              </div>
+                            ) : showLengte && (
                               <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
 
-                            {showLengte && (showHoogte || showBreedte) && (
+                            {!useSideBySideLengteHoogte && showLengte && (showHoogte || showBreedte) && (
                               <div className="flex justify-center -my-2 relative z-10">
                                 <Button
                                   type="button"
@@ -2230,7 +2238,7 @@ export default function GenericMeasurementPage() {
                               </>
                             )}
 
-                            {showHoogte && (
+                            {!useSideBySideLengteHoogte && showHoogte && (
                               <DynamicInput field={fHoogte!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
                             {showBreedte && (

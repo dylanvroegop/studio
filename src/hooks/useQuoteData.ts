@@ -45,10 +45,17 @@ export function useQuoteData(quoteId: string) {
                 if (isMounted) {
                     setCalculation(data);
 
-                    if (data?.status === 'completed') {
+                    if (!data) {
+                        // No calculation has been started yet.
+                        setLoading(false);
+                        return;
+                    }
+
+                    if (data.status === 'completed') {
                         setLoading(false);
                     } else {
-                        // Not completed yet (or no record at all), poll in 3s
+                        setLoading(true);
+                        // Still processing, poll in 3s.
                         pollTimer = setTimeout(fetchQuoteData, 3000);
                     }
                 }

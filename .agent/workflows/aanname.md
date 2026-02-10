@@ -1,5 +1,5 @@
 ---
-description: 
+description: /aanname
 ---
 
 I have overhauled the workflow. The "rules" command is now a high-powered automation path: it links the klus_type from your assumption directly to the JSON in the klus_regels table, proposes a plan, and then updates the database.

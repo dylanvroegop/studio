@@ -1042,7 +1042,8 @@ export default function QuotePage() {
     // Old handleDownloadPDF removed to fix duplicate declaration.
     // The new one is defined above at line ~523.
 
-    const loading = calculationLoading || firebaseLoading || isUserLoading;
+    const calculationInProgress = quote?.status === 'in_behandeling' && !calculation?.data_json;
+    const loading = calculationLoading || calculationInProgress || firebaseLoading || isUserLoading;
     const error = calculationError || firebaseError;
 
 

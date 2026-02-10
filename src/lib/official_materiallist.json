@@ -8061,6 +8061,60 @@
   },
   {
     "categorie": "Montage kozijnen",
+    "materiaalnaam": "Kozijn Hardhout Wit Gegrond Voor Binnendeur Stomp FSC 56x115x2315mm",
+    "dikte": "56mm",
+    "breedte": "115mm",
+    "lengte": "2315mm",
+    "uitvoering": "Stomp",
+    "prijs_incl_btw": "€ 89,47"
+  },
+  {
+    "categorie": "Montage kozijnen",
+    "materiaalnaam": "Kozijn Grenen Wit Gegrond Voor Binnendeur Stomp FSC 56x115x2315mm",
+    "dikte": "56mm",
+    "breedte": "115mm",
+    "lengte": "2315mm",
+    "uitvoering": "Stomp",
+    "prijs_incl_btw": "€ 77,25"
+  },
+  {
+    "categorie": "Montage kozijnen",
+    "materiaalnaam": "Kozijn Grenen Wit Gegrond Voor Binnendeur Stomp FSC 56x90x2315mm",
+    "dikte": "56mm",
+    "breedte": "90mm",
+    "lengte": "2315mm",
+    "uitvoering": "Stomp",
+    "prijs_incl_btw": "€ 64,03"
+  },
+  {
+    "categorie": "Montage kozijnen",
+    "materiaalnaam": "Kozijn Hardhout Wit Gegrond Voor Binnendeur Stomp FSC 56x90x2315mm",
+    "dikte": "56mm",
+    "breedte": "90mm",
+    "lengte": "2315mm",
+    "uitvoering": "Stomp",
+    "prijs_incl_btw": "€ 74,56"
+  },
+  {
+    "categorie": "Montage kozijnen",
+    "materiaalnaam": "Kozijn Hardhout Wit Gegrond Voor Binnendeur Opdek FSC 56x115x2315mm",
+    "dikte": "56mm",
+    "breedte": "115mm",
+    "lengte": "2315mm",
+    "uitvoering": "Opdek",
+    "prijs_incl_btw": "€ 89,47"
+  },
+  {
+    "categorie": "Montage kozijnen",
+    "materiaalnaam": "Kozijn Hardhout Wit Gegrond Voor Binnendeur Opdek FSC 56x90x2315mm",
+    "dikte": "56mm",
+    "breedte": "90mm",
+    "lengte": "2315mm",
+    "uitvoering": "Opdek",
+    "prijs_incl_btw": "0"
+  },
+  {
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Austria Stijlenset RenoV8 Blanco Rechts 231.5cm",
     "hoogte": "231,5cm",
     "breedte": "89x89mm",
@@ -8071,7 +8125,7 @@
     "id": "pMKSqu"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Austria Stijlenset RenoV8 Blanco Links 231.5cm",
     "hoogte": "231,5cm",
     "breedte": "89x89mm",
@@ -8082,19 +8136,19 @@
     "id": "dHKCz4"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS / KVT Plug (Hollodeen) 25st",
     "prijs_incl_21%_btw": "€ 56.94 per doos",
     "id": "CXJOpe"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS / KVT Plug (Hollodeen) Per Stuk",
     "prijs_incl_21%_btw": "€ 2.84 per stuk",
     "id": "dmWpng"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS BI Dorpel Binnendraaiend (Zwart) 67x67mm 6000mm lang",
     "dikte": "67mm",
     "breedte": "110mm",
@@ -8105,7 +8159,7 @@
     "id": "s4OAXN"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS BI Dorpel Binnendraaiend (Zwart) 67x67mm 1200mm lang",
     "dikte": "67mm",
     "breedte": "110mm",
@@ -8116,7 +8170,7 @@
     "id": "lV62cW"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS BI Dorpel Binnendraaiend (Zwart) 67x67mm 2400mm lang",
     "dikte": "67mm",
     "breedte": "110mm",
@@ -8127,7 +8181,7 @@
     "id": "PRdt0U"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 110x67mm 6000mm lang",
     "dikte": "67mm",
     "breedte": "110mm",
@@ -8138,7 +8192,7 @@
     "id": "DK1PGL"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 110x67mm 2400mm lang",
     "dikte": "67mm",
     "breedte": "110mm",
@@ -8149,7 +8203,7 @@
     "id": "IGRQWm"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS KVT Dorpel Buitendraaiend (Zwart) 110x67mm 1200mm lang",
     "dikte": "67mm",
     "breedte": "110mm",
@@ -8160,19 +8214,19 @@
     "id": "M1ZMl7"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS Torxbout (Hollodeen) 25st",
     "prijs_incl_21%_btw": "€ 81.46 per doos",
     "id": "roDd1Q"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "DTS Torxbout (Hollodeen) Per Stuk",
     "prijs_incl_21%_btw": "€ 4.04 per stuk",
     "id": "RRyDYX"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "KH Onderdorpel 110x66mm 3650mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8181,7 +8235,7 @@
     "id": "jAe8Up"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "KH Stijl 110x66mm 4600mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8190,7 +8244,7 @@
     "id": "VTkEEb"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 5900mm lang (Profiel A+)",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8200,7 +8254,7 @@
     "id": "3MO3zt"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 2350mm lang (Profiel A+)",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8210,7 +8264,7 @@
     "id": "ocyD10"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 2950mm lang (Profiel A+)",
     "dikte": "66X110",
     "lengte": "295 cm",
@@ -8219,7 +8273,7 @@
     "id": "Pvrv4S"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Bovendorpel Wit 110x66mm 1150mm lang (Profiel A+)",
     "dikte": "66X110",
     "lengte": "115 cm",
@@ -8228,7 +8282,7 @@
     "id": "Psq9xH"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Blank 110x66mm 4000mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8238,7 +8292,7 @@
     "id": "hDulkR"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 5900mm lang (Profiel D)",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8248,7 +8302,7 @@
     "id": "oAtdmv"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 5900mm lang (Profiel C)",
     "dikte": "66X110",
     "lengte": "590 cm",
@@ -8257,7 +8311,7 @@
     "id": "cn63iu"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 1150mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8267,7 +8321,7 @@
     "id": "e1Hxvi"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2350mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8277,7 +8331,7 @@
     "id": "r4FiG6"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2950mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8287,7 +8341,7 @@
     "id": "1sKJiQ"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 1150mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8297,7 +8351,7 @@
     "id": "PU1Q0o"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2950mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8307,7 +8361,7 @@
     "id": "Reo5XL"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Onderdorpel Wit 110x66mm 2350mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8317,7 +8371,7 @@
     "id": "oqTxMv"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Stijl A-Profiel Hardhout 110x66mm 5900mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8326,7 +8380,7 @@
     "id": "SS4Ik2"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Stijl Blank 110x66mm 4000mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8336,7 +8390,7 @@
     "id": "tDL7QO"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Stijl Blank Hardhout 110x66mm 3650mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8346,7 +8400,7 @@
     "id": "DZzW4y"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Stijl Wit 110x66mm 1150mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8356,7 +8410,7 @@
     "id": "7VtWrx"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Stijl Wit 110x66mm 5900mm lang (Profiel A)",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8366,7 +8420,7 @@
     "id": "LPxZqV"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Stijl Wit 110x66mm 2950mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8376,7 +8430,7 @@
     "id": "MluKSh"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Stijl Wit Hardhout 110x66mm 2350mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8386,7 +8440,7 @@
     "id": "DB6Jy9"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Tussenstijl Blank 110x66mm 4000mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8396,7 +8450,7 @@
     "id": "VGFpzL"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 5900mm lang (Profiel B)",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8406,7 +8460,7 @@
     "id": "dzcJhX"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 2950mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8416,7 +8470,7 @@
     "id": "nYWTIe"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 2350mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8426,7 +8480,7 @@
     "id": "marjcz"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Kozijnhout Tussenstijl Wit 110x66mm 1150mm lang",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8436,7 +8490,7 @@
     "id": "NpVMn8"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Meranti Boven- Zij Dorpel 67x54mm 2450mm lang",
     "dikte": "54mm",
     "breedte": "67mm",
@@ -8445,7 +8499,7 @@
     "id": "xe5wAg"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Opdek Grenen Gegrond 2315x115x56mm",
     "dikte": "56mm",
     "breedte": "115mm",
@@ -8455,7 +8509,7 @@
     "id": "cKIOAT"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Opdek Grenen Gegrond 2315x90x56mm",
     "dikte": "56mm",
     "breedte": "90mm",
@@ -8465,7 +8519,7 @@
     "id": "WxWmnw"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Opdek Hardhout Blank 56x115mm",
     "dikte": "56mm",
     "breedte": "115mm",
@@ -8475,7 +8529,7 @@
     "id": "seIh9x"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Opdek Hardhout Gegrond 2315x90x56mm",
     "dikte": "56mm",
     "breedte": "90mm",
@@ -8485,7 +8539,7 @@
     "id": "jEpfBD"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Opdek Hardhout Gegrond 231.5x115x56mm",
     "dikte": "56mm",
     "breedte": "115mm",
@@ -8495,7 +8549,7 @@
     "id": "VoBp5V"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Stomp Grenen Gegrond 2315x115x56mm",
     "dikte": "56mm",
     "breedte": "115mm",
@@ -8505,7 +8559,7 @@
     "id": "bHaCGa"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Stomp Grenen Gegrond 2315x90x56mm",
     "dikte": "56mm",
     "breedte": "90mm",
@@ -8515,7 +8569,7 @@
     "id": "vSaKy0"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Stomp Hardhout Gegrond 115x56mm 2315mm lang",
     "dikte": "56mm",
     "breedte": "115mm",
@@ -8525,7 +8579,7 @@
     "id": "iA7VMx"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Montagekozijn Stomp Hardhout Gegrond 115x56mm 2315mm lang",
     "dikte": "56mm",
     "breedte": "90mm",
@@ -8535,7 +8589,7 @@
     "id": "C15oQw"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Neut DTS BI Links Binnendraaiend (Zwart) 110x66mm",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8545,7 +8599,7 @@
     "id": "OUYQyM"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Neut DTS BI Rechts Binnendraaiend (Zwart) 110x66mm",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8555,7 +8609,7 @@
     "id": "f4pPna"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Neut DTS BI Tussenstijl Binnendraaiend (Zwart) 110x66mm",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8565,7 +8619,7 @@
     "id": "fUW8WY"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Neut DTS KVT Links Buitendraaiend (Zwart) 110x66mm",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8575,7 +8629,7 @@
     "id": "8U61Ip"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Neut DTS KVT Rechts Buitendraaiend (Zwart) 110x66mm",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8585,7 +8639,7 @@
     "id": "gJgpt0"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Neut DTS KVT Tussenstijl Buitendraaiend (Zwart) 110x66mm",
     "dikte": "66mm",
     "breedte": "110mm",
@@ -8595,7 +8649,7 @@
     "id": "zxxVls"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 80x54mm 5900mm lang",
     "dikte": "54mm",
     "breedte": "80mm",
@@ -8604,7 +8658,7 @@
     "id": "erVZOq"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 67x54mm 5900mm lang",
     "dikte": "54mm",
     "breedte": "67mm",
@@ -8613,7 +8667,7 @@
     "id": "SQ83al"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 67x54mm 2950mm lang",
     "dikte": "54mm",
     "breedte": "67mm",
@@ -8622,7 +8676,7 @@
     "id": "iROiAK"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Dubbel Glas Hardhout Gegrond 80x54mm 2950mm lang",
     "dikte": "54mm",
     "breedte": "80mm",
@@ -8631,7 +8685,7 @@
     "id": "jUTgPK"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 67x40mm 5900mm lang",
     "dikte": "40mm",
     "breedte": "67mm",
@@ -8640,7 +8694,7 @@
     "id": "ggSjuR"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 90x40mm 5900mm lang",
     "dikte": "40mm",
     "breedte": "90mm",
@@ -8649,7 +8703,7 @@
     "id": "mHTcVL"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 90x40mm 2950mm lang",
     "dikte": "40mm",
     "breedte": "90mm",
@@ -8658,7 +8712,7 @@
     "id": "rbzWBE"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Enkel Glas Hardhout Gegrond 67x40mm 2950mm lang",
     "dikte": "40mm",
     "breedte": "67mm",
@@ -8667,7 +8721,7 @@
     "id": "VSe4A1"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 3350mm lang",
     "dikte": "54mm",
     "breedte": "80mm",
@@ -8676,7 +8730,7 @@
     "id": "OckGMs"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 2450mm lang",
     "dikte": "54mm",
     "breedte": "80mm",
@@ -8685,7 +8739,7 @@
     "id": "2s1H9X"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 2750mm lang",
     "dikte": "54mm",
     "breedte": "80mm",
@@ -8694,7 +8748,7 @@
     "id": "QDUOcy"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Dubbel Glas Onderdorpel 80x54mm 4000mm lang",
     "dikte": "54mm",
     "breedte": "80mm",
@@ -8703,7 +8757,7 @@
     "id": "TMBOsh"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 67x54mm 4000mm lang",
     "dikte": "54mm",
     "breedte": "67mm",
@@ -8712,7 +8766,7 @@
     "id": "0ub3LD"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 67x54mm 2750mm lang",
     "dikte": "54mm",
     "breedte": "67mm",
@@ -8721,7 +8775,7 @@
     "id": "uPuxEm"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Dubbel Glas Stijl 67x54mm 3650mm lang",
     "dikte": "54mm",
     "breedte": "67mm",
@@ -8730,7 +8784,7 @@
     "id": "cMbQtv"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Enkel Glas Onderdorpel 90x40mm 3350mm lang",
     "dikte": "40mm",
     "breedte": "90mm",
@@ -8739,7 +8793,7 @@
     "id": "IkP18p"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Enkel Glas Onderdorpel 90x40mm 2450mm lang",
     "dikte": "40mm",
     "breedte": "90mm",
@@ -8748,7 +8802,7 @@
     "id": "BTjP9u"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Raamhout Meranti Enkel Glas Stijl 67x40mm 4600mm lang",
     "dikte": "40mm",
     "breedte": "67mm",
@@ -8757,7 +8811,7 @@
     "id": "a9j4fD"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Stofdorpel Beuken 70x22mm 950mm lang",
     "dikte": "22mm",
     "breedte": "70 mm",
@@ -8766,7 +8820,7 @@
     "id": "7obxLc"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Stofdorpel Beuken 90x22mm 950mm lang",
     "dikte": "22mm",
     "breedte": "90 mm",
@@ -8775,7 +8829,7 @@
     "id": "O4uKhN"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Stofdorpel Beuken 115x22mm 950mm lang",
     "dikte": "22mm",
     "breedte": "115 mm",
@@ -8784,7 +8838,7 @@
     "id": "ETjMhY"
   },
   {
-    "categorie": "Montage kozijnen",
+    "categorie": "Kozijnhout",
     "materiaalnaam": "Stofdorpel Beuken 135x22mm 950mm lang",
     "dikte": "22mm",
     "breedte": "135 mm",

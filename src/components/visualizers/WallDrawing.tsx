@@ -247,13 +247,16 @@ export function WallDrawing({
                     const topCripH = studTopMm - headerTopY; // Start from top of (double) header
                     if (topCripH > 10) b.push({ ...fullBeam, yMm: headerTopY, hMm: topCripH, type: 'cripple-top' });
 
-                    // Sill Height Calculation including Double
-                    const sillThick = op.onderdorpelDikte || STUD_W;
-                    const sillTopY = op.fromBottom;
-                    const sillBottomY = sillTopY - sillThick - (op.dubbeleOnderdorpel ? sillThick : 0);
+                    const hasSill = !['door', 'door-frame', 'frame-inner', 'frame-outer'].includes(op.type);
+                    if (hasSill) {
+                        // Sill Height Calculation including Double
+                        const sillThick = op.onderdorpelDikte || STUD_W;
+                        const sillTopY = op.fromBottom;
+                        const sillBottomY = sillTopY - sillThick - (op.dubbeleOnderdorpel ? sillThick : 0);
 
-                    const botCripH = sillBottomY - studBottomMm;
-                    if (botCripH > 10) b.push({ ...fullBeam, yMm: studBottomMm, hMm: botCripH, type: 'cripple-bottom' });
+                        const botCripH = sillBottomY - studBottomMm;
+                        if (botCripH > 10) b.push({ ...fullBeam, yMm: studBottomMm, hMm: botCripH, type: 'cripple-bottom' });
+                    }
                 } else {
                     b.push(fullBeam);
                 }
@@ -345,7 +348,7 @@ export function WallDrawing({
             }
 
             // Standard Sill (Windows/Openings)
-            if (op.type !== 'door' && op.type !== 'door-frame') {
+            if (!['door', 'door-frame', 'frame-inner', 'frame-outer'].includes(op.type)) {
                 const sillH = op.onderdorpelDikte ? op.onderdorpelDikte : STUD_W;
                 b.push({ xMm: op.fromLeft, yMm: op.fromBottom - sillH, wMm: op.width, hMm: sillH, type: 'sill' });
 

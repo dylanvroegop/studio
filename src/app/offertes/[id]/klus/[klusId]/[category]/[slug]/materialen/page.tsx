@@ -96,7 +96,7 @@ import {
   MaterialCategoryKey
 } from '@/lib/job-registry';
 import { COMPONENT_REGISTRY } from '@/lib/component-registry';
-import { getJobConfig } from '@/config/jobTypes/index';
+import { getJobConfig, getPresetCompatibleJobTypes, getPresetGroup, getPresetKey } from '@/config/jobTypes/index';
 
 // ==================================
 // CONSTANTS
@@ -866,6 +866,71 @@ export default function GenericMaterialsPageRedesigned() {
   const JOB_KEY = jobSlug;
   const JOB_TITEL = jobConfig?.title || 'Klus';
 
+  const PRESET_GROUP = getPresetGroup(JOB_KEY);
+  const PRESET_KEY = getPresetKey(JOB_KEY);
+  const PRESET_COMPATIBLE_JOB_TYPES = getPresetCompatibleJobTypes(JOB_KEY);
+
+  const isPresetCompatible = useCallback((preset: any) => {
+    const presetJobType = (preset?.jobType || '').trim();
+    const presetGroup = (preset?.presetGroup || '').trim();
+    if (presetGroup && presetGroup === PRESET_KEY) return true;
+    return PRESET_COMPATIBLE_JOB_TYPES.includes(presetJobType);
+  }, [PRESET_COMPATIBLE_JOB_TYPES, PRESET_KEY]);
+
+  const mapPresetSlotsForJob = useCallback((slots: Record<string, string> | undefined, currentJobType: string) => {
+    if (!slots) return slots;
+    const next = { ...slots };
+
+    const isVoorzetwand = currentJobType === 'hsb-voorzetwand';
+    const isTussenwand = currentJobType === 'hsb-tussenwand';
+
+    if (isTussenwand) {
+      if (slots.constructieplaat && !slots.constructieplaat_1) next.constructieplaat_1 = slots.constructieplaat;
+      if (slots.constructieplaat && !slots.constructieplaat_2) next.constructieplaat_2 = slots.constructieplaat;
+      if (slots.afwerkplaat && !slots.afwerkplaat_1) next.afwerkplaat_1 = slots.afwerkplaat;
+      if (slots.afwerkplaat && !slots.afwerkplaat_2) next.afwerkplaat_2 = slots.afwerkplaat;
+    }
+
+    if (isVoorzetwand) {
+      if (!slots.constructieplaat) {
+        const fallback = slots.constructieplaat_1 || slots.constructieplaat_2;
+        if (fallback) next.constructieplaat = fallback;
+      }
+      if (!slots.afwerkplaat) {
+        const fallback = slots.afwerkplaat_1 || slots.afwerkplaat_2;
+        if (fallback) next.afwerkplaat = fallback;
+      }
+    }
+
+    return next;
+  }, []);
+
+  const normalizeSelectedMaterialsForJob = useCallback((selected: Record<string, any>, currentJobType: string) => {
+    const next = { ...selected };
+
+    const isVoorzetwand = currentJobType === 'hsb-voorzetwand';
+    const isTussenwand = currentJobType === 'hsb-tussenwand';
+
+    if (isTussenwand) {
+      if (next.constructieplaat && !next.constructieplaat_1) next.constructieplaat_1 = next.constructieplaat;
+      if (next.constructieplaat && !next.constructieplaat_2) next.constructieplaat_2 = next.constructieplaat;
+      if (next.afwerkplaat && !next.afwerkplaat_1) next.afwerkplaat_1 = next.afwerkplaat;
+      if (next.afwerkplaat && !next.afwerkplaat_2) next.afwerkplaat_2 = next.afwerkplaat;
+
+      if (next.constructieplaat_1 && !next.constructieplaat_2) next.constructieplaat_2 = next.constructieplaat_1;
+      if (next.constructieplaat_2 && !next.constructieplaat_1) next.constructieplaat_1 = next.constructieplaat_2;
+      if (next.afwerkplaat_1 && !next.afwerkplaat_2) next.afwerkplaat_2 = next.afwerkplaat_1;
+      if (next.afwerkplaat_2 && !next.afwerkplaat_1) next.afwerkplaat_1 = next.afwerkplaat_2;
+    }
+
+    if (isVoorzetwand) {
+      if (!next.constructieplaat) next.constructieplaat = next.constructieplaat_1 || next.constructieplaat_2;
+      if (!next.afwerkplaat) next.afwerkplaat = next.afwerkplaat_1 || next.afwerkplaat_2;
+    }
+
+    return next;
+  }, []);
+
   // Calculate which component types are active for this job configuration
 
 
@@ -925,6 +990,7 @@ export default function GenericMaterialsPageRedesigned() {
 
   // Per-component werkpakket presets
   const [componentPresets, setComponentPresets] = useState<Record<string, any[]>>({});
+  const [componentPresetSelection, setComponentPresetSelection] = useState<Record<string, string>>({});
   const [saveComponentPresetOpen, setSaveComponentPresetOpen] = useState(false);
   const [saveComponentPresetType, setSaveComponentPresetType] = useState<string | null>(null);
   const [saveComponentPresetCompId, setSaveComponentPresetCompId] = useState<string | null>(null);
@@ -1246,10 +1312,11 @@ export default function GenericMaterialsPageRedesigned() {
 
     // 2. Fallback: match from global slots using COMPONENT_REGISTRY defaultMaterials
     const config = COMPONENT_REGISTRY[type];
-    if (config?.defaultMaterials && activePreset.slots && alleMaterialen.length) {
+    const mappedSlots = mapPresetSlotsForJob(activePreset.slots, JOB_KEY);
+    if (config?.defaultMaterials && mappedSlots && alleMaterialen.length) {
       const materials: any[] = [];
       for (const section of config.defaultMaterials) {
-        const matId = activePreset.slots[section.key];
+        const matId = mappedSlots[section.key];
         if (matId) {
           const found = alleMaterialen.find((m: any) => m.id === matId);
           if (found) materials.push({ sectionKey: section.key, material: found });
@@ -1259,7 +1326,7 @@ export default function GenericMaterialsPageRedesigned() {
     }
 
     return [];
-  }, [presets, gekozenPresetId, alleMaterialen]);
+  }, [presets, gekozenPresetId, alleMaterialen, JOB_KEY, mapPresetSlotsForJob, normalizeSelectedMaterialsForJob]);
 
   // Safeguard state
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
@@ -1273,6 +1340,47 @@ export default function GenericMaterialsPageRedesigned() {
   const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
 
   useEffect(() => setIsMounted(true), []);
+
+  const handleApplyComponentPreset = useCallback((presetId: string, componentType: string, compId: string) => {
+    const preset = (componentPresets[componentType] || []).find((p: any) => p.id === presetId);
+    if (!preset?.materials) return;
+    setComponents(prev => prev.map(comp => {
+      if (comp.id !== compId) return comp;
+      return { ...comp, materials: JSON.parse(JSON.stringify(preset.materials)) };
+    }));
+  }, [componentPresets]);
+
+  const getDefaultComponentPreset = useCallback((type: string) => {
+    const list = componentPresets[type] || [];
+    return list.find((p: any) => p.isDefault) || list.find((p: any) => (p.name || '').toLowerCase().includes('standaard'));
+  }, [componentPresets]);
+
+  // Auto-apply standaard werkpakket per component (only when empty)
+  useEffect(() => {
+    if (!components.length) return;
+    if (!Object.keys(componentPresets).length) return;
+
+    setComponentPresetSelection(prev => {
+      let next = prev;
+      let changed = false;
+
+      components.forEach(comp => {
+        if (next[comp.id]) return;
+        if ((comp.materials || []).length > 0) return;
+
+        const def = getDefaultComponentPreset(comp.type);
+        if (!def) return;
+
+        if (next === prev) next = { ...prev };
+        next[comp.id] = def.id;
+        changed = true;
+
+        handleApplyComponentPreset(def.id, comp.type, comp.id);
+      });
+
+      return changed ? next : prev;
+    });
+  }, [components, componentPresets, getDefaultComponentPreset, handleApplyComponentPreset]);
 
   // Load User Preferences (Hidden Categories) - job-type dependent
   useEffect(() => {
@@ -1376,12 +1484,14 @@ export default function GenericMaterialsPageRedesigned() {
       try {
         const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid));
         const querySnapshot = await getDocs(q);
-        const fetched = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter((p: any) => p.jobType === JOB_KEY);
+        const fetched = querySnapshot.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter((p: any) => isPresetCompatible(p));
         setPresets(fetched);
       } catch (e) { console.error(e); } finally { setPresetsLaden(false); }
     };
     fetchPresets();
-  }, [user, firestore, JOB_KEY]);
+  }, [user, firestore, JOB_KEY, isPresetCompatible]);
 
   // Fetch per-component werkpakket presets
   useEffect(() => {
@@ -1430,14 +1540,6 @@ export default function GenericMaterialsPageRedesigned() {
     return saved;
   };
 
-  const handleApplyComponentPreset = (presetId: string, componentType: string, compId: string) => {
-    const preset = (componentPresets[componentType] || []).find((p: any) => p.id === presetId);
-    if (!preset?.materials) return;
-    setComponents(prev => prev.map(comp => {
-      if (comp.id !== compId) return comp;
-      return { ...comp, materials: JSON.parse(JSON.stringify(preset.materials)) };
-    }));
-  };
 
   // Favorites
   useEffect(() => {
@@ -1919,14 +2021,16 @@ export default function GenericMaterialsPageRedesigned() {
     // Small timeout to allow UI to show loading state if needed, and ensure processing happens
     setTimeout(() => {
       const newSels: any = {};
-      if (preset.slots) {
-        Object.keys(preset.slots).forEach(key => {
-          const matId = preset.slots[key];
+      const mappedSlots = mapPresetSlotsForJob(preset.slots, JOB_KEY);
+      if (mappedSlots) {
+        Object.keys(mappedSlots).forEach(key => {
+          const matId = mappedSlots[key];
           const found = alleMaterialen.find(m => m.id === matId);
           if (found) newSels[key] = found;
         });
       }
-      setGekozenMaterialen(newSels);
+      const normalizedSels = normalizeSelectedMaterialsForJob(newSels, JOB_KEY);
+      setGekozenMaterialen(normalizedSels);
       if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
 
       // Handle components (Kozijnen, Deuren, etc.)
@@ -2454,6 +2558,7 @@ export default function GenericMaterialsPageRedesigned() {
     const newPresetData: any = {
       userId: user.uid,
       jobType: JOB_KEY,
+      ...(PRESET_GROUP ? { presetGroup: PRESET_KEY } : {}),
       name: presetName,
       isDefault,
       slots: slots,
@@ -2467,8 +2572,15 @@ export default function GenericMaterialsPageRedesigned() {
     if (!existingId) newPresetData.createdAt = serverTimestamp();
     const batch = writeBatch(firestore);
     if (isDefault) {
-      const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('jobType', '==', JOB_KEY), where('isDefault', '==', true));
-      try { const qs = await getDocs(q); qs.forEach((d) => { if (d.id !== existingId) batch.update(d.ref, { isDefault: false }); }); } catch (e) { console.error("Error clearing defaults", e); }
+      const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid), where('isDefault', '==', true));
+      try {
+        const qs = await getDocs(q);
+        qs.forEach((d) => {
+          const data = d.data();
+          if (!isPresetCompatible(data)) return;
+          if (d.id !== existingId) batch.update(d.ref, { isDefault: false });
+        });
+      } catch (e) { console.error("Error clearing defaults", e); }
     }
     const docRef = existingId ? doc(firestore, 'presets', existingId) : doc(collection(firestore, 'presets'));
     batch.set(docRef, newPresetData, { merge: true });
@@ -2489,8 +2601,8 @@ export default function GenericMaterialsPageRedesigned() {
   const handleSetDefaultPreset = async (presetToSet: any) => {
     if (!user || !firestore || presetToSet.isDefault) return;
     const batch = writeBatch(firestore);
-    const currentDefault = presets.find((p) => p.isDefault);
-    if (currentDefault) batch.update(doc(firestore, 'presets', currentDefault.id), { isDefault: false });
+    const currentDefaults = presets.filter((p) => p.isDefault);
+    currentDefaults.forEach((p) => batch.update(doc(firestore, 'presets', p.id), { isDefault: false }));
     batch.update(doc(firestore, 'presets', presetToSet.id), { isDefault: true });
     try {
       await batch.commit();
@@ -3220,8 +3332,9 @@ export default function GenericMaterialsPageRedesigned() {
                                               Werkpakket
                                             </Label>
                                             <Select
-                                              defaultValue="default"
+                                              value={componentPresetSelection[comp.id] || 'default'}
                                               onValueChange={(val) => {
+                                                setComponentPresetSelection(prev => ({ ...prev, [comp.id]: val }));
                                                 if (val !== 'default') {
                                                   handleApplyComponentPreset(val, targetComponentType, comp.id);
                                                 }

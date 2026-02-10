@@ -134,3 +134,27 @@ export function getJobConfig(slug: string): JobTypeConfig {
         sections: jobSections[slug] || base.sections || [],
     };
 }
+
+// ─── Preset compatibility groups ─────────────────────────────────────
+const PRESET_GROUPS: Record<string, string> = {
+    'hsb-voorzetwand': 'hsb-binnenwand',
+    'hsb-tussenwand': 'hsb-binnenwand',
+};
+
+const PRESET_GROUP_MEMBERS: Record<string, string[]> = {
+    'hsb-binnenwand': ['hsb-voorzetwand', 'hsb-tussenwand'],
+};
+
+export function getPresetGroup(slug: string): string | null {
+    return PRESET_GROUPS[slug] || null;
+}
+
+export function getPresetKey(slug: string): string {
+    return getPresetGroup(slug) || slug;
+}
+
+export function getPresetCompatibleJobTypes(slug: string): string[] {
+    const group = getPresetGroup(slug);
+    if (!group) return [slug];
+    return PRESET_GROUP_MEMBERS[group] || [slug];
+}
