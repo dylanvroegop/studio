@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Package, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil } from 'lucide-react';
+import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -43,6 +43,11 @@ function parsePriceToNumber(raw: unknown): number | null {
 
   const num = parseFloat(value);
   return Number.isNaN(num) ? null : num;
+}
+
+function formatPriceInput(value: number | null): string {
+  if (value == null || Number.isNaN(value)) return '';
+  return value.toFixed(2).replace('.', ',');
 }
 
 // Logic to show estimated price in the red check bar
@@ -189,6 +194,7 @@ export function MaterialSelectionModal({
   const [customNaam, setCustomNaam] = useState<string>('');
   const [customEenheid, setCustomEenheid] = useState<string>('');
   const [customPrijs, setCustomPrijs] = useState<string>('');
+  const [customPrijsExclBtw, setCustomPrijsExclBtw] = useState<string>('');
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>('');
 
@@ -236,8 +242,9 @@ export function MaterialSelectionModal({
 
       // 2. Reset Form Fields (CLEAN SLATE)
       setCustomNaam('');
-      setCustomEenheid('');
+      setCustomEenheid('stuk');
       setCustomPrijs('');
+      setCustomPrijsExclBtw('');
       setCustomSubsectie('');
       setCustomLeverancier('');
 
@@ -294,15 +301,45 @@ export function MaterialSelectionModal({
 
   const filteredSidebarCategories = useMemo(() => {
     const query = categorySearchTerm.trim().toLowerCase();
-    if (!query) return uniqueCategories;
-    return uniqueCategories.filter((cat) => cat.toLowerCase().includes(query));
-  }, [uniqueCategories, categorySearchTerm]);
+    const base = !query
+      ? uniqueCategories
+      : uniqueCategories.filter((cat) => cat.toLowerCase().includes(query));
+
+    const selected = Array.isArray(categoryFilter)
+      ? categoryFilter[0]
+      : categoryFilter;
+
+    if (
+      selected &&
+      selected !== 'all' &&
+      !base.includes(selected) &&
+      (!query || selected.toLowerCase().includes(query))
+    ) {
+      return [selected, ...base];
+    }
+
+    return base;
+  }, [uniqueCategories, categorySearchTerm, categoryFilter]);
 
   const selectedCategoryLabel = useMemo(() => {
     if (Array.isArray(categoryFilter)) return categoryFilter.join(', ');
     if (categoryFilter === 'all') return 'Toon alles';
     return categoryFilter;
   }, [categoryFilter]);
+
+  const selectedCategoryForNewMaterial = useMemo(() => {
+    if (Array.isArray(categoryFilter)) return categoryFilter[0] || '';
+    if (!categoryFilter || categoryFilter === 'all') return '';
+    return categoryFilter;
+  }, [categoryFilter]);
+
+  const formCategoryOptions = useMemo(() => {
+    const options = new Set<string>(uniqueCategories);
+    if (selectedCategoryForNewMaterial) {
+      options.add(selectedCategoryForNewMaterial);
+    }
+    return Array.from(options).sort((a, b) => a.localeCompare(b, 'nl'));
+  }, [uniqueCategories, selectedCategoryForNewMaterial]);
 
   const isSubCategorySelected = (subCategory: string): boolean => {
     if (subCategoryFilter === 'all') return false;
@@ -343,10 +380,10 @@ export function MaterialSelectionModal({
 
   // Filtered autocomplete suggestions based on current input
   const filteredCategories = useMemo(() => {
-    if (!customSubsectie.trim()) return uniqueCategories;
+    if (!customSubsectie.trim()) return formCategoryOptions;
     const lower = customSubsectie.toLowerCase();
-    return uniqueCategories.filter(cat => cat.toLowerCase().includes(lower));
-  }, [uniqueCategories, customSubsectie]);
+    return formCategoryOptions.filter(cat => cat.toLowerCase().includes(lower));
+  }, [formCategoryOptions, customSubsectie]);
 
   const filteredLeveranciers = useMemo(() => {
     if (!customLeverancier.trim()) return uniqueLeveranciers;
@@ -537,14 +574,37 @@ export function MaterialSelectionModal({
   const isPrijsOk = prijsNum != null && prijsNum >= 0;
   const isEenheidOk = (customEenheid || '').trim().length > 0;
 
+  const handleInclPriceChange = (raw: string) => {
+    const val = raw.replace(/[^0-9.,]/g, '');
+    setCustomPrijs(val);
+
+    const incl = parsePriceToNumber(val);
+    if (incl == null) {
+      setCustomPrijsExclBtw('');
+      return;
+    }
+
+    const excl = Number((incl / 1.21).toFixed(2));
+    setCustomPrijsExclBtw(formatPriceInput(excl));
+  };
+
+  const handleExclPriceChange = (raw: string) => {
+    const val = raw.replace(/[^0-9.,]/g, '');
+    setCustomPrijsExclBtw(val);
+
+    const excl = parsePriceToNumber(val);
+    if (excl == null) {
+      setCustomPrijs('');
+      return;
+    }
+
+    const incl = Number((excl * 1.21).toFixed(2));
+    setCustomPrijs(formatPriceInput(incl));
+  };
+
   const canSaveCustom = useMemo(() => {
     return !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk]);
-
-  // --- PREVIEW NAME GENERATOR ---
-  const previewNaam = useMemo(() => {
-    return constructFinalName(customNaam);
-  }, [customNaam]);
 
   // --- SAVE ACTION ---
   const saveCustomMaterial = async () => {
@@ -558,6 +618,7 @@ export function MaterialSelectionModal({
 
       const prijsNumLocal = parsePriceToNumber(customPrijs);
       if (prijsNumLocal == null || prijsNumLocal < 0) throw new Error('Vul een geldige prijs in.');
+      const prijsExclBtwLocal = parsePriceToNumber(customPrijsExclBtw) ?? Number((prijsNumLocal / 1.21).toFixed(2));
 
       const eenheid = (customEenheid || '').trim();
       if (!eenheid) throw new Error('Kies een eenheid.');
@@ -575,6 +636,8 @@ export function MaterialSelectionModal({
         materiaalnaam: finalNameToSend,
         eenheid,
         prijs: prijsNumLocal, // Unit price
+        prijs_excl_btw: prijsExclBtwLocal,
+        prijs_incl_btw: prijsNumLocal,
         prijs_per_stuk: calculatedPiecePrice, // Calculated piece price (same as unit price for simple items)
         categorie: customSubsectie.trim() || 'Overig',
         leverancier: customLeverancier.trim() || null,
@@ -637,9 +700,14 @@ export function MaterialSelectionModal({
     setCustomNaam(mat.materiaalnaam || '');
     setCustomEenheid(mat.eenheid || '');
 
-    // Handle price formatting
-    const price = parsePriceToNumber(mat.prijs_incl_btw ?? mat.prijs);
-    setCustomPrijs(price !== null ? price.toString().replace('.', ',') : '');
+    // Handle price formatting (both incl. and excl. btw)
+    const priceIncl = parsePriceToNumber((mat as any).prijs_incl_btw ?? mat.prijs);
+    const priceExcl =
+      parsePriceToNumber((mat as any).prijs_excl_btw) ??
+      (priceIncl != null ? Number((priceIncl / 1.21).toFixed(2)) : null);
+
+    setCustomPrijs(formatPriceInput(priceIncl));
+    setCustomPrijsExclBtw(formatPriceInput(priceExcl));
 
     setCustomSubsectie(mat.categorie || mat.subsectie || '');
     setCustomLeverancier(mat.leverancier || '');
@@ -916,12 +984,13 @@ export function MaterialSelectionModal({
 
                     <Button
                       onClick={() => {
-                        setEditingMaterialId(null);
-                        setCustomNaam('');
-                        setCustomEenheid('');
-                        setCustomPrijs('');
-                        setCustomSubsectie('');
-                        setCustomLeverancier('');
+                    setEditingMaterialId(null);
+                    setCustomNaam('');
+                    setCustomEenheid('stuk');
+                    setCustomPrijs('');
+                    setCustomPrijsExclBtw('');
+                    setCustomSubsectie(selectedCategoryForNewMaterial || '');
+                    setCustomLeverancier('');
                         setStep('form');
                       }}
                       variant="outline"
@@ -1027,13 +1096,13 @@ export function MaterialSelectionModal({
                               <div className="text-right shrink-0 flex items-center gap-3">
                                 <div className="flex flex-col items-end">
                                   {(() => {
-                                    // Check multiple price fields (different data sources use different field names)
-                                    const prijsPerStuk = parsePriceToNumber(mat.prijs_per_stuk);
+                                    // Show EXCL. BTW in list: prefer DB field, then derive as fallback.
+                                    const prijsExclBtw = parsePriceToNumber((mat as any).prijs_excl_btw);
                                     const prijsInclBtw = parsePriceToNumber((mat as any).prijs_incl_btw);
                                     const prijs = parsePriceToNumber(mat.prijs);
+                                    const derivedExcl = prijsInclBtw != null ? Number((prijsInclBtw / 1.21).toFixed(2)) : null;
 
-                                    // Use the first non-null price we find
-                                    const finalPrice = prijsPerStuk ?? prijsInclBtw ?? prijs;
+                                    const finalPrice = prijsExclBtw ?? derivedExcl ?? prijs;
                                     const eenheid = mat.eenheid || 'stuk';
 
                                     return (
@@ -1042,7 +1111,7 @@ export function MaterialSelectionModal({
                                           {formatEuro(finalPrice)}
                                         </div>
                                         <div className="text-[10px] text-muted-foreground">
-                                          per {eenheid}
+                                          per {eenheid} excl. btw
                                         </div>
                                       </>
                                     );
@@ -1132,39 +1201,57 @@ export function MaterialSelectionModal({
                   placeholder="bijv. Keukenkraan chroom"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Eenheid *</div>
-                  <Select value={customEenheid} onValueChange={setCustomEenheid}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Kies" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
-                        <SelectItem key={e} value={e}>{e}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Prijs per eenheid
                 </div>
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Prijs per eenheid (€) *</div>
-                  <Input
-                    value={customPrijs}
-                    onChange={(e) => {
-                      // Allow numbers, commas, dots
-                      const val = e.target.value.replace(/[^0-9.,]/g, '');
-                      setCustomPrijs(val);
-                    }}
-                    onKeyDown={(e) => {
-                      // Block 'e', 'E', '+', '-' 
-                      if (['e', 'E', '+', '-'].includes(e.key)) {
-                        e.preventDefault();
-                      }
-                    }}
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-[130px_1fr_1fr] gap-3 items-end">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Eenheid *</div>
+                    <Select value={customEenheid} onValueChange={setCustomEenheid}>
+                      <SelectTrigger className="h-10 text-xs">
+                        <SelectValue placeholder="Kies" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
+                          <SelectItem key={e} value={e}>{e}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Excl. btw</div>
+                    <Input
+                      value={customPrijsExclBtw}
+                      onChange={(e) => handleExclPriceChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (['e', 'E', '+', '-'].includes(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Incl. btw *</div>
+                    <Input
+                      value={customPrijs}
+                      onChange={(e) => handleInclPriceChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (['e', 'E', '+', '-'].includes(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Vul incl. of excl. in; het andere veld wordt automatisch bijgewerkt.
                 </div>
               </div>
 
@@ -1180,9 +1267,9 @@ export function MaterialSelectionModal({
                       onBlur={() => setTimeout(() => setCategorieDropdownOpen(false), 150)}
                       placeholder="Bijv. Balkhout"
                       autoComplete="off"
-                      className={uniqueCategories.length > 0 ? "pr-10" : ""}
+                      className={formCategoryOptions.length > 0 ? "pr-10" : ""}
                     />
-                    {uniqueCategories.length > 0 && (
+                    {formCategoryOptions.length > 0 && (
                       <button
                         type="button"
                         onMouseDown={(e) => { e.preventDefault(); setCategorieDropdownOpen(!categorieDropdownOpen); }}
@@ -1246,32 +1333,6 @@ export function MaterialSelectionModal({
                 </div>
               </div>
 
-              {/* CHECK BAR (RED) */}
-              {/* RECEIPT PREVIEW CARD */}
-              {isPrijsOk && customEenheid && (
-                <div className="mx-0 mb-2 mt-6 flex items-center justify-between rounded-r-lg rounded-l-sm border border-border/50 bg-card/50 px-5 py-4 shadow-sm border-l-4 border-l-emerald-500 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10">
-                      <Package className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Voorvertoning</span>
-                      <span className="text-base font-bold text-white mt-1.5 leading-tight">
-                        {previewNaam}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-right ml-6 shrink-0">
-                    <div className="text-xl font-bold text-white leading-none tracking-tight">
-                      {formatEuro(prijsNum)}
-                    </div>
-                    <div className="text-[11px] font-medium text-muted-foreground mt-1.5 uppercase tracking-wide">
-                      Per {customEenheid}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <DialogFooter className="border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3 shrink-0">

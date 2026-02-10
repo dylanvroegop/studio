@@ -374,7 +374,7 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 5. AFWERKEN (TIMMERWERK)
   { label: 'Dagkanten', categoryFilter: 'Interieur Platen', category: 'Dagkant', key: 'dagkanten', category_ultra_filter: '' },
-  { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
+  { label: 'Vensterbanken', categoryFilter: 'vensterbanken', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_vloer', category_ultra_filter: '' },
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
@@ -419,7 +419,7 @@ const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
 
   // 5. AFWERKEN (TIMMERWERK)
   { label: 'Dagkanten', categoryFilter: 'Interieur Platen', category: 'Dagkant', key: 'dagkanten', category_ultra_filter: '' },
-  { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
+  { label: 'Vensterbanken', categoryFilter: 'vensterbanken', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_vloer', category_ultra_filter: '' },
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
@@ -468,7 +468,7 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 5. AFWERKEN (TIMMERWERK)
   { label: 'Dagkanten', categoryFilter: 'Interieur Platen, Merantie', category: 'Dagkant', key: 'dagkanten', category_ultra_filter: '' },
-  { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
+  { label: 'Vensterbanken', categoryFilter: 'vensterbanken', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_vloer', category_ultra_filter: '' },
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
@@ -516,7 +516,7 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
 
   // 5. AFWERKEN (TIMMERWERK)
   { label: 'Dagkanten', categoryFilter: 'Interieur Platen, Merantie', category: 'Dagkant', key: 'dagkanten', category_ultra_filter: '' },
-  { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
+  { label: 'Vensterbanken', categoryFilter: 'vensterbanken', category: 'Vensterbank', key: 'vensterbanken', category_ultra_filter: '' },
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_vloer', category_ultra_filter: '' },
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
@@ -560,7 +560,7 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
 
   // 4. AFWERKEN (TIMMERWERK - BINNEN)
   { label: 'Dagkanten', categoryFilter: 'Interieur Platen', category: 'Dagkant', key: 'dagkant_binnen', category_ultra_filter: '' },
-  { label: 'Vensterbanken', categoryFilter: 'Interieur Platen', category: 'Vensterbank', key: 'vensterbank', category_ultra_filter: '' },
+  { label: 'Vensterbanken', categoryFilter: 'vensterbanken', category: 'Vensterbank', key: 'vensterbank', category_ultra_filter: '' },
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking_binnen', key: 'plinten', category_ultra_filter: '' },
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking_binnen', key: 'plinten_plafond', category_ultra_filter: '' },
 
@@ -881,7 +881,7 @@ const OMKASTING_MATS: MaterialSection[] = [
 
 const VENSTERBANK_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '' },
-  { label: 'Vensterbank', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '', multiEntry: true },
+  { label: 'Vensterbank', categoryFilter: 'vensterbanken', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '', multiEntry: true },
   { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'afwerking', key: 'roosters', category_ultra_filter: '' },
   { label: 'Olie, Lak of Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'behandeling', category_ultra_filter: '' },
 ];
@@ -1171,7 +1171,7 @@ const KOZIJN_BUITEN_HOUT_MATS: MaterialSection[] = [
   { label: 'Lood / DPC', categoryFilter: 'Lood, Loodvervanger, Dpc', category: 'afwerking_buiten', key: 'lood_dpc', category_ultra_filter: '' },
 
   { label: 'Dagkantbetimmering', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'afwerking_binnen', key: 'dagkantafwerking', category_ultra_filter: '' },
-  { label: 'Vensterbank', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking_binnen', key: 'vensterbank', category_ultra_filter: '' },
+  { label: 'Vensterbank', categoryFilter: 'vensterbanken', category: 'afwerking_binnen', key: 'vensterbank', category_ultra_filter: '' },
   { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking_binnen', key: 'koplatten', category_ultra_filter: '' },
 ];
 
@@ -1561,7 +1561,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Enkelzijdig Bekleed',
         slug: 'metalstud-voorzetwand',
         measurementLabel: 'Wand',
-        measurements: WALL_FIELDS,
+        measurements: HSB_VOORZETWAND_FIELDS,
         materialSections: METALSTUD_VOORZETWAND_BINNEN_MATS,
         categoryConfig: {
           metaal: { title: 'Metal Stud Framewerk', order: 1 },

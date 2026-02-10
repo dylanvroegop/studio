@@ -205,7 +205,7 @@ const NOTES_PLACEHOLDER_START_DELAY_MS = 350;
 
 function cleanMaterialData(v: any) {
   if (!v) return null;
-  const source = v._raw || v;
+  const source = { ...(v._raw || {}), ...v };
   const clean: any = {};
   Object.keys(source).forEach(prop => {
     if (BLOCKLIST.includes(prop)) return;
@@ -244,6 +244,39 @@ function EuroInput({ id, value, onChange, placeholder = '0,00', disabled }: any)
 
 function maakId() {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Date.now().toString();
+}
+
+function getMissingPriceItemKey(item: any, idx?: number): string {
+  return String(item?.row_id || item?.material_ref_id || item?.id || item?.materiaalnaam || `idx-${idx ?? 0}`);
+}
+
+function mergeMaterialForPriceCheck(material: any): any {
+  const raw = material?._raw || {};
+  return {
+    ...raw,
+    ...material,
+    row_id: material?.row_id ?? raw.row_id,
+    material_ref_id: material?.material_ref_id ?? raw.material_ref_id,
+    id: material?.id ?? raw.id,
+    materiaalnaam: material?.materiaalnaam ?? raw.materiaalnaam,
+  };
+}
+
+function getPositivePriceFromMaterial(material: any): number | null {
+  if (!material) return null;
+  const candidates = [
+    material.prijs_incl_btw,
+    material.prijs_per_stuk,
+    material.prijs,
+    material._raw?.prijs_incl_btw,
+    material._raw?.prijs_per_stuk,
+    material._raw?.prijs,
+  ];
+  for (const c of candidates) {
+    const n = parseNLMoneyToNumber(c);
+    if (typeof n === 'number' && n > 0) return n;
+  }
+  return null;
 }
 
 function bouwCustomGroupsUitFirestore(custommateriaal: any, alleMaterialen: any[]): any[] {
@@ -308,35 +341,6 @@ function bouwCustommateriaalMapUitCustomGroups(customGroups: any[]) {
     };
   });
   return out;
-}
-
-/**
- * Builds explicit strip array (stroken) for dagkant materials based on opening type.
- * - raamkozijn (window) = 4 stroken: 2x L-zijde (vertical), 2x B-zijde (horizontal)
- * - deurkozijn (door) = 3 stroken: 2x L-zijde (vertical), 1x B-zijde (top only, no bottom)
- * 
- * @param openingType - The type of opening ('window', 'raamkozijn', 'door', 'door-frame', etc.)
- * @param width - The width of the opening in mm (becomes length for B-sides)
- * @param height - The height of the opening in mm (becomes length for L-sides)
- * @param diepte - The depth of the dagkant in mm (becomes width for all strips)
- */
-function buildDagkantStroken(openingType: string, width: number, height: number, diepte: number): Array<{ breedte: number; lengte: number; label: string }> {
-  const stroken: Array<{ breedte: number; lengte: number; label: string }> = [];
-
-  // Left side (L) - vertical
-  stroken.push({ breedte: diepte, lengte: height, label: "L" });
-  // Right side (L) - vertical
-  stroken.push({ breedte: diepte, lengte: height, label: "L" });
-  // Top side (B) - horizontal
-  stroken.push({ breedte: diepte, lengte: width, label: "B" });
-
-  // Bottom side (B) - only for windows, not for doors (doors have no bottom frame piece)
-  const isWindow = openingType === 'window' || openingType === 'raamkozijn';
-  if (isWindow) {
-    stroken.push({ breedte: diepte, lengte: width, label: "B" });
-  }
-
-  return stroken;
 }
 
 function getMaterialLength(material: any): number | null {
@@ -636,22 +640,28 @@ function SavePresetDialog({ open, onOpenChange, onSave, jobTitel, presets, defau
   const [name, setName] = useState('');
   const [isDefault, setIsDefault] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const hasInitializedForOpenRef = useRef(false);
   const existingPreset = useMemo(() => {
     if (!name.trim()) return null;
     return presets.find((p: any) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
   }, [name, presets]);
 
   useEffect(() => {
-    if (open) {
-      if (defaultName) {
-        setName(defaultName);
-        const p = presets.find((x: any) => x.name === defaultName);
-        if (p) setIsDefault(p.isDefault);
-      } else {
-        setName('');
-        setIsDefault(false);
-      }
+    if (!open) {
+      hasInitializedForOpenRef.current = false;
+      return;
     }
+    if (hasInitializedForOpenRef.current) return;
+
+    if (defaultName) {
+      setName(defaultName);
+      const p = presets.find((x: any) => x.name === defaultName);
+      if (p) setIsDefault(p.isDefault);
+    } else {
+      setName('');
+      setIsDefault(false);
+    }
+    hasInitializedForOpenRef.current = true;
   }, [open, defaultName, presets]);
 
   useEffect(() => { if (existingPreset) setIsDefault(existingPreset.isDefault); }, [existingPreset]);
@@ -946,7 +956,7 @@ export default function GenericMaterialsPageRedesigned() {
 
   const [presets, setPresets] = useState<any[]>([]);
   const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
-  const [isPresetsLaden, setPresetsLaden] = useState(true);
+  const [isPresetsLaden, setPresetsLaden] = useState(false);
 
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, any | undefined>>({});
   const [wasteByEntryKey, setWasteByEntryKey] = useState<Record<string, number>>({});
@@ -1328,6 +1338,42 @@ export default function GenericMaterialsPageRedesigned() {
     return [];
   }, [presets, gekozenPresetId, alleMaterialen, JOB_KEY, mapPresetSlotsForJob, normalizeSelectedMaterialsForJob]);
 
+  const getVariantItemsForType = useCallback((type: JobComponentType | null): any[] => {
+    if (!type) return [];
+    let items: any[] = [];
+    if (type === 'kozijn') items = JOB_REGISTRY.kozijnen.items;
+    else if (type === 'deur') items = JOB_REGISTRY.deuren.items;
+    else if (type === 'plafond') items = JOB_REGISTRY.plafonds.items;
+    else if (type === 'dagkant' || type === 'vensterbank') items = JOB_REGISTRY.afwerkingen.items;
+
+    if (type === 'dagkant' || type === 'vensterbank') {
+      return items.filter(i => i.title.toLowerCase().includes(type.toLowerCase()));
+    }
+    return items;
+  }, []);
+
+  const addComponentFromVariant = useCallback((type: JobComponentType, item: any, idx = 0) => {
+    const newItem = {
+      id: `${type}-${Date.now()}-${idx}`,
+      type,
+      label: item.title,
+      slug: item.slug,
+      measurements: {},
+      materials: getPresetMaterialsForType(type)
+    };
+    setComponents(prev => [...prev, newItem]);
+  }, [getPresetMaterialsForType]);
+
+  const openVariantPickerOrAdd = useCallback((type: JobComponentType) => {
+    const items = getVariantItemsForType(type);
+    if (items.length === 1) {
+      addComponentFromVariant(type, items[0], 0);
+      return;
+    }
+    setVariantPickerType(type);
+    setVariantPickerOpen(true);
+  }, [getVariantItemsForType, addComponentFromVariant]);
+
   // Safeguard state
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
   const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
@@ -1478,7 +1524,10 @@ export default function GenericMaterialsPageRedesigned() {
 
   // Fetch Presets
   useEffect(() => {
-    if (!user || !firestore) return;
+    if (!user || !firestore) {
+      setPresetsLaden(false);
+      return;
+    }
     const fetchPresets = async () => {
       setPresetsLaden(true);
       try {
@@ -1624,149 +1673,6 @@ export default function GenericMaterialsPageRedesigned() {
           currentComponents = [];
         }
 
-        // Sync Openings from Measurement Data
-        const maatwerkItems = (maatwerkNode && typeof maatwerkNode === 'object' && !Array.isArray(maatwerkNode))
-          ? (maatwerkNode.basis || maatwerkNode.items || [])
-          : (klusNode?.[`${jobSlug}_maatwerk`] || (Array.isArray(maatwerkNode) ? maatwerkNode : []));
-        if (Array.isArray(maatwerkItems)) {
-          const openings = maatwerkItems.flatMap((item: any) => item.openings || []);
-
-          const newComponents = [...currentComponents];
-          let hasChanges = false;
-
-          openings.forEach((op: any) => {
-            if (!op.id) return;
-
-            // Map types
-            let compType: JobComponentType | null = null;
-            let labelPrefix = 'Opening';
-            let slug = 'zelfgemaakte-kozijnen'; // Default generic slug
-
-            if (op.type === 'window') {
-              compType = 'kozijn';
-              labelPrefix = 'Raamkozijn';
-              slug = 'zelfgemaakte-kozijnen';
-            }
-            else if (op.type === 'door-frame' || op.type === 'frame-inner' || op.type === 'frame-outer') {
-              compType = 'kozijn';
-
-              if (op.type === 'frame-inner') {
-                labelPrefix = 'Binnenkozijn';
-                // Map to the specific slug for inner frames. 
-                // We use 'binnen-kozijn-hout' as a default timber frame for indoor
-                slug = 'binnen-kozijn-hout';
-              } else if (op.type === 'frame-outer') {
-                labelPrefix = 'Buitenkozijn';
-                slug = 'buiten-kozijn-hout';
-              } else {
-                labelPrefix = 'Deurkozijn';
-                slug = 'zelfgemaakte-kozijnen';
-              }
-            }
-            else if (op.type === 'door') {
-              compType = 'deur';
-              labelPrefix = 'Deur';
-              slug = 'binnendeur-afhangen';
-            }
-
-            if (compType) {
-
-              const existingIdx = newComponents.findIndex(c => c.id === op.id);
-
-              // Robust dimension extraction
-              const w = op.width || op.breedte || op.lengte || op.openingWidth || 0;
-              const h = op.height || op.hoogte || op.openingHeight || 0;
-              const dimensionLabel = `${w}x${h} mm`;
-
-              if (existingIdx === -1) {
-                // Create new
-                newComponents.push({
-                  id: op.id,
-                  type: compType,
-                  label: `${labelPrefix} - ${dimensionLabel}`,
-                  measurements: { breedte: w, hoogte: h, lengte: w }, // Pre-fill
-                  slug: slug,
-                  meta: {
-                    source: 'opening',
-                    openingType: op.type,
-                    dimensions: dimensionLabel,
-                    width: w,
-                    height: h
-                  }
-                });
-                hasChanges = true;
-              } else {
-                // Update meta/label if needed (sync drift)
-                const existing = newComponents[existingIdx];
-                if (existing.label !== `${labelPrefix} - ${dimensionLabel}`) {
-                  newComponents[existingIdx] = {
-                    ...existing,
-                    label: `${labelPrefix} - ${dimensionLabel}`,
-                    meta: { ...existing.meta, dimensions: dimensionLabel, openingType: op.type, width: w, height: h }
-                  };
-                  hasChanges = true;
-                }
-              }
-
-              // --- DAGKANT LOGIC ---
-              const dagkantId = `${op.id}_dagkant`;
-              const dagkantIdx = newComponents.findIndex(c => c.id === dagkantId);
-
-              if (op.dagkanten) {
-                // Should have a dagkant component
-                const diepte = op.dagkantenDiepte || op.dagkantDiepte || 0;
-                const stroken = buildDagkantStroken(op.type, w, h, diepte);
-
-                if (dagkantIdx === -1) {
-                  newComponents.push({
-                    id: dagkantId,
-                    type: 'dagkant',
-                    label: `Dagkant ${labelPrefix} - ${dimensionLabel}`,
-                    measurements: {
-                      diepte,
-                      stroken
-                    },
-                    slug: 'dagkanten',
-                    meta: {
-                      source: 'opening_dagkant',
-                      parentId: op.id,
-                      openingType: op.type,
-                      dimensions: dimensionLabel
-                    }
-                  });
-                  hasChanges = true;
-                } else {
-                  // Update existing dagkant - always sync measurements and stroken
-                  const existing = newComponents[dagkantIdx];
-                  const labelChanged = existing.label !== `Dagkant ${labelPrefix} - ${dimensionLabel}`;
-                  const diepteChanged = existing.measurements?.diepte !== diepte;
-
-                  if (labelChanged || diepteChanged) {
-                    newComponents[dagkantIdx] = {
-                      ...existing,
-                      label: `Dagkant ${labelPrefix} - ${dimensionLabel}`,
-                      measurements: {
-                        diepte,
-                        stroken
-                      },
-                      meta: { ...existing.meta, dimensions: dimensionLabel, openingType: op.type }
-                    };
-                    hasChanges = true;
-                  }
-                }
-              } else {
-                // Should NOT have a dagkant component
-                if (dagkantIdx !== -1) {
-                  newComponents.splice(dagkantIdx, 1);
-                  hasChanges = true;
-                }
-              }
-            }
-          });
-
-          if (hasChanges) currentComponents = newComponents;
-        }
-
         setComponents(currentComponents);
 
         if (klusNode?.materialen) {
@@ -1823,6 +1729,13 @@ export default function GenericMaterialsPageRedesigned() {
             const multiEntryGroups: Record<string, MultiEntryEntry[]> = {};
 
             Object.entries(materialenLijst).forEach(([key, val]: [string, any]) => {
+              if (key.startsWith('comp_') || val?.type === 'component_material') {
+                if (typeof val?.wastePercentage === 'number') {
+                  newWasteByEntryKey[key] = val.wastePercentage;
+                }
+                return;
+              }
+
               const legacyWaste = typeof val?.wastePercentage === 'number'
                 ? val.wastePercentage
                 : (typeof val?.material?.wastePercentage === 'number' ? val.material.wastePercentage : null);
@@ -2006,6 +1919,7 @@ export default function GenericMaterialsPageRedesigned() {
         setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
         setComponents([]);
         setIsApplyingPreset(false); // Reset loading state
+        userHeeftPresetGewijzigdRef.current = false;
       }
       return;
     }
@@ -2092,6 +2006,7 @@ export default function GenericMaterialsPageRedesigned() {
 
       // Unlock
       setIsApplyingPreset(false);
+      userHeeftPresetGewijzigdRef.current = false; // one-shot trigger
       autoApplyDefaultPresetRef.current = false; // Reset trigger
     }, 100);
 
@@ -2134,9 +2049,16 @@ export default function GenericMaterialsPageRedesigned() {
 
   // Handlers
   const onPresetChange = (val: string) => {
+    // No-op when selecting the already active preset
+    if (val === gekozenPresetId) {
+      setPendingPresetId(null);
+      setPresetConfirmOpen(false);
+      return;
+    }
+
     // If user has manually selected materials (and it's not just the default empty state or same preset), warn them.
     const hasSelections = Object.keys(gekozenMaterialen).length > 0 || customGroups.length > 0;
-    if (hasSelections && val !== gekozenPresetId) {
+    if (hasSelections) {
       setPendingPresetId(val);
       setPresetConfirmOpen(true);
     } else {
@@ -2543,17 +2465,11 @@ export default function GenericMaterialsPageRedesigned() {
       const matId = materiaal?.id || materiaal?.row_id || materiaal?.material_ref_id;
       if (matId) slots[key] = matId;
     }
-    // Also save component material selections into slots for werkpakket auto-fill
-    for (const comp of components) {
-      if (comp.materials) {
-        for (const m of comp.materials as any[]) {
-          const matId = m.material?.id || m.material?.row_id || m.material?.material_ref_id;
-          if (m.sectionKey && matId && !slots[m.sectionKey]) {
-            slots[m.sectionKey] = matId;
-          }
-        }
-      }
-    }
+    // NOTE:
+    // Component materials are stored in `components` itself.
+    // Do not merge them into top-level `slots` because generic section keys
+    // (e.g. "afwerkplaat") can collide with base job section keys and cause
+    // wrong auto-fill / double counting in downstream calculations.
     const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
     const newPresetData: any = {
       userId: user.uid,
@@ -2709,17 +2625,51 @@ export default function GenericMaterialsPageRedesigned() {
       const isBoeiboordMirrored = Array.isArray(baseItems) && baseItems.some((bi: any) => bi?.boeiboord_mirror === true);
 
       const materialenLijst: Record<string, any> = {};
+      const catalogById = new Map<string, any>();
+      const catalogByName = new Map<string, any>();
+      (alleMaterialen || []).forEach((m: any) => {
+        const id = m?.row_id || m?.material_ref_id || m?.id;
+        if (id) catalogById.set(String(id), m);
+        if (m?.materiaalnaam) catalogByName.set(String(m.materiaalnaam), m);
+      });
+
+      const ensurePriceSnapshot = (cleaned: any): any => {
+        if (!cleaned) return cleaned;
+        const hasPrice = getPositivePriceFromMaterial(cleaned);
+        if (hasPrice) return cleaned;
+
+        const refId = cleaned.material_ref_id || cleaned.row_id || cleaned.id;
+        const catalog = (refId ? catalogById.get(String(refId)) : null)
+          || (cleaned.materiaalnaam ? catalogByName.get(String(cleaned.materiaalnaam)) : null);
+        if (!catalog) return cleaned;
+
+        const next = { ...cleaned };
+        const incl = parseNLMoneyToNumber(catalog.prijs_incl_btw ?? catalog.prijs_per_stuk ?? catalog.prijs);
+        const excl = parseNLMoneyToNumber(catalog.prijs_excl_btw);
+        if (incl && incl > 0) {
+          next.prijs_incl_btw = String(incl);
+          next.prijs = String(incl);
+          next.prijs_per_stuk = String(incl);
+        }
+        if (excl && excl > 0) {
+          next.prijs_excl_btw = String(excl);
+        } else if (incl && incl > 0) {
+          next.prijs_excl_btw = String(Number((incl / 1.21).toFixed(2)));
+        }
+        if (!next.eenheid && catalog.eenheid) next.eenheid = catalog.eenheid;
+        return next;
+      };
 
       // 1. Unified Material Map Construction
 
       // A. Standard Selections (Base Job)
       Object.entries(gekozenMaterialen).forEach(([k, v]) => {
-        if (k.startsWith('component_')) return;
+        if (k.startsWith('component_') || k.startsWith('comp_')) return;
 
         // Handle multi-entry slots
         if (isMultiEntrySlot(v)) {
           v.entries.forEach((entry, idx) => {
-            const cleaned = cleanMaterialData(entry.material);
+            const cleaned = ensurePriceSnapshot(cleanMaterialData(entry.material));
             if (cleaned) {
               const indexedKey = `${k}__${idx}`;
               materialenLijst[indexedKey] = {
@@ -2737,7 +2687,7 @@ export default function GenericMaterialsPageRedesigned() {
           return;
         }
 
-        const cleaned = cleanMaterialData(v);
+        const cleaned = ensurePriceSnapshot(cleanMaterialData(v));
         if (cleaned) {
           // Rule: If boeiboord is mirrored, double the quantity (aantal) for standard materials
           // This applies to things like regelwerk, cladding, etc.
@@ -2760,7 +2710,7 @@ export default function GenericMaterialsPageRedesigned() {
       // B. Custom Groups (Extra Materials)
       const customMap = bouwCustommateriaalMapUitCustomGroups(customGroups);
       Object.entries(customMap).forEach(([gid, cm]: [string, any]) => {
-        const cleaned = cleanMaterialData(cm);
+        const cleaned = ensurePriceSnapshot(cleanMaterialData(cm));
         if (cleaned) {
           materialenLijst[gid] = {
             material: cleaned,
@@ -2780,7 +2730,7 @@ export default function GenericMaterialsPageRedesigned() {
         const componentMaterials = (c.materials || []).map((m: any, idx: number) => {
           if (!m.material) return m;
 
-          const cleaned = cleanMaterialData(m.material);
+          const cleaned = ensurePriceSnapshot(cleanMaterialData(m.material));
           if (cleaned) {
             // Push to main list for AI/Overview
             const globalKey = `comp_${c.id}_${m.sectionKey || idx}`;
@@ -2908,6 +2858,14 @@ export default function GenericMaterialsPageRedesigned() {
     // Collect all selected materials
     const allMaterials: any[] = [];
     const seenKeys = new Set<string>();
+    const catalogById = new Map<string, any>();
+    const catalogByName = new Map<string, any>();
+
+    (alleMaterialen || []).forEach((m: any) => {
+      const id = m?.row_id || m?.material_ref_id || m?.id;
+      if (id) catalogById.set(String(id), m);
+      if (m?.materiaalnaam) catalogByName.set(String(m.materiaalnaam), m);
+    });
 
     // 1. Standard selections from gekozenMaterialen
     Object.values(gekozenMaterialen).forEach((v: any) => {
@@ -2915,40 +2873,43 @@ export default function GenericMaterialsPageRedesigned() {
       // Handle multi-entry slots
       if (isMultiEntrySlot(v)) {
         v.entries.forEach((entry: MultiEntryEntry) => {
-          const source = entry.material?._raw || entry.material;
-          if (!source) return;
-          const id = source.row_id || source.id || source.materiaalnaam;
+          const merged = mergeMaterialForPriceCheck(entry.material);
+          if (!merged) return;
+          const id = merged.row_id || merged.material_ref_id || merged.id || merged.materiaalnaam;
           if (!id || seenKeys.has(String(id))) return;
           seenKeys.add(String(id));
-          allMaterials.push(source);
+          allMaterials.push(merged);
         });
         return;
       }
-      const source = v._raw || v;
-      const id = source.row_id || source.id || source.materiaalnaam;
+      const merged = mergeMaterialForPriceCheck(v);
+      const id = merged.row_id || merged.material_ref_id || merged.id || merged.materiaalnaam;
       if (!id || seenKeys.has(String(id))) return;
       seenKeys.add(String(id));
-      allMaterials.push(source);
+      allMaterials.push(merged);
     });
 
     // 2. Component materials
     components.forEach((comp) => {
       (comp.materials || []).forEach((m: any) => {
-        const mat = m.material || m;
-        const id = mat.row_id || mat.id || mat.materiaalnaam;
+        const merged = mergeMaterialForPriceCheck(m.material || m);
+        const id = merged.row_id || merged.material_ref_id || merged.id || merged.materiaalnaam;
         if (!id || seenKeys.has(String(id))) return;
         seenKeys.add(String(id));
-        allMaterials.push(mat);
+        allMaterials.push(merged);
       });
     });
 
     // Filter to those missing a price
     return allMaterials.filter((m) => {
-      const price = m.prijs_incl_btw ?? m.prijs ?? m.prijs_per_stuk ?? 0;
-      const numPrice = typeof price === 'number' ? price : parseFloat(String(price)) || 0;
-      return numPrice === 0;
+      const localPrice = getPositivePriceFromMaterial(m);
+      const refId = m?.row_id || m?.material_ref_id || m?.id;
+      const catalogMat = (refId ? catalogById.get(String(refId)) : null) || (m?.materiaalnaam ? catalogByName.get(String(m.materiaalnaam)) : null);
+      const catalogPrice = getPositivePriceFromMaterial(catalogMat);
+      const numPrice = localPrice ?? catalogPrice ?? 0;
+      return !numPrice || numPrice <= 0;
     });
-  }, [gekozenMaterialen, components]);
+  }, [gekozenMaterialen, components, alleMaterialen]);
 
   const handleNext = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -3032,7 +2993,7 @@ export default function GenericMaterialsPageRedesigned() {
           <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
             <Label className="text-base font-semibold text-foreground/90">Kies Een Werkpakket</Label>
             <div className="flex items-center gap-2">
-              <Select onValueChange={onPresetChange} value={gekozenPresetId} disabled={isPresetsLaden}>
+              <Select onValueChange={onPresetChange} value={gekozenPresetId}>
                 <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem className={SELECT_ITEM_GREEN} value="default">Nieuw</SelectItem>
@@ -3198,9 +3159,8 @@ export default function GenericMaterialsPageRedesigned() {
                             };
                             setComponents(prev => [...prev, newKoof]);
                           } else {
-                            // Open picker modal for types that need variant selection
-                            setVariantPickerType(targetComponentType);
-                            setVariantPickerOpen(true);
+                            // If only one variant exists, add directly; otherwise open picker.
+                            openVariantPickerOrAdd(targetComponentType);
                           }
                         } else {
                           toggleCategoryVisibility(categoryKey);
@@ -3927,7 +3887,7 @@ export default function GenericMaterialsPageRedesigned() {
 
           <div className="space-y-6 py-4">
             {missingPriceItems.map((item, idx) => {
-              const key = item.row_id || item.id || item.materiaalnaam || `idx-${idx}`;
+              const key = getMissingPriceItemKey(item, idx);
               const name = item.materiaalnaam || `Materiaal ${idx + 1}`;
               const eenheid = item.eenheid || missingPriceEenheden[key] || 'stuk';
 
@@ -3969,19 +3929,19 @@ export default function GenericMaterialsPageRedesigned() {
                       <div className="flex items-center gap-1">
                         <span className="text-sm text-muted-foreground">€</span>
                         <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                          type="text"
+                          inputMode="decimal"
                           placeholder="0,00"
                           className="h-9"
                           value={missingPriceInputsExcl[key] ?? ''}
                           onChange={(e) => {
-                            const excl = e.target.value;
+                            const excl = sanitizeNlMoneyInput(e.target.value);
                             setMissingPriceInputsExcl(prev => ({ ...prev, [key]: excl }));
                             // Auto-calculate incl BTW
-                            if (excl && !isNaN(parseFloat(excl))) {
-                              const inclBtw = (parseFloat(excl) * 1.21).toFixed(2);
-                              setMissingPriceInputsIncl(prev => ({ ...prev, [key]: inclBtw }));
+                            const exclNum = parseNLMoneyToNumber(excl);
+                            if (exclNum && exclNum > 0) {
+                              const inclBtw = formatNlMoneyFromNumber(exclNum * 1.21);
+                              setMissingPriceInputsIncl(prev => ({ ...prev, [key]: inclBtw || '' }));
                             }
                             if (missingPriceSaved[key]) {
                               setMissingPriceSaved(prev => ({ ...prev, [key]: false }));
@@ -3997,19 +3957,19 @@ export default function GenericMaterialsPageRedesigned() {
                       <div className="flex items-center gap-1">
                         <span className="text-sm text-muted-foreground">€</span>
                         <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                          type="text"
+                          inputMode="decimal"
                           placeholder="0,00"
                           className="h-9"
                           value={missingPriceInputsIncl[key] ?? ''}
                           onChange={(e) => {
-                            const incl = e.target.value;
+                            const incl = sanitizeNlMoneyInput(e.target.value);
                             setMissingPriceInputsIncl(prev => ({ ...prev, [key]: incl }));
                             // Auto-calculate excl BTW
-                            if (incl && !isNaN(parseFloat(incl))) {
-                              const exclBtw = (parseFloat(incl) / 1.21).toFixed(2);
-                              setMissingPriceInputsExcl(prev => ({ ...prev, [key]: exclBtw }));
+                            const inclNum = parseNLMoneyToNumber(incl);
+                            if (inclNum && inclNum > 0) {
+                              const exclBtw = formatNlMoneyFromNumber(inclNum / 1.21);
+                              setMissingPriceInputsExcl(prev => ({ ...prev, [key]: exclBtw || '' }));
                             }
                             if (missingPriceSaved[key]) {
                               setMissingPriceSaved(prev => ({ ...prev, [key]: false }));
@@ -4044,28 +4004,36 @@ export default function GenericMaterialsPageRedesigned() {
                 try {
                   const token = await user!.getIdToken();
                   const entriesToSave = missingPriceItems.flatMap((item, idx) => {
-                    const key = item.row_id || item.id || item.materiaalnaam || `idx-${idx}`;
+                    const key = getMissingPriceItemKey(item, idx);
                     const prijsExcl = missingPriceInputsExcl[key];
                     const prijsIncl = missingPriceInputsIncl[key];
                     const eenheid = missingPriceEenheden[key] || item.eenheid || 'stuk';
 
-                    const prijsExclNum = prijsExcl !== '' ? parseFloat(prijsExcl) : 0;
-                    const prijsInclNum = prijsIncl !== '' ? parseFloat(prijsIncl) : 0;
+                    const prijsExclNum = parseNLMoneyToNumber(prijsExcl);
+                    const prijsInclNum = parseNLMoneyToNumber(prijsIncl);
 
-                    if ((!prijsExclNum || prijsExclNum <= 0) || !eenheid) return [];
+                    if (((!prijsExclNum || prijsExclNum <= 0) && (!prijsInclNum || prijsInclNum <= 0)) || !eenheid) return [];
+
+                    const finalPrijsExcl = prijsExclNum && prijsExclNum > 0
+                      ? prijsExclNum
+                      : (prijsInclNum! / 1.21);
+                    const finalPrijsIncl = prijsInclNum && prijsInclNum > 0
+                      ? prijsInclNum
+                      : (finalPrijsExcl * 1.21);
 
                     return [{
                       key,
-                      prijsExcl: prijsExclNum,
-                      prijsIncl: prijsInclNum || (prijsExclNum * 1.21),
+                      prijsExcl: Number(finalPrijsExcl.toFixed(2)),
+                      prijsIncl: Number(finalPrijsIncl.toFixed(2)),
                       eenheid,
-                      row_id: item.row_id || item.id || null,
+                      row_id: item.row_id || item.material_ref_id || item.id || null,
                       materiaalnaam: item.materiaalnaam || null,
                     }];
                   });
 
                   const updatedById = new Map<string, number>();
                   const updatedByName = new Map<string, number>();
+                  const failedItems: string[] = [];
 
                   for (const entry of entriesToSave) {
                     try {
@@ -4094,24 +4062,49 @@ export default function GenericMaterialsPageRedesigned() {
                           for (const [k, v] of Object.entries(updated)) {
                             if (!v) continue;
                             const source = (v as any)._raw || v;
-                            const sourceId = source.row_id || source.id;
+                            const sourceId = source.row_id || source.material_ref_id || source.id;
+                            const sameId = entry.row_id && sourceId && String(sourceId) === String(entry.row_id);
+                            const sameName = !entry.row_id && entry.materiaalnaam && source.materiaalnaam === entry.materiaalnaam;
                             if (
-                              (entry.row_id && sourceId === entry.row_id) ||
-                              (!entry.row_id && entry.materiaalnaam && source.materiaalnaam === entry.materiaalnaam)
+                              sameId ||
+                              sameName
                             ) {
                               const newVal = { ...v as any };
                               newVal.prijs_incl_btw = entry.prijsIncl;
+                              newVal.prijs = entry.prijsIncl;
+                              newVal.prijs_per_stuk = entry.prijsIncl;
                               newVal.eenheid = entry.eenheid;
-                              if (newVal._raw) newVal._raw = { ...newVal._raw, prijs_incl_btw: entry.prijsIncl, eenheid: entry.eenheid };
+                              if (newVal._raw) {
+                                newVal._raw = {
+                                  ...newVal._raw,
+                                  prijs_incl_btw: entry.prijsIncl,
+                                  prijs_excl_btw: entry.prijsExcl,
+                                  prijs: entry.prijsIncl,
+                                  prijs_per_stuk: entry.prijsIncl,
+                                  eenheid: entry.eenheid
+                                };
+                              }
                               updated[k] = newVal;
                             }
                           }
                           return updated;
                         });
+                      } else {
+                        failedItems.push(entry.materiaalnaam || String(entry.row_id || entry.key));
                       }
                     } catch (err) {
                       console.error(`Failed to update price for ${entry.materiaalnaam}:`, err);
+                      failedItems.push(entry.materiaalnaam || String(entry.row_id || entry.key));
                     }
+                  }
+
+                  if (failedItems.length > 0) {
+                    toast({
+                      variant: 'destructive',
+                      title: 'Opslaan in materialenlijst mislukt',
+                      description: `Kon ${failedItems.length} materiaalprijs(en) niet opslaan in Supabase main_material_list.`
+                    });
+                    return;
                   }
 
                   let remaining = missingPriceItems;
@@ -4120,14 +4113,26 @@ export default function GenericMaterialsPageRedesigned() {
                     setCustomGroups(prev => prev.map(group => ({
                       ...group,
                       materials: (group.materials || []).map((mat: any) => {
-                        const sourceId = mat?._raw?.row_id || mat?._raw?.id || mat?.row_id || mat?.id;
+                        const sourceId = mat?._raw?.row_id || mat?._raw?.material_ref_id || mat?._raw?.id || mat?.row_id || mat?.material_ref_id || mat?.id;
                         if (sourceId && updatedById.has(String(sourceId))) {
                           const prijs = updatedById.get(String(sourceId))!;
-                          return { ...mat, prijs_incl_btw: prijs, _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs } : mat._raw };
+                          return {
+                            ...mat,
+                            prijs_incl_btw: prijs,
+                            prijs,
+                            prijs_per_stuk: prijs,
+                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                          };
                         }
                         if (mat?.materiaalnaam && updatedByName.has(mat.materiaalnaam)) {
                           const prijs = updatedByName.get(mat.materiaalnaam)!;
-                          return { ...mat, prijs_incl_btw: prijs, _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs } : mat._raw };
+                          return {
+                            ...mat,
+                            prijs_incl_btw: prijs,
+                            prijs,
+                            prijs_per_stuk: prijs,
+                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                          };
                         }
                         return mat;
                       })
@@ -4138,15 +4143,27 @@ export default function GenericMaterialsPageRedesigned() {
                       ...comp,
                       materials: (comp.materials || []).map((m: any) => {
                         const mat = m.material || m;
-                        const sourceId = mat?._raw?.row_id || mat?._raw?.id || mat?.row_id || mat?.id;
+                        const sourceId = mat?._raw?.row_id || mat?._raw?.material_ref_id || mat?._raw?.id || mat?.row_id || mat?.material_ref_id || mat?.id;
                         if (sourceId && updatedById.has(String(sourceId))) {
                           const prijs = updatedById.get(String(sourceId))!;
-                          const updatedMat = { ...mat, prijs_incl_btw: prijs, _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs } : mat._raw };
+                          const updatedMat = {
+                            ...mat,
+                            prijs_incl_btw: prijs,
+                            prijs,
+                            prijs_per_stuk: prijs,
+                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                          };
                           return m.material ? { ...m, material: updatedMat } : updatedMat;
                         }
                         if (mat?.materiaalnaam && updatedByName.has(mat.materiaalnaam)) {
                           const prijs = updatedByName.get(mat.materiaalnaam)!;
-                          const updatedMat = { ...mat, prijs_incl_btw: prijs, _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs } : mat._raw };
+                          const updatedMat = {
+                            ...mat,
+                            prijs_incl_btw: prijs,
+                            prijs,
+                            prijs_per_stuk: prijs,
+                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                          };
                           return m.material ? { ...m, material: updatedMat } : updatedMat;
                         }
                         return m;
@@ -4155,7 +4172,7 @@ export default function GenericMaterialsPageRedesigned() {
 
                     // Remove resolved items from the dialog list and use that list for continuation logic.
                     remaining = missingPriceItems.filter((item) => {
-                      const id = item.row_id || item.id;
+                      const id = item.row_id || item.material_ref_id || item.id;
                       if (id && updatedById.has(String(id))) return false;
                       if (item.materiaalnaam && updatedByName.has(item.materiaalnaam)) return false;
                       return true;
@@ -4200,31 +4217,14 @@ export default function GenericMaterialsPageRedesigned() {
 
           <div className="grid grid-cols-1 gap-2 py-4">
             {variantPickerType && (() => {
-              let items: any[] = [];
-              if (variantPickerType === 'kozijn') items = JOB_REGISTRY.kozijnen.items;
-              else if (variantPickerType === 'deur') items = JOB_REGISTRY.deuren.items;
-              else if (variantPickerType === 'plafond') items = JOB_REGISTRY.plafonds.items;
-              else if (variantPickerType === 'dagkant' || variantPickerType === 'vensterbank') items = JOB_REGISTRY.afwerkingen.items;
-
-              // Filter logic for dagkant/vensterbank specifically
-              if (variantPickerType === 'dagkant' || variantPickerType === 'vensterbank') {
-                items = items.filter(i => i.title.toLowerCase().includes(variantPickerType.toLowerCase()));
-              }
+              const items = getVariantItemsForType(variantPickerType);
 
               return items.map((item, idx) => (
                 <div
                   key={idx}
                   className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
                   onClick={() => {
-                    const newItem = {
-                      id: `${variantPickerType}-${Date.now()}-${idx}`,
-                      type: variantPickerType,
-                      label: item.title,
-                      slug: item.slug,
-                      measurements: {},
-                      materials: getPresetMaterialsForType(variantPickerType)
-                    };
-                    setComponents(prev => [...prev, newItem]);
+                    addComponentFromVariant(variantPickerType, item, idx);
                     setVariantPickerOpen(false);
                   }}
                 >

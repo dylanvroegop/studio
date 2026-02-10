@@ -57,6 +57,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
         }
 
+        if (!Array.isArray(data) || data.length === 0) {
+            return NextResponse.json(
+                { ok: false, message: 'Geen materiaal gevonden in main_material_list voor update.' },
+                { status: 404 }
+            );
+        }
+
         return NextResponse.json({ ok: true, data });
 
     } catch (error: any) {

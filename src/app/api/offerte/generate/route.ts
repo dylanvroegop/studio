@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
 import { removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
+import { JOB_REGISTRY } from '@/lib/job-registry';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -123,6 +124,19 @@ async function haalQuoteOp(db: FirebaseFirestore.Firestore, quoteId: string) {
   if (!snap.exists) throw new Error('Quote niet gevonden');
 
   return { id: snap.id, ...snap.data() };
+}
+
+function getAllowedMaterialSectionKeys(jobKey: string | undefined): Set<string> {
+  if (!jobKey) return new Set<string>();
+
+  for (const category of Object.values(JOB_REGISTRY)) {
+    const match = category.items.find((item) => item.slug === jobKey);
+    if (match?.materialSections?.length) {
+      return new Set(match.materialSections.map((section) => section.key));
+    }
+  }
+
+  return new Set<string>();
 }
 
 async function haalBedrijfsgegevensOp(db: FirebaseFirestore.Firestore, quote: any) {
@@ -409,16 +423,36 @@ export async function POST(req: Request) {
             // ═══════════════════════════════════════════
 
             const normalizedMaterialenLijst: Record<string, any> = {};
+            const allowedSectionKeys = getAllowedMaterialSectionKeys(enrichedJob.materialen?.jobKey);
 
             // B1. Materials from materialen_lijst (primary source)
             const materialenLijst = enrichedJob.materialen?.materialen_lijst || {};
             Object.entries(materialenLijst).forEach(([slotKey, entry]: [string, any]) => {
               const enriched = enrichMaterial(entry);
               if (!enriched?.material) return;
+              const isComponentEntry = slotKey.startsWith('comp_') || enriched.type === 'component_material';
+              const rawSectionKey = typeof enriched.sectionKey === 'string' ? enriched.sectionKey : null;
+              const fallbackSectionKey = typeof entry?.sectionKey === 'string' ? entry.sectionKey : null;
+              let normalizedSectionKey = rawSectionKey || fallbackSectionKey;
+
+              // Filter invalid base section keys for this job (prevents polluted keys from old presets/data).
+              if (!isComponentEntry && normalizedSectionKey && allowedSectionKeys.size > 0 && !allowedSectionKeys.has(normalizedSectionKey)) {
+                return;
+              }
+
+              // Legacy component data can carry generic keys that collide with base wall sections.
+              // Remap koof component keys to explicit koof_* keys for downstream calculators.
+              if (isComponentEntry && normalizedSectionKey && /koof/i.test(String(enriched.context || ''))) {
+                if (normalizedSectionKey === 'regelwerk') normalizedSectionKey = 'koof_regelwerk';
+                if (normalizedSectionKey === 'constructieplaat') normalizedSectionKey = 'koof_constructieplaat';
+                if (normalizedSectionKey === 'afwerkplaat') normalizedSectionKey = 'koof_afwerkplaat';
+                if (normalizedSectionKey === 'isolatie') normalizedSectionKey = 'koof_isolatie';
+              }
 
               const qty = enriched.quantity ?? enriched.aantal ?? null;
               normalizedMaterialenLijst[slotKey] = {
                 ...enriched,
+                sectionKey: normalizedSectionKey || slotKey,
                 quantity: qty,
                 aantal: qty,
                 context: enriched.context || `Basis: ${jobTitle}`,

@@ -94,6 +94,29 @@ function resolvePresetLabelForUI(presetLabel?: string | null) {
   return v;
 }
 
+function getJobRawTitle(job: any): string {
+  return (
+    job?.klusinformatie?.title?.trim?.() ||
+    job?.maatwerk?.meta?.title?.trim?.() ||
+    job?.meta?.title?.trim?.() ||
+    job?.materialen?.jobKey?.trim?.() ||
+    job?.jobKey ||
+    ''
+  );
+}
+
+function toStableSortTime(value: any): number {
+  if (!value) return Number.MAX_SAFE_INTEGER;
+  if (typeof value === 'number') return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') {
+    const nanos = typeof value?.nanoseconds === 'number' ? value.nanoseconds : 0;
+    return value.seconds * 1000 + Math.floor(nanos / 1_000_000);
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
 function jobIsComplete(job: any): boolean {
   // Legacy support
   const selections = job?.materialen?.selections;
@@ -665,6 +688,7 @@ export default function OverzichtPage() {
 
         // Jobs
         const extractedJobs: any[] = [];
+        let loadIndex = 0;
         const klussen: any = (data as any).klussen;
 
         if (klussen && typeof klussen === 'object') {
@@ -701,11 +725,22 @@ export default function OverzichtPage() {
               kleinMateriaal,
               createdAt: container.createdAt ?? null,
               updatedAt: container.updatedAt ?? null,
+              __loadIndex: loadIndex++,
             });
           }
         }
 
-        setJobs(extractedJobs as any);
+        const sortedJobs = [...extractedJobs].sort((a: any, b: any) => {
+          const ta = toStableSortTime(a?.createdAt);
+          const tb = toStableSortTime(b?.createdAt);
+          if (ta !== tb) return ta - tb; // oldest first
+          return (a?.__loadIndex ?? 0) - (b?.__loadIndex ?? 0); // fallback: original read order
+        }).map((j: any) => {
+          const { __loadIndex, ...rest } = j;
+          return rest;
+        });
+
+        setJobs(sortedJobs as any);
 
         // User instellingen (veilig)
         const instellingen = await leesGebruikerInstellingen();
@@ -1367,15 +1402,39 @@ export default function OverzichtPage() {
     router.push(`/offertes/${quoteId}/klus/nieuw`);
   };
 
+  const jobDisplayTitleById = useMemo(() => {
+    const result: Record<string, string> = {};
+    const grouped: Record<string, any[]> = {};
+
+    for (const job of jobs) {
+      const baseTitle = humanizeJobKey(getJobRawTitle(job));
+      if (!grouped[baseTitle]) grouped[baseTitle] = [];
+      grouped[baseTitle].push(job);
+    }
+
+    for (const [baseTitle, list] of Object.entries(grouped)) {
+      const sorted = [...list].sort((a: any, b: any) => {
+        const ta = toStableSortTime(a?.createdAt);
+        const tb = toStableSortTime(b?.createdAt);
+        if (ta !== tb) return ta - tb;
+        return String(a?.id ?? '').localeCompare(String(b?.id ?? ''));
+      });
+
+      if (sorted.length === 1) {
+        result[sorted[0].id] = baseTitle;
+        continue;
+      }
+
+      sorted.forEach((job: any, idx: number) => {
+        result[job.id] = `${baseTitle} ${idx + 1}`;
+      });
+    }
+
+    return result;
+  }, [jobs]);
+
   const openDeleteDialogForJob = (job: any) => {
-    const rawKey =
-      job?.klusinformatie?.title?.trim?.() ||
-      job?.maatwerk?.meta?.title?.trim?.() ||
-      job?.meta?.title?.trim?.() ||
-      job?.materialen?.jobKey?.trim?.() ||
-      job?.jobKey ||
-      '';
-    const title = humanizeJobKey(rawKey);
+    const title = jobDisplayTitleById[job.id] || humanizeJobKey(getJobRawTitle(job));
     setJobToDelete({ id: job.id, title });
     setDeleteDialogOpen(true);
   };
@@ -2114,15 +2173,7 @@ export default function OverzichtPage() {
               )}
 
               {jobs.map((job: any, index: number) => {
-                const rawKey =
-                  job?.klusinformatie?.title?.trim?.() ||
-                  job?.maatwerk?.meta?.title?.trim?.() ||
-                  job?.meta?.title?.trim?.() ||
-                  job?.materialen?.jobKey?.trim?.() ||
-                  job?.jobKey ||
-                  '';
-
-                const title = humanizeJobKey(rawKey);
+                const title = jobDisplayTitleById[job.id] || humanizeJobKey(getJobRawTitle(job));
                 let preset = resolvePresetLabelForUI(job?.werkwijze?.presetLabel ?? null);
                 const workMethodId = job?.werkwijze?.workMethodId;
 

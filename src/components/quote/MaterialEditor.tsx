@@ -25,6 +25,10 @@ interface MaterialEditorProps {
     vatRate?: number;
     onAddClick?: () => void;
     enableCalculationViewToggle?: boolean;
+    calculationTextFields?: string | string[];
+    calculationToggleLabel?: string;
+    calculationRowLabel?: string;
+    showDontAutoIncludeOption?: boolean;
 }
 
 interface MaterialRowProps {
@@ -35,7 +39,10 @@ interface MaterialRowProps {
     onRemoveItem?: (index: number) => void;
     handleKeyDown: (e: React.KeyboardEvent) => void;
     showCalculation: boolean;
+    calculationText: string;
+    calculationRowLabel: string;
     totalColumns: number;
+    showDontAutoIncludeOption: boolean;
 }
 
 function MaterialRow({
@@ -46,13 +53,17 @@ function MaterialRow({
     onRemoveItem,
     handleKeyDown,
     showCalculation,
+    calculationText,
+    calculationRowLabel,
     totalColumns,
+    showDontAutoIncludeOption,
 }: MaterialRowProps) {
     const [localAantal, setLocalAantal] = useState<string>(item.aantal?.toString() || '');
     const [localProduct, setLocalProduct] = useState<string>(item.product || '');
     const [localPrijs, setLocalPrijs] = useState<string>(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
     const [localEenheid, setLocalEenheid] = useState<string>(item.eenheid || 'stuk');
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [dontAutoIncludeNextTime, setDontAutoIncludeNextTime] = useState(false);
 
     const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak', 'koker', 'zak'];
 
@@ -115,13 +126,12 @@ function MaterialRow({
         if (onRemoveItem) {
             onRemoveItem(index);
         }
+        setDontAutoIncludeNextTime(false);
         setShowDeleteDialog(false);
     };
 
     const needsPrice = !item.prijs_per_stuk || item.prijs_per_stuk === 0;
     const itemTotal = (item.prijs_per_stuk || 0) * (item.aantal || 0);
-    const calculationText = typeof item.hoe_berekend === 'string' ? item.hoe_berekend : '';
-
     return (
         <>
             <tr className={`group transition-all duration-200 ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
@@ -196,13 +206,19 @@ function MaterialRow({
             {showCalculation && calculationText && (
                 <tr className="bg-zinc-900/20">
                     <td colSpan={totalColumns} className="px-6 py-3 text-xs text-zinc-300">
-                        <span className="font-semibold text-zinc-200">Berekening:</span> {calculationText}
+                        <span className="font-semibold text-zinc-200">{calculationRowLabel}:</span> {calculationText}
                     </td>
                 </tr>
             )}
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+            <AlertDialog
+                open={showDeleteDialog}
+                onOpenChange={(open) => {
+                    setShowDeleteDialog(open);
+                    if (!open) setDontAutoIncludeNextTime(false);
+                }}
+            >
                 <AlertDialogContent className="rounded-2xl">
                     <AlertDialogHeader>
                         <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
@@ -211,6 +227,20 @@ function MaterialRow({
                             Deze actie kan niet ongedaan worden gemaakt.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+                    {showDontAutoIncludeOption && (
+                        <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                            <label htmlFor={`dont-auto-include-${index}`} className="flex items-center justify-between gap-3">
+                                <span className="text-sm text-foreground">
+                                    Niet meer automatisch mee berekenen voor volgende keer
+                                </span>
+                                <Switch
+                                    id={`dont-auto-include-${index}`}
+                                    checked={dontAutoIncludeNextTime}
+                                    onCheckedChange={(checked) => setDontAutoIncludeNextTime(Boolean(checked))}
+                                />
+                            </label>
+                        </div>
+                    )}
                     <AlertDialogFooter className="gap-2 sm:gap-2">
                         <AlertDialogCancel disabled={false} className="rounded-xl">
                             Annuleren
@@ -239,6 +269,10 @@ export function MaterialEditor({
     vatRate = 21,
     onAddClick,
     enableCalculationViewToggle = false,
+    calculationTextFields = 'hoe_berekend',
+    calculationToggleLabel = 'Laat berekening zien',
+    calculationRowLabel = 'Berekening',
+    showDontAutoIncludeOption = false,
 }: MaterialEditorProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newItem, setNewItem] = useState<Partial<MaterialItem>>({
@@ -252,7 +286,17 @@ export function MaterialEditor({
 
     const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak', 'koker', 'zak'];
     const totalColumns = onRemoveItem ? 7 : 6;
-    const hasCalculationData = items.some((item) => typeof item.hoe_berekend === 'string' && item.hoe_berekend.trim().length > 0);
+    const calculationKeys = Array.isArray(calculationTextFields) ? calculationTextFields : [calculationTextFields];
+    const getCalculationText = (item: MaterialItem): string => {
+        for (const key of calculationKeys) {
+            const value = item?.[key];
+            if (typeof value === 'string' && value.trim().length > 0) {
+                return value;
+            }
+        }
+        return '';
+    };
+    const hasCalculationData = items.some((item) => getCalculationText(item).length > 0);
 
     const itemsNeedingPrice = items.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0).length;
 
@@ -318,7 +362,7 @@ export function MaterialEditor({
                 </div>
                 {enableCalculationViewToggle && hasCalculationData && (
                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Laat berekening zien</span>
+                        <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
                         <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
                     </div>
                 )}
@@ -361,9 +405,12 @@ export function MaterialEditor({
                                 onRemoveItem={onRemoveItem}
                                 handleKeyDown={handleKeyDown}
                                 showCalculation={showCalculation}
-                                totalColumns={totalColumns}
-                            />
-                        ))}
+                            calculationText={getCalculationText(item)}
+                            calculationRowLabel={calculationRowLabel}
+                            totalColumns={totalColumns}
+                            showDontAutoIncludeOption={showDontAutoIncludeOption}
+                        />
+                    ))}
 
                         {/* New Item Row */}
                         {isAdding && (

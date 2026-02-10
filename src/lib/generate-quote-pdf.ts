@@ -7,6 +7,7 @@ export interface PDFQuoteData {
     datum: string;
     geldigTot: string;
     logoUrl?: string;
+    signatureUrl?: string;
     logoScale?: number;
     bedrijf: {
         naam: string;
@@ -678,6 +679,30 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
     doc.text('Met vriendelijke groet,', margin, y);
     y += 6;
+
+    if (data.signatureUrl) {
+        try {
+            const signatureBase64 = await urlToBase64(data.signatureUrl);
+            const signatureFormat = getImageFormatFromDataUrl(signatureBase64);
+            const signatureImg = doc.getImageProperties(signatureBase64);
+
+            const maxWidth = 50;
+            const maxHeight = 18;
+            let signatureWidth = maxWidth;
+            let signatureHeight = (signatureImg.height * maxWidth) / signatureImg.width;
+            if (signatureHeight > maxHeight) {
+                signatureHeight = maxHeight;
+                signatureWidth = (signatureImg.width * maxHeight) / signatureImg.height;
+            }
+
+            doc.addImage(signatureBase64, signatureFormat, margin, y, signatureWidth, signatureHeight);
+            y += signatureHeight + 4;
+        } catch (error) {
+            console.error('Error adding signature to PDF:', error);
+            y += 8;
+        }
+    }
+
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 30, 30);
     doc.text(data.bedrijf.naam, margin, y);

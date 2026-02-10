@@ -20,9 +20,19 @@ interface LogoUploadProps {
   currentLogoUrl?: string;
   userId: string;
   onLogoChange: (url: string | null) => void;
+  itemLabel?: string;
+  storageKey?: string;
+  recommendedText?: string;
 }
 
-export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadProps) {
+export function LogoUpload({
+  currentLogoUrl,
+  userId,
+  onLogoChange,
+  itemLabel = 'Logo',
+  storageKey = 'logo',
+  recommendedText = 'Recommended: 400x150px or similar aspect ratio',
+}: LogoUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentLogoUrl || null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -68,7 +78,7 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
     try {
       const storage = getStorage();
       const fileExtension = file.name.split('.').pop() || 'png';
-      const logoRef = ref(storage, `users/${userId}/logo.${fileExtension}`);
+      const logoRef = ref(storage, `users/${userId}/${storageKey}.${fileExtension}`);
 
       await uploadBytes(logoRef, file);
       const downloadURL = await getDownloadURL(logoRef);
@@ -80,7 +90,7 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
 
       toast({
         title: 'Success',
-        description: 'Logo uploaded successfully',
+        description: `${itemLabel} uploaded successfully`,
       });
     } catch (error) {
       console.error('Error uploading logo:', error);
@@ -114,7 +124,7 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
 
       toast({
         title: 'Success',
-        description: 'Logo removed successfully',
+        description: `${itemLabel} removed successfully`,
       });
     } catch (error) {
       console.error('Error removing logo:', error);
@@ -138,7 +148,7 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
             <div className="relative w-[200px] h-[80px] border border-gray-200 rounded-md overflow-hidden bg-white flex items-center justify-center p-2">
               <img
                 src={previewUrl}
-                alt="Company logo"
+                alt={itemLabel}
                 className="max-w-full max-h-full object-contain"
               />
             </div>
@@ -146,7 +156,7 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
             <div className="w-[200px] h-[80px] border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center bg-gray-50">
               <div className="text-center">
                 <ImageIcon className="mx-auto h-8 w-8 text-gray-400" />
-                <p className="mt-1 text-xs text-gray-500">No logo</p>
+                <p className="mt-1 text-xs text-gray-500">No {itemLabel.toLowerCase()}</p>
               </div>
             </div>
           )}
@@ -170,7 +180,7 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  {previewUrl ? 'Change Logo' : 'Upload Logo'}
+                  {previewUrl ? `Change ${itemLabel}` : `Upload ${itemLabel}`}
                 </>
               )}
             </Button>
@@ -190,7 +200,7 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
           </div>
 
           <div className="text-xs text-gray-500 space-y-1">
-            <p>Recommended: 400x150px or similar aspect ratio</p>
+            <p>{recommendedText}</p>
             <p>Max file size: 2MB • Formats: PNG, JPG, GIF</p>
           </div>
         </div>
@@ -209,9 +219,9 @@ export function LogoUpload({ currentLogoUrl, userId, onLogoChange }: LogoUploadP
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove logo?</AlertDialogTitle>
+            <AlertDialogTitle>Remove {itemLabel.toLowerCase()}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove your company logo? It will be removed from all future PDF quotes.
+              Are you sure you want to remove this {itemLabel.toLowerCase()}? It will be removed from future PDF documents.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

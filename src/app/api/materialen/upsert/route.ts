@@ -12,6 +12,7 @@ type Body = {
   eenheid?: unknown;
   prijs?: unknown;
   prijs_incl_btw?: unknown;
+  prijs_excl_btw?: unknown;
   leverancier?: unknown;
   lengte?: unknown;
   breedte?: unknown;
@@ -68,7 +69,8 @@ export async function POST(req: Request) {
     const naam = typeof body.materiaalnaam === 'string' ? body.materiaalnaam.trim() : null;
 
     const eenheid = normalizeString(body.eenheid);
-    const prijsNum = parsePriceToNumber(body.prijs_incl_btw ?? body.prijs);
+    const prijsInclNum = parsePriceToNumber(body.prijs_incl_btw ?? body.prijs);
+    const prijsExclNumInput = parsePriceToNumber(body.prijs_excl_btw);
 
     const categorie =
       normalizeString(body.categorie) ??
@@ -87,8 +89,12 @@ export async function POST(req: Request) {
 
     if (!naam) return jsonFail('Materiaalnaam is verplicht.', 400);
     if (!eenheid) return jsonFail('Eenheid is verplicht.', 400);
-    if (prijsNum === null) return jsonFail('Prijs is ongeldig.', 400);
-    if (prijsNum < 0) return jsonFail('Prijs mag niet negatief zijn.', 400);
+    if (prijsInclNum === null) return jsonFail('Prijs is ongeldig.', 400);
+    if (prijsInclNum < 0) return jsonFail('Prijs mag niet negatief zijn.', 400);
+    const prijsExclNum =
+      prijsExclNumInput !== null
+        ? prijsExclNumInput
+        : Number((prijsInclNum / 1.21).toFixed(2));
 
     // 4) Supabase service role (server-side) using shared client
     // supabaseAdmin is already initialized
@@ -98,7 +104,8 @@ export async function POST(req: Request) {
       gebruikerid: uid,
       materiaalnaam: naam, // This now contains the full string correctly
       eenheid,
-      prijs_incl_btw: prijsNum,
+      prijs_incl_btw: prijsInclNum,
+      prijs_excl_btw: prijsExclNum,
       categorie,
       leverancier,
     };
@@ -111,26 +118,43 @@ export async function POST(req: Request) {
 
     // 6) Update of insert
     if (incomingRowId) {
-      // SECURITY: altijd ownership check
+      // SECURITY: update alleen eigen materiaal. Als het bronmateriaal niet van deze user is,
+      // maken we een persoonlijke kopie i.p.v. het globale item aan te passen.
       const upd = await supabaseAdmin
         .from('main_material_list')
         .update(payload)
         .eq('row_id', incomingRowId)
         .eq('gebruikerid', uid)
-        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,categorie,leverancier')
-        .single();
+        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,prijs_excl_btw,categorie,leverancier')
+        .maybeSingle();
 
       if (upd.error) return jsonFail(upd.error.message || 'Update failed', 500);
       data = upd.data;
 
       if (!data) {
-        return jsonFail('Materiaal niet gevonden of geen toegang.', 404);
+        const base = await supabaseAdmin
+          .from('main_material_list')
+          .select('row_id')
+          .eq('row_id', incomingRowId)
+          .maybeSingle();
+
+        if (base.error) return jsonFail(base.error.message || 'Lookup failed', 500);
+        if (!base.data) return jsonFail('Materiaal niet gevonden.', 404);
+
+        const insCopy = await supabaseAdmin
+          .from('main_material_list')
+          .insert(payload)
+          .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,prijs_excl_btw,categorie,leverancier')
+          .single();
+
+        if (insCopy.error) return jsonFail(insCopy.error.message || 'Insert failed', 500);
+        data = insCopy.data;
       }
     } else {
       const ins = await supabaseAdmin
         .from('main_material_list')
         .insert(payload)
-        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,categorie,leverancier')
+        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,prijs_excl_btw,categorie,leverancier')
         .single();
 
       if (ins.error) return jsonFail(ins.error.message || 'Insert failed', 500);
@@ -147,6 +171,9 @@ export async function POST(req: Request) {
             prijs:
               (data as any).prijs ??
               (data as any).prijs_incl_btw ??
+              null,
+            prijs_excl_btw:
+              (data as any).prijs_excl_btw ??
               null,
             subsectie:
               (data as any).subsectie ??

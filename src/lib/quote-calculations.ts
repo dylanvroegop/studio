@@ -264,13 +264,43 @@ export function normalizeMaterialen(input: any): MaterialItem[] {
 
 export function normalizeVerbruiksartikelen(input: any): MaterialItem[] {
     // working: verbruiksartikelen: MaterialItem[]
-    if (Array.isArray(input) && input.length > 0 && isObject(input[0]) && ("product" in input[0] || "materiaal" in input[0])) {
-        return normalizeMaterialen(input);
+    if (Array.isArray(input) && input.length > 0 && isObject(input[0]) && ("product" in input[0] || "materiaal" in input[0] || "materiaalnaam" in input[0])) {
+        return input
+            .map((item: any) => {
+                if (!isObject(item)) return null;
+
+                const product =
+                    typeof item.product === "string"
+                        ? item.product
+                        : typeof item.materiaal === "string"
+                            ? item.materiaal
+                            : typeof item.materiaalnaam === "string"
+                                ? item.materiaalnaam
+                                : "";
+
+                if (!product) return null;
+
+                // Verbruiksartikelen prijzen zijn excl. btw vanuit n8n: gebruik prijs_excl_btw als primaire bron.
+                const prijs_per_stuk = toNumber(
+                    item.prijs_excl_btw,
+                    toNumber(item.prijs_per_stuk, 0)
+                );
+
+                const aantal = toNumber(item.aantal, 1);
+
+                return {
+                    ...item,
+                    product,
+                    prijs_per_stuk,
+                    aantal,
+                } as MaterialItem;
+            })
+            .filter((x): x is MaterialItem => !!x);
     }
 
     // not-working: [ { verbruiksartikelen: [ ... ] } ]
     if (Array.isArray(input) && input.length > 0 && isObject(input[0]) && Array.isArray(input[0].verbruiksartikelen)) {
-        return normalizeMaterialen(input[0].verbruiksartikelen);
+        return normalizeVerbruiksartikelen(input[0].verbruiksartikelen);
     }
 
     return [];

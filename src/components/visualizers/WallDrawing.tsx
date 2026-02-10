@@ -564,6 +564,7 @@ export function WallDrawing({
                     h: b.hMm * pxPerMm,
                     type: b.type
                 }));
+                const showStructure = balkafstandNum > 0;
 
                 const renderGaps = structure.gaps.map(g => ({
                     value: g.value,
@@ -598,12 +599,16 @@ export function WallDrawing({
 
                 return (
                     <>
-                        <polygon points={topPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
-                        {topPlate2Path && <polygon points={topPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
+                        {showStructure && (
+                            <>
+                                <polygon points={topPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                                {topPlate2Path && <polygon points={topPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
 
-                        <polygon points={bottomPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
-                        {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
-                        {beams.map((b, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
+                                <polygon points={bottomPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                                {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
+                                {beams.map((b, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
+                            </>
+                        )}
 
                         {openings.map((op) => {
                             const wPx = op.width * pxPerMm;
@@ -782,6 +787,28 @@ export function WallDrawing({
                                             y={koofY}
                                             width={STUD_W * pxPerMm}
                                             height={koofH}
+                                            fill="rgb(70, 75, 85)"
+                                            stroke="rgb(55, 60, 70)"
+                                            strokeWidth="0.5"
+                                        />
+                                    )}
+                                    {koofVanOnder === 0 && orientation === 'top' && (
+                                        <rect
+                                            x={koofX}
+                                            y={koofY - STUD_W * pxPerMm}
+                                            width={koofW}
+                                            height={STUD_W * pxPerMm}
+                                            fill="rgb(70, 75, 85)"
+                                            stroke="rgb(55, 60, 70)"
+                                            strokeWidth="0.5"
+                                        />
+                                    )}
+                                    {maxH > 0 && Math.abs(koofVanOnder + rectHMm - maxH) < 1 && orientation === 'top' && (
+                                        <rect
+                                            x={koofX}
+                                            y={koofY + koofH}
+                                            width={koofW}
+                                            height={STUD_W * pxPerMm}
                                             fill="rgb(70, 75, 85)"
                                             stroke="rgb(55, 60, 70)"
                                             strokeWidth="0.5"

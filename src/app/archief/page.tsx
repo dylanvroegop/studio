@@ -3,11 +3,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collection, deleteField, doc, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteField, doc, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { Archive, Calendar, Loader2, Pencil, ReceiptText, Undo2, FileText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useUser } from '@/firebase';
@@ -56,6 +65,9 @@ export default function ArchiefPage() {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -147,6 +159,33 @@ export default function ArchiefPage() {
     } as any);
   }
 
+  async function deleteAllArchived(): Promise<void> {
+    if (!user || !firestore || deletingAll) return;
+
+    const targetItems = tab === 'facturen' ? invoiceItems : quoteItems;
+    if (!targetItems.length) return;
+
+    setDeletingAll(true);
+    setError(null);
+    try {
+      for (let i = 0; i < targetItems.length; i += 450) {
+        const chunk = targetItems.slice(i, i + 450);
+        const batch = writeBatch(firestore);
+        chunk.forEach((item) => {
+          const collectionName = tab === 'facturen' ? 'invoices' : 'quotes';
+          batch.delete(doc(firestore, collectionName, item.id));
+        });
+        await batch.commit();
+      }
+      setBulkDeleteOpen(false);
+    } catch (e: any) {
+      console.error('Fout bij bulk verwijderen archief:', e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon gearchiveerde items niet verwijderen.'}`);
+    } finally {
+      setDeletingAll(false);
+    }
+  }
+
   if (isUserLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -174,11 +213,31 @@ export default function ArchiefPage() {
             </CardContent>
           </Card>
 
+          {error ? (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+              {error}
+            </div>
+          ) : null}
+
           <Tabs
             value={tab}
             onValueChange={(v) => router.replace(`/archief?tab=${v}`)}
             className="space-y-4"
           >
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="destructiveSoft"
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={
+                  deletingAll ||
+                  (tab === 'facturen' ? invoiceItems.length === 0 : quoteItems.length === 0)
+                }
+              >
+                {deletingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Verwijder alles
+              </Button>
+            </div>
             <TabsList className="grid w-full grid-cols-2 h-auto p-1">
               <TabsTrigger value="facturen" className="py-2.5 flex items-center gap-2">
                 <ReceiptText className="h-4 w-4" />
@@ -381,6 +440,32 @@ export default function ArchiefPage() {
           </Tabs>
         </div>
       </main>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alles in archief verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tab === 'facturen'
+                ? `Je verwijdert ${invoiceItems.length} gearchiveerde facturen definitief. Dit kan niet ongedaan worden gemaakt.`
+                : `Je verwijdert ${quoteItems.length} gearchiveerde offertes definitief. Dit kan niet ongedaan worden gemaakt.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel disabled={deletingAll} className="rounded-xl">
+              Annuleren
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              onClick={deleteAllArchived}
+              disabled={deletingAll}
+              variant="destructiveSoft"
+            >
+              {deletingAll ? 'Verwijderen...' : 'Definitief verwijderen'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

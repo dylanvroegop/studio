@@ -46,3 +46,24 @@
 - make a 'export material list' 
 - make them able to edit total amount on the verbruiks materialen, keeping the list itself but it converts to '% or euro' conversion that they can then fill in. 
 - add more information to the 'section_key' so for example the 'balklaag' has things like 'this is a balklaag constructie etc' also adding extra information like 'gebruik hiervoor pluggen 8x100'
+
+## 2026-02-09
+- Set new option in automatische berekening on material page for “schatting prijzen” toggle on off
+- Route “materiaal berekenen” on overzicht to the quote itself on the quotes page. Even if it’s empty, if not done yet. Show a spinning of “wordt berekend. Maximaal 5 minuten” with a progressbar of 5 minutes
+
+## 2026-02-10
+- Verbruikt and groot into one option.
+- Leverancier transport kosten
+- Duplicate job on overzicht possible.
+- Boei delen Firestore “schuine punt dak boeideel” VS “voorzijde recht dak boeideel”
+- Add own signature in pdf instellingen
+- Fix issue on auto update name indeed quotes.materialen tab. 
+In case they change the name to fit a different product and it updates the wrong name. 
+
+For example, user chose;
+Gipsplaat ak4 2400x1200x12,5mm
+Changed it to;
+Gipsplaat ak2 2600x1200x12,5mm 
+Since it was more convenient if the ceiling is 2540 in width, that means the product of Gipsplaat ak4 2400x1200x12,5mm now gets updated in their material list to;
+Gipsplaat ak2 2600x1200x12,5mm 
+In a sense overwriting their originalGipsplaat ak4 2400x1200x12,5mm making that disappear from their list

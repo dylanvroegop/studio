@@ -50,6 +50,13 @@ export function BalkenSection({
 }: BalkenSectionProps) {
     const [localIsCollapsed, setLocalIsCollapsed] = useState(true);
     const isCollapsed = propsIsCollapsed !== undefined ? propsIsCollapsed : localIsCollapsed;
+    const isMetalStud = jobSlug.includes('metalstud');
+    const sectionTitle = jobSlug.includes('hellend-dak')
+        ? 'Tengel latten'
+        : (isMetalStud ? 'Profielen' : 'Balken');
+    const spacingLabel = jobSlug.includes('hellend-dak')
+        ? 'Tengelafstand (h.o.h)'
+        : (isMetalStud ? 'Profielafstand (h.o.h)' : 'Balkafstand (h.o.h)');
     const showWallOptions = isWallCategory && (optionsConfig.dblEindbalk || optionsConfig.dblBovenbalk || optionsConfig.dblOnderbalk);
     const showSurrounding = !jobSlug.includes('hellend-dak') && !isWallCategory && optionsConfig.surroundingBeams;
     const showOptions = showWallOptions || showSurrounding;
@@ -70,7 +77,7 @@ export function BalkenSection({
             >
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-zinc-200">
-                        {jobSlug.includes('hellend-dak') ? 'Tengel latten' : 'Balken'}
+                        {sectionTitle}
                     </span>
                     {isCollapsed && balkafstand > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
@@ -89,7 +96,7 @@ export function BalkenSection({
 
                         {/* Balkafstand Input */}
                         <div className="space-y-2">
-                            <Label>{jobSlug.includes('hellend-dak') ? 'Tengelafstand (h.o.h)' : 'Balkafstand (h.o.h)'}</Label>
+                            <Label>{spacingLabel}</Label>
                             <MeasurementInput
                                 value={balkafstand}
                                 onChange={v => onUpdate('balkafstand', v)}

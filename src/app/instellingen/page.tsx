@@ -39,6 +39,7 @@ export default function InstellingenPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('bedrijf');
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
+    const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
 
     const composeAddress = (straat: string, huisnummer: string): string =>
         `${straat || ''} ${huisnummer || ''}`.trim();
@@ -170,6 +171,7 @@ export default function InstellingenPage() {
 
                 setSettings(merged);
                 setLogoUrl(merged.logoUrl || null);
+                setSignatureUrl(merged.signatureUrl || null);
             } catch (error) {
                 console.error("Error fetching settings:", error);
                 toast({ variant: 'destructive', title: 'Fout', description: 'Kon instellingen niet laden.' });
@@ -261,6 +263,43 @@ export default function InstellingenPage() {
                     variant: 'destructive',
                     title: 'Fout',
                     description: 'Kon logo niet opslaan. Probeer het opnieuw.'
+                });
+            }
+        }
+    };
+
+    // Handle signature change with auto-save
+    const handleSignatureChange = async (url: string | null) => {
+        setSignatureUrl(url);
+        const updatedSettings = { ...settings, signatureUrl: url || '' };
+        setSettings(updatedSettings);
+
+        if (user && firestore) {
+            try {
+                const docRef = doc(firestore, 'users', user.uid);
+                const cleanSettings = sanitizeForFirestore(updatedSettings);
+
+                await setDoc(docRef, {
+                    settings: cleanSettings,
+                    bedrijfsgegevens: {
+                        adress: composeAddress(updatedSettings.adres, updatedSettings.huisnummer),
+                        straat: updatedSettings.adres || '',
+                        huisnummer: updatedSettings.huisnummer || '',
+                        postcode: updatedSettings.postcode || '',
+                        plaats: updatedSettings.plaats || ''
+                    }
+                }, { merge: true });
+
+                toast({
+                    title: url ? 'Handtekening opgeslagen' : 'Handtekening verwijderd',
+                    description: url ? 'Uw handtekening is automatisch opgeslagen.' : 'Uw handtekening is verwijderd.'
+                });
+            } catch (error) {
+                console.error("Error saving signature:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Fout',
+                    description: 'Kon handtekening niet opslaan. Probeer het opnieuw.'
                 });
             }
         }
@@ -399,6 +438,26 @@ export default function InstellingenPage() {
                                         </p>
                                     </div>
                                 )}
+
+                                <div className="space-y-3 pt-4 border-t">
+                                    <div>
+                                        <h4 className="text-sm font-semibold">Handtekening in PDF</h4>
+                                        <p className="text-xs text-muted-foreground">
+                                            Deze handtekening wordt automatisch onderaan uw offerte-PDF geplaatst.
+                                        </p>
+                                    </div>
+
+                                    {user && (
+                                        <LogoUpload
+                                            currentLogoUrl={signatureUrl || undefined}
+                                            userId={user.uid}
+                                            onLogoChange={handleSignatureChange}
+                                            itemLabel="Handtekening"
+                                            storageKey="signature"
+                                            recommendedText="Aanbevolen: transparante PNG met brede verhouding (bijv. 600x200px)"
+                                        />
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
 

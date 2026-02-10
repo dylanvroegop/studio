@@ -16,6 +16,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
 
 import {
   Dialog,
@@ -198,6 +199,7 @@ export default function MaterialenPage() {
   // ✅ Delete confirm dialog
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const [deleteTarget, setDeleteTarget] = useState<Material | null>(null);
+  const [dontAutoIncludeNextTime, setDontAutoIncludeNextTime] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<boolean>(false);
 
   // Voeg deze twee toe aan je bestaande states
@@ -592,6 +594,7 @@ export default function MaterialenPage() {
   // ✅ Open delete confirm
   const openDeleteDialog = useCallback((m: Material) => {
     setPageError(null);
+    setDontAutoIncludeNextTime(false);
     setDeleteTarget(m);
     setDeleteOpen(true);
   }, []);
@@ -631,6 +634,7 @@ export default function MaterialenPage() {
 
       setDeleteOpen(false);
       setDeleteTarget(null);
+      setDontAutoIncludeNextTime(false);
 
       await fetchMaterials();
       setDeleting(false);
@@ -998,7 +1002,7 @@ export default function MaterialenPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="text-sm font-medium">Prijs per eenheid (€) *</div>
+                      <div className="text-sm font-medium">Prijs per eenheid (incl. btw) *</div>
                       <Input
                         value={customPrijs}
                         onChange={(e) => setCustomPrijs(e.target.value)}
@@ -1146,6 +1150,20 @@ export default function MaterialenPage() {
                 Dit kan niet ongedaan worden gemaakt.
               </AlertDialogDescription>
             </AlertDialogHeader>
+
+            <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+              <label htmlFor="dont-auto-include-next-time" className="flex items-center justify-between gap-3">
+                <span className="text-sm text-foreground">
+                  Niet meer automatisch mee berekenen voor volgende keer
+                </span>
+                <Switch
+                  id="dont-auto-include-next-time"
+                  checked={dontAutoIncludeNextTime}
+                  onCheckedChange={(checked) => setDontAutoIncludeNextTime(Boolean(checked))}
+                />
+              </label>
+            </div>
+
             <AlertDialogFooter>
               <AlertDialogCancel asChild>
                 <Button variant="ghost">Annuleren</Button>

@@ -43,6 +43,7 @@ export interface UserSettings {
     telefoon: string;
     website: string;
     logoUrl?: string;
+    signatureUrl?: string;
     logoScale: number;
 
     iban: string;
@@ -96,6 +97,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     telefoon: '',
     website: '',
     logoUrl: '',
+    signatureUrl: '',
     logoScale: 1.0,
     iban: '',
     bankNaam: '',

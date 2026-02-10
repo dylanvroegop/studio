@@ -328,7 +328,7 @@ export default function GenericMeasurementPage() {
   const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
-  const isHsbVoorzetwand = !!jobSlug && jobSlug.includes('hsb-voorzetwand');
+  const isVoorzetwandParity = !!jobSlug && (jobSlug.includes('hsb-voorzetwand') || jobSlug.includes('metalstud-voorzetwand'));
   const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
   const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
@@ -874,6 +874,16 @@ export default function GenericMeasurementPage() {
     return item;
   };
 
+  const applyVoorzetwandBalkafstandDefault = (item: any) => {
+    const isVoorzetwand = jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand';
+    if (!isVoorzetwand) return item;
+    const current = item?.balkafstand;
+    if (current === undefined || current === null || current === '') {
+      return { ...item, balkafstand: 600 };
+    }
+    return item;
+  };
+
 
 
   const syncVlizotrapOpening = (item: any, material: any) => {
@@ -1008,7 +1018,7 @@ export default function GenericMeasurementPage() {
 
 
               // Data Migration for HSB Voorzetwand
-              if (jobSlug === 'hsb-voorzetwand') {
+              if (jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand') {
 
                 // Move single objects to arrays if they exist
                 if (normalizedItem.koof_lengte !== undefined && normalizedItem.koven.length === 0) {
@@ -1130,17 +1140,19 @@ export default function GenericMeasurementPage() {
             const withVlizotrap = vlizotrapMaterial
               ? normalizedItems.map((item: any) => syncVlizotrapOpening(item, vlizotrapMaterial))
               : normalizedItems;
-            const withCeilingDefault = withVlizotrap.map((item: any) =>
-              applyCeilingBalkafstandDefault(item, !!balklaagMaterial)
+            const withBalkafstandDefaults = withVlizotrap.map((item: any) =>
+              applyVoorzetwandBalkafstandDefault(applyCeilingBalkafstandDefault(item, !!balklaagMaterial))
             );
-            setItems(withCeilingDefault);
+            setItems(withBalkafstandDefaults);
           } else {
             const emptyItem = createEmptyItem();
             const withVlizotrap = vlizotrapMaterial
               ? syncVlizotrapOpening(emptyItem, vlizotrapMaterial)
               : emptyItem;
-            const withCeilingDefault = applyCeilingBalkafstandDefault(withVlizotrap, !!balklaagMaterial);
-            setItems([withCeilingDefault]);
+            const withBalkafstandDefaults = applyVoorzetwandBalkafstandDefault(
+              applyCeilingBalkafstandDefault(withVlizotrap, !!balklaagMaterial)
+            );
+            setItems([withBalkafstandDefaults]);
           }
 
           // 2. Load Components
@@ -2188,7 +2200,7 @@ export default function GenericMeasurementPage() {
                         const showHoogte = shape === 'rectangle' && !!fHoogte;
                         const showBreedte = shape === 'rectangle' && !!fBreedte;
 
-                        const useSideBySideLengteHoogte = isHsbVoorzetwand && showLengte && showHoogte;
+                        const useSideBySideLengteHoogte = isVoorzetwandParity && showLengte && showHoogte;
 
                         return (
                           <div className="space-y-4">

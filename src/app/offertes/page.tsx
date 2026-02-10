@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
+  writeBatch,
   where,
 } from 'firebase/firestore';
 import {
@@ -175,6 +176,9 @@ export default function OffertesPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [deletingConcepts, setDeletingConcepts] = useState(false);
+
+  const isDev = process.env.NODE_ENV !== 'production';
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -358,6 +362,35 @@ export default function OffertesPage() {
     }
   }
 
+  async function handleDeleteAllConceptQuotes(): Promise<void> {
+    if (!user || !firestore || deletingConcepts || !isDev) return;
+
+    const conceptQuotes = quotes.filter((q) => q.status === 'concept');
+    if (!conceptQuotes.length) return;
+
+    const akkoord = window.confirm(
+      `Weet je zeker dat je ${conceptQuotes.length} concept offertes definitief wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`
+    );
+    if (!akkoord) return;
+
+    setDeletingConcepts(true);
+    try {
+      for (let i = 0; i < conceptQuotes.length; i += 450) {
+        const chunk = conceptQuotes.slice(i, i + 450);
+        const batch = writeBatch(firestore);
+        chunk.forEach((quote) => {
+          batch.delete(doc(firestore, 'quotes', quote.id));
+        });
+        await batch.commit();
+      }
+    } catch (e: any) {
+      console.error(e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon concept offertes niet verwijderen.'}`);
+    } finally {
+      setDeletingConcepts(false);
+    }
+  }
+
   if (isUserLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -530,6 +563,18 @@ export default function OffertesPage() {
                     >
                       Verzonden
                     </Button>
+                    {isDev ? (
+                      <Button
+                        type="button"
+                        variant="destructiveSoft"
+                        className="h-10"
+                        onClick={handleDeleteAllConceptQuotes}
+                        disabled={deletingConcepts || !quotes.some((q) => q.status === 'concept')}
+                      >
+                        {deletingConcepts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                        Verwijder alle concepten
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </CardContent>

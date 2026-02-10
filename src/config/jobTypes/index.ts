@@ -101,6 +101,7 @@ export const defaultJobConfig: JobTypeConfig = {
 export const jobTypeConfigs: Record<string, JobTypeConfig> = {
     'hsb-voorzetwand': hsbVoorzetwand as JobTypeConfig,
     'hsb-tussenwand': hsbVoorzetwand as JobTypeConfig,
+    'metalstud-voorzetwand': hsbVoorzetwand as JobTypeConfig,
     'metalstud-tussenwand': metalstudTussenwand as JobTypeConfig,
     'plafond-metalstud': {
         ...defaultJobConfig,
@@ -139,10 +140,13 @@ export function getJobConfig(slug: string): JobTypeConfig {
 const PRESET_GROUPS: Record<string, string> = {
     'hsb-voorzetwand': 'hsb-binnenwand',
     'hsb-tussenwand': 'hsb-binnenwand',
+    'metalstud-voorzetwand': 'metalstud-binnenwand',
+    'metalstud-tussenwand': 'metalstud-binnenwand',
 };
 
 const PRESET_GROUP_MEMBERS: Record<string, string[]> = {
     'hsb-binnenwand': ['hsb-voorzetwand', 'hsb-tussenwand'],
+    'metalstud-binnenwand': ['metalstud-voorzetwand', 'metalstud-tussenwand'],
 };
 
 export function getPresetGroup(slug: string): string | null {

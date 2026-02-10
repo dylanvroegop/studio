@@ -61,7 +61,7 @@ export function DagkantSection({
                 <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
                     <div className="pt-2 border-t border-white/5 space-y-3">
                         {dagkanten.length === 0 ? (
-                            <div className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-3">
+                            <div className="space-y-4 animate-in fade-in slide-in-from-top-1">
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="space-y-1">
                                         <Label className="text-[10px] text-zinc-500">Lengte (mm)</Label>
@@ -76,7 +76,10 @@ export function DagkantSection({
                         ) : (
                             <>
                                 {dagkanten.map((dk, dIdx) => (
-                                    <div key={dk.id} className="p-3 rounded-lg bg-zinc-900/50 border border-white/5 space-y-3">
+                                    <div
+                                        key={dk.id}
+                                        className={`space-y-4 animate-in fade-in slide-in-from-top-1 ${dIdx > 0 ? 'pt-3 border-t border-white/5' : ''}`}
+                                    >
                                         {dagkanten.length > 1 && (
                                             <div className="flex items-center justify-between border-b border-white/5 pb-2">
                                                 <span className="text-[10px] uppercase font-bold text-zinc-400">Dagkant {dIdx + 1}</span>

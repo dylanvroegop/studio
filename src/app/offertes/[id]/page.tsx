@@ -778,6 +778,7 @@ export default function QuotePage() {
                 year: 'numeric'
             }),
             logoUrl: userProfile?.settings?.logoUrl || undefined,
+            signatureUrl: userProfile?.settings?.signatureUrl || userProfile?.signatureUrl || undefined,
             logoScale: userProfile?.settings?.logoScale || 1.0,
             bedrijf: {
                 naam: (
@@ -901,6 +902,7 @@ export default function QuotePage() {
             datum: new Date().toLocaleDateString('nl-NL'),
             geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL'),
             logoUrl: userProfile?.settings?.logoUrl || userProfile?.logoUrl || undefined,
+            signatureUrl: userProfile?.settings?.signatureUrl || userProfile?.signatureUrl || undefined,
             logoScale: userProfile?.settings?.logoScale || userProfile?.logoScale || 1.0,
             bedrijf: {
                 naam: (
@@ -1012,6 +1014,30 @@ export default function QuotePage() {
             }));
         } catch (err) {
             console.error("Error saving logo preference:", err);
+        }
+    };
+
+    const handlePdfSignatureChange = async (url: string | null) => {
+        if (!user || !firestore) return;
+
+        try {
+            const userRef = doc(firestore, 'users', user.uid);
+            await setDoc(userRef, {
+                settings: {
+                    ...(userProfile?.settings || {}),
+                    signatureUrl: url || ''
+                }
+            }, { merge: true });
+
+            setUserProfile((prev: any) => ({
+                ...(prev || {}),
+                settings: {
+                    ...(prev?.settings || {}),
+                    signatureUrl: url || ''
+                }
+            }));
+        } catch (err) {
+            console.error("Error saving signature preference:", err);
         }
     };
 
@@ -1241,6 +1267,23 @@ export default function QuotePage() {
                                                         </p>
                                                     </div>
                                                 )}
+
+                                                <div className="space-y-2 pt-2 border-t">
+                                                    <h4 className="font-medium">Handtekening</h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Deze handtekening wordt onderaan de offerte-PDF geplaatst.
+                                                    </p>
+                                                    {user && (
+                                                        <LogoUpload
+                                                            currentLogoUrl={userProfile?.settings?.signatureUrl || undefined}
+                                                            userId={user.uid}
+                                                            onLogoChange={handlePdfSignatureChange}
+                                                            itemLabel="Handtekening"
+                                                            storageKey="signature"
+                                                            recommendedText="Aanbevolen: transparante PNG met brede verhouding (bijv. 600x200px)"
+                                                        />
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </DialogContent>
@@ -1437,6 +1480,8 @@ export default function QuotePage() {
                                         vatRate={quoteSettings?.btwTarief}
                                         onAddClick={() => setActiveCategory('groot')}
                                         enableCalculationViewToggle
+                                        calculationTextFields="hoe_berekend"
+                                        showDontAutoIncludeOption={false}
                                     />
                                     <MaterialEditor
                                         title="VERBRUIKSARTIKELEN"
@@ -1447,6 +1492,11 @@ export default function QuotePage() {
                                         subtotal={verbruikSubtotal}
                                         vatRate={quoteSettings?.btwTarief}
                                         onAddClick={() => setActiveCategory('verbruik')}
+                                        enableCalculationViewToggle
+                                        calculationTextFields="waarom_dit"
+                                        calculationToggleLabel="Laat toelichting zien"
+                                        calculationRowLabel="Waarom dit"
+                                        showDontAutoIncludeOption
                                     />
                                 </>
                             )}
