@@ -61,6 +61,21 @@ function formatEuro(amount: number | null): string {
   }).format(amount);
 }
 
+function normalizeFilterValue(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.toLowerCase().trim();
+}
+
+function getMaterialSubCategory(material: ExistingMaterial): string {
+  const value =
+    (material as any).sub_categorie ??
+    (material as any).subcategorie ??
+    (material as any).subCategory ??
+    (material as any).subsection ??
+    null;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 // ==========================================
 // 2. SUB-COMPONENTS
 // ==========================================
@@ -160,6 +175,11 @@ export function MaterialSelectionModal({
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | string[]>('all');
+  const [subCategoryFilter, setSubCategoryFilter] = useState<string | string[]>('all');
+  const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [favoriteSubCategories, setFavoriteSubCategories] = useState<string[]>([]);
+  const [shouldApplyFavoriteOnOpen, setShouldApplyFavoriteOnOpen] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
 
   // Edit State
@@ -176,14 +196,42 @@ export function MaterialSelectionModal({
   const [categorieDropdownOpen, setCategorieDropdownOpen] = useState(false);
   const [leverancierDropdownOpen, setLeverancierDropdownOpen] = useState(false);
 
+  const subCategoryPreferenceScope = useMemo(() => {
+    const scopeRaw = categoryTitle || (Array.isArray(defaultCategory) ? defaultCategory.join(',') : defaultCategory) || 'default';
+    return scopeRaw.toLowerCase().trim().replace(/\s+/g, '_');
+  }, [categoryTitle, defaultCategory]);
+
+  const favoriteSubCategoryKey = useMemo(() => {
+    return `material_selection_modal_subcategory_favs_${subCategoryPreferenceScope}`;
+  }, [categoryTitle, defaultCategory]);
+
   // --- RESET ON OPEN ---
   useEffect(() => {
     if (open) {
+      const savedFavoritesRaw =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem(favoriteSubCategoryKey)
+          : null;
+      const savedFavorites = (() => {
+        if (!savedFavoritesRaw) return [];
+        try {
+          const parsed = JSON.parse(savedFavoritesRaw);
+          return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') as string[] : [];
+        } catch {
+          return [];
+        }
+      })();
+
       // 1. Reset UI Flow
       setStep('search');
       setError(null);
       setSearchTerm('');
       setCategoryFilter(defaultCategory || 'all');
+      setSubCategoryFilter([]);
+      setCategorySearchTerm('');
+      setCategoryPickerOpen(false);
+      setFavoriteSubCategories(savedFavorites);
+      setShouldApplyFavoriteOnOpen(true);
       setDisplayLimit(50);
 
       // 2. Reset Form Fields (CLEAN SLATE)
@@ -200,11 +248,11 @@ export function MaterialSelectionModal({
       // 4. Reset Edit State
       setEditingMaterialId(null);
     }
-  }, [open, defaultCategory, initialWastePercentage]);
+  }, [open, defaultCategory, initialWastePercentage, favoriteSubCategoryKey]);
 
   useEffect(() => {
     setDisplayLimit(50);
-  }, [searchTerm, categoryFilter]);
+  }, [searchTerm, categoryFilter, subCategoryFilter]);
 
   // --- SEARCH LOGIC ---
 
@@ -243,6 +291,55 @@ export function MaterialSelectionModal({
     const levs = new Set(existingMaterials.map(m => m.leverancier).filter(Boolean));
     return Array.from(levs).sort() as string[];
   }, [existingMaterials]);
+
+  const filteredSidebarCategories = useMemo(() => {
+    const query = categorySearchTerm.trim().toLowerCase();
+    if (!query) return uniqueCategories;
+    return uniqueCategories.filter((cat) => cat.toLowerCase().includes(query));
+  }, [uniqueCategories, categorySearchTerm]);
+
+  const selectedCategoryLabel = useMemo(() => {
+    if (Array.isArray(categoryFilter)) return categoryFilter.join(', ');
+    if (categoryFilter === 'all') return 'Toon alles';
+    return categoryFilter;
+  }, [categoryFilter]);
+
+  const isSubCategorySelected = (subCategory: string): boolean => {
+    if (subCategoryFilter === 'all') return false;
+    return Array.isArray(subCategoryFilter) && subCategoryFilter.includes(subCategory);
+  };
+
+  const isAllSubCategoriesSelected = subCategoryFilter === 'all' || (Array.isArray(subCategoryFilter) && subCategoryFilter.length === 0);
+
+  const toggleSubCategorySelection = (subCategory: string): void => {
+    if (subCategoryFilter === 'all') {
+      setSubCategoryFilter([subCategory]);
+      return;
+    }
+    const current = Array.isArray(subCategoryFilter) ? subCategoryFilter : [];
+    if (current.includes(subCategory)) {
+      const next = current.filter((item) => item !== subCategory);
+      setSubCategoryFilter(next.length > 0 ? next : 'all');
+      return;
+    }
+    setSubCategoryFilter([...current, subCategory]);
+  };
+
+  const toggleFavoriteSubCategory = (subCategory: string): void => {
+    const isCurrentlyFavorite = favoriteSubCategories.includes(subCategory);
+    if (isCurrentlyFavorite) {
+      setFavoriteSubCategories((prev) => prev.filter((item) => item !== subCategory));
+      if (isSubCategorySelected(subCategory)) {
+        toggleSubCategorySelection(subCategory);
+      }
+      return;
+    }
+
+    setFavoriteSubCategories((prev) => [...prev, subCategory]);
+    if (!isSubCategorySelected(subCategory)) {
+      toggleSubCategorySelection(subCategory);
+    }
+  };
 
   // Filtered autocomplete suggestions based on current input
   const filteredCategories = useMemo(() => {
@@ -299,38 +396,111 @@ export function MaterialSelectionModal({
     return Array.from(map.values());
   }, [existingMaterials]);
 
-  const allFilteredMaterials = useMemo(() => {
+  const materialsAfterCategoryFilter = useMemo(() => {
     let result = uniqueMaterials;
 
-    if (categoryFilter !== 'all') {
-      if (Array.isArray(categoryFilter)) {
-        // Case-insensitive check for array
-        const lowerFilters = categoryFilter.map(c => c.toLowerCase().trim());
+    if (categoryFilter === 'all') return result;
 
-        result = result.filter(m => {
-          const sub = (m.subsectie || '').toLowerCase().trim();
-          const cat = (m.categorie || '').toLowerCase().trim();
+    if (Array.isArray(categoryFilter)) {
+      const lowerFilters = categoryFilter.map(normalizeFilterValue).filter(Boolean);
+      result = result.filter(m => {
+        const sub = normalizeFilterValue(m.subsectie);
+        const cat = normalizeFilterValue((m as any).categorie);
 
-          // Check if ANY of the filter items match the material's subsection OR category
-          // Logic: Material matches if its category CONTAINS the filter item OR filter item CONTAINS category
-          // This handles cases like: Filter="Ribben" vs DB="Ribben, sls" -> Match
-          // And: Filter="Isolatie materialen" vs DB="Isolatie" -> Match
-          return lowerFilters.some(filterItem => {
-            const matchesSub = sub.includes(filterItem) || filterItem.includes(sub);
-            const matchesCat = cat.includes(filterItem) || filterItem.includes(cat);
-            return matchesSub || matchesCat;
-          });
-        });
-      } else {
-        // Case-insensitive check for string
-        const lowerFilter = categoryFilter.toLowerCase().trim();
-        result = result.filter(m => {
-          const sub = (m.subsectie || '').toLowerCase().trim();
-          const cat = (m.categorie || '').toLowerCase().trim();
-
-          const matchesSub = sub.includes(lowerFilter) || lowerFilter.includes(sub);
-          const matchesCat = cat.includes(lowerFilter) || lowerFilter.includes(cat);
+        return lowerFilters.some(filterItem => {
+          const matchesSub = sub.includes(filterItem) || filterItem.includes(sub);
+          const matchesCat = cat.includes(filterItem) || filterItem.includes(cat);
           return matchesSub || matchesCat;
+        });
+      });
+      return result;
+    }
+
+    const lowerFilter = normalizeFilterValue(categoryFilter);
+    result = result.filter(m => {
+      const sub = normalizeFilterValue(m.subsectie);
+      const cat = normalizeFilterValue((m as any).categorie);
+
+      const matchesSub = sub.includes(lowerFilter) || lowerFilter.includes(sub);
+      const matchesCat = cat.includes(lowerFilter) || lowerFilter.includes(cat);
+      return matchesSub || matchesCat;
+    });
+    return result;
+  }, [uniqueMaterials, categoryFilter]);
+
+  const availableSubCategories = useMemo(() => {
+    const unique = new Set<string>();
+    materialsAfterCategoryFilter.forEach((m) => {
+      const subCat = getMaterialSubCategory(m);
+      if (subCat) unique.add(subCat);
+    });
+    return Array.from(unique).sort((a, b) => {
+      const aIsOverig = a.toLowerCase() === 'overig';
+      const bIsOverig = b.toLowerCase() === 'overig';
+      if (aIsOverig && !bIsOverig) return 1;
+      if (!aIsOverig && bIsOverig) return -1;
+      return a.localeCompare(b, 'nl');
+    });
+  }, [materialsAfterCategoryFilter]);
+
+  const subCategoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    materialsAfterCategoryFilter.forEach((m) => {
+      const subCat = getMaterialSubCategory(m);
+      if (!subCat) return;
+      counts.set(subCat, (counts.get(subCat) || 0) + 1);
+    });
+    return counts;
+  }, [materialsAfterCategoryFilter]);
+
+  useEffect(() => {
+    if (subCategoryFilter === 'all') return;
+    if (!Array.isArray(subCategoryFilter)) return;
+    const valid = subCategoryFilter.filter((subCat) => availableSubCategories.includes(subCat));
+    if (valid.length !== subCategoryFilter.length) {
+      setSubCategoryFilter(valid.length > 0 ? valid : 'all');
+    }
+  }, [availableSubCategories, subCategoryFilter]);
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+    window.localStorage.setItem(favoriteSubCategoryKey, JSON.stringify(favoriteSubCategories));
+  }, [open, favoriteSubCategories, favoriteSubCategoryKey]);
+
+  useEffect(() => {
+    if (!open || !shouldApplyFavoriteOnOpen) return;
+    if (!favoriteSubCategories.length) {
+      setShouldApplyFavoriteOnOpen(false);
+      return;
+    }
+    const favoritesToApply = availableSubCategories.filter((subCat) =>
+      favoriteSubCategories.includes(subCat)
+    );
+    if (favoritesToApply.length > 0) {
+      setSubCategoryFilter(favoritesToApply);
+    }
+    setShouldApplyFavoriteOnOpen(false);
+  }, [open, shouldApplyFavoriteOnOpen, favoriteSubCategories, availableSubCategories]);
+
+  const allFilteredMaterials = useMemo(() => {
+    let result = materialsAfterCategoryFilter;
+
+    if (subCategoryFilter !== 'all') {
+      const selectedSubCategories = Array.isArray(subCategoryFilter)
+        ? subCategoryFilter
+        : [subCategoryFilter];
+      const lowerSubCategories = selectedSubCategories
+        .map(normalizeFilterValue)
+        .filter(Boolean);
+      if (lowerSubCategories.length > 0) {
+        result = result.filter((m) => {
+          const matSubCategory = normalizeFilterValue(getMaterialSubCategory(m));
+          if (!matSubCategory) return false;
+          return lowerSubCategories.some((lowerSubCategory) => (
+            matSubCategory === lowerSubCategory ||
+            matSubCategory.includes(lowerSubCategory) ||
+            lowerSubCategory.includes(matSubCategory)
+          ));
         });
       }
     }
@@ -355,7 +525,7 @@ export function MaterialSelectionModal({
       const orderB = b.order_id ?? 999999;
       return orderA - orderB;
     });
-  }, [uniqueMaterials, searchTerm, categoryFilter, selectedMaterialId]);
+  }, [materialsAfterCategoryFilter, searchTerm, subCategoryFilter, selectedMaterialId]);
 
   const visibleMaterials = useMemo(() => {
     return allFilteredMaterials.slice(0, displayLimit);
@@ -498,247 +668,423 @@ export function MaterialSelectionModal({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
-          "sm:max-w-[640px] w-full p-0 transition-all duration-200",
+          "w-[95vw] p-0 transition-all duration-200",
           step === 'search'
-            ? "h-[85vh] flex flex-col overflow-hidden gap-0"
-            : "h-auto block"
+            ? "max-w-[1200px] h-[88vh] flex flex-col overflow-hidden gap-0"
+            : "sm:max-w-[640px] h-auto block"
         )}
       >
 
         {/* === STEP 1: SEARCH & FILTER === */}
         {step === 'search' && (
           <>
-            <div className="p-6 pb-2 shrink-0">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex flex-col gap-0.5">
-                  <DialogTitle className="text-xl font-semibold">
-                    {categoryTitle || 'Kies materiaal'}
-                  </DialogTitle>
-                  <p className="text-xs text-muted-foreground hidden sm:block">
-                    Selecteer een materiaal voor {categoryTitle ? categoryTitle.toLowerCase() : 'dit onderdeel'}
-                  </p>
+            <div className="flex-1 min-h-0 border-t grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+              <aside className="hidden lg:flex flex-col border-r border-border/60 min-h-0">
+                <div className="px-3 py-2 border-b border-border/60">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Filters</p>
                 </div>
+                <div className="p-2 border-b border-border/60">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-2">Categorie</div>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryPickerOpen((prev) => !prev)}
+                    className="w-full h-9 rounded-md border border-muted-foreground/25 px-2.5 text-xs text-left flex items-center justify-between text-muted-foreground hover:text-foreground hover:border-emerald-500/40 transition-colors"
+                  >
+                    <span className="truncate pr-2">{selectedCategoryLabel}</span>
+                    <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", categoryPickerOpen && "rotate-180")} />
+                  </button>
 
-                {/* Waste Percentage Inline Edit */}
-                <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-md border border-border/50">
-                  {isEditingWaste ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-muted-foreground pl-1">Afval:</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className="h-6 w-14 text-xs px-1 py-0 bg-transparent border-emerald-500/50 focus-visible:ring-0 text-right font-medium"
-                        value={wastePercentage.toString()}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          if (!isNaN(val) && val >= 0) setWastePercentage(val);
-                          else if (e.target.value === '') setWastePercentage(0);
-                        }}
-                        onBlur={() => {
-                          setIsEditingWaste(false);
-                          if (onUpdateWaste) onUpdateWaste(wastePercentage);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            setIsEditingWaste(false);
-                            if (onUpdateWaste) onUpdateWaste(wastePercentage);
-                          }
-                        }}
-                      />
-                      <span className="text-xs text-muted-foreground pr-1">%</span>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsEditingWaste(true)}
-                      className="h-6 px-2 text-xs font-medium text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 gap-1.5"
-                    >
-                      <span>Afval: {wastePercentage}%</span>
-                      <Pencil className="h-3 w-3 opacity-50" />
-                    </Button>
-                  )}
-                </div>
-
-                <DialogDescription className="sr-only">
-                  Zoek en selecteer een materiaal uit de lijst of maak een nieuwe aan.
-                </DialogDescription>
-              </div>
-
-              <div className="mb-4">
-                <Button
-                  onClick={() => {
-                    setEditingMaterialId(null);
-                    setCustomNaam('');
-                    setCustomEenheid('');
-                    setCustomPrijs('');
-                    setCustomSubsectie('');
-                    setCustomLeverancier('');
-                    setStep('form');
-                  }}
-                  variant="outline"
-                  className="w-full h-12 border-dashed border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:bg-muted/10 hover:border-emerald-500/50 transition-all group"
-                >
-                  <Plus className="mr-2 h-4 w-4 group-hover:text-emerald-500 transition-colors" />
-                  <span className="font-medium">Nieuw materiaal toevoegen</span>
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Zoek op materiaalnaam..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/50"
-                  />
-                </div>
-
-                <Select
-                  value={Array.isArray(categoryFilter) ? 'custom_filter' : categoryFilter}
-                  onValueChange={setCategoryFilter}
-                >
-                  <SelectTrigger className="w-full h-9 text-xs border-muted-foreground/20 bg-transparent">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Filter className="h-3 w-3" />
-                      <span className="truncate max-w-[340px]">
-                        {Array.isArray(categoryFilter)
-                          ? categoryFilter.join(', ')
-                          : categoryFilter === 'all'
-                            ? 'Filter op categorie...'
-                            : categoryFilter}
-                      </span>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Toon alles</SelectItem>
-                    {Array.isArray(categoryFilter) && (
-                      <SelectItem value="custom_filter" className="hidden">Geselecteerde Groep</SelectItem>
-                    )}
-                    {uniqueCategories.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto border-t">
-              <ul className="divide-y divide-border">
-                {visibleMaterials.map((mat) => (
-                  <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
-                    <div className="w-full flex items-stretch">
-
-                      {/* FAVORITE */}
-                      {showFavorites && (
-                        <div
-                          className="flex items-center justify-center px-4 border-r border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onToggleFavorite) onToggleFavorite(mat.id);
+                  {categoryPickerOpen && (
+                    <div className="mt-2 space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
+                        <Input
+                          value={categorySearchTerm}
+                          onChange={(e) => {
+                            setCategorySearchTerm(e.target.value);
+                            if (!categoryPickerOpen) setCategoryPickerOpen(true);
                           }}
+                          placeholder="Zoek categorie..."
+                          className="h-8 pl-8 text-xs border-muted-foreground/20"
+                        />
+                      </div>
+                      <div className="max-h-[190px] overflow-y-auto space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCategoryFilter('all');
+                            setSubCategoryFilter('all');
+                            setCategorySearchTerm('');
+                            setCategoryPickerOpen(false);
+                          }}
+                          className={cn(
+                            "w-full rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
+                            categoryFilter === 'all'
+                              ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                              : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                          )}
                         >
-                          <button
-                            type="button"
-                            className="text-muted-foreground/30 hover:text-yellow-400 focus:outline-none transition-colors"
-                          >
-                            <Star className={cn("h-4 w-4", mat.isFavorite ? "fill-yellow-400 text-yellow-400" : "")} />
-                          </button>
-                        </div>
-                      )}
-
-                      {/* CONTENT */}
-                      <div
-                        className={cn(
-                          "flex-1 flex items-center justify-between gap-3 p-4 cursor-pointer transition-colors",
-                          mat.row_id === selectedMaterialId
-                            ? "bg-emerald-500/10 hover:bg-emerald-500/20"
-                            : "hover:bg-muted/50"
+                          Toon alles
+                        </button>
+                        {filteredSidebarCategories.map((cat) => {
+                          const selected = Array.isArray(categoryFilter)
+                            ? categoryFilter.includes(cat)
+                            : categoryFilter === cat;
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => {
+                                setCategoryFilter(cat);
+                                setSubCategoryFilter('all');
+                                setCategorySearchTerm('');
+                                setCategoryPickerOpen(false);
+                              }}
+                              className={cn(
+                                "w-full rounded-md border px-2.5 py-1.5 text-xs text-left leading-5 transition-colors",
+                                selected
+                                  ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                  : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                              )}
+                            >
+                              {cat}
+                            </button>
+                          );
+                        })}
+                        {filteredSidebarCategories.length === 0 && (
+                          <div className="px-2.5 py-1.5 text-xs text-muted-foreground">
+                            Geen categorie gevonden.
+                          </div>
                         )}
-                        onClick={() => handleSelectExisting(mat)}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className={cn(
-                            "font-medium transition-colors break-words whitespace-normal text-sm",
-                            mat.row_id === selectedMaterialId
-                              ? "text-emerald-600"
-                              : "text-foreground group-hover:text-emerald-600"
-                          )}>
-                            {mat.materiaalnaam}
-                            {mat.row_id === selectedMaterialId && (
-                              <span className="ml-2 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                Huidig
-                              </span>
-                            )}
-                          </div>
-                          {/* {(mat.subsectie || mat.leverancier) && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                              {[mat.subsectie, mat.leverancier].filter(Boolean).join(' • ')}
-                            </div>
-                          )} */}
-                        </div>
-
-                        <div className="text-right shrink-0 flex items-center gap-3">
-                          <div className="flex flex-col items-end">
-                            {(() => {
-                              // Check multiple price fields (different data sources use different field names)
-                              const prijsPerStuk = parsePriceToNumber(mat.prijs_per_stuk);
-                              const prijsInclBtw = parsePriceToNumber((mat as any).prijs_incl_btw);
-                              const prijs = parsePriceToNumber(mat.prijs);
-
-                              // Use the first non-null price we find
-                              const finalPrice = prijsPerStuk ?? prijsInclBtw ?? prijs;
-                              const eenheid = mat.eenheid || 'stuk';
-
-                              return (
-                                <>
-                                  <div className="text-sm font-medium">
-                                    {formatEuro(finalPrice)}
-                                  </div>
-                                  <div className="text-[10px] text-muted-foreground">
-                                    per {eenheid}
-                                  </div>
-                                </>
-                              );
-                            })()}
-                          </div>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground/50 hover:text-foreground hover:bg-muted"
-                            onClick={(e) => startEditing(mat, e)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
                       </div>
                     </div>
-                  </li>
-                ))}
+                  )}
+                </div>
+                <div className="px-3 py-2 border-b border-border/60">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Subcategorie</p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSubCategoryFilter('all')}
+                    className={cn(
+                      "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                      isAllSubCategoriesSelected
+                        ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                        : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                    )}
+                  >
+                    <span>Alles</span>
+                    <span className="text-[10px] opacity-70">{materialsAfterCategoryFilter.length}</span>
+                  </button>
+                  {availableSubCategories.map((subCat) => {
+                    const isFavoriteSubCategory = favoriteSubCategories.includes(subCat);
+                    return (
+                      <div key={subCat} className="w-full flex items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={isFavoriteSubCategory ? `Verwijder favoriet ${subCat}` : `Maak favoriet ${subCat}`}
+                          title={isFavoriteSubCategory ? 'Favoriet verwijderen' : 'Favoriet maken'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavoriteSubCategory(subCat);
+                          }}
+                          className="h-7 w-7 shrink-0 rounded-md border border-muted-foreground/25 flex items-center justify-center hover:border-emerald-500/50 hover:bg-muted/40 transition-colors"
+                        >
+                          <Star className={cn("h-3.5 w-3.5", isFavoriteSubCategory ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40")} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleSubCategorySelection(subCat)}
+                          className={cn(
+                            "flex-1 flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
+                            isSubCategorySelected(subCat)
+                              ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                              : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                          )}
+                        >
+                          <span className="truncate pr-2">{subCat}</span>
+                          <span className="text-[10px] opacity-70 shrink-0">{subCategoryCounts.get(subCat) || 0}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </aside>
 
-                {visibleMaterials.length < allFilteredMaterials.length && (
-                  <li className="p-4 flex justify-center">
+              <div className="flex flex-col min-h-0">
+                <div className="p-6 pb-3 border-b border-border/60 shrink-0">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col gap-0.5">
+                      <DialogTitle className="text-xl font-semibold">
+                        {categoryTitle || 'Kies materiaal'}
+                      </DialogTitle>
+                      <p className="text-xs text-muted-foreground hidden sm:block">
+                        Selecteer een materiaal voor {categoryTitle ? categoryTitle.toLowerCase() : 'dit onderdeel'}
+                      </p>
+                    </div>
+
+                    {/* Waste Percentage Inline Edit */}
+                    <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-md border border-border/50">
+                      {isEditingWaste ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-medium text-muted-foreground pl-1">Afval:</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            className="h-6 w-14 text-xs px-1 py-0 bg-transparent border-emerald-500/50 focus-visible:ring-0 text-right font-medium"
+                            value={wastePercentage.toString()}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val) && val >= 0) setWastePercentage(val);
+                              else if (e.target.value === '') setWastePercentage(0);
+                            }}
+                            onBlur={() => {
+                              setIsEditingWaste(false);
+                              if (onUpdateWaste) onUpdateWaste(wastePercentage);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setIsEditingWaste(false);
+                                if (onUpdateWaste) onUpdateWaste(wastePercentage);
+                              }
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground pr-1">%</span>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsEditingWaste(true)}
+                          className="h-6 px-2 text-xs font-medium text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 gap-1.5"
+                        >
+                          <span>Afval: {wastePercentage}%</span>
+                          <Pencil className="h-3 w-3 opacity-50" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <DialogDescription className="sr-only">
+                      Zoek en selecteer een materiaal uit de lijst of maak een nieuwe aan.
+                    </DialogDescription>
+                  </div>
+
+                  <div className="flex flex-col lg:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Zoek op materiaalnaam..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/50"
+                      />
+                    </div>
+
+                    <div className="lg:hidden">
+                      <Select
+                        value={Array.isArray(categoryFilter) ? 'custom_filter' : categoryFilter}
+                        onValueChange={(value) => {
+                          setCategoryFilter(value);
+                          setSubCategoryFilter('all');
+                        }}
+                      >
+                        <SelectTrigger className="w-full h-10 text-xs border-muted-foreground/20 bg-transparent">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Filter className="h-3 w-3" />
+                            <span className="truncate max-w-[220px]">
+                              {Array.isArray(categoryFilter)
+                                ? categoryFilter.join(', ')
+                                : categoryFilter === 'all'
+                                  ? 'Filter op categorie...'
+                                  : categoryFilter}
+                            </span>
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Toon alles</SelectItem>
+                          {Array.isArray(categoryFilter) && (
+                            <SelectItem value="custom_filter" className="hidden">Geselecteerde Groep</SelectItem>
+                          )}
+                          {uniqueCategories.map(cat => (
+                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDisplayLimit(prev => prev + 50)}
-                      className="w-full text-muted-foreground"
+                      onClick={() => {
+                        setEditingMaterialId(null);
+                        setCustomNaam('');
+                        setCustomEenheid('');
+                        setCustomPrijs('');
+                        setCustomSubsectie('');
+                        setCustomLeverancier('');
+                        setStep('form');
+                      }}
+                      variant="outline"
+                      className="h-10 px-3 border-dashed border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:bg-muted/10 hover:border-emerald-500/50 shrink-0"
                     >
-                      <ChevronDown className="mr-2 h-4 w-4" />
-                      Meer laden
+                      <Plus className="mr-1.5 h-4 w-4" />
+                      Nieuw
                     </Button>
-                  </li>
+                  </div>
+                </div>
+
+                {availableSubCategories.length > 0 && (
+                  <div className="lg:hidden border-b border-border/60 px-2 py-2 overflow-x-auto">
+                    <div className="flex items-center gap-1.5 min-w-max">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSubCategoryFilter('all')}
+                          className={cn(
+                            "h-7 px-2 text-[11px] transition-colors",
+                            isAllSubCategoriesSelected
+                              ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400"
+                              : "border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                          )}
+                        >
+                          Alles
+                      </Button>
+                        {availableSubCategories.map((subCat) => (
+                          <Button
+                            key={subCat}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toggleSubCategorySelection(subCat)}
+                            className={cn(
+                              "h-7 px-2 text-[11px] max-w-full transition-colors",
+                              isSubCategorySelected(subCat)
+                                ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400"
+                                : "border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                            )}
+                        >
+                          <span className="truncate">{subCat}</span>
+                          <span className="ml-1 text-[10px] text-muted-foreground">
+                            {subCategoryCounts.get(subCat) || 0}
+                          </span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
-                {allFilteredMaterials.length === 0 && (
-                  <li className="p-8 text-center text-muted-foreground text-sm">
-                    Geen materialen gevonden.
-                  </li>
-                )}
-              </ul>
+                <div className="flex-1 overflow-y-auto">
+                  <ul className="divide-y divide-border">
+                    {visibleMaterials.map((mat) => (
+                      <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
+                        <div className="w-full flex items-stretch">
+
+                            {/* FAVORITE */}
+                            {showFavorites && (
+                              <div
+                                className="flex items-center justify-center px-4 border-r border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onToggleFavorite) onToggleFavorite(mat.id);
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  className="text-muted-foreground/30 hover:text-yellow-400 focus:outline-none transition-colors"
+                                >
+                                  <Star className={cn("h-4 w-4", mat.isFavorite ? "fill-yellow-400 text-yellow-400" : "")} />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* CONTENT */}
+                            <div
+                              className={cn(
+                                "flex-1 flex items-center justify-between gap-3 p-4 cursor-pointer transition-colors",
+                                mat.row_id === selectedMaterialId
+                                  ? "bg-emerald-500/10 hover:bg-emerald-500/20"
+                                  : "hover:bg-muted/50"
+                              )}
+                              onClick={() => handleSelectExisting(mat)}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className={cn(
+                                  "font-medium transition-colors break-words whitespace-normal text-sm",
+                                  mat.row_id === selectedMaterialId
+                                    ? "text-emerald-600"
+                                    : "text-foreground group-hover:text-emerald-600"
+                                )}>
+                                  {mat.materiaalnaam}
+                                  {mat.row_id === selectedMaterialId && (
+                                    <span className="ml-2 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                      Huidig
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0 flex items-center gap-3">
+                                <div className="flex flex-col items-end">
+                                  {(() => {
+                                    // Check multiple price fields (different data sources use different field names)
+                                    const prijsPerStuk = parsePriceToNumber(mat.prijs_per_stuk);
+                                    const prijsInclBtw = parsePriceToNumber((mat as any).prijs_incl_btw);
+                                    const prijs = parsePriceToNumber(mat.prijs);
+
+                                    // Use the first non-null price we find
+                                    const finalPrice = prijsPerStuk ?? prijsInclBtw ?? prijs;
+                                    const eenheid = mat.eenheid || 'stuk';
+
+                                    return (
+                                      <>
+                                        <div className="text-sm font-medium">
+                                          {formatEuro(finalPrice)}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground">
+                                          per {eenheid}
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground/50 hover:text-foreground hover:bg-muted"
+                                  onClick={(e) => startEditing(mat, e)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                      </li>
+                    ))}
+
+                    {visibleMaterials.length < allFilteredMaterials.length && (
+                      <li className="p-4 flex justify-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDisplayLimit(prev => prev + 50)}
+                          className="w-full text-muted-foreground"
+                        >
+                          <ChevronDown className="mr-2 h-4 w-4" />
+                          Meer laden
+                        </Button>
+                      </li>
+                    )}
+
+                    {allFilteredMaterials.length === 0 && (
+                      <li className="p-8 text-center text-muted-foreground text-sm">
+                        Geen materialen gevonden.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <DialogFooter className="border-t p-3 bg-muted/5 flex justify-between items-center sm:justify-between">
