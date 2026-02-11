@@ -455,10 +455,8 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 3. BEPLATING
-  { label: 'Constructieplaat (Zijde 1)', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat_1', category_ultra_filter: '' },
-  { label: 'Constructieplaat (Zijde 2)', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat_2', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_1', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating_2', category_ultra_filter: '' },
+  { label: 'Constructieplaat', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
 
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
@@ -950,7 +948,6 @@ const DAK_HELLEND_MATS: MaterialSection[] = [
   // 4. AFWERKING (Lood & HWA)
   { label: 'Lood', categoryFilter: 'Lood, Loodvervanger', category: 'afwerking_dak', key: 'lood', category_ultra_filter: '' },
   { label: 'Dakgoot', categoryFilter: 'Ubbink, Overig', category: 'afwerking_dak', key: 'dakgoot', category_ultra_filter: '' },
-  { label: 'Nokvorst Bevestiging', categoryFilter: 'Flexim, Daktoebehoren', category: 'afwerking_dak', key: 'nok_kit', category_ultra_filter: '' },
 
   // 5. BOEIBOORDEN
   { label: 'Boeiboord (Optie)', categoryFilter: 'Rockpanel, Trespa, Exterieur platen', category: 'boeiboord', key: 'boeiboord_placeholder', category_ultra_filter: '' },
@@ -1557,7 +1554,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }
       },
       {
-        title: 'Metalstud Wand',
+        title: 'Metalstud Voorzetwand',
         description: 'Enkelzijdig Bekleed',
         slug: 'metalstud-voorzetwand',
         measurementLabel: 'Wand',
@@ -1962,7 +1959,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
           { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
           { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
-          { key: 'latafstand', label: 'Panlatafstand (h.o.h.)', type: 'number', suffix: 'mm', placeholder: 'Berekend op basis dakpannen', group: 'spacing' },
+          { key: 'latafstand', label: 'Panlatafstand (h.o.h.)', type: 'number', suffix: 'mm', placeholder: 'Berekend op basis dakpannen', group: 'spacing', optional: true },
           { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }
         ],
         materialSections: DAK_HELLEND_MATS,

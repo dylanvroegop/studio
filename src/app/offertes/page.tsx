@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -120,16 +120,44 @@ function getTitel(q: QuoteRow): string {
 function getStatusMeta(
   status: Quote['status'] | undefined,
   isCalculated?: boolean
-): { label: string; className: string } {
-  const map: Record<string, { label: string; className: string }> = {
-    concept: { label: 'Concept', className: 'bg-zinc-800 text-zinc-200 border-zinc-700' },
+): { label: string; className: string; sideBorderClass: string } {
+  const map: Record<string, { label: string; className: string; sideBorderClass: string }> = {
+    concept: {
+      label: 'Concept',
+      className: 'bg-zinc-800 text-zinc-200 border-zinc-700',
+      sideBorderClass: 'border-l-zinc-500/70',
+    },
     in_behandeling: isCalculated
-      ? { label: 'Berekend', className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' }
-      : { label: 'Berekenen', className: 'bg-amber-500/10 text-amber-300 border-amber-500/30' },
-    verzonden: { label: 'Verzonden', className: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30' },
-    geaccepteerd: { label: 'Geaccepteerd', className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' },
-    afgewezen: { label: 'Afgewezen', className: 'bg-red-500/10 text-red-300 border-red-500/30' },
-    verlopen: { label: 'Verlopen', className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
+      ? {
+        label: 'Berekend',
+        className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+        sideBorderClass: 'border-l-emerald-500',
+      }
+      : {
+        label: 'Berekenen',
+        className: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+        sideBorderClass: 'border-l-amber-500',
+      },
+    verzonden: {
+      label: 'Verzonden',
+      className: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+      sideBorderClass: 'border-l-cyan-500',
+    },
+    geaccepteerd: {
+      label: 'Geaccepteerd',
+      className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+      sideBorderClass: 'border-l-emerald-500',
+    },
+    afgewezen: {
+      label: 'Afgewezen',
+      className: 'bg-red-500/10 text-red-300 border-red-500/30',
+      sideBorderClass: 'border-l-red-500',
+    },
+    verlopen: {
+      label: 'Verlopen',
+      className: 'bg-zinc-800 text-zinc-400 border-zinc-700',
+      sideBorderClass: 'border-l-zinc-700',
+    },
   };
 
   return map[status || 'concept'] || map.concept;
@@ -165,6 +193,7 @@ export default function OffertesPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creatingQuote, setCreatingQuote] = useState(false);
+  const creatingQuoteRef = useRef(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -278,7 +307,8 @@ export default function OffertesPage() {
   }, [clientSearch, clients]);
 
   async function handleCreateEmptyQuote(): Promise<void> {
-    if (!user || !firestore || creatingQuote) return;
+    if (!user || !firestore || creatingQuoteRef.current) return;
+    creatingQuoteRef.current = true;
     setCreatingQuote(true);
     try {
       const quoteId = await createEmptyQuote(firestore, user.uid);
@@ -290,6 +320,7 @@ export default function OffertesPage() {
       console.error(e);
       setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon geen offerte aanmaken.'}`);
     } finally {
+      creatingQuoteRef.current = false;
       setCreatingQuote(false);
     }
   }
@@ -612,15 +643,14 @@ export default function OffertesPage() {
                   const datum = q.updatedAtDate ?? q.createdAtDate;
                   const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : null;
                   const klant = getKlantNaam(q);
-                  const lopend = q.status === 'concept' || q.status === 'in_behandeling';
                   const isCalculating = q.status === 'in_behandeling' && !hasCalculated;
 
                   return (
                     <div
                       key={q.id}
                       className={cn(
-                        'group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both',
-                        lopend ? 'border-l-4 border-l-cyan-500' : ''
+                        'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both',
+                        statusMeta.sideBorderClass
                       )}
                     >
                       <Link href={`/offertes/${q.id}`} className="absolute inset-0 z-0" />

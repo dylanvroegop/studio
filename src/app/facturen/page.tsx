@@ -55,6 +55,18 @@ function formatCurrency(amount?: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
+function getInvoiceSideBorderClass(status: Invoice['status']): string {
+  const map: Record<Invoice['status'], string> = {
+    concept: 'border-l-zinc-500/70',
+    verzonden: 'border-l-emerald-500',
+    gedeeltelijk_betaald: 'border-l-amber-500',
+    betaald: 'border-l-emerald-400',
+    geannuleerd: 'border-l-red-500',
+  };
+
+  return map[status] || map.concept;
+}
+
 export default function FacturenPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
@@ -374,17 +386,14 @@ export default function FacturenPage() {
                   inv.sourceQuote?.projectAdresSnapshot?.adres ||
                   inv.sourceQuote?.klantSnapshot?.adres ||
                   '—';
-                const lopend =
-                  inv.status !== 'betaald' &&
-                  inv.status !== 'geannuleerd' &&
-                  (open ?? 0) > 0;
+                const sideBorderClass = getInvoiceSideBorderClass(inv.status);
 
                 return (
                   <div
                     key={inv.id}
                     className={cn(
-                      "group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
-                      lopend ? "border-l-4 border-l-emerald-500" : ""
+                      "group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
+                      sideBorderClass
                     )}
                   >
                     <Link href={`/facturen/${inv.id}`} className="absolute inset-0 z-0" />

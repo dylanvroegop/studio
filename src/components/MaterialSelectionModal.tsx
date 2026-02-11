@@ -122,6 +122,7 @@ function InputMetSuffix(props: {
 // ==========================================
 
 const EENHEDEN: string[] = ['m1', 'm2', 'p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set', 'koker', 'zak'];
+const FAVORITE_SUBCATEGORY_FILTER = '__favorites__';
 
 
 export type ExistingMaterial = {
@@ -490,10 +491,16 @@ export function MaterialSelectionModal({
     return counts;
   }, [materialsAfterCategoryFilter]);
 
+  const favoriteMaterialsCount = useMemo(() => {
+    return materialsAfterCategoryFilter.filter((m) => m.isFavorite).length;
+  }, [materialsAfterCategoryFilter]);
+
   useEffect(() => {
     if (subCategoryFilter === 'all') return;
     if (!Array.isArray(subCategoryFilter)) return;
-    const valid = subCategoryFilter.filter((subCat) => availableSubCategories.includes(subCat));
+    const valid = subCategoryFilter.filter((subCat) => (
+      subCat === FAVORITE_SUBCATEGORY_FILTER || availableSubCategories.includes(subCat)
+    ));
     if (valid.length !== subCategoryFilter.length) {
       setSubCategoryFilter(valid.length > 0 ? valid : 'all');
     }
@@ -526,18 +533,31 @@ export function MaterialSelectionModal({
       const selectedSubCategories = Array.isArray(subCategoryFilter)
         ? subCategoryFilter
         : [subCategoryFilter];
-      const lowerSubCategories = selectedSubCategories
+      const shouldFilterFavorites = selectedSubCategories.includes(FAVORITE_SUBCATEGORY_FILTER);
+      const regularSubCategories = selectedSubCategories.filter(
+        (subCategory) => subCategory !== FAVORITE_SUBCATEGORY_FILTER
+      );
+      const lowerSubCategories = regularSubCategories
         .map(normalizeFilterValue)
         .filter(Boolean);
-      if (lowerSubCategories.length > 0) {
+
+      if (shouldFilterFavorites || lowerSubCategories.length > 0) {
         result = result.filter((m) => {
-          const matSubCategory = normalizeFilterValue(getMaterialSubCategory(m));
-          if (!matSubCategory) return false;
-          return lowerSubCategories.some((lowerSubCategory) => (
-            matSubCategory === lowerSubCategory ||
-            matSubCategory.includes(lowerSubCategory) ||
-            lowerSubCategory.includes(matSubCategory)
-          ));
+          const matchesFavorite = shouldFilterFavorites && Boolean(m.isFavorite);
+
+          const matchesSubCategory = lowerSubCategories.length > 0
+            ? (() => {
+              const matSubCategory = normalizeFilterValue(getMaterialSubCategory(m));
+              if (!matSubCategory) return false;
+              return lowerSubCategories.some((lowerSubCategory) => (
+                matSubCategory === lowerSubCategory ||
+                matSubCategory.includes(lowerSubCategory) ||
+                lowerSubCategory.includes(matSubCategory)
+              ));
+            })()
+            : false;
+
+          return matchesFavorite || matchesSubCategory;
         });
       }
     }
@@ -845,6 +865,22 @@ export function MaterialSelectionModal({
                     <span>Alles</span>
                     <span className="text-[10px] opacity-70">{materialsAfterCategoryFilter.length}</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSubCategorySelection(FAVORITE_SUBCATEGORY_FILTER)}
+                    className={cn(
+                      "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                      isSubCategorySelected(FAVORITE_SUBCATEGORY_FILTER)
+                        ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                        : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                      Favorieten
+                    </span>
+                    <span className="text-[10px] opacity-70">{favoriteMaterialsCount}</span>
+                  </button>
                   {availableSubCategories.map((subCat) => {
                     const isFavoriteSubCategory = favoriteSubCategories.includes(subCat);
                     return (
@@ -1019,6 +1055,24 @@ export function MaterialSelectionModal({
                         >
                           Alles
                       </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleSubCategorySelection(FAVORITE_SUBCATEGORY_FILTER)}
+                          className={cn(
+                            "h-7 px-2 text-[11px] transition-colors",
+                            isSubCategorySelected(FAVORITE_SUBCATEGORY_FILTER)
+                              ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400"
+                              : "border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                          )}
+                        >
+                          <Star className="mr-1 h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          Favorieten
+                          <span className="ml-1 text-[10px] text-muted-foreground">
+                            {favoriteMaterialsCount}
+                          </span>
+                        </Button>
                         {availableSubCategories.map((subCat) => (
                           <Button
                             key={subCat}

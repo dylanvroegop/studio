@@ -35,6 +35,7 @@ import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { parsePriceToNumber } from '@/lib/utils';
 
 import { Quote } from "@/lib/types";
 
@@ -204,10 +205,11 @@ export default function QuotePage() {
                     const materialenData = (json.data || []).map((m: any) => ({
                         ...m,
                         id: m.row_id || m.id,
-                        // API already normalizes prijs to use prijs_incl_btw, so just use it directly
-                        prijs: m.prijs ?? 0,
-                        prijs_per_stuk: m.prijs ?? 0,
-                        prijs_incl_btw: m.prijs_incl_btw ?? m.prijs ?? 0,
+                        // In offertes we treat row/unit price as EXCL. BTW.
+                        prijs: parsePriceToNumber(m.prijs_excl_btw) ?? Number((((parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? 0) / 1.21)).toFixed(2)),
+                        prijs_per_stuk: parsePriceToNumber(m.prijs_excl_btw) ?? Number((((parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? 0) / 1.21)).toFixed(2)),
+                        prijs_excl_btw: parsePriceToNumber(m.prijs_excl_btw) ?? null,
+                        prijs_incl_btw: parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? null,
                         // Standardization for the modal
                         materiaalnaam: m.materiaalnaam || m.naam,
                         categorie: m.categorie || m.subsectie || 'Overig',

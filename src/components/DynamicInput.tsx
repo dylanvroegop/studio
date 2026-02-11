@@ -31,7 +31,7 @@ export function DynamicInput({
         <div className={cn("space-y-2", className)}>
             <Label htmlFor={field.key} className={labelClassName}>
                 {labelOverride ?? field.label}
-                {field.type === 'number' && !field.optional && ' *'}
+                {field.type === 'number' && !field.optional && '\u00A0*'}
             </Label>
 
             {field.type === 'textarea' ? (

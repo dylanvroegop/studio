@@ -1507,7 +1507,7 @@
         "prijs_incl_21%_btw": "€ 17.04 per zak",
         "id": "c18lv3",
         "order_id": 154,
-        "sub_categorie": "Bitumen golfplaten"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Golfplaten",
@@ -1562,7 +1562,7 @@
         "prijs_incl_21%_btw": "€ 0,00",
         "id": "PH-2512-12",
         "order_id": 1606,
-        "sub_categorie": "Brandwerend"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Brandwerende platen",
@@ -3066,7 +3066,7 @@
         "prijs_incl_21%_btw": "€ 17.91 per stuk",
         "id": "mV7wwq",
         "order_id": 307,
-        "sub_categorie": "Epdm afvoeren"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Epdm",
@@ -3751,7 +3751,7 @@
         "prijs_incl_21%_btw": "€ 19.24 per rol",
         "id": "nZhzEH",
         "order_id": 370,
-        "sub_categorie": "Eps"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Isolatie",
@@ -3865,7 +3865,7 @@
         "prijs_incl_21%_btw": "€ 0,00",
         "id": "bb-db-12",
         "order_id": 1500,
-        "sub_categorie": "Bekistingsplaat"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Exterieur platen",
@@ -3964,7 +3964,7 @@
         "prijs_incl_21%_btw": "€ 0,00",
         "id": "bw-185-18",
         "order_id": 1509,
-        "sub_categorie": "Boeideel"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Boeideelen",
@@ -5295,6 +5295,17 @@
     },
     {
         "categorie": "Folieën",
+        "materiaalnaam": "Taftex EX-150 damp-open folie spinvlies 1500mm 50m",
+        "type": "EX-150",
+        "breedte": "1500mm",
+        "lengte": "50m",
+        "prijs_incl_21%_btw": "€ 333,05 per stuk",
+        "id": "TfEx15",
+        "order_id": 1691,
+        "sub_categorie": "Dampopen"
+    },
+    {
+        "categorie": "Folieën",
         "materiaalnaam": "PrimaCover Evapo Damp-open 25x1m",
         "breedte": "1 meter",
         "lengte": "25 meter",
@@ -5429,7 +5440,7 @@
         "prijs_incl_21%_btw": "€ 0,00",
         "id": "MO-BS-HV",
         "order_id": 1647,
-        "sub_categorie": "Vorsten"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Dakpannen",
@@ -7587,7 +7598,7 @@
         "prijs_incl_21%_btw": "€ 808.28 per stuk",
         "id": "exfMRl",
         "order_id": 715,
-        "sub_categorie": "Keylite"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Dakramen",
@@ -8599,7 +8610,7 @@
         "prijs_incl_21%_btw": "€ 349.80 per stuk",
         "id": "zK7ueJ",
         "order_id": 808,
-        "sub_categorie": "Ki-kern"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Trespa",
@@ -9029,7 +9040,7 @@
         "prijs_incl_21%_btw": "€ 105.71 per stuk",
         "id": "njD35y",
         "order_id": 854,
-        "sub_categorie": "Merantie"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Merantie",
@@ -9369,7 +9380,7 @@
         "prijs_incl_21%_btw": "€ 0,00",
         "id": "o7WwxC",
         "order_id": 886,
-        "sub_categorie": "Toebehoren"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Metalstud profielen",
@@ -13234,6 +13245,18 @@
     },
     {
         "categorie": "Vuren hout",
+        "materiaalnaam": "Panlat 25x42mm 4500mm lang (Netto 24,5x38)",
+        "dikte": "25mm",
+        "breedte": "42mm",
+        "lengte": "450cm",
+        "netto_maat": "24,5x38",
+        "prijs_incl_21%_btw": "€ 3.79 per stuk",
+        "id": "K4nP8m",
+        "order_id": 1690,
+        "sub_categorie": "Panlat"
+    },
+    {
+        "categorie": "Vuren hout",
         "materiaalnaam": "Vuren Ribben 44x44mm 3000mm lang",
         "dikte": "44mm",
         "breedte": "44mm",
@@ -13338,7 +13361,7 @@
         "prijs_incl_21%_btw": "€ 78.64 per stuk",
         "id": "LHSvW3",
         "order_id": 1253,
-        "sub_categorie": "Kantenlak"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Rockpanel",
@@ -14341,7 +14364,7 @@
         "prijs_incl_21%_btw": "€ 55.03 per rol",
         "id": "CNm26d",
         "order_id": 1343,
-        "sub_categorie": "Overig"
+        "sub_categorie": "Ondervorst"
     },
     {
         "categorie": "Ubbink",
@@ -14386,7 +14409,7 @@
         "prijs_incl_21%_btw": "€ 14.02 per stuk",
         "id": "enlJnF",
         "order_id": 1347,
-        "sub_categorie": "Overig"
+        "sub_categorie": "Ondervorst"
     },
     {
         "categorie": "Ubbink",
@@ -14398,7 +14421,7 @@
         "prijs_incl_21%_btw": "€ 14.27 per stuk",
         "id": "tKCI2F",
         "order_id": 1348,
-        "sub_categorie": "Overig"
+        "sub_categorie": "Ondervorst"
     },
     {
         "categorie": "Ubbink",
@@ -15868,7 +15891,7 @@
         "prijs_incl_21%_btw": "€ 5.03 per stuk",
         "id": "6nbB8S",
         "order_id": 1465,
-        "sub_categorie": "Toebehoren"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Vensterbanken",
@@ -17212,7 +17235,7 @@
         "prijs_incl_21%_btw": "€ 2.72 per stuk",
         "id": "1SON4L",
         "order_id": 1588,
-        "sub_categorie": "Balken"
+        "sub_categorie": "Piket"
     },
     {
         "categorie": "Vuren hout",
@@ -17223,7 +17246,7 @@
         "prijs_incl_21%_btw": "€ 4.09 per stuk",
         "id": "jQCELo",
         "order_id": 1589,
-        "sub_categorie": "Balken"
+        "sub_categorie": "Piket"
     },
     {
         "categorie": "Vuren hout",
@@ -17804,10 +17827,10 @@
         "dikte": "75mm",
         "breedte": "75mm",
         "lengte": "450cm",
-        "prijs_incl_21%_btw": "€ 16.29 per stuk",
+        "prijs_incl_21%_btw": "€ 0.00 per stuk",
         "id": "u7XrCN",
         "order_id": 1638,
-        "sub_categorie": "Balken"
+        "sub_categorie": "Overig"
     },
     {
         "categorie": "Vuren hout",

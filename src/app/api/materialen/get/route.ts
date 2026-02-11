@@ -36,8 +36,9 @@ export async function GET(req: Request) {
     const normalized = Array.isArray(data)
       ? data.map((row: any) => ({
           ...row,
-          // Prioritize prijs_incl_btw since that's what we're actively updating
-          prijs: row?.prijs_incl_btw ?? row?.prijs ?? null,
+          // `prijs` is used as fallback unit price in multiple UIs; keep it EXCL by default.
+          prijs: row?.prijs_excl_btw ?? row?.prijs_incl_btw ?? row?.prijs ?? null,
+          prijs_excl_btw: row?.prijs_excl_btw ?? null,
           prijs_incl_btw: row?.prijs_incl_btw ?? null,
           subsectie: row?.subsectie ?? row?.categorie ?? null,
         }))

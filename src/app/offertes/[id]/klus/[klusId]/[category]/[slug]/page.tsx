@@ -327,6 +327,7 @@ export default function GenericMeasurementPage() {
   );
   const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
+  const isHellendDak = !!jobSlug && jobSlug.includes('hellend-dak');
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
   const isVoorzetwandParity = !!jobSlug && (jobSlug.includes('hsb-voorzetwand') || jobSlug.includes('metalstud-voorzetwand'));
   const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
@@ -1014,7 +1015,7 @@ export default function GenericMeasurementPage() {
               }
 
               // Initialize/remove arrays based on job config
-              let normalizedItem = sanitizeItemBySections(item);
+              const normalizedItem = sanitizeItemBySections(item);
 
 
               // Data Migration for HSB Voorzetwand
@@ -1668,12 +1669,32 @@ export default function GenericMeasurementPage() {
     e.preventDefault();
     if (!firestore || !jobConfig) return;
 
+    const hasValue = (val: unknown) => val !== undefined && val !== null && String(val).trim() !== '';
+    const isEitherOrHellendDakField = (fieldKey: string) =>
+      isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'lengte', 'hoogte'].includes(fieldKey);
+
     const hasEmptyFields = items.some(item =>
-      fields.some(f => f.type === 'number' && !f.optional && !item[f.key])
+      fields.some(f => {
+        if (f.type !== 'number' || f.optional) return false;
+        if (isEitherOrHellendDakField(f.key)) return false;
+        return !hasValue(item[f.key]);
+      })
     );
 
-    if (hasEmptyFields) {
-      toast({ variant: "destructive", title: "Ontbrekende gegevens", description: "Vul a.u.b. alle verplichte velden in." });
+    const hasInvalidHellendDakEitherOr = isHellendDak && items.some(item => {
+      const hasPannenMaten = hasValue(item.aantal_pannen_breedte) && hasValue(item.aantal_pannen_hoogte);
+      const hasMmMaten = hasValue(item.lengte) && hasValue(item.hoogte);
+      return !hasPannenMaten && !hasMmMaten;
+    });
+
+    if (hasEmptyFields || hasInvalidHellendDakEitherOr) {
+      toast({
+        variant: "destructive",
+        title: "Ontbrekende gegevens",
+        description: hasInvalidHellendDakEitherOr
+          ? "Vul óf beide pannen-aantallen in, óf zowel Lengte als Breedte."
+          : "Vul a.u.b. alle verplichte velden in."
+      });
       return;
     }
 
@@ -2195,21 +2216,33 @@ export default function GenericMeasurementPage() {
                         const fLengte = fields.find(f => f.key === 'lengte');
                         const fHoogte = fields.find(f => f.key === 'hoogte');
                         const fBreedte = fields.find(f => f.key === 'breedte');
+                        const fAantalPannenBreedte = fields.find(f => f.key === 'aantal_pannen_breedte');
+                        const fAantalPannenHoogte = fields.find(f => f.key === 'aantal_pannen_hoogte');
 
                         const showLengte = !!fLengte;
                         const showHoogte = shape === 'rectangle' && !!fHoogte;
                         const showBreedte = shape === 'rectangle' && !!fBreedte;
 
-                        const useSideBySideLengteHoogte = isVoorzetwandParity && showLengte && showHoogte;
+                        const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak) && showLengte && showHoogte;
+                        const useSideBySidePannenAfmetingen = isHellendDak && !!fAantalPannenBreedte && !!fAantalPannenHoogte;
 
                         return (
                           <div className="space-y-4">
                             {/* Roof Tile Specific Fields */}
-                            {fields.find(f => f.key === 'aantal_pannen_breedte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_breedte')!} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                            )}
-                            {fields.find(f => f.key === 'aantal_pannen_hoogte') && (
-                              <DynamicInput field={fields.find(f => f.key === 'aantal_pannen_hoogte')!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            {useSideBySidePannenAfmetingen ? (
+                              <div className="grid grid-cols-2 gap-3 items-end">
+                                <DynamicInput field={fAantalPannenBreedte!} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                <DynamicInput field={fAantalPannenHoogte!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              </div>
+                            ) : (
+                              <>
+                                {fAantalPannenBreedte && (
+                                  <DynamicInput field={fAantalPannenBreedte} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                )}
+                                {fAantalPannenHoogte && (
+                                  <DynamicInput field={fAantalPannenHoogte} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                )}
+                              </>
                             )}
 
                             {useSideBySideLengteHoogte ? (
@@ -2219,6 +2252,24 @@ export default function GenericMeasurementPage() {
                               </div>
                             ) : showLengte && (
                               <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            )}
+
+                            {isHellendDak && (
+                              <div className="space-y-2">
+                                <Label className="text-xs">Spiegeling</Label>
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(index, 'hellend_dak_mirror', !item.hellend_dak_mirror)}
+                                  className={cn(
+                                    "w-full text-xs py-1.5 rounded transition-colors border border-white/10",
+                                    item.hellend_dak_mirror
+                                      ? "bg-emerald-500/20 text-emerald-400"
+                                      : "bg-black/20 text-zinc-500 hover:text-zinc-300"
+                                  )}
+                                >
+                                  Dubbel gespiegeld (2x)
+                                </button>
+                              </div>
                             )}
 
                             {!useSideBySideLengteHoogte && showLengte && (showHoogte || showBreedte) && (

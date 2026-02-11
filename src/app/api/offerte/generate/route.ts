@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
-import { removeEmptyFields } from '@/lib/utils';
+import { parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { JOB_REGISTRY } from '@/lib/job-registry';
 
@@ -238,18 +238,25 @@ export async function POST(req: Request) {
     try {
       // ─── 1. Collect ALL Material IDs from every source ───
       const materialIdsToBeFetched = new Set<string>();
+      const getMaterialLookupId = (material: any): string | null => {
+        const id = material?.id ?? material?.row_id ?? material?.material_ref_id;
+        if (id === undefined || id === null || id === '') return null;
+        return String(id);
+      };
       if (quote.klussen) {
         Object.values(quote.klussen).forEach((job: any) => {
           // From legacy selections
           if (job?.materialen?.selections) {
             Object.values(job.materialen.selections).forEach((sel: any) => {
-              if (sel?.id) materialIdsToBeFetched.add(sel.id);
+              const selectionId = getMaterialLookupId(sel);
+              if (selectionId) materialIdsToBeFetched.add(selectionId);
             });
           }
           // From new materialen_lijst
           if (job?.materialen?.materialen_lijst) {
             Object.values(job.materialen.materialen_lijst).forEach((entry: any) => {
-              if (entry?.material?.id) materialIdsToBeFetched.add(entry.material.id);
+              const materialId = getMaterialLookupId(entry?.material);
+              if (materialId) materialIdsToBeFetched.add(materialId);
             });
           }
           // Component materials are already included in materialen_lijst with comp_ prefix keys
@@ -273,14 +280,16 @@ export async function POST(req: Request) {
 
           if (!error && materials) {
             materials.forEach((m: any) => {
-              const rawPrijs = m.prijs ?? m.prijs_incl_btw;
-              const pr = typeof rawPrijs === 'number' ? rawPrijs : Number(rawPrijs);
-              const prStuk = typeof m.prijs_per_stuk === 'number' ? m.prijs_per_stuk : Number(m.prijs_per_stuk);
-              materialMap.set(m.row_id, {
+              const incl = parsePriceToNumber(m.prijs_incl_btw ?? m.prijs);
+              const excl = parsePriceToNumber(m.prijs_excl_btw) ?? (incl != null ? Number((incl / 1.21).toFixed(2)) : 0);
+              materialMap.set(String(m.row_id), {
                 ...m,
                 subsectie: m.subsectie ?? m.categorie ?? null,
-                prijs: isNaN(pr) ? 0 : pr,
-                prijs_per_stuk: isNaN(prStuk) ? 0 : prStuk
+                prijs_excl_btw: excl,
+                prijs_incl_btw: incl ?? Number((excl * 1.21).toFixed(2)),
+                // Backwards compatibility for n8n flow: these are used as unit price in calculations.
+                prijs: excl,
+                prijs_per_stuk: excl,
               });
             });
           }
@@ -337,8 +346,10 @@ export async function POST(req: Request) {
       // ─── Helper: Enrich a single material entry with Supabase data ───
       const enrichMaterial = (entry: any) => {
         const mat = entry?.material;
-        if (mat?.id && materialMap.has(mat.id)) {
-          const full = materialMap.get(mat.id);
+        const materialLookupId = getMaterialLookupId(mat);
+        if (materialLookupId && materialMap.has(materialLookupId)) {
+          const full = materialMap.get(materialLookupId);
+          // Keep entry-level metadata (rule, rule_meta, context, wastePercentage, etc.) intact.
           return {
             ...entry,
             material: {
@@ -462,8 +473,9 @@ export async function POST(req: Request) {
             // B2. Fallback: legacy selections (if materialen_lijst is empty)
             if (Object.keys(normalizedMaterialenLijst).length === 0 && enrichedJob.materialen?.selections) {
               Object.entries(enrichedJob.materialen.selections).forEach(([slotKey, sel]: [string, any]) => {
-                if (!sel?.id) return;
-                const full = materialMap.get(sel.id);
+                const selectionId = getMaterialLookupId(sel);
+                if (!selectionId) return;
+                const full = materialMap.get(selectionId);
                 if (full) {
                   normalizedMaterialenLijst[slotKey] = {
                     material: {

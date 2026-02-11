@@ -404,6 +404,7 @@ interface OverzichtSectionProps {
   isCollapsed: boolean;
   onToggle: () => void;
   onSettings?: () => void;
+  collapsedSummary?: React.ReactNode;
   children: React.ReactNode;
   color?: string;
   className?: string;
@@ -414,6 +415,7 @@ function OverzichtSection({
   isCollapsed,
   onToggle,
   onSettings,
+  collapsedSummary,
   children,
   color = "#10b981", // Emerald-500 default "green thing"
   className
@@ -425,8 +427,9 @@ function OverzichtSection({
         className="flex items-center justify-between px-3 py-3 hover:bg-white/5 active:bg-white/10 rounded-lg cursor-pointer transition-all group select-none border-l-2 border-b border-b-white/5 min-h-[44px]"
         style={{ borderLeftColor: color }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex flex-1 min-w-0 items-center gap-2 flex-wrap pr-2">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">{title}</h2>
+          {isCollapsed ? collapsedSummary : null}
         </div>
 
         <div className="flex items-center gap-1">
@@ -457,6 +460,25 @@ function OverzichtSection({
         </div>
       )}
     </div>
+  );
+}
+
+function CollapsedInfoChip({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-medium normal-case tracking-normal truncate max-w-[220px] animate-in fade-in slide-in-from-left-2',
+        className
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -944,6 +966,47 @@ export default function OverzichtPage() {
     if (!stats.winstMargeIsValid) return 'error';
     return 'success';
   }, [stats]);
+
+  const bouwplaatsCollapsedLabels = useMemo(() => {
+    const items = (buildBouwplaatsSparse() ?? []) as Array<{
+      naam: string;
+      prijs: number;
+      per: BouwplaatsPer;
+    }>;
+
+    return items.map((item) => {
+      const prijsLabel = numberToEuroInputString(item.prijs) || '0';
+      return `${item.naam} € ${prijsLabel}/${item.per}`;
+    });
+  }, [bouwplaatskosten]);
+
+  const transportCollapsedLabel = useMemo(() => {
+    if (transportMode === 'none') return 'Ingesteld: Geen';
+    if (!transportIsValid) return null;
+    const tunnelLabel = tunnelkosten ? ` + tunnel € ${tunnelkosten}` : '';
+    if (transportMode === 'perKm') return `Ingesteld: € ${prijsPerKm || '—'} / km${tunnelLabel}`;
+    return `Ingesteld: € ${vasteTransportkosten || '—'} (vast)${tunnelLabel}`;
+  }, [transportMode, transportIsValid, prijsPerKm, vasteTransportkosten, tunnelkosten]);
+
+  const uurTariefCollapsedLabel = useMemo(() => {
+    const n = euroNLToNumberOrNull(uurTarief);
+    if (n === null || n <= 0) return null;
+    return `€ ${numberToEuroInputString(n)} / uur (excl. btw)`;
+  }, [uurTarief]);
+
+  const winstCollapsedLabel = useMemo(() => {
+    if (winstMode === 'none') return 'Ingesteld: Geen';
+    if (!winstMargeIsValid) return null;
+    if (winstMode === 'percentage') {
+      const basisMap: Record<WinstMargeState['basis'], string> = {
+        totaal: 'totaal',
+        materialen: 'materialen',
+        materialen_arbeid: 'materialen + arbeid',
+      };
+      return `${winstMarge.percentage}% over ${basisMap[winstMarge.basis]}`;
+    }
+    return `€ ${numberToEuroInputString(winstMarge.fixedAmount)} (vast)`;
+  }, [winstMode, winstMarge, winstMargeIsValid]);
 
   /* ---------------------------------------------
    Sparse payload builders (quote extras)
@@ -2360,6 +2423,18 @@ export default function OverzichtPage() {
               isCollapsed={!!collapsedSections['bouwplaats']}
               onToggle={() => toggleSection('bouwplaats')}
               onSettings={() => setBouwplaatsBeheerOpen(true)}
+              collapsedSummary={
+                bouwplaatsCollapsedLabels.length > 0 ? (
+                  <>
+                    {bouwplaatsCollapsedLabels.slice(0, 2).map((label, idx) => (
+                      <CollapsedInfoChip key={`${label}-${idx}`}>{label}</CollapsedInfoChip>
+                    ))}
+                    {bouwplaatsCollapsedLabels.length > 2 && (
+                      <CollapsedInfoChip>{`+${bouwplaatsCollapsedLabels.length - 2}`}</CollapsedInfoChip>
+                    )}
+                  </>
+                ) : null
+              }
             >
               <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
                 {/* Werkpakket Selector */}
@@ -2490,6 +2565,11 @@ export default function OverzichtPage() {
               isCollapsed={!!collapsedSections['transport']}
               onToggle={() => toggleSection('transport')}
               onSettings={() => setTransportInstellingenOpen(true)}
+              collapsedSummary={
+                transportCollapsedLabel ? (
+                  <CollapsedInfoChip>{transportCollapsedLabel}</CollapsedInfoChip>
+                ) : null
+              }
             >
               <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
                 <SegmentedToggle
@@ -2566,6 +2646,11 @@ export default function OverzichtPage() {
               isCollapsed={!!collapsedSections['uurtarief']}
               onToggle={() => toggleSection('uurtarief')}
               onSettings={() => setUurTariefInstellingenOpen(true)}
+              collapsedSummary={
+                uurTariefCollapsedLabel ? (
+                  <CollapsedInfoChip>{uurTariefCollapsedLabel}</CollapsedInfoChip>
+                ) : null
+              }
             >
               <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
                 <div className="flex items-center gap-4">
@@ -2595,6 +2680,11 @@ export default function OverzichtPage() {
               isCollapsed={!!collapsedSections['winstmarge']}
               onToggle={() => toggleSection('winstmarge')}
               onSettings={() => setWinstInstellingenOpen(true)}
+              collapsedSummary={
+                winstCollapsedLabel ? (
+                  <CollapsedInfoChip>{winstCollapsedLabel}</CollapsedInfoChip>
+                ) : null
+              }
             >
               <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
                 <SegmentedToggle

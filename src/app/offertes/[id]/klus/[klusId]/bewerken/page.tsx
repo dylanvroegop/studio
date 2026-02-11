@@ -27,7 +27,7 @@ import type { MaterialUnit, MaterialCategory } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const subcategories: Record<string, string[]> = {
-    Wanden: ["HSB Tussenwand", "Metalstud Wand", "Binnenwand Massief"],
+    Wanden: ["HSB Tussenwand", "Metalstud Voorzetwand", "Binnenwand Massief"],
     Plafonds: ["Gipsplaten plafond", "Systeemplafond", "Houten rachelwerk"],
     Daken: ["EPDM Dakbedekking", "Pannendak", "Bitumen dak"],
     default: ["Standaard"]

@@ -70,6 +70,7 @@ import {
 } from '@/components/ui/select';
 
 import { cn } from '@/lib/utils';
+import { getMaterialRule, KLUS_REGELS_STATIC_VERSION } from '@/lib/klus-regels-static';
 import { useUser, useFirestore } from '@/firebase';
 
 import {
@@ -891,7 +892,7 @@ export default function GenericMaterialsPageRedesigned() {
     if (!slots) return slots;
     const next = { ...slots };
 
-    const isVoorzetwand = currentJobType === 'hsb-voorzetwand';
+    const isVoorzetwand = currentJobType === 'hsb-voorzetwand' || currentJobType === 'metalstud-voorzetwand';
     const isTussenwand = currentJobType === 'hsb-tussenwand';
 
     if (isTussenwand) {
@@ -907,9 +908,17 @@ export default function GenericMaterialsPageRedesigned() {
         if (fallback) next.constructieplaat = fallback;
       }
       if (!slots.afwerkplaat) {
-        const fallback = slots.afwerkplaat_1 || slots.afwerkplaat_2;
+        const fallback = slots.afwerkplaat_1 || slots.afwerkplaat_2 || slots.beplating_1 || slots.beplating_2 || slots.beplating;
         if (fallback) next.afwerkplaat = fallback;
       }
+
+      delete next.constructieplaat_1;
+      delete next.constructieplaat_2;
+      delete next.afwerkplaat_1;
+      delete next.afwerkplaat_2;
+      delete next.beplating_1;
+      delete next.beplating_2;
+      delete next.beplating;
     }
 
     return next;
@@ -918,7 +927,7 @@ export default function GenericMaterialsPageRedesigned() {
   const normalizeSelectedMaterialsForJob = useCallback((selected: Record<string, any>, currentJobType: string) => {
     const next = { ...selected };
 
-    const isVoorzetwand = currentJobType === 'hsb-voorzetwand';
+    const isVoorzetwand = currentJobType === 'hsb-voorzetwand' || currentJobType === 'metalstud-voorzetwand';
     const isTussenwand = currentJobType === 'hsb-tussenwand';
 
     if (isTussenwand) {
@@ -935,7 +944,15 @@ export default function GenericMaterialsPageRedesigned() {
 
     if (isVoorzetwand) {
       if (!next.constructieplaat) next.constructieplaat = next.constructieplaat_1 || next.constructieplaat_2;
-      if (!next.afwerkplaat) next.afwerkplaat = next.afwerkplaat_1 || next.afwerkplaat_2;
+      if (!next.afwerkplaat) next.afwerkplaat = next.afwerkplaat_1 || next.afwerkplaat_2 || next.beplating_1 || next.beplating_2 || next.beplating;
+
+      delete next.constructieplaat_1;
+      delete next.constructieplaat_2;
+      delete next.afwerkplaat_1;
+      delete next.afwerkplaat_2;
+      delete next.beplating_1;
+      delete next.beplating_2;
+      delete next.beplating;
     }
 
     return next;
@@ -1502,9 +1519,9 @@ export default function GenericMaterialsPageRedesigned() {
         ...m, // Keep all raw fields
         _raw: m, // Store exact raw object for pristine saving
         id: m.row_id || m.id,
-        // Map keys to match UI expectations while keeping originals
-        prijs: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : (parseNLMoneyToNumber(m.prijs || m.prijs_incl_btw) || 0)),
-        prijs_per_stuk: typeof m.prijs === 'number' ? m.prijs : (typeof m.prijs_incl_btw === 'number' ? m.prijs_incl_btw : (parseNLMoneyToNumber(m.prijs || m.prijs_incl_btw) || 0)),
+        // In de offerte-flow is prijs_per_stuk excl. btw.
+        prijs: parseNLMoneyToNumber(m.prijs_excl_btw) || Number(((parseNLMoneyToNumber(m.prijs_incl_btw ?? m.prijs) || 0) / 1.21).toFixed(2)),
+        prijs_per_stuk: parseNLMoneyToNumber(m.prijs_excl_btw) || Number(((parseNLMoneyToNumber(m.prijs_incl_btw ?? m.prijs) || 0) / 1.21).toFixed(2)),
         // Map standard keys for UI filtering
         categorie: m.categorie || m.subsectie || 'Overig',
         subsectie: m.subsectie || m.categorie || 'Overig',
@@ -1788,7 +1805,7 @@ export default function GenericMaterialsPageRedesigned() {
             });
           }
 
-          setGekozenMaterialen(newGekozen);
+          setGekozenMaterialen(normalizeSelectedMaterialsForJob(newGekozen, jobSlug));
           setFirestoreCustommateriaal(newCustomGroupsMap);
           setWasteByEntryKey(newWasteByEntryKey);
           // Only mark as having saved config if there's actual data
@@ -1849,7 +1866,7 @@ export default function GenericMaterialsPageRedesigned() {
       finally { setPaginaLaden(false); }
     };
     hydrate();
-  }, [firestore, quoteId, klusId, jobSlug]);
+  }, [firestore, quoteId, klusId, jobSlug, normalizeSelectedMaterialsForJob]);
 
   // Full Object Mapping
   useEffect(() => {
@@ -2621,10 +2638,33 @@ export default function GenericMaterialsPageRedesigned() {
         ? updatedMaatwerkData.items
         : ((klus as any)?.[maatwerkKey] || (klus as any)?.maatwerk?.basis || (klus as any)?.maatwerk?.items || []);
 
-      // Check if any item has the mirror flag (2x calculation)
+      // Check if any item has a mirror flag (2x calculation)
       const isBoeiboordMirrored = Array.isArray(baseItems) && baseItems.some((bi: any) => bi?.boeiboord_mirror === true);
+      const isHellendDakMirrored = Array.isArray(baseItems) && baseItems.some((bi: any) => bi?.hellend_dak_mirror === true);
+      const shouldApplyDoubleQuantity = isBoeiboordMirrored || isHellendDakMirrored;
 
       const materialenLijst: Record<string, any> = {};
+
+      const fallbackRuleAttachment = (sectionKey?: string | null) => ({
+        rule: null,
+        rule_meta: {
+          source: 'static_file' as const,
+          slug: jobSlug,
+          sectionKey: sectionKey ?? null,
+          version: KLUS_REGELS_STATIC_VERSION,
+          status: 'missing' as const,
+        },
+      });
+
+      const withRuleAttachment = (entry: Record<string, any>, sectionKey?: string | null): Record<string, any> => {
+        const attachment = getMaterialRule(jobSlug, sectionKey) || fallbackRuleAttachment(sectionKey);
+        return {
+          ...entry,
+          rule: attachment.rule,
+          rule_meta: attachment.rule_meta,
+        };
+      };
+
       const catalogById = new Map<string, any>();
       const catalogByName = new Map<string, any>();
       (alleMaterialen || []).forEach((m: any) => {
@@ -2646,15 +2686,16 @@ export default function GenericMaterialsPageRedesigned() {
         const next = { ...cleaned };
         const incl = parseNLMoneyToNumber(catalog.prijs_incl_btw ?? catalog.prijs_per_stuk ?? catalog.prijs);
         const excl = parseNLMoneyToNumber(catalog.prijs_excl_btw);
+        const resolvedExcl = (excl && excl > 0)
+          ? excl
+          : (incl && incl > 0 ? Number((incl / 1.21).toFixed(2)) : null);
         if (incl && incl > 0) {
           next.prijs_incl_btw = String(incl);
-          next.prijs = String(incl);
-          next.prijs_per_stuk = String(incl);
         }
-        if (excl && excl > 0) {
-          next.prijs_excl_btw = String(excl);
-        } else if (incl && incl > 0) {
-          next.prijs_excl_btw = String(Number((incl / 1.21).toFixed(2)));
+        if (resolvedExcl && resolvedExcl > 0) {
+          next.prijs = String(resolvedExcl);
+          next.prijs_per_stuk = String(resolvedExcl);
+          next.prijs_excl_btw = String(resolvedExcl);
         }
         if (!next.eenheid && catalog.eenheid) next.eenheid = catalog.eenheid;
         return next;
@@ -2672,7 +2713,7 @@ export default function GenericMaterialsPageRedesigned() {
             const cleaned = ensurePriceSnapshot(cleanMaterialData(entry.material));
             if (cleaned) {
               const indexedKey = `${k}__${idx}`;
-              materialenLijst[indexedKey] = {
+              materialenLijst[indexedKey] = withRuleAttachment({
                 sectionKey: k,
                 material: cleaned,
                 aantal: entry.aantal,
@@ -2681,7 +2722,7 @@ export default function GenericMaterialsPageRedesigned() {
                 wastePercentage: typeof wasteByEntryKey[indexedKey] === 'number'
                   ? wasteByEntryKey[indexedKey]
                   : getDefaultWastePercentage(k, sectionLabelByKey[k], JOB_TITEL)
-              };
+              }, k);
             }
           });
           return;
@@ -2689,21 +2730,19 @@ export default function GenericMaterialsPageRedesigned() {
 
         const cleaned = ensurePriceSnapshot(cleanMaterialData(v));
         if (cleaned) {
-          // Rule: If boeiboord is mirrored, double the quantity (aantal) for standard materials
-          // This applies to things like regelwerk, cladding, etc.
-          // We assume standard selections in a Boeiboord job should be doubled.
-          if (isBoeiboordMirrored) {
+          // Rule: If mirror mode is enabled (boeiboord/hellend-dak), double standard selections.
+          if (shouldApplyDoubleQuantity) {
             cleaned.aantal = 2;
           }
 
-          materialenLijst[k] = {
+          materialenLijst[k] = withRuleAttachment({
             sectionKey: k,
             material: cleaned,
             context: JOB_TITEL,
             wastePercentage: typeof wasteByEntryKey[k] === 'number'
               ? wasteByEntryKey[k]
               : getDefaultWastePercentage(k, sectionLabelByKey[k], JOB_TITEL)
-          };
+          }, k);
         }
       });
 
@@ -2712,7 +2751,7 @@ export default function GenericMaterialsPageRedesigned() {
       Object.entries(customMap).forEach(([gid, cm]: [string, any]) => {
         const cleaned = ensurePriceSnapshot(cleanMaterialData(cm));
         if (cleaned) {
-          materialenLijst[gid] = {
+          materialenLijst[gid] = withRuleAttachment({
             material: cleaned,
             title: cm.title,
             context: JOB_TITEL,
@@ -2720,7 +2759,7 @@ export default function GenericMaterialsPageRedesigned() {
             wastePercentage: typeof wasteByEntryKey[gid] === 'number'
               ? wasteByEntryKey[gid]
               : getDefaultWastePercentage(null, cm.title, JOB_TITEL)
-          };
+          }, null);
         }
       });
 
@@ -2734,7 +2773,7 @@ export default function GenericMaterialsPageRedesigned() {
           if (cleaned) {
             // Push to main list for AI/Overview
             const globalKey = `comp_${c.id}_${m.sectionKey || idx}`;
-            materialenLijst[globalKey] = {
+            materialenLijst[globalKey] = withRuleAttachment({
               material: cleaned,
               sectionKey: m.sectionKey,
               context: c.label || c.type,
@@ -2742,7 +2781,7 @@ export default function GenericMaterialsPageRedesigned() {
               wastePercentage: typeof wasteByEntryKey[globalKey] === 'number'
                 ? wasteByEntryKey[globalKey]
                 : getDefaultWastePercentage(m.sectionKey || null, m.sectionKey, c.label || c.type)
-            };
+            }, m.sectionKey || null);
           }
 
           return {
@@ -4031,8 +4070,10 @@ export default function GenericMaterialsPageRedesigned() {
                     }];
                   });
 
-                  const updatedById = new Map<string, number>();
-                  const updatedByName = new Map<string, number>();
+                  const updatedByIdExcl = new Map<string, number>();
+                  const updatedByNameExcl = new Map<string, number>();
+                  const updatedByIdIncl = new Map<string, number>();
+                  const updatedByNameIncl = new Map<string, number>();
                   const failedItems: string[] = [];
 
                   for (const entry of entriesToSave) {
@@ -4053,8 +4094,14 @@ export default function GenericMaterialsPageRedesigned() {
                       });
                       const json = await res.json();
                       if (json.ok) {
-                        if (entry.row_id) updatedById.set(String(entry.row_id), entry.prijsIncl);
-                        if (entry.materiaalnaam) updatedByName.set(entry.materiaalnaam, entry.prijsIncl);
+                        if (entry.row_id) {
+                          updatedByIdExcl.set(String(entry.row_id), entry.prijsExcl);
+                          updatedByIdIncl.set(String(entry.row_id), entry.prijsIncl);
+                        }
+                        if (entry.materiaalnaam) {
+                          updatedByNameExcl.set(entry.materiaalnaam, entry.prijsExcl);
+                          updatedByNameIncl.set(entry.materiaalnaam, entry.prijsIncl);
+                        }
                         setMissingPriceSaved(prev => ({ ...prev, [entry.key]: true }));
                         // Update local gekozenMaterialen state
                         setGekozenMaterialen(prev => {
@@ -4071,16 +4118,17 @@ export default function GenericMaterialsPageRedesigned() {
                             ) {
                               const newVal = { ...v as any };
                               newVal.prijs_incl_btw = entry.prijsIncl;
-                              newVal.prijs = entry.prijsIncl;
-                              newVal.prijs_per_stuk = entry.prijsIncl;
+                              newVal.prijs_excl_btw = entry.prijsExcl;
+                              newVal.prijs = entry.prijsExcl;
+                              newVal.prijs_per_stuk = entry.prijsExcl;
                               newVal.eenheid = entry.eenheid;
                               if (newVal._raw) {
                                 newVal._raw = {
                                   ...newVal._raw,
                                   prijs_incl_btw: entry.prijsIncl,
                                   prijs_excl_btw: entry.prijsExcl,
-                                  prijs: entry.prijsIncl,
-                                  prijs_per_stuk: entry.prijsIncl,
+                                  prijs: entry.prijsExcl,
+                                  prijs_per_stuk: entry.prijsExcl,
                                   eenheid: entry.eenheid
                                 };
                               }
@@ -4108,30 +4156,38 @@ export default function GenericMaterialsPageRedesigned() {
                   }
 
                   let remaining = missingPriceItems;
-                  if (updatedById.size > 0 || updatedByName.size > 0) {
+                  if (updatedByIdExcl.size > 0 || updatedByNameExcl.size > 0) {
                     // Update custom groups
                     setCustomGroups(prev => prev.map(group => ({
                       ...group,
                       materials: (group.materials || []).map((mat: any) => {
                         const sourceId = mat?._raw?.row_id || mat?._raw?.material_ref_id || mat?._raw?.id || mat?.row_id || mat?.material_ref_id || mat?.id;
-                        if (sourceId && updatedById.has(String(sourceId))) {
-                          const prijs = updatedById.get(String(sourceId))!;
+                        if (sourceId && updatedByIdExcl.has(String(sourceId))) {
+                          const prijsExcl = updatedByIdExcl.get(String(sourceId))!;
+                          const prijsIncl = updatedByIdIncl.get(String(sourceId)) ?? Number((prijsExcl * 1.21).toFixed(2));
                           return {
                             ...mat,
-                            prijs_incl_btw: prijs,
-                            prijs,
-                            prijs_per_stuk: prijs,
-                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                            prijs_incl_btw: prijsIncl,
+                            prijs_excl_btw: prijsExcl,
+                            prijs: prijsExcl,
+                            prijs_per_stuk: prijsExcl,
+                            _raw: mat._raw
+                              ? { ...mat._raw, prijs_incl_btw: prijsIncl, prijs_excl_btw: prijsExcl, prijs: prijsExcl, prijs_per_stuk: prijsExcl }
+                              : mat._raw
                           };
                         }
-                        if (mat?.materiaalnaam && updatedByName.has(mat.materiaalnaam)) {
-                          const prijs = updatedByName.get(mat.materiaalnaam)!;
+                        if (mat?.materiaalnaam && updatedByNameExcl.has(mat.materiaalnaam)) {
+                          const prijsExcl = updatedByNameExcl.get(mat.materiaalnaam)!;
+                          const prijsIncl = updatedByNameIncl.get(mat.materiaalnaam) ?? Number((prijsExcl * 1.21).toFixed(2));
                           return {
                             ...mat,
-                            prijs_incl_btw: prijs,
-                            prijs,
-                            prijs_per_stuk: prijs,
-                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                            prijs_incl_btw: prijsIncl,
+                            prijs_excl_btw: prijsExcl,
+                            prijs: prijsExcl,
+                            prijs_per_stuk: prijsExcl,
+                            _raw: mat._raw
+                              ? { ...mat._raw, prijs_incl_btw: prijsIncl, prijs_excl_btw: prijsExcl, prijs: prijsExcl, prijs_per_stuk: prijsExcl }
+                              : mat._raw
                           };
                         }
                         return mat;
@@ -4144,25 +4200,33 @@ export default function GenericMaterialsPageRedesigned() {
                       materials: (comp.materials || []).map((m: any) => {
                         const mat = m.material || m;
                         const sourceId = mat?._raw?.row_id || mat?._raw?.material_ref_id || mat?._raw?.id || mat?.row_id || mat?.material_ref_id || mat?.id;
-                        if (sourceId && updatedById.has(String(sourceId))) {
-                          const prijs = updatedById.get(String(sourceId))!;
+                        if (sourceId && updatedByIdExcl.has(String(sourceId))) {
+                          const prijsExcl = updatedByIdExcl.get(String(sourceId))!;
+                          const prijsIncl = updatedByIdIncl.get(String(sourceId)) ?? Number((prijsExcl * 1.21).toFixed(2));
                           const updatedMat = {
                             ...mat,
-                            prijs_incl_btw: prijs,
-                            prijs,
-                            prijs_per_stuk: prijs,
-                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                            prijs_incl_btw: prijsIncl,
+                            prijs_excl_btw: prijsExcl,
+                            prijs: prijsExcl,
+                            prijs_per_stuk: prijsExcl,
+                            _raw: mat._raw
+                              ? { ...mat._raw, prijs_incl_btw: prijsIncl, prijs_excl_btw: prijsExcl, prijs: prijsExcl, prijs_per_stuk: prijsExcl }
+                              : mat._raw
                           };
                           return m.material ? { ...m, material: updatedMat } : updatedMat;
                         }
-                        if (mat?.materiaalnaam && updatedByName.has(mat.materiaalnaam)) {
-                          const prijs = updatedByName.get(mat.materiaalnaam)!;
+                        if (mat?.materiaalnaam && updatedByNameExcl.has(mat.materiaalnaam)) {
+                          const prijsExcl = updatedByNameExcl.get(mat.materiaalnaam)!;
+                          const prijsIncl = updatedByNameIncl.get(mat.materiaalnaam) ?? Number((prijsExcl * 1.21).toFixed(2));
                           const updatedMat = {
                             ...mat,
-                            prijs_incl_btw: prijs,
-                            prijs,
-                            prijs_per_stuk: prijs,
-                            _raw: mat._raw ? { ...mat._raw, prijs_incl_btw: prijs, prijs, prijs_per_stuk: prijs } : mat._raw
+                            prijs_incl_btw: prijsIncl,
+                            prijs_excl_btw: prijsExcl,
+                            prijs: prijsExcl,
+                            prijs_per_stuk: prijsExcl,
+                            _raw: mat._raw
+                              ? { ...mat._raw, prijs_incl_btw: prijsIncl, prijs_excl_btw: prijsExcl, prijs: prijsExcl, prijs_per_stuk: prijsExcl }
+                              : mat._raw
                           };
                           return m.material ? { ...m, material: updatedMat } : updatedMat;
                         }
@@ -4173,8 +4237,8 @@ export default function GenericMaterialsPageRedesigned() {
                     // Remove resolved items from the dialog list and use that list for continuation logic.
                     remaining = missingPriceItems.filter((item) => {
                       const id = item.row_id || item.material_ref_id || item.id;
-                      if (id && updatedById.has(String(id))) return false;
-                      if (item.materiaalnaam && updatedByName.has(item.materiaalnaam)) return false;
+                      if (id && updatedByIdExcl.has(String(id))) return false;
+                      if (item.materiaalnaam && updatedByNameExcl.has(item.materiaalnaam)) return false;
                       return true;
                     });
                   }
