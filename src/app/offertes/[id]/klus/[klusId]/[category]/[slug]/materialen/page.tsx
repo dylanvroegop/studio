@@ -1067,6 +1067,7 @@ export default function GenericMaterialsPageRedesigned() {
   const hasSavedConfigRef = useRef(false);
   const autoApplyDefaultPresetRef = useRef(false);
   const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
+  const materialAddPendingRef = useRef(false);
 
   const defaultPresetCandidate = useMemo(() => (
     presets.find((p) => p.isDefault) || presets.find((p) => (p.name || '').toLowerCase().includes('standaard')) || null
@@ -1196,6 +1197,15 @@ export default function GenericMaterialsPageRedesigned() {
   const [variantPickerOpen, setVariantPickerOpen] = useState(false);
   const [variantPickerType, setVariantPickerType] = useState<JobComponentType | null>(null);
   const [activeComponentId, setActiveComponentId] = useState<string | null>(null);
+
+  const resetActiveMaterialModalState = useCallback(() => {
+    setActiveComponentId(null);
+    setActieveSectie(null);
+    setActiveSectionMeta(null);
+    setActiveGroupId(null);
+    setActiveMultiEntryKey(null);
+    setActiveMultiEntryId(null);
+  }, []);
 
   const currentlyPickedMaterialId = useMemo(() => {
     if (activeGroupId) {
@@ -1480,6 +1490,12 @@ export default function GenericMaterialsPageRedesigned() {
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
   const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
   const [isAutosaving, setIsAutosaving] = useState(false);
+  const [isMaterialAddPending, setIsMaterialAddPending] = useState(false);
+
+  const handleMaterialSavePendingChange = useCallback((pending: boolean) => {
+    materialAddPendingRef.current = pending;
+    setIsMaterialAddPending(pending);
+  }, []);
 
   useEffect(() => setIsMounted(true), []);
 
@@ -2274,6 +2290,7 @@ export default function GenericMaterialsPageRedesigned() {
     groupId: string | null = null,
     sectionMeta?: { key: string; label?: string; categoryFilter?: string | string[] }
   ) => {
+    if (isMaterialAddPending) return;
     setActieveSectie(sectieKey);
     setActiveGroupId(groupId);
     setActiveSectionMeta(sectionMeta || null);
@@ -2325,6 +2342,7 @@ export default function GenericMaterialsPageRedesigned() {
   };
 
   const openMultiEntryModal = (sectionKey: string, entryId: string | null = null) => {
+    if (isMaterialAddPending) return;
     setActiveMultiEntryKey(sectionKey);
     setActiveMultiEntryId(entryId);
     setActieveSectie(sectionKey);
@@ -3929,13 +3947,13 @@ export default function GenericMaterialsPageRedesigned() {
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" disabled={isOpslaan || isPresetNotReadyForSave} onClick={handleBack}>
+          <Button variant="outline" disabled={isOpslaan || isMaterialAddPending || isPresetNotReadyForSave} onClick={handleBack}>
             Terug
           </Button>
 
           <Button
             variant="outline"
-            disabled={isPresetNotReadyForSave}
+            disabled={isMaterialAddPending || isPresetNotReadyForSave}
             onClick={() => setSavePresetModalOpen(true)}
             className="gap-2"
           >
@@ -3946,10 +3964,16 @@ export default function GenericMaterialsPageRedesigned() {
           <Button
             type="submit"
             variant="success"
-            disabled={isOpslaan || isPresetNotReadyForSave}
+            disabled={isOpslaan || isMaterialAddPending || isPresetNotReadyForSave}
             onClick={handleNext}
           >
-            {isOpslaan ? 'Opslaan...' : isPresetNotReadyForSave ? 'Werkpakket laden...' : 'Opslaan'}
+            {isMaterialAddPending
+              ? 'Materiaal wordt opgeslagen'
+              : isOpslaan
+                ? 'Opslaan...'
+                : isPresetNotReadyForSave
+                  ? 'Werkpakket laden...'
+                  : 'Opslaan'}
           </Button>
         </div>
       </div >
@@ -4097,15 +4121,11 @@ export default function GenericMaterialsPageRedesigned() {
         open={isExtraModalOpen}
         onOpenChange={(open) => {
           setIsExtraModalOpen(open);
-          if (!open) {
-            setActiveComponentId(null);
-            setActieveSectie(null);
-            setActiveSectionMeta(null);
-            setActiveGroupId(null);
-            setActiveMultiEntryKey(null);
-            setActiveMultiEntryId(null);
+          if (!open && !materialAddPendingRef.current) {
+            resetActiveMaterialModalState();
           }
         }}
+        onMaterialSavePendingChange={handleMaterialSavePendingChange}
         onUpdateWaste={(newWaste) => {
           if (activeComponentId && actieveSectie) {
             const entryKey = `comp_${activeComponentId}_${actieveSectie}`;
@@ -4171,27 +4191,18 @@ export default function GenericMaterialsPageRedesigned() {
 
           if (activeComponentId && actieveSectie) {
             handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
-            setActiveComponentId(null);
-            setActieveSectie(null);
-            setActiveSectionMeta(null);
           } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
-            setActiveGroupId(null);
           } else if (activeMultiEntryKey && actieveSectie) {
             if (activeMultiEntryId) {
               handleMultiEntryEdit(activeMultiEntryKey, activeMultiEntryId, converted);
             } else {
               handleMultiEntryAdd(activeMultiEntryKey, converted);
             }
-            setActiveMultiEntryKey(null);
-            setActiveMultiEntryId(null);
-            setActieveSectie(null);
-            setActiveSectionMeta(null);
           } else if (actieveSectie) {
             handleMateriaalSelectie(actieveSectie, converted);
-            setActieveSectie(null);
-            setActiveSectionMeta(null);
           }
+          resetActiveMaterialModalState();
           setIsExtraModalOpen(false);
         }}
         onMaterialAdded={(newMaterial: any) => {
@@ -4203,27 +4214,18 @@ export default function GenericMaterialsPageRedesigned() {
           };
           if (activeComponentId && actieveSectie) {
             handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
-            setActiveComponentId(null);
-            setActieveSectie(null);
-            setActiveSectionMeta(null);
           } else if (activeGroupId) {
             setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
-            setActiveGroupId(null);
           } else if (activeMultiEntryKey && actieveSectie) {
             if (activeMultiEntryId) {
               handleMultiEntryEdit(activeMultiEntryKey, activeMultiEntryId, converted);
             } else {
               handleMultiEntryAdd(activeMultiEntryKey, converted);
             }
-            setActiveMultiEntryKey(null);
-            setActiveMultiEntryId(null);
-            setActieveSectie(null);
-            setActiveSectionMeta(null);
           } else if (actieveSectie) {
             handleMateriaalSelectie(actieveSectie, converted);
-            setActieveSectie(null);
-            setActiveSectionMeta(null);
           }
+          resetActiveMaterialModalState();
           setIsExtraModalOpen(false);
         }}
       />

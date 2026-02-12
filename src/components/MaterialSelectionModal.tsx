@@ -14,6 +14,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 // Centralized logic for naming.
@@ -43,6 +52,96 @@ function parsePriceToNumber(raw: unknown): number | null {
 
   const num = parseFloat(value);
   return Number.isNaN(num) ? null : num;
+}
+
+function mergeSafetyAnswerIntoNaam(naam: string, antwoord: string): string {
+  const cleanNaam = naam.trim();
+  const cleanAntwoord = antwoord.trim();
+  if (!cleanAntwoord) return cleanNaam;
+
+  if (cleanNaam.toLowerCase().includes(cleanAntwoord.toLowerCase())) {
+    return cleanNaam;
+  }
+
+  return `${cleanNaam} ${cleanAntwoord}`.replace(/\s+/g, ' ').trim();
+}
+
+function inferUnitFromQuestion(question: string): string {
+  const q = (question || '').toLowerCase();
+  if (!q) return '';
+
+  const beforeOf = q.split(/\sof\s/)[0] || q;
+  const unitMatch =
+    beforeOf.match(/\b(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)\b/i) ||
+    q.match(/\b(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)\b/i);
+
+  return unitMatch?.[1]?.trim() || '';
+}
+
+function applySafetyUnit(answer: string, expectedUnit: string, question: string): string {
+  const cleanAnswer = answer.trim();
+  if (!cleanAnswer) return cleanAnswer;
+  if (/[a-zA-Z]/.test(cleanAnswer)) return cleanAnswer;
+
+  const unit = (expectedUnit || inferUnitFromQuestion(question)).trim();
+  if (!unit) return cleanAnswer;
+
+  if (/^\d+([.,]\d+)?$/.test(cleanAnswer)) {
+    if (/^(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)$/i.test(unit)) {
+      return `${cleanAnswer}${unit}`;
+    }
+    return `${cleanAnswer} ${unit}`;
+  }
+
+  return `${cleanAnswer} ${unit}`.replace(/\s+/g, ' ').trim();
+}
+
+function extractSafetyPrompt(input: unknown): { ready?: boolean; question: string; expectedUnit: string } {
+  if (input == null) return { question: '', expectedUnit: '' };
+
+  let candidate: unknown = input;
+
+  if (Array.isArray(candidate)) {
+    candidate = candidate.find((item) => item && typeof item === 'object') ?? candidate[0];
+  }
+
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate);
+    } catch {
+      return { question: '', expectedUnit: '' };
+    }
+  }
+
+  if (candidate && typeof candidate === 'object' && 'output' in (candidate as Record<string, unknown>)) {
+    const output = (candidate as Record<string, unknown>).output;
+    if (typeof output === 'string') {
+      try {
+        candidate = JSON.parse(output);
+      } catch {
+        candidate = output;
+      }
+    } else if (output && typeof output === 'object') {
+      candidate = output;
+    }
+  }
+
+  if (!candidate || typeof candidate !== 'object') return { question: '', expectedUnit: '' };
+
+  const obj = candidate as Record<string, unknown>;
+  const questionRaw = obj.question ?? obj.vraag;
+  const question = typeof questionRaw === 'string' ? questionRaw.trim() : '';
+  const expectedUnitRaw =
+    obj.expected_unit ??
+    obj.expectedUnit ??
+    obj.answer_unit ??
+    obj.answerUnit ??
+    obj.eenheid ??
+    obj.unit;
+  const expectedUnit = typeof expectedUnitRaw === 'string' ? expectedUnitRaw.trim() : '';
+  const ready = typeof obj.ready === 'boolean' ? obj.ready : undefined;
+
+  return { ready, question, expectedUnit };
 }
 
 function formatPriceInput(value: number | null): string {
@@ -146,6 +245,7 @@ interface MaterialSelectionModalProps {
   existingMaterials?: ExistingMaterial[];
   onSelectExisting?: (material: ExistingMaterial) => void;
   onMaterialAdded?: (material: any) => void;
+  onMaterialSavePendingChange?: (pending: boolean) => void;
   defaultCategory?: string | string[];
   onToggleFavorite?: (id: string) => void;
   showFavorites?: boolean;
@@ -161,6 +261,7 @@ export function MaterialSelectionModal({
   existingMaterials = [],
   onSelectExisting,
   onMaterialAdded,
+  onMaterialSavePendingChange,
   defaultCategory,
   onToggleFavorite,
   showFavorites = true,
@@ -198,6 +299,11 @@ export function MaterialSelectionModal({
   const [customPrijsExclBtw, setCustomPrijsExclBtw] = useState<string>('');
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>('');
+  const [safetyDialogOpen, setSafetyDialogOpen] = useState(false);
+  const [safetyQuestion, setSafetyQuestion] = useState('');
+  const [safetyExpectedUnit, setSafetyExpectedUnit] = useState('');
+  const [safetyAnswer, setSafetyAnswer] = useState('');
+  const [safetyAnswerError, setSafetyAnswerError] = useState<string | null>(null);
 
   // --- AUTOCOMPLETE FOCUS STATES ---
   const [categorieDropdownOpen, setCategorieDropdownOpen] = useState(false);
@@ -248,6 +354,11 @@ export function MaterialSelectionModal({
       setCustomPrijsExclBtw('');
       setCustomSubsectie('');
       setCustomLeverancier('');
+      setSafetyDialogOpen(false);
+      setSafetyQuestion('');
+      setSafetyExpectedUnit('');
+      setSafetyAnswer('');
+      setSafetyAnswerError(null);
 
       // 3. Reset Waste
       setWastePercentage(initialWastePercentage || 0);
@@ -652,12 +763,16 @@ export function MaterialSelectionModal({
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk]);
 
   // --- SAVE ACTION ---
-  const saveCustomMaterial = async () => {
+  const saveCustomMaterial = async (
+    safetyAnswerOverride?: string,
+    options?: { closeModalImmediately?: boolean }
+  ) => {
+    const closeModalImmediately = options?.closeModalImmediately === true;
     try {
       setError(null);
 
       // 1. Validation
-      const naamRaw = customNaam.trim();
+      const naamRaw = mergeSafetyAnswerIntoNaam(customNaam.trim(), safetyAnswerOverride || '');
       if (!naamRaw) throw new Error('Materiaalnaam is verplicht.');
       const baseName = naamRaw.charAt(0).toUpperCase() + naamRaw.slice(1);
 
@@ -685,6 +800,14 @@ export function MaterialSelectionModal({
         prijs_incl_btw: prijsNumLocal,
         prijs_per_stuk: calculatedPiecePrice, // Calculated piece price (same as unit price for simple items)
       };
+      const safetyAnswerFinal = (safetyAnswerOverride || '').trim();
+      if (safetyAnswerFinal) {
+        payload.safety_confirmed = true;
+        payload.safety_answer = safetyAnswerFinal;
+        if (safetyExpectedUnit.trim()) {
+          payload.expected_unit = safetyExpectedUnit.trim();
+        }
+      }
       const categorie = customSubsectie.trim();
       const leverancier = customLeverancier.trim();
       if (categorie) payload.categorie = categorie;
@@ -711,6 +834,22 @@ export function MaterialSelectionModal({
 
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.message || "Opslaan mislukt");
+
+      const parsedN8n = extractSafetyPrompt(json?.n8n);
+      const parsedData = extractSafetyPrompt(json?.data);
+      const questionText = parsedN8n.question || parsedData.question;
+      const expectedUnit = parsedN8n.expectedUnit || parsedData.expectedUnit;
+      const shouldAskSafetyQuestion = parsedN8n.ready === false || parsedData.ready === false;
+
+      if (shouldAskSafetyQuestion && questionText) {
+        setSafetyQuestion(questionText);
+        setSafetyExpectedUnit(expectedUnit);
+        setSafetyAnswer('');
+        setSafetyAnswerError(null);
+        setSafetyDialogOpen(true);
+        setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, safetyAnswerOverride || ''));
+        return;
+      }
 
       const row = Array.isArray(json.data) ? json.data[0] : json.data;
       const realId = row?.row_id || row?.id || json.id;
@@ -745,7 +884,26 @@ export function MaterialSelectionModal({
       setError(e?.message || 'Onbekende fout.');
     } finally {
       setSavingCustom(false);
+      if (closeModalImmediately) {
+        onMaterialSavePendingChange?.(false);
+      }
     }
+  };
+
+  const handleSafetyConfirm = () => {
+    const answer = safetyAnswer.trim();
+    if (!answer) {
+      setSafetyAnswerError('Vul eerst een antwoord in.');
+      return;
+    }
+
+    const answerWithUnit = applySafetyUnit(answer, safetyExpectedUnit, safetyQuestion);
+    setSafetyAnswerError(null);
+    setSafetyDialogOpen(false);
+    setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, answerWithUnit));
+    onMaterialSavePendingChange?.(true);
+    onOpenChange(false);
+    void saveCustomMaterial(answerWithUnit, { closeModalImmediately: true });
   };
 
   const startEditing = (mat: ExistingMaterial, e: React.MouseEvent) => {
@@ -789,6 +947,7 @@ export function MaterialSelectionModal({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
@@ -1437,7 +1596,7 @@ export function MaterialSelectionModal({
               <Button
                 type="button"
                 className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
-                onClick={saveCustomMaterial}
+                onClick={() => void saveCustomMaterial()}
                 disabled={!canSaveCustom || savingCustom}
               >
                 {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingMaterialId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
@@ -1448,6 +1607,64 @@ export function MaterialSelectionModal({
         )}
       </DialogContent>
     </Dialog>
+    <AlertDialog
+      open={safetyDialogOpen}
+      onOpenChange={(nextOpen) => {
+        setSafetyDialogOpen(nextOpen);
+        if (!nextOpen) {
+          setSafetyExpectedUnit('');
+          setSafetyAnswer('');
+          setSafetyAnswerError(null);
+        }
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Controle voordat je opslaat</AlertDialogTitle>
+          <AlertDialogDescription>
+            {safetyQuestion || 'Vul extra productinformatie in (zoals 750ml, 5L of 25kg).'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-2">
+          <Input
+            value={safetyAnswer}
+            onChange={(e) => {
+              setSafetyAnswer(e.target.value);
+              if (safetyAnswerError) setSafetyAnswerError(null);
+            }}
+            placeholder="Bijv. 750ml, 5 liter, 25kg"
+            autoFocus
+          />
+          {safetyAnswerError ? (
+            <p className="text-sm text-destructive">{safetyAnswerError}</p>
+          ) : (
+            <div className="space-y-1">
+              {safetyExpectedUnit ? (
+                <p className="text-xs text-muted-foreground">
+                  Verwachte eenheid: <span className="font-semibold">{safetyExpectedUnit}</span>
+                </p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Dit antwoord wordt toegevoegd aan de materiaalnaam en daarna opnieuw opgeslagen.
+              </p>
+            </div>
+          )}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel asChild>
+            <Button variant="ghost">Terug</Button>
+          </AlertDialogCancel>
+          <Button
+            type="button"
+            className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
+            onClick={handleSafetyConfirm}
+          >
+            Aanvullen en opslaan
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 

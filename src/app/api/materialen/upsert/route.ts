@@ -32,6 +32,12 @@ type Body = {
   // Frontend stuurt soms beide mee; in jouw DB bestaat alleen row_id
   row_id?: unknown;
   id?: unknown;
+
+  // Safety follow-up flow
+  safety_confirmed?: unknown;
+  safety_answer?: unknown;
+  expected_unit?: unknown;
+  safety_expected_unit?: unknown;
 };
 
 function isNonEmptyString(v: unknown): v is string {
@@ -87,7 +93,22 @@ function resolveCanonicalPrices(body: Body): { prijsExcl: number | null; prijsIn
   return { prijsExcl, prijsIncl };
 }
 
-function bepaalN8nUrlVoorMaterialenUpsert(): string {
+function parseBooleanLike(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+  }
+  if (typeof value === 'number') return value === 1;
+  return false;
+}
+
+function bepaalN8nUrlVoorMaterialenUpsert(safetyConfirmed = false): string {
+  if (safetyConfirmed) {
+    const confirmedUrl = process.env.N8N_MATERIALEN_UPSERT_CONFIRMED_URL;
+    if (confirmedUrl && confirmedUrl.trim()) return confirmedUrl.trim();
+  }
+
   const direct = process.env.N8N_MATERIALEN_UPSERT_URL;
   if (direct && direct.trim()) return direct.trim();
   throw new Error('ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL');
@@ -102,6 +123,21 @@ function extractN8nRow(input: any): Record<string, unknown> | null {
   }
 
   if (typeof input === 'object') {
+    if (input.output !== undefined) {
+      const out = input.output;
+      if (typeof out === 'string') {
+        try {
+          const parsed = JSON.parse(out);
+          const nested = extractN8nRow(parsed);
+          if (nested) return nested;
+        } catch {
+          // ignore invalid json output
+        }
+      } else if (out && typeof out === 'object') {
+        const nested = extractN8nRow(out);
+        if (nested) return nested;
+      }
+    }
     if (Array.isArray(input.data)) {
       const first = input.data.find((item: unknown) => item && typeof item === 'object');
       return first ?? null;
@@ -115,11 +151,93 @@ function extractN8nRow(input: any): Record<string, unknown> | null {
   return null;
 }
 
-async function stuurNaarN8nVoorMaterialenUpsert(payload: Record<string, unknown>): Promise<any> {
+function extractN8nSafetyPrompt(input: any): { ready?: boolean; question: string; expectedUnit: string } {
+  if (input == null) return { question: '', expectedUnit: '' };
+
+  let candidate: unknown = input;
+  if (Array.isArray(candidate)) {
+    candidate = candidate.find((item) => item && typeof item === 'object') ?? candidate[0];
+  }
+
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate);
+    } catch {
+      return { question: '', expectedUnit: '' };
+    }
+  }
+
+  if (candidate && typeof candidate === 'object' && 'output' in (candidate as Record<string, unknown>)) {
+    const out = (candidate as Record<string, unknown>).output;
+    if (typeof out === 'string') {
+      try {
+        candidate = JSON.parse(out);
+      } catch {
+        // keep candidate as-is
+      }
+    } else if (out && typeof out === 'object') {
+      candidate = out;
+    }
+  }
+
+  if (!candidate || typeof candidate !== 'object') return { question: '', expectedUnit: '' };
+
+  const obj = candidate as Record<string, unknown>;
+  const questionRaw = obj.question ?? obj.vraag;
+  const expectedUnitRaw =
+    obj.expected_unit ??
+    obj.expectedUnit ??
+    obj.answer_unit ??
+    obj.answerUnit ??
+    obj.unit ??
+    obj.eenheid;
+
+  return {
+    ready: typeof obj.ready === 'boolean' ? obj.ready : undefined,
+    question: typeof questionRaw === 'string' ? questionRaw.trim() : '',
+    expectedUnit: typeof expectedUnitRaw === 'string' ? expectedUnitRaw.trim() : '',
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function lookupLatestInsertedMaterial(
+  uid: string,
+  naam: string,
+  attempts = 10,
+  delayMs = 300
+): Promise<Record<string, unknown> | null> {
+  for (let i = 0; i < attempts; i++) {
+    const lookup = await supabaseAdmin
+      .from('main_material_list')
+      .select('*')
+      .eq('gebruikerid', uid)
+      .eq('materiaalnaam', naam)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lookup.error) {
+      throw new Error(lookup.error.message || 'Insert lookup failed');
+    }
+
+    if (lookup.data) return lookup.data as Record<string, unknown>;
+    if (i < attempts - 1) await sleep(delayMs);
+  }
+
+  return null;
+}
+
+async function stuurNaarN8nVoorMaterialenUpsert(
+  payload: Record<string, unknown>,
+  options?: { safetyConfirmed?: boolean }
+): Promise<any> {
   const secret = process.env.N8N_HEADER_SECRET;
   if (!secret || !secret.trim()) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
 
-  const n8nUrl = bepaalN8nUrlVoorMaterialenUpsert();
+  const n8nUrl = bepaalN8nUrlVoorMaterialenUpsert(Boolean(options?.safetyConfirmed));
   const res = await fetch(n8nUrl, {
     method: 'POST',
     headers: {
@@ -182,6 +300,11 @@ export async function POST(req: Request) {
     const breedte = normalizeString(body.breedte);
     const dikte = normalizeString(body.dikte);
     const hoogte = normalizeString(body.hoogte);
+    const safetyConfirmed = parseBooleanLike(body.safety_confirmed);
+    const safetyAnswer = normalizeString(body.safety_answer);
+    const expectedUnit =
+      normalizeString(body.expected_unit) ??
+      normalizeString(body.safety_expected_unit);
 
     let werkendeBreedteMaat: number | null | undefined;
     let werkendeHoogteMaat: number | null | undefined;
@@ -241,6 +364,9 @@ export async function POST(req: Request) {
     if (verbruikPerM2 !== undefined) {
       payload.verbruik_per_m2 = verbruikPerM2;
     }
+    if (safetyConfirmed) payload.safety_confirmed = true;
+    if (safetyAnswer) payload.safety_answer = safetyAnswer;
+    if (expectedUnit) payload.expected_unit = expectedUnit;
 
     let data: any = null;
     let realRowId: string | null = null;
@@ -283,7 +409,24 @@ export async function POST(req: Request) {
       realRowId = data?.row_id ?? incomingRowId ?? null;
     } else {
       // Nieuwe materialen lopen via n8n AI-agent -> Supabase
-      n8nResponse = await stuurNaarN8nVoorMaterialenUpsert(payload);
+      n8nResponse = await stuurNaarN8nVoorMaterialenUpsert(payload, { safetyConfirmed });
+
+      const n8nSafety = extractN8nSafetyPrompt(n8nResponse);
+      if (n8nSafety.ready === false && n8nSafety.question) {
+        return jsonOk(
+          {
+            ok: true,
+            data: {
+              ready: false,
+              question: n8nSafety.question,
+              expected_unit: n8nSafety.expectedUnit || null,
+            },
+            row_id: null,
+            n8n: n8nResponse,
+          },
+          200
+        );
+      }
 
       const n8nRow = extractN8nRow(n8nResponse);
       if (n8nRow) {
@@ -294,25 +437,24 @@ export async function POST(req: Request) {
           null;
       }
 
-      // Fallback: haal laatste insert op als n8n geen row terugstuurt
+      // Fallback: wacht kort en haal laatste insert op als n8n geen row terugstuurt
       if (!realRowId) {
-        const lookup = await supabaseAdmin
-          .from('main_material_list')
-          .select('*')
-          .eq('gebruikerid', uid)
-          .eq('materiaalnaam', naam)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (lookup.error) {
-          return jsonFail(lookup.error.message || 'Insert lookup failed', 500);
+        try {
+          const lookedUp = await lookupLatestInsertedMaterial(uid, naam, safetyConfirmed ? 12 : 8, 300);
+          if (lookedUp) {
+            data = lookedUp;
+            realRowId = normalizeString((lookedUp as any).row_id) ?? null;
+          }
+        } catch (lookupErr: any) {
+          return jsonFail(lookupErr?.message || 'Insert lookup failed', 500);
         }
+      }
 
-        if (lookup.data) {
-          data = lookup.data;
-          realRowId = lookup.data.row_id ?? null;
-        }
+      if (!realRowId) {
+        return jsonFail(
+          'Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw of controleer add-workflow response.',
+          502
+        );
       }
     }
 

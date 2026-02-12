@@ -154,6 +154,84 @@ function mergeSafetyAnswerIntoNaam(naam: string, antwoord: string): string {
   return `${cleanNaam} ${cleanAntwoord}`.replace(/\s+/g, ' ').trim();
 }
 
+function inferUnitFromQuestion(question: string): string {
+  const q = (question || '').toLowerCase();
+  if (!q) return '';
+
+  const beforeOf = q.split(/\sof\s/)[0] || q;
+  const unitMatch =
+    beforeOf.match(/\b(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)\b/i) ||
+    q.match(/\b(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)\b/i);
+
+  return unitMatch?.[1]?.trim() || '';
+}
+
+function applySafetyUnit(answer: string, expectedUnit: string, question: string): string {
+  const cleanAnswer = answer.trim();
+  if (!cleanAnswer) return cleanAnswer;
+  if (/[a-zA-Z]/.test(cleanAnswer)) return cleanAnswer;
+
+  const unit = (expectedUnit || inferUnitFromQuestion(question)).trim();
+  if (!unit) return cleanAnswer;
+
+  if (/^\d+([.,]\d+)?$/.test(cleanAnswer)) {
+    if (/^(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)$/i.test(unit)) {
+      return `${cleanAnswer}${unit}`;
+    }
+    return `${cleanAnswer} ${unit}`;
+  }
+
+  return `${cleanAnswer} ${unit}`.replace(/\s+/g, ' ').trim();
+}
+
+function extractSafetyPrompt(input: unknown): { ready?: boolean; question: string; expectedUnit: string } {
+  if (input == null) return { question: '', expectedUnit: '' };
+
+  let candidate: unknown = input;
+
+  if (Array.isArray(candidate)) {
+    candidate = candidate.find((item) => item && typeof item === 'object') ?? candidate[0];
+  }
+
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate);
+    } catch {
+      return { question: '', expectedUnit: '' };
+    }
+  }
+
+  if (candidate && typeof candidate === 'object' && 'output' in (candidate as Record<string, unknown>)) {
+    const output = (candidate as Record<string, unknown>).output;
+    if (typeof output === 'string') {
+      try {
+        candidate = JSON.parse(output);
+      } catch {
+        candidate = output;
+      }
+    } else if (output && typeof output === 'object') {
+      candidate = output;
+    }
+  }
+
+  if (!candidate || typeof candidate !== 'object') return { question: '', expectedUnit: '' };
+
+  const obj = candidate as Record<string, unknown>;
+  const questionRaw = obj.question ?? obj.vraag;
+  const question = typeof questionRaw === 'string' ? questionRaw.trim() : '';
+  const expectedUnitRaw =
+    obj.expected_unit ??
+    obj.expectedUnit ??
+    obj.answer_unit ??
+    obj.answerUnit ??
+    obj.eenheid ??
+    obj.unit;
+  const expectedUnit = typeof expectedUnitRaw === 'string' ? expectedUnitRaw.trim() : '';
+  const ready = typeof obj.ready === 'boolean' ? obj.ready : undefined;
+
+  return { ready, question, expectedUnit };
+}
+
 function InputMetSuffix(props: {
   value: string;
   onChange: (v: string) => void;
@@ -225,6 +303,7 @@ export default function MaterialenPage() {
 
   const [safetyPopupOpen, setSafetyPopupOpen] = useState<boolean>(false);
   const [safetyQuestion, setSafetyQuestion] = useState<string>('');
+  const [safetyExpectedUnit, setSafetyExpectedUnit] = useState<string>('');
   const [safetyAnswer, setSafetyAnswer] = useState<string>('');
   const [safetyAnswerError, setSafetyAnswerError] = useState<string | null>(null);
 
@@ -421,6 +500,7 @@ export default function MaterialenPage() {
 
     setSafetyPopupOpen(false);
     setSafetyQuestion('');
+    setSafetyExpectedUnit('');
     setSafetyAnswer('');
     setSafetyAnswerError(null);
   }, []);
@@ -436,6 +516,7 @@ export default function MaterialenPage() {
     setDialogOpen(false);
     setSafetyPopupOpen(false);
     setSafetyQuestion('');
+    setSafetyExpectedUnit('');
     setSafetyAnswer('');
     setSafetyAnswerError(null);
   }, []);
@@ -566,6 +647,14 @@ export default function MaterialenPage() {
         prijs_excl_btw: prijsNumLocal,
         unit: maatUnitLocal,
       };
+      const safetyAnswerFinal = (safetyAnswerOverride || '').trim();
+      if (safetyAnswerFinal) {
+        payload.safety_confirmed = true;
+        payload.safety_answer = safetyAnswerFinal;
+        if (safetyExpectedUnit.trim()) {
+          payload.expected_unit = safetyExpectedUnit.trim();
+        }
+      }
       if (categorie) payload.categorie = categorie;
       if (leverancier) payload.leverancier = leverancier;
 
@@ -596,36 +685,15 @@ export default function MaterialenPage() {
         return;
       }
 
-      const n8nPayload = json?.n8n;
-      const responseData = json?.data;
+      const parsedN8n = extractSafetyPrompt(json?.n8n);
+      const parsedData = extractSafetyPrompt(json?.data);
+      const questionText = parsedN8n.question || parsedData.question;
+      const expectedUnit = parsedN8n.expectedUnit || parsedData.expectedUnit;
+      const shouldAskSafetyQuestion = parsedN8n.ready === false || parsedData.ready === false;
 
-      const n8nReady =
-        n8nPayload && typeof n8nPayload === 'object'
-          ? (n8nPayload as any).ready
-          : undefined;
-      const dataReady =
-        responseData && typeof responseData === 'object'
-          ? (responseData as any).ready
-          : undefined;
-
-      const n8nQuestion =
-        n8nPayload && typeof n8nPayload === 'object'
-          ? (n8nPayload as any).question ?? (n8nPayload as any).vraag
-          : undefined;
-      const dataQuestion =
-        responseData && typeof responseData === 'object'
-          ? (responseData as any).question ?? (responseData as any).vraag
-          : undefined;
-
-      const questionText =
-        typeof n8nQuestion === 'string'
-          ? n8nQuestion.trim()
-          : typeof dataQuestion === 'string'
-            ? dataQuestion.trim()
-            : '';
-
-      if ((n8nReady === false || dataReady === false) && questionText) {
+      if (shouldAskSafetyQuestion && questionText) {
         setSafetyQuestion(questionText);
+        setSafetyExpectedUnit(expectedUnit);
         setSafetyAnswer('');
         setSafetyAnswerError(null);
         setSafetyPopupOpen(true);
@@ -653,6 +721,7 @@ export default function MaterialenPage() {
     maatBreedte,
     maatDikte,
     maatHoogte,
+    safetyExpectedUnit,
     fetchMaterials,
   ]);
 
@@ -667,11 +736,12 @@ export default function MaterialenPage() {
       return;
     }
 
+    const answerWithUnit = applySafetyUnit(answer, safetyExpectedUnit, safetyQuestion);
     setSafetyAnswerError(null);
-    setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, answer));
+    setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, answerWithUnit));
     setSafetyPopupOpen(false);
-    void runSaveCustomMaterial(answer);
-  }, [safetyAnswer, runSaveCustomMaterial]);
+    void runSaveCustomMaterial(answerWithUnit);
+  }, [safetyAnswer, safetyExpectedUnit, safetyQuestion, runSaveCustomMaterial]);
 
   // ✅ Open delete confirm
   const openDeleteDialog = useCallback((m: Material) => {
@@ -1227,6 +1297,7 @@ export default function MaterialenPage() {
           onOpenChange={(open) => {
             setSafetyPopupOpen(open);
             if (!open) {
+              setSafetyExpectedUnit('');
               setSafetyAnswer('');
               setSafetyAnswerError(null);
             }
@@ -1253,9 +1324,16 @@ export default function MaterialenPage() {
               {safetyAnswerError ? (
                 <p className="text-sm text-destructive">{safetyAnswerError}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  Deze info wordt toegevoegd aan de materiaalnaam en daarna opnieuw opgeslagen.
-                </p>
+                <div className="space-y-1">
+                  {safetyExpectedUnit ? (
+                    <p className="text-xs text-muted-foreground">
+                      Verwachte eenheid: <span className="font-semibold">{safetyExpectedUnit}</span>
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Deze info wordt toegevoegd aan de materiaalnaam en daarna opnieuw opgeslagen.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -1263,7 +1341,12 @@ export default function MaterialenPage() {
               <AlertDialogCancel asChild>
                 <Button variant="ghost">Terug</Button>
               </AlertDialogCancel>
-              <Button type="button" variant="success" onClick={handleSafetyAnswerConfirm}>
+              <Button
+                type="button"
+                variant="success"
+                onClick={handleSafetyAnswerConfirm}
+                className="h-11 gap-2 px-8 text-sm font-bold shadow-lg shadow-success/20"
+              >
                 Aanvullen en opslaan
               </Button>
             </AlertDialogFooter>
