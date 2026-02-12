@@ -88,13 +88,6 @@ export function OpeningenSection({
 
     return (
         <div className="space-y-3 pt-4 border-t border-white/5">
-            <div className="flex flex-col gap-1">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Openingen & Sparingen</h4>
-                <p className="text-[10px] text-zinc-500">
-                    Vul hier maatwerk in of verplaats in tekening de opening
-                </p>
-            </div>
-
             <div className="space-y-3">
                 {openings.map((op, index) => (
                     <OpeningCard

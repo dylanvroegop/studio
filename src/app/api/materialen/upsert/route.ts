@@ -18,6 +18,12 @@ type Body = {
   breedte?: unknown;
   dikte?: unknown;
   hoogte?: unknown;
+  werkende_breedte_maat?: unknown;
+  werkende_hoogte_maat?: unknown;
+  werkende_breedte_mm?: unknown;
+  werkende_hoogte_mm?: unknown;
+  verbruik_per_m2?: unknown;
+  vebruik_per_m2?: unknown; // alias voor typo in oudere payloads
 
   // UI vs DB
   categorie?: unknown;  // DB
@@ -38,6 +44,70 @@ function normalizeString(v: unknown): string | null {
   return s.length ? s : null;
 }
 
+function normalizeNullableNumber(v: unknown, fieldName: string): number | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
+
+  const parsed = parsePriceToNumber(v);
+  if (parsed === null) throw new Error(`${fieldName} is ongeldig.`);
+  if (parsed < 0) throw new Error(`${fieldName} mag niet negatief zijn.`);
+  return parsed;
+}
+
+function bepaalN8nUrlVoorMaterialenUpsert(): string {
+  const direct = process.env.N8N_MATERIALEN_UPSERT_URL;
+  if (direct && direct.trim()) return direct.trim();
+  throw new Error('ENV ontbreekt: N8N_MATERIALEN_UPSERT_URL');
+}
+
+function extractN8nRow(input: any): Record<string, unknown> | null {
+  if (!input) return null;
+
+  if (Array.isArray(input)) {
+    const first = input.find((item) => item && typeof item === 'object');
+    return first ?? null;
+  }
+
+  if (typeof input === 'object') {
+    if (Array.isArray(input.data)) {
+      const first = input.data.find((item: unknown) => item && typeof item === 'object');
+      return first ?? null;
+    }
+    if (input.data && typeof input.data === 'object') {
+      return input.data as Record<string, unknown>;
+    }
+    return input as Record<string, unknown>;
+  }
+
+  return null;
+}
+
+async function stuurNaarN8nVoorMaterialenUpsert(payload: Record<string, unknown>): Promise<any> {
+  const secret = process.env.N8N_HEADER_SECRET;
+  if (!secret || !secret.trim()) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
+
+  const n8nUrl = bepaalN8nUrlVoorMaterialenUpsert();
+  const res = await fetch(n8nUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-offertehulp-secret': secret.trim(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const txt = await res.text();
+  if (!res.ok) {
+    throw new Error(`n8n webhook faalde (${res.status}): ${txt || 'lege response'}`);
+  }
+
+  try {
+    return JSON.parse(txt);
+  } catch {
+    return txt;
+  }
+}
 
 function jsonOk(payload: unknown, status = 200) {
   return NextResponse.json(payload, { status });
@@ -74,14 +144,33 @@ export async function POST(req: Request) {
 
     const categorie =
       normalizeString(body.categorie) ??
-      normalizeString(body.subsectie) ??
-      'Overig';
+      normalizeString(body.subsectie);
 
     const leverancier = normalizeString(body.leverancier);
     const lengte = normalizeString(body.lengte);
     const breedte = normalizeString(body.breedte);
     const dikte = normalizeString(body.dikte);
     const hoogte = normalizeString(body.hoogte);
+
+    let werkendeBreedteMaat: number | null | undefined;
+    let werkendeHoogteMaat: number | null | undefined;
+    let verbruikPerM2: number | null | undefined;
+    try {
+      werkendeBreedteMaat = normalizeNullableNumber(
+        body.werkende_breedte_maat ?? body.werkende_breedte_mm,
+        'werkende_breedte_maat'
+      );
+      werkendeHoogteMaat = normalizeNullableNumber(
+        body.werkende_hoogte_maat ?? body.werkende_hoogte_mm,
+        'werkende_hoogte_maat'
+      );
+      verbruikPerM2 = normalizeNullableNumber(
+        body.verbruik_per_m2 ?? body.vebruik_per_m2,
+        'verbruik_per_m2'
+      );
+    } catch (validationError: any) {
+      return jsonFail(validationError?.message || 'Ongeldige numerieke waarde.', 400);
+    }
 
     // LET OP: jouw DB heeft GEEN 'id' kolom.
     // We accepteren 'id' alleen als alias voor row_id (frontend stuurt soms payload.id).
@@ -106,15 +195,28 @@ export async function POST(req: Request) {
       eenheid,
       prijs_incl_btw: prijsInclNum,
       prijs_excl_btw: prijsExclNum,
-      categorie,
-      leverancier,
     };
+    if (categorie) payload.categorie = categorie;
+    if (leverancier) payload.leverancier = leverancier;
     if (lengte) payload.lengte = lengte;
     if (breedte) payload.breedte = breedte;
     if (dikte) payload.dikte = dikte;
     if (hoogte) payload.hoogte = hoogte;
+    if (werkendeBreedteMaat !== undefined) {
+      payload.werkende_breedte_maat = werkendeBreedteMaat;
+      payload.werkende_breedte_mm = werkendeBreedteMaat;
+    }
+    if (werkendeHoogteMaat !== undefined) {
+      payload.werkende_hoogte_maat = werkendeHoogteMaat;
+      payload.werkende_hoogte_mm = werkendeHoogteMaat;
+    }
+    if (verbruikPerM2 !== undefined) {
+      payload.verbruik_per_m2 = verbruikPerM2;
+    }
 
     let data: any = null;
+    let realRowId: string | null = null;
+    let n8nResponse: any = null;
 
     // 6) Update of insert
     if (incomingRowId) {
@@ -125,7 +227,7 @@ export async function POST(req: Request) {
         .update(payload)
         .eq('row_id', incomingRowId)
         .eq('gebruikerid', uid)
-        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,prijs_excl_btw,categorie,leverancier')
+        .select('*')
         .maybeSingle();
 
       if (upd.error) return jsonFail(upd.error.message || 'Update failed', 500);
@@ -144,25 +246,47 @@ export async function POST(req: Request) {
         const insCopy = await supabaseAdmin
           .from('main_material_list')
           .insert(payload)
-          .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,prijs_excl_btw,categorie,leverancier')
+          .select('*')
           .single();
 
         if (insCopy.error) return jsonFail(insCopy.error.message || 'Insert failed', 500);
         data = insCopy.data;
       }
+      realRowId = data?.row_id ?? incomingRowId ?? null;
     } else {
-      const ins = await supabaseAdmin
-        .from('main_material_list')
-        .insert(payload)
-        .select('row_id,materiaalnaam,eenheid,prijs_incl_btw,prijs_excl_btw,categorie,leverancier')
-        .single();
+      // Nieuwe materialen lopen via n8n AI-agent -> Supabase
+      n8nResponse = await stuurNaarN8nVoorMaterialenUpsert(payload);
 
-      if (ins.error) return jsonFail(ins.error.message || 'Insert failed', 500);
-      data = ins.data;
+      const n8nRow = extractN8nRow(n8nResponse);
+      if (n8nRow) {
+        data = n8nRow;
+        realRowId =
+          normalizeString((n8nRow as any).row_id) ??
+          normalizeString((n8nRow as any).id) ??
+          null;
+      }
+
+      // Fallback: haal laatste insert op als n8n geen row terugstuurt
+      if (!realRowId) {
+        const lookup = await supabaseAdmin
+          .from('main_material_list')
+          .select('*')
+          .eq('gebruikerid', uid)
+          .eq('materiaalnaam', naam)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lookup.error) {
+          return jsonFail(lookup.error.message || 'Insert lookup failed', 500);
+        }
+
+        if (lookup.data) {
+          data = lookup.data;
+          realRowId = lookup.data.row_id ?? null;
+        }
+      }
     }
-
-    const realRowId = data?.row_id ?? incomingRowId ?? null;
-    if (!realRowId) return jsonFail('Geen ID ontvangen van server.', 500);
 
     const normalized =
       data && typeof data === 'object'
@@ -182,7 +306,7 @@ export async function POST(req: Request) {
           }
         : data;
 
-    return jsonOk({ ok: true, data: normalized, row_id: realRowId }, 200);
+    return jsonOk({ ok: true, data: normalized, row_id: realRowId, n8n: n8nResponse }, 200);
   } catch (e: any) {
     console.error('Server error /api/materialen/upsert:', e);
     return jsonFail(e?.message || 'Server error', 500);

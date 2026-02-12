@@ -1472,7 +1472,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Plaatsen van vlizotrap',
         slug: 'vlizotrap',
         measurementLabel: 'Trap',
-        measurements: STANDARD_FIELDS,
+        measurements: [],
         materialSections: VLIZOTRAP_MATS,
         categoryConfig: {
           hout: { title: 'Constructie & Raveling', order: 1 },
@@ -1956,8 +1956,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurements: [
           { key: 'aantal_pannen_breedte', label: 'Breedte (aantal pannen)', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 25' },
           { key: 'aantal_pannen_hoogte', label: 'Hoogte (aantal pannen)', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 40' },
-          { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
-          { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
+          { key: 'lengte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
+          { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Maatvoering volgt uit pannenkeuze' },
           { key: 'balkafstand', label: 'Tengelafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 600, group: 'spacing' },
           { key: 'latafstand', label: 'Panlatafstand (h.o.h.)', type: 'number', suffix: 'mm', placeholder: 'Berekend op basis dakpannen', group: 'spacing', optional: true },
           { key: 'opmerkingen', label: 'Extra opmerkingen', type: 'textarea', placeholder: 'Bijzondere details...' }

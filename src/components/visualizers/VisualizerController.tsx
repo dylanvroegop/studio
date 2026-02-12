@@ -101,6 +101,17 @@ export function VisualizerController({
     const isRoof = roofSlugs.some(s => slug.includes(s)) || category === 'dakwerken' || category === 'dakrenovatie';
 
     if (isRoof) {
+        const toPositiveNum = (value: any): number | undefined => {
+            const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+        };
+        const roofLatafstand =
+            toPositiveNum(item.latafstand) ??
+            toPositiveNum(item.rachelafstand) ??
+            toPositiveNum(item.werkende_hoogte_mm);
+        const halfLatafstandFromBottom =
+            item.halfLatafstandFromBottom ?? slug.includes('hellend-dak');
+
         if (slug.includes('epdm-dakbedekking')) {
             return (
                 <EPDMDrawing
@@ -139,7 +150,7 @@ export function VisualizerController({
             <RoofDrawing
                 {...normalizedItem}
                 balkafstand={item.balkafstand}
-                latafstand={item.latafstand || item.rachelafstand}
+                latafstand={roofLatafstand}
                 openings={item.openings}
                 variant={item.variant}
                 isMagnifier={isMagnifier}
@@ -147,6 +158,7 @@ export function VisualizerController({
                 className={className}
                 onOpeningsChange={onOpeningsChange}
                 includeOuterBattens={slug.includes('hellend-dak')}
+                halfLatafstandFromBottom={halfLatafstandFromBottom}
                 edgeLeft={item.edge_left || item.edgeLeft}
                 edgeRight={item.edge_right || item.edgeRight}
                 onEdgeChange={onEdgeChange}

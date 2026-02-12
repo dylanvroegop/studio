@@ -94,6 +94,26 @@ interface VakInputCardProps {
   allowDoor?: boolean;
 }
 
+interface DakpanWerkendeMaten {
+  minBreedteMm: number | null;
+  maxBreedteMm: number | null;
+  minHoogteMm: number | null;
+  maxHoogteMm: number | null;
+}
+
+const HELLEND_DAK_SECTION_MULTIPLIERS: Record<string, number> = {
+  constructieplaat: 2,
+  folie_buiten: 2,
+  tengels: 2,
+  panlatten: 2,
+  dakpannen: 2,
+  gevelpannen: 2,
+  nokvorsten: 2,
+  ondervorst: 1,
+  dakvoetprofiel: 2,
+  ruiter: 1,
+};
+
 function VakInputCard({
   index,
   title,
@@ -343,12 +363,14 @@ export default function GenericMeasurementPage() {
   const [items, setItems] = useState<Record<string, any>[]>([]);
   const [components, setComponents] = useState<JobComponent[]>([]);
   const [notities, setNotities] = useState(''); // New: Job Notes state
+  const [materialenLijstSnapshot, setMaterialenLijstSnapshot] = useState<Record<string, any>>({});
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [kozijnhoutFrameThicknessMm, setKozijnhoutFrameThicknessMm] = useState<number | null>(null);
   const [tussenstijlThicknessMm, setTussenstijlThicknessMm] = useState<number | null>(null);
   const [hasTussenstijl, setHasTussenstijl] = useState(false);
+  const [dakpanWerkendeMaten, setDakpanWerkendeMaten] = useState<DakpanWerkendeMaten | null>(null);
   const prevVakIdsRef = useRef<Record<number, Set<string>>>({});
   const [manualVakkenOverride, setManualVakkenOverride] = useState<Record<number, boolean>>({});
 
@@ -398,6 +420,236 @@ export default function GenericMeasurementPage() {
       }
     }
     return parseDimToMm(raw);
+  };
+
+  const parseMmValues = (raw: any): number[] => {
+    if (raw === null || raw === undefined || raw === '') return [];
+    if (typeof raw === 'number') return Number.isFinite(raw) ? [raw] : [];
+    const s = String(raw).trim().toLowerCase();
+    if (!s) return [];
+    const unitMatch = s.match(/\b(mm|cm|m)\b/);
+    const unit = unitMatch?.[1];
+    const factor = unit === 'cm' ? 10 : unit === 'm' ? 1000 : 1;
+    const parts = s.match(/[\d.,]+/g) || [];
+    return parts
+      .map(part => parseFloat(part.replace(',', '.')))
+      .filter(n => Number.isFinite(n))
+      .map(n => n * factor);
+  };
+
+  const buildRangeMm = (minRaw: any, maxRaw: any, fallbackRaw?: any): { min: number | null; max: number | null } => {
+    let min = null as number | null;
+    let max = null as number | null;
+
+    const minValues = parseMmValues(minRaw);
+    const maxValues = parseMmValues(maxRaw);
+    const fallbackValues = parseMmValues(fallbackRaw);
+
+    if (minValues.length > 0) min = Math.min(...minValues);
+    if (maxValues.length > 0) max = Math.max(...maxValues);
+
+    if (min === null && max === null && fallbackValues.length > 0) {
+      min = Math.min(...fallbackValues);
+      max = Math.max(...fallbackValues);
+    }
+    if (min === null && max !== null) min = max;
+    if (max === null && min !== null) max = min;
+
+    if (min !== null && max !== null && min > max) {
+      const tmp = min;
+      min = max;
+      max = tmp;
+    }
+
+    return { min, max };
+  };
+
+  const resolveDakpanWerkendeMaten = (material: any): DakpanWerkendeMaten | null => {
+    if (!material) return null;
+
+    const breedteRange = buildRangeMm(
+      material?.min_werkende_breedte_mm,
+      material?.max_werkende_breedte_mm,
+      material?.werkende_breedte_maat ?? material?.werkende_breedte_mm
+    );
+
+    const hoogteRange = buildRangeMm(
+      material?.min_werkende_hoogte_mm ?? material?.min_werkende_lengte_mm,
+      material?.max_werkende_hoogte_mm ?? material?.max_werkende_lengte_mm,
+      material?.werkende_hoogte_maat ?? material?.werkende_hoogte_mm ?? material?.werkende_lengte_mm
+    );
+
+    const hasAny =
+      breedteRange.min !== null ||
+      breedteRange.max !== null ||
+      hoogteRange.min !== null ||
+      hoogteRange.max !== null;
+
+    if (!hasAny) return null;
+
+    return {
+      minBreedteMm: breedteRange.min,
+      maxBreedteMm: breedteRange.max,
+      minHoogteMm: hoogteRange.min,
+      maxHoogteMm: hoogteRange.max,
+    };
+  };
+
+  const isEmptyValue = (value: any): boolean =>
+    value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+
+  const toPositiveNumber = (value: any): number | null => {
+    const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return parsed;
+  };
+
+  const buildHellendDakMultipliers = (mirrorEnabled: boolean): Record<string, number> => {
+    return Object.fromEntries(
+      Object.entries(HELLEND_DAK_SECTION_MULTIPLIERS).map(([sectionKey, mirroredMultiplier]) => [
+        sectionKey,
+        mirrorEnabled ? mirroredMultiplier : 1,
+      ])
+    );
+  };
+
+  const applyHellendDakMultipliers = (sourceItem: any) => {
+    if (!isHellendDak) return sourceItem;
+    const mirrorEnabled = sourceItem?.hellend_dak_mirror === true;
+    return {
+      ...sourceItem,
+      hellend_dak_multipliers: buildHellendDakMultipliers(mirrorEnabled),
+    };
+  };
+
+  const toPositiveInt = (value: any): number | null => {
+    const parsed = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return parsed;
+  };
+
+  const isMirrorEnabled = (value: any): boolean => {
+    if (value === true || value === 1) return true;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'ja';
+  };
+
+  const buildMergedHellendDakMultipliers = (sourceItems: any[]): Record<string, number> => {
+    const mirrorEnabled = Array.isArray(sourceItems) && sourceItems.some((item) => isMirrorEnabled(item?.hellend_dak_mirror));
+    const merged = buildHellendDakMultipliers(mirrorEnabled);
+
+    if (!Array.isArray(sourceItems)) return merged;
+    sourceItems.forEach((item) => {
+      const map = item?.hellend_dak_multipliers;
+      if (!map || typeof map !== 'object') return;
+      Object.entries(map as Record<string, any>).forEach(([sectionKey, rawMultiplier]) => {
+        const normalizedSectionKey = String(sectionKey || '').trim();
+        const multiplier = toPositiveInt(rawMultiplier);
+        if (!normalizedSectionKey || multiplier === null) return;
+        const prev = toPositiveInt(merged[normalizedSectionKey]) ?? 1;
+        if (multiplier > prev) {
+          merged[normalizedSectionKey] = multiplier;
+        }
+      });
+    });
+
+    return merged;
+  };
+
+  const syncHellendDakMultipliersInMaterialenLijst = (
+    sourceMaterialenLijst: Record<string, any>,
+    multiplierMap: Record<string, number>
+  ): Record<string, any> => {
+    if (!sourceMaterialenLijst || typeof sourceMaterialenLijst !== 'object') return {};
+
+    const synced: Record<string, any> = {};
+    Object.entries(sourceMaterialenLijst).forEach(([entryKey, entryValue]) => {
+      if (!entryValue || typeof entryValue !== 'object') {
+        synced[entryKey] = entryValue;
+        return;
+      }
+
+      const sectionKeyFromEntry = typeof entryValue.sectionKey === 'string' && entryValue.sectionKey.trim()
+        ? entryValue.sectionKey.trim()
+        : String(entryKey).split('__')[0].trim();
+      const multiplier = toPositiveInt(multiplierMap[sectionKeyFromEntry]) ?? 1;
+
+      const nextEntry: any = {
+        ...entryValue,
+        hellend_dak_multiplier: multiplier,
+      };
+
+      if (entryValue.material && typeof entryValue.material === 'object') {
+        nextEntry.material = {
+          ...entryValue.material,
+          hellend_dak_multiplier: multiplier,
+        };
+      }
+
+      synced[entryKey] = nextEntry;
+    });
+
+    return synced;
+  };
+
+  const applyHellendDakAutoCalculations = (
+    sourceItem: any,
+    options?: { onlyWhenEmpty?: boolean; syncLatafstand?: boolean }
+  ) => {
+    if (!isHellendDak) return sourceItem;
+    const onlyWhenEmpty = options?.onlyWhenEmpty ?? false;
+    const syncLatafstand = options?.syncLatafstand ?? true;
+    const next = { ...sourceItem };
+
+    const countBreedte = toPositiveNumber(next.aantal_pannen_breedte);
+    const countHoogte = toPositiveNumber(next.aantal_pannen_hoogte);
+    const werkendeBreedte = parseDimToMm(next.werkende_breedte_mm);
+    const werkendeHoogte = parseDimToMm(next.werkende_hoogte_mm);
+
+    if (countBreedte && werkendeBreedte && (!onlyWhenEmpty || isEmptyValue(next.lengte))) {
+      next.lengte = Math.round(countBreedte * werkendeBreedte);
+    }
+    if (countHoogte && werkendeHoogte && (!onlyWhenEmpty || isEmptyValue(next.hoogte))) {
+      next.hoogte = Math.round(countHoogte * werkendeHoogte);
+    }
+    if (syncLatafstand && werkendeHoogte && (!onlyWhenEmpty || isEmptyValue(next.latafstand))) {
+      next.latafstand = Math.round(werkendeHoogte);
+    }
+
+    return next;
+  };
+
+  const applyHellendDakDefaultsFromDakpan = (sourceItem: any, maten: DakpanWerkendeMaten | null) => {
+    if (!isHellendDak) return sourceItem;
+    const next = { ...sourceItem };
+    if (!maten) {
+      return applyHellendDakMultipliers(next);
+    }
+    const defaultBreedte = maten.maxBreedteMm ?? maten.minBreedteMm;
+    const defaultHoogte = maten.minHoogteMm !== null && maten.maxHoogteMm !== null
+      ? (maten.minHoogteMm + maten.maxHoogteMm) / 2
+      : (maten.maxHoogteMm ?? maten.minHoogteMm);
+
+    if (defaultBreedte && isEmptyValue(next.werkende_breedte_mm)) {
+      next.werkende_breedte_mm = Math.round(defaultBreedte);
+    }
+    if (defaultHoogte && isEmptyValue(next.werkende_hoogte_mm)) {
+      next.werkende_hoogte_mm = Math.round(defaultHoogte);
+    }
+
+    const withAutoValues = applyHellendDakAutoCalculations(next, { onlyWhenEmpty: true, syncLatafstand: true });
+    return applyHellendDakMultipliers(withAutoValues);
+  };
+
+  const formatWerkendeRange = (min: number | null, max: number | null): string | null => {
+    if (min === null && max === null) return null;
+    const minVal = min ?? max;
+    const maxVal = max ?? min;
+    if (minVal === null || maxVal === null) return null;
+    const minRounded = Math.round(minVal);
+    const maxRounded = Math.round(maxVal);
+    if (minRounded === maxRounded) return `${minRounded}mm`;
+    return `${minRounded}-${maxRounded}mm`;
   };
 
   const mergeLegacyBorstweringVakken = (vakken: any[]) => {
@@ -865,6 +1117,17 @@ export default function GenericMeasurementPage() {
     return found;
   };
 
+  const findDakpannenMaterial = (container: any) => {
+    const materialenLijst = container?.materialen?.materialen_lijst || {};
+    let found: any = null;
+    Object.values(materialenLijst).forEach((entry: any) => {
+      if (!entry || !entry.material) return;
+      const sectionKey = entry.sectionKey || entry.material?.sectionKey;
+      if (sectionKey === 'dakpannen' && !found) found = entry.material;
+    });
+    return found;
+  };
+
   const applyCeilingBalkafstandDefault = (item: any, hasBalklaagMaterial: boolean) => {
     const isCeilingJob = jobSlug === 'plafond-houten-framework' || jobSlug === 'plafond-metalstud';
     if (!isCeilingJob || !hasBalklaagMaterial) return item;
@@ -973,6 +1236,7 @@ export default function GenericMeasurementPage() {
   useEffect(() => {
     async function loadData() {
       if (!quoteId || !klusId || !firestore) return;
+      setDakpanWerkendeMaten(null);
 
       try {
         const docRef = doc(firestore, 'quotes', quoteId);
@@ -981,13 +1245,17 @@ export default function GenericMeasurementPage() {
         if (snapshot.exists()) {
           const data = snapshot.data();
           const container = data.klussen?.[klusId] || {};
+          setMaterialenLijstSnapshot(container?.materialen?.materialen_lijst || {});
           const maatwerk = container.maatwerk;
           const vlizotrapMaterial = findVlizotrapMaterial(container);
           const kozijnhoutMaterial = isMaatwerkKozijn ? findKozijnhoutMaterial(container) : null;
           const tussenstijlMaterial = isMaatwerkKozijn ? findTussenstijlMaterial(container) : null;
           const balklaagMaterial = findBalklaagMaterial(container);
+          const dakpannenMaterial = isHellendDak ? findDakpannenMaterial(container) : null;
+          const dakpanMaten = isHellendDak ? resolveDakpanWerkendeMaten(dakpannenMaterial) : null;
           const kozijnhoutThickness = kozijnhoutMaterial ? parseDikteToMm(kozijnhoutMaterial?.dikte) : null;
           const tussenstijlThickness = tussenstijlMaterial ? parseDikteToMm(tussenstijlMaterial?.dikte) : null;
+          setDakpanWerkendeMaten(dakpanMaten);
           if (isMaatwerkKozijn) {
             setKozijnhoutFrameThicknessMm(kozijnhoutThickness);
             setTussenstijlThicknessMm(tussenstijlThickness ?? kozijnhoutThickness);
@@ -1144,7 +1412,10 @@ export default function GenericMeasurementPage() {
             const withBalkafstandDefaults = withVlizotrap.map((item: any) =>
               applyVoorzetwandBalkafstandDefault(applyCeilingBalkafstandDefault(item, !!balklaagMaterial))
             );
-            setItems(withBalkafstandDefaults);
+            const withDakpanDefaults = withBalkafstandDefaults.map((item: any) =>
+              applyHellendDakDefaultsFromDakpan(item, dakpanMaten)
+            );
+            setItems(withDakpanDefaults);
           } else {
             const emptyItem = createEmptyItem();
             const withVlizotrap = vlizotrapMaterial
@@ -1153,7 +1424,8 @@ export default function GenericMeasurementPage() {
             const withBalkafstandDefaults = applyVoorzetwandBalkafstandDefault(
               applyCeilingBalkafstandDefault(withVlizotrap, !!balklaagMaterial)
             );
-            setItems([withBalkafstandDefaults]);
+            const withDakpanDefaults = applyHellendDakDefaultsFromDakpan(withBalkafstandDefaults, dakpanMaten);
+            setItems([withDakpanDefaults]);
           }
 
           // 2. Load Components
@@ -1170,6 +1442,8 @@ export default function GenericMeasurementPage() {
         }
       } catch (error) {
         console.error("Error loading measurements:", error);
+        setDakpanWerkendeMaten(null);
+        setMaterialenLijstSnapshot({});
       } finally {
         setLoading(false);
       }
@@ -1189,11 +1463,13 @@ export default function GenericMeasurementPage() {
       newItem.vakken = [];
       newItem.tussenstijlen = [];
     }
-    return sanitizeItemBySections(newItem);
+    const sanitized = sanitizeItemBySections(newItem);
+    return applyHellendDakMultipliers(sanitized);
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, createEmptyItem()]);
+    const newItem = applyHellendDakDefaultsFromDakpan(createEmptyItem(), dakpanWerkendeMaten);
+    setItems(prev => [...prev, newItem]);
   };
 
   const removeItem = (index: number) => {
@@ -1211,8 +1487,11 @@ export default function GenericMeasurementPage() {
   const updateItem = (index: number, key: string, value: any) => {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
-      const newItem = { ...item, [key]: value };
-      return newItem;
+      let newItem = { ...item, [key]: value };
+      if (isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'werkende_breedte_mm', 'werkende_hoogte_mm'].includes(key)) {
+        newItem = applyHellendDakAutoCalculations(newItem, { onlyWhenEmpty: false, syncLatafstand: true });
+      }
+      return applyHellendDakMultipliers(newItem);
     }));
   };
 
@@ -1794,6 +2073,10 @@ export default function GenericMeasurementPage() {
             }
           }
 
+          if (isHellendDak) {
+            processed.hellend_dak_multipliers = buildHellendDakMultipliers(processed.hellend_dak_mirror === true);
+          }
+
           if (processed.openings && Array.isArray(processed.openings)) {
             processed.openings = processed.openings.map((op: any) => {
               const { width, height, ...rest } = op;
@@ -1835,6 +2118,14 @@ export default function GenericMeasurementPage() {
           // CLEANUP: Remove old slug-specific key
           [`klussen.${klusId}.${maatwerkKey}`]: deleteField(),
         };
+
+        if (isHellendDak && Object.keys(materialenLijstSnapshot || {}).length > 0) {
+          const mergedMultipliers = buildMergedHellendDakMultipliers(processedItems);
+          const syncedMaterialenLijst = syncHellendDakMultipliersInMaterialenLijst(materialenLijstSnapshot, mergedMultipliers);
+          if (Object.keys(syncedMaterialenLijst).length > 0) {
+            updateData[`klussen.${klusId}.materialen.materialen_lijst`] = cleanFirestoreData(syncedMaterialenLijst, { allowEmptyArrays: true });
+          }
+        }
 
         if (visualisatieUrl) {
           updateData[`klussen.${klusId}.visualisatieUrl`] = visualisatieUrl;
@@ -2170,7 +2461,6 @@ export default function GenericMeasurementPage() {
                                 )}
 
                                 <div className="space-y-2">
-                                  <Label className="text-xs">Spiegeling</Label>
                                   <button
                                     type="button"
                                     onClick={() => updateItem(index, 'boeiboord_mirror', !item.boeiboord_mirror)}
@@ -2225,23 +2515,79 @@ export default function GenericMeasurementPage() {
 
                         const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak) && showLengte && showHoogte;
                         const useSideBySidePannenAfmetingen = isHellendDak && !!fAantalPannenBreedte && !!fAantalPannenHoogte;
+                        const dakpanBreedteRange = formatWerkendeRange(dakpanWerkendeMaten?.minBreedteMm ?? null, dakpanWerkendeMaten?.maxBreedteMm ?? null);
+                        const dakpanHoogteRange = formatWerkendeRange(dakpanWerkendeMaten?.minHoogteMm ?? null, dakpanWerkendeMaten?.maxHoogteMm ?? null);
+                        const defaultWerkendeBreedte = dakpanWerkendeMaten?.maxBreedteMm ?? dakpanWerkendeMaten?.minBreedteMm ?? null;
+                        const defaultWerkendeHoogte = dakpanWerkendeMaten?.minHoogteMm !== null && dakpanWerkendeMaten?.minHoogteMm !== undefined && dakpanWerkendeMaten?.maxHoogteMm !== null && dakpanWerkendeMaten?.maxHoogteMm !== undefined
+                          ? ((dakpanWerkendeMaten.minHoogteMm + dakpanWerkendeMaten.maxHoogteMm) / 2)
+                          : (dakpanWerkendeMaten?.maxHoogteMm ?? dakpanWerkendeMaten?.minHoogteMm ?? null);
+
+                        const dakpanBreedteField = fAantalPannenBreedte ? (
+                          <div className="space-y-2">
+                            <DynamicInput
+                              field={fAantalPannenBreedte}
+                              value={item.aantal_pannen_breedte}
+                              onChange={v => updateItem(index, 'aantal_pannen_breedte', v)}
+                              onKeyDown={handleKeyDown}
+                              disabled={disabledAll}
+                            />
+                            {isHellendDak && defaultWerkendeBreedte && (
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-zinc-500">Werkende breedte (mm)</Label>
+                                {dakpanBreedteRange && (
+                                  <p className="text-[11px] text-zinc-400">{dakpanBreedteRange}</p>
+                                )}
+                                <MeasurementInput
+                                  placeholder={String(Math.round(defaultWerkendeBreedte))}
+                                  value={item.werkende_breedte_mm}
+                                  onChange={v => updateItem(index, 'werkende_breedte_mm', v)}
+                                  onKeyDown={handleKeyDown}
+                                  disabled={disabledAll}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ) : null;
+
+                        const dakpanHoogteField = fAantalPannenHoogte ? (
+                          <div className="space-y-2">
+                            <DynamicInput
+                              field={fAantalPannenHoogte}
+                              value={item.aantal_pannen_hoogte}
+                              onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)}
+                              onKeyDown={handleKeyDown}
+                              disabled={disabledAll}
+                            />
+                            {isHellendDak && defaultWerkendeHoogte && (
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-zinc-500">Werkende hoogte (mm)</Label>
+                                {dakpanHoogteRange && (
+                                  <p className="text-[11px] text-zinc-400">{dakpanHoogteRange}</p>
+                                )}
+                                <MeasurementInput
+                                  placeholder={String(Math.round(defaultWerkendeHoogte))}
+                                  value={item.werkende_hoogte_mm}
+                                  onChange={v => updateItem(index, 'werkende_hoogte_mm', v)}
+                                  onKeyDown={handleKeyDown}
+                                  disabled={disabledAll}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ) : null;
 
                         return (
                           <div className="space-y-4">
                             {/* Roof Tile Specific Fields */}
                             {useSideBySidePannenAfmetingen ? (
-                              <div className="grid grid-cols-2 gap-3 items-end">
-                                <DynamicInput field={fAantalPannenBreedte!} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                                <DynamicInput field={fAantalPannenHoogte!} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              <div className="grid grid-cols-2 gap-3 items-start">
+                                {dakpanBreedteField}
+                                {dakpanHoogteField}
                               </div>
                             ) : (
                               <>
-                                {fAantalPannenBreedte && (
-                                  <DynamicInput field={fAantalPannenBreedte} value={item.aantal_pannen_breedte} onChange={v => updateItem(index, 'aantal_pannen_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                                )}
-                                {fAantalPannenHoogte && (
-                                  <DynamicInput field={fAantalPannenHoogte} value={item.aantal_pannen_hoogte} onChange={v => updateItem(index, 'aantal_pannen_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                                )}
+                                {dakpanBreedteField}
+                                {dakpanHoogteField}
                               </>
                             )}
 
@@ -2254,23 +2600,95 @@ export default function GenericMeasurementPage() {
                               <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
 
-                            {isHellendDak && (
-                              <div className="space-y-2">
-                                <Label className="text-xs">Spiegeling</Label>
-                                <button
-                                  type="button"
-                                  onClick={() => updateItem(index, 'hellend_dak_mirror', !item.hellend_dak_mirror)}
-                                  className={cn(
-                                    "w-full text-xs py-1.5 rounded transition-colors border border-white/10",
-                                    item.hellend_dak_mirror
-                                      ? "bg-emerald-500/20 text-emerald-400"
-                                      : "bg-black/20 text-zinc-500 hover:text-zinc-300"
-                                  )}
-                                >
-                                  Dubbel gespiegeld (2x)
-                                </button>
-                              </div>
-                            )}
+                            {isHellendDak && (() => {
+                              const edgeLeftValue = item.edge_left === 'gevel' ? 'gevel' : 'buren';
+                              const edgeRightValue = item.edge_right === 'gevel' ? 'gevel' : 'buren';
+                              const sideToggleButtonClass = "flex-1 text-xs py-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+
+                              return (
+                                <div className="space-y-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'hellend_dak_mirror', !item.hellend_dak_mirror)}
+                                    disabled={disabledAll}
+                                    className={cn(
+                                      "w-full text-xs py-1.5 rounded transition-colors border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed",
+                                      item.hellend_dak_mirror
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "bg-black/20 text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Dubbel gespiegeld (2x)
+                                  </button>
+
+                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Links</Label>
+                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'edge_left', 'buren')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            edgeLeftValue === 'buren'
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Buren
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'edge_left', 'gevel')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            edgeLeftValue === 'gevel'
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Vrij
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Rechts</Label>
+                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'edge_right', 'buren')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            edgeRightValue === 'buren'
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Buren
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateItem(index, 'edge_right', 'gevel')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            edgeRightValue === 'gevel'
+                                              ? "bg-emerald-500/20 text-emerald-400"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Vrij
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {!useSideBySideLengteHoogte && showLengte && (showHoogte || showBreedte) && (
                               <div className="flex justify-center -my-2 relative z-10">
@@ -2808,10 +3226,10 @@ export default function GenericMeasurementPage() {
                                     <Label className="text-xs">Startpositie</Label>
                                     <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
                                       <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                        {isRoofCategory ? 'Links' : 'Boven'}
+                                        {isHellendDak ? 'Boven' : (isRoofCategory ? 'Links' : 'Boven')}
                                       </button>
                                       <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                        {isRoofCategory ? 'Rechts' : 'Onder'}
+                                        {isHellendDak ? 'Onder' : (isRoofCategory ? 'Rechts' : 'Onder')}
                                       </button>
                                     </div>
                                   </div>
@@ -2861,6 +3279,12 @@ export default function GenericMeasurementPage() {
                                         <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
                                         <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
                                       </div>
+                                      {isHellendDak && (
+                                        <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                          <Label className="text-[10px] text-zinc-400">1e onderafstand 1/2</Label>
+                                          <Switch checked={item.halfLatafstandFromBottom ?? true} onCheckedChange={(c) => updateItem(index, 'halfLatafstandFromBottom', c)} className="scale-75 origin-right" />
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -3027,10 +3451,10 @@ export default function GenericMeasurementPage() {
                                     <Label className="text-xs">Startpositie</Label>
                                     <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
                                       <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                        {isRoofCategory ? 'Links' : 'Boven'}
+                                        {isHellendDak ? 'Boven' : (isRoofCategory ? 'Links' : 'Boven')}
                                       </button>
                                       <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
-                                        {isRoofCategory ? 'Rechts' : 'Onder'}
+                                        {isHellendDak ? 'Onder' : (isRoofCategory ? 'Rechts' : 'Onder')}
                                       </button>
                                     </div>
                                   </div>
@@ -3080,6 +3504,12 @@ export default function GenericMeasurementPage() {
                                         <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
                                         <Switch checked={item.doubleEndBattens || false} onCheckedChange={(c) => updateItem(index, 'doubleEndBattens', c)} className="scale-75 origin-right" />
                                       </div>
+                                      {isHellendDak && (
+                                        <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                          <Label className="text-[10px] text-zinc-400">1e onderafstand 1/2</Label>
+                                          <Switch checked={item.halfLatafstandFromBottom ?? true} onCheckedChange={(c) => updateItem(index, 'halfLatafstandFromBottom', c)} className="scale-75 origin-right" />
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </div>

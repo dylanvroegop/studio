@@ -525,9 +525,8 @@ export default function MaterialenPage() {
         }
       }
 
-      const categorie = customSubsectie.trim() || 'Overig';
-      const leverancierTrim = customLeverancier.trim();
-      const leverancier = leverancierTrim ? leverancierTrim : null;
+      const categorie = customSubsectie.trim();
+      const leverancier = customLeverancier.trim();
 
       setSavingCustom(true);
       setPageError(null);
@@ -537,10 +536,10 @@ export default function MaterialenPage() {
         materiaalnaam: stripMaatSuffix(formattedName),
         eenheid,
         prijs: prijsNumLocal,
-        categorie,
-        leverancier,
         unit: maatUnitLocal,
       };
+      if (categorie) payload.categorie = categorie;
+      if (leverancier) payload.leverancier = leverancier;
 
       if (isMaatEenheid(eenheid)) {
         payload.lengte = lengte;

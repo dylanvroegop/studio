@@ -170,7 +170,29 @@ function formatNlMoneyFromNumber(n: number | null | undefined): string {
   const withDots = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${withDots},${d}`;
 }
-const BLOCKLIST = ['isFavorite', 'sectionKey', 'quantity', '_raw', 'created_at', 'id', 'wastePercentage', 'savedAt', 'updatedAt', 'saved_at', 'updated_at', 'savedByUid', 'gebruikerid', 'row_id', 'order_id'];
+const BLOCKLIST = [
+  'isFavorite',
+  'sectionKey',
+  'quantity',
+  '_raw',
+  'created_at',
+  'id',
+  'wastePercentage',
+  'savedAt',
+  'updatedAt',
+  'saved_at',
+  'updated_at',
+  'savedByUid',
+  'gebruikerid',
+  'row_id',
+  'order_id',
+  'prijs',
+  'prijs_per_stuk',
+  'hellend_dak_multiplier',
+  'hellend_dak_multipliers',
+  'boeiboord_multiplier',
+  'boeiboord_multipliers',
+];
 const DEFAULT_WASTE_PERCENTAGE = 10;
 const ZERO_WASTE_PATTERNS = [
   /(\bdeur\b|deuren|binnendeur|buitendeur)/i,
@@ -266,9 +288,11 @@ function mergeMaterialForPriceCheck(material: any): any {
 function getPositivePriceFromMaterial(material: any): number | null {
   if (!material) return null;
   const candidates = [
+    material.prijs_excl_btw,
     material.prijs_incl_btw,
     material.prijs_per_stuk,
     material.prijs,
+    material._raw?.prijs_excl_btw,
     material._raw?.prijs_incl_btw,
     material._raw?.prijs_per_stuk,
     material._raw?.prijs,
@@ -877,9 +901,9 @@ export default function GenericMaterialsPageRedesigned() {
   const JOB_KEY = jobSlug;
   const JOB_TITEL = jobConfig?.title || 'Klus';
 
-  const PRESET_GROUP = getPresetGroup(JOB_KEY);
-  const PRESET_KEY = getPresetKey(JOB_KEY);
-  const PRESET_COMPATIBLE_JOB_TYPES = getPresetCompatibleJobTypes(JOB_KEY);
+  const PRESET_GROUP = useMemo(() => getPresetGroup(JOB_KEY), [JOB_KEY]);
+  const PRESET_KEY = useMemo(() => getPresetKey(JOB_KEY), [JOB_KEY]);
+  const PRESET_COMPATIBLE_JOB_TYPES = useMemo(() => getPresetCompatibleJobTypes(JOB_KEY), [JOB_KEY]);
 
   const isPresetCompatible = useCallback((preset: any) => {
     const presetJobType = (preset?.jobType || '').trim();
@@ -974,6 +998,7 @@ export default function GenericMaterialsPageRedesigned() {
   const [presets, setPresets] = useState<any[]>([]);
   const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
   const [isPresetsLaden, setPresetsLaden] = useState(false);
+  const [hasLoadedPresetsOnce, setHasLoadedPresetsOnce] = useState(false);
 
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, any | undefined>>({});
   const [wasteByEntryKey, setWasteByEntryKey] = useState<Record<string, number>>({});
@@ -1021,6 +1046,50 @@ export default function GenericMaterialsPageRedesigned() {
   const [saveComponentPresetOpen, setSaveComponentPresetOpen] = useState(false);
   const [saveComponentPresetType, setSaveComponentPresetType] = useState<string | null>(null);
   const [saveComponentPresetCompId, setSaveComponentPresetCompId] = useState<string | null>(null);
+  const userHeeftPresetGewijzigdRef = useRef(false);
+  const isHydratingRef = useRef(true);
+  const hasSavedConfigRef = useRef(false);
+  const autoApplyDefaultPresetRef = useRef(false);
+  const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
+
+  const defaultPresetCandidate = useMemo(() => (
+    presets.find((p) => p.isDefault) || presets.find((p) => (p.name || '').toLowerCase().includes('standaard')) || null
+  ), [presets]);
+
+  const hasAnyMaterialSelections = useMemo(() => {
+    return Object.keys(gekozenMaterialen || {}).length > 0 || customGroups.length > 0;
+  }, [gekozenMaterialen, customGroups.length]);
+
+  const isPresetNotReadyForSave = useMemo(() => {
+    if (isPaginaLaden || isMaterialenLaden || !hasLoadedPresetsOnce || isPresetsLaden || isApplyingPreset) return true;
+
+    const shouldAutoApplyDefaultPreset =
+      !!defaultPresetCandidate &&
+      gekozenPresetId === 'default' &&
+      customGroups.length === 0 &&
+      !userHeeftPresetGewijzigdRef.current &&
+      !hasSavedConfigRef.current;
+
+    const hasSelectedPreset = gekozenPresetId !== 'default' && presets.some((p) => p.id === gekozenPresetId);
+    const shouldApplySelectedPresetFromWorkMethod =
+      hasSelectedPreset &&
+      !userHeeftPresetGewijzigdRef.current &&
+      !hasSavedConfigRef.current &&
+      !hasAnyMaterialSelections;
+
+    return shouldAutoApplyDefaultPreset || shouldApplySelectedPresetFromWorkMethod;
+  }, [
+    isPaginaLaden,
+    isMaterialenLaden,
+    hasLoadedPresetsOnce,
+    isPresetsLaden,
+    isApplyingPreset,
+    defaultPresetCandidate,
+    gekozenPresetId,
+    customGroups.length,
+    presets,
+    hasAnyMaterialSelections,
+  ]);
 
   const normalizeCategoryFilter = (raw?: string | string[]) => {
     if (!raw) return undefined;
@@ -1396,12 +1465,6 @@ export default function GenericMaterialsPageRedesigned() {
   const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
   const [isAutosaving, setIsAutosaving] = useState(false);
 
-  const userHeeftPresetGewijzigdRef = useRef(false);
-  const isHydratingRef = useRef(true);
-  const hasSavedConfigRef = useRef(false);
-  const autoApplyDefaultPresetRef = useRef(false);
-  const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
-
   useEffect(() => setIsMounted(true), []);
 
   const handleApplyComponentPreset = useCallback((presetId: string, componentType: string, compId: string) => {
@@ -1543,6 +1606,7 @@ export default function GenericMaterialsPageRedesigned() {
   useEffect(() => {
     if (!user || !firestore) {
       setPresetsLaden(false);
+      setHasLoadedPresetsOnce(true);
       return;
     }
     const fetchPresets = async () => {
@@ -1554,7 +1618,10 @@ export default function GenericMaterialsPageRedesigned() {
           .map(d => ({ id: d.id, ...d.data() }))
           .filter((p: any) => isPresetCompatible(p));
         setPresets(fetched);
-      } catch (e) { console.error(e); } finally { setPresetsLaden(false); }
+      } catch (e) { console.error(e); } finally {
+        setPresetsLaden(false);
+        setHasLoadedPresetsOnce(true);
+      }
     };
     fetchPresets();
   }, [user, firestore, JOB_KEY, isPresetCompatible]);
@@ -1935,100 +2002,127 @@ export default function GenericMaterialsPageRedesigned() {
         setFirestoreCustommateriaal(null);
         setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
         setComponents([]);
-        setIsApplyingPreset(false); // Reset loading state
         userHeeftPresetGewijzigdRef.current = false;
+      }
+      autoApplyDefaultPresetRef.current = false;
+      setIsApplyingPreset(false);
+      return;
+    }
+    if (!alleMaterialen.length) {
+      // If materials failed/finished loading and none are available, do not keep UI locked.
+      if (!isMaterialenLaden) {
+        setIsApplyingPreset(false);
       }
       return;
     }
-    if (!alleMaterialen.length) return;
     const preset = presets.find(p => p.id === gekozenPresetId);
-    if (!preset) return;
+    if (!preset) {
+      autoApplyDefaultPresetRef.current = false;
+      setIsApplyingPreset(false);
+      return;
+    }
     // Only apply if: user explicitly changed it OR hydrating is done + auto-apply triggers
-    if (!userHeeftPresetGewijzigdRef.current && isHydratingRef.current === false && !autoApplyDefaultPresetRef.current) return;
+    const shouldApplyFromSelectedWorkMethod =
+      isHydratingRef.current === false &&
+      !hasSavedConfigRef.current &&
+      gekozenPresetId !== 'default';
+    if (!userHeeftPresetGewijzigdRef.current && !autoApplyDefaultPresetRef.current && !shouldApplyFromSelectedWorkMethod) return;
 
     // ✅ Lock UI while applying
     setIsApplyingPreset(true);
 
     // Small timeout to allow UI to show loading state if needed, and ensure processing happens
-    setTimeout(() => {
-      const newSels: any = {};
-      const mappedSlots = mapPresetSlotsForJob(preset.slots, JOB_KEY);
-      if (mappedSlots) {
-        Object.keys(mappedSlots).forEach(key => {
-          const matId = mappedSlots[key];
-          const found = alleMaterialen.find(m => m.id === matId);
-          if (found) newSels[key] = found;
-        });
-      }
-      const normalizedSels = normalizeSelectedMaterialsForJob(newSels, JOB_KEY);
-      setGekozenMaterialen(normalizedSels);
-      if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
-
-      // Handle components (Kozijnen, Deuren, etc.)
-      // Merge preset components with existing ones (from measurements/openings)
-      let finalComponents = [...components];
-      if (preset.components && Array.isArray(preset.components) && preset.components.length > 0) {
-        const existingIds = new Set(components.map(c => c.id));
-        const existingTypes = new Set(components.map(c => c.type));
-        const toAdd = preset.components.filter((pc: JobComponent) => {
-          // Skip if exact ID already exists (e.g. re-applying same preset)
-          if (existingIds.has(pc.id)) return false;
-          // Skip if a component of this type already exists from measurements (opening-derived)
-          // but only for types that are typically derived from openings (kozijn, deur, dagkant)
-          const openingDerivedTypes = ['kozijn', 'deur', 'dagkant'];
-          if (openingDerivedTypes.includes(pc.type) && existingTypes.has(pc.type)) return false;
-          return true;
-        }).map((pc: JobComponent) => {
-          // Clear measurements so the user is forced to re-enter them for this job.
-          // Preset defines WHAT components are needed, not the dimensions.
-          const config = COMPONENT_REGISTRY[pc.type];
-          const hasRequiredMeasurements = config?.measurements?.some((f: any) => !f.optional && f.type === 'number');
-          if (hasRequiredMeasurements) {
-            const cleared: JobComponent = {
-              ...pc,
-              id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2),
-              measurements: {},
-              [`measurements_${pc.type}`]: {},
-            };
-            return cleared;
-          }
-          return { ...pc, id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2) };
-        });
-        if (toAdd.length > 0) {
-          finalComponents = [...finalComponents, ...toAdd];
-          setComponents(finalComponents);
+    const timer = setTimeout(() => {
+      try {
+        const newSels: any = {};
+        const mappedSlots = mapPresetSlotsForJob(preset.slots, JOB_KEY);
+        if (mappedSlots) {
+          Object.keys(mappedSlots).forEach(key => {
+            const matId = mappedSlots[key];
+            const found = alleMaterialen.find(m => m.id === matId);
+            if (found) newSels[key] = found;
+          });
         }
+        const normalizedSels = normalizeSelectedMaterialsForJob(newSels, JOB_KEY);
+        setGekozenMaterialen(normalizedSels);
+        if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
+
+        // Handle components (Kozijnen, Deuren, etc.)
+        // Merge preset components with existing ones (from measurements/openings)
+        let finalComponents = [...components];
+        if (preset.components && Array.isArray(preset.components) && preset.components.length > 0) {
+          const existingIds = new Set(components.map(c => c.id));
+          const existingTypes = new Set(components.map(c => c.type));
+          const toAdd = preset.components.filter((pc: JobComponent) => {
+            // Skip if exact ID already exists (e.g. re-applying same preset)
+            if (existingIds.has(pc.id)) return false;
+            // Skip if a component of this type already exists from measurements (opening-derived)
+            // but only for types that are typically derived from openings (kozijn, deur, dagkant)
+            const openingDerivedTypes = ['kozijn', 'deur', 'dagkant'];
+            if (openingDerivedTypes.includes(pc.type) && existingTypes.has(pc.type)) return false;
+            return true;
+          }).map((pc: JobComponent) => {
+            // Preset defines WHAT components are needed, not the dimensions.
+            const config = COMPONENT_REGISTRY[pc.type];
+            const hasRequiredMeasurements = config?.measurements?.some((f: any) => !f.optional && f.type === 'number');
+            if (hasRequiredMeasurements) {
+              const cleared: JobComponent = {
+                ...pc,
+                id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+                measurements: {},
+                [`measurements_${pc.type}`]: {},
+              };
+              return cleared;
+            }
+            return { ...pc, id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2) };
+          });
+          if (toAdd.length > 0) {
+            finalComponents = [...finalComponents, ...toAdd];
+            setComponents(finalComponents);
+          }
+        }
+
+        // Only force-show categories that have active components.
+        const componentForceShow: Record<string, boolean> = {};
+        finalComponents.forEach(comp => {
+          let cat: string | null = null;
+          if (comp.type === 'kozijn') cat = 'Kozijnen';
+          else if (comp.type === 'deur') cat = 'Deuren';
+          else if (comp.type === 'dagkant') cat = 'Dagkant';
+          else if (comp.type === 'vensterbank') cat = 'Vensterbank';
+          else if (comp.type === 'vlizotrap') cat = 'Toegang';
+          else if (comp.type === 'koof') cat = 'Koof';
+          else if (comp.type === 'plafond') cat = 'plafond';
+          else if (comp.type === 'isolatie') cat = 'isolatie';
+
+          if (cat) componentForceShow[cat] = false; // Force show
+        });
+
+        setHiddenCategories(prev => ({ ...prev, ...componentForceShow }));
+      } catch (error) {
+        console.error('Preset apply error:', error);
+      } finally {
+        setIsApplyingPreset(false);
+        userHeeftPresetGewijzigdRef.current = false;
+        autoApplyDefaultPresetRef.current = false;
+        hasSavedConfigRef.current = true;
       }
-
-      // Hidden categories are now stored in user profile, not per-preset or per-quote
-      // Only force-show categories that have active components (don't override user's global hide preferences)
-      const componentForceShow: Record<string, boolean> = {};
-      finalComponents.forEach(comp => {
-        let cat: string | null = null;
-        if (comp.type === 'kozijn') cat = 'Kozijnen';
-        else if (comp.type === 'deur') cat = 'Deuren';
-        else if (comp.type === 'dagkant') cat = 'Dagkant';
-        else if (comp.type === 'vensterbank') cat = 'Vensterbank';
-        else if (comp.type === 'vlizotrap') cat = 'Toegang';
-        else if (comp.type === 'koof') cat = 'Koof';
-        else if (comp.type === 'plafond') cat = 'plafond';
-        else if (comp.type === 'isolatie') cat = 'isolatie';
-
-        if (cat) componentForceShow[cat] = false; // Force show
-      });
-
-      // Only apply component-based force-show, preserve all other user preferences
-      setHiddenCategories(prev => ({ ...prev, ...componentForceShow }));
-
-
-      // Unlock
-      setIsApplyingPreset(false);
-      userHeeftPresetGewijzigdRef.current = false; // one-shot trigger
-      autoApplyDefaultPresetRef.current = false; // Reset trigger
     }, 100);
 
+    return () => clearTimeout(timer);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gekozenPresetId, presets, alleMaterialen]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
+  }, [gekozenPresetId, presets, alleMaterialen, isMaterialenLaden]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
+
+  // Watchdog: never leave preset-apply lock active indefinitely
+  useEffect(() => {
+    if (!isApplyingPreset) return;
+    const watchdog = setTimeout(() => {
+      console.warn('Preset apply watchdog unlocked UI');
+      setIsApplyingPreset(false);
+    }, 5000);
+    return () => clearTimeout(watchdog);
+  }, [isApplyingPreset]);
 
 
   // Fail-safe: Ensure categories with components are always visible
@@ -2556,8 +2650,19 @@ export default function GenericMaterialsPageRedesigned() {
     finally { setDeleteConfirmationOpen(false); setPresetToDelete(null); setManagePresetsModalOpen(false); }
   };
 
-  const saveToFirestore = async (options: { navigateTo?: string, silent?: boolean } = {}) => {
-    if (!user || !firestore) return;
+  const saveToFirestore = async (options: { navigateTo?: string, silent?: boolean } = {}): Promise<boolean> => {
+    if (!user || !firestore) return false;
+
+    if (isPresetNotReadyForSave) {
+      if (!options.silent) {
+        toast({
+          variant: 'destructive',
+          title: 'Nog bezig met laden',
+          description: 'Wacht tot het werkpakket volledig is geladen voordat je opslaat.',
+        });
+      }
+      return false;
+    }
 
     if (!options.silent) setIsOpslaan(true);
     else setIsAutosaving(true);
@@ -2594,7 +2699,11 @@ export default function GenericMaterialsPageRedesigned() {
         if ((dikte !== null || breedte !== null) && klus) {
           // Get the maatwerk key for this job
           const maatwerkKey = `${jobSlug}_maatwerk`;
-          const maatwerkItems = (klus as any)?.[maatwerkKey] || [];
+          const maatwerkItems =
+            (klus as any)?.maatwerk?.basis ||
+            (klus as any)?.maatwerk?.items ||
+            (klus as any)?.[maatwerkKey] ||
+            [];
 
           if (Array.isArray(maatwerkItems) && maatwerkItems.length > 0) {
             const updatedMaatwerkItems = maatwerkItems.map((item: any) => {
@@ -2636,32 +2745,160 @@ export default function GenericMaterialsPageRedesigned() {
       const maatwerkKey = `${jobSlug}_maatwerk`;
       const baseItems = updatedMaatwerkData
         ? updatedMaatwerkData.items
-        : ((klus as any)?.[maatwerkKey] || (klus as any)?.maatwerk?.basis || (klus as any)?.maatwerk?.items || []);
+        : ((klus as any)?.maatwerk?.basis || (klus as any)?.maatwerk?.items || (klus as any)?.[maatwerkKey] || []);
 
-      // Check if any item has a mirror flag (2x calculation)
-      const isBoeiboordMirrored = Array.isArray(baseItems) && baseItems.some((bi: any) => bi?.boeiboord_mirror === true);
-      const isHellendDakMirrored = Array.isArray(baseItems) && baseItems.some((bi: any) => bi?.hellend_dak_mirror === true);
-      const shouldApplyDoubleQuantity = isBoeiboordMirrored || isHellendDakMirrored;
+      const isHellendDakJob =
+        jobSlug.includes('hellend-dak') ||
+        jobSlug.includes('dakrenovatie-pannen') ||
+        (jobConfig?.title || '').toLowerCase().includes('hellend dak');
+
+      const isMirrorEnabled = (value: any): boolean => {
+        if (value === true || value === 1) return true;
+        const normalized = String(value ?? '').trim().toLowerCase();
+        return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'ja';
+      };
+
+      const hellendDakMultiplierTemplate: Record<string, number> = {
+        constructieplaat: 2,
+        folie_buiten: 2,
+        tengels: 2,
+        panlatten: 2,
+        dakpannen: 2,
+        gevelpannen: 2,
+        nokvorsten: 2,
+        ondervorst: 1,
+        dakvoetprofiel: 2,
+        ruiter: 1,
+      };
+
+      const toPositiveInt = (value: any): number | null => {
+        const parsed = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return parsed;
+      };
+
+      const buildHellendDakMultiplierMap = (mirrorEnabled: boolean, existing: any): Record<string, number> => {
+        const defaults = Object.fromEntries(
+          Object.entries(hellendDakMultiplierTemplate).map(([sectionKey, mirroredMultiplier]) => [
+            sectionKey,
+            mirrorEnabled ? mirroredMultiplier : 1,
+          ])
+        ) as Record<string, number>;
+
+        if (!existing || typeof existing !== 'object') return defaults;
+        Object.entries(existing as Record<string, any>).forEach(([sectionKey, rawMultiplier]) => {
+          const multiplier = toPositiveInt(rawMultiplier);
+          if (!sectionKey || multiplier === null) return;
+          const normalizedSectionKey = sectionKey.trim();
+          // Known hellend-dak sections are driven by mirror mode to avoid stale values
+          // overriding expected 2x behavior after the user toggles mirror on.
+          if (normalizedSectionKey in hellendDakMultiplierTemplate) return;
+          defaults[normalizedSectionKey] = mirrorEnabled ? multiplier : 1;
+        });
+        return defaults;
+      };
+
+      const normalizedBaseItems = Array.isArray(baseItems)
+        ? baseItems.map((bi: any) => {
+          if (!isHellendDakJob) return bi;
+          return {
+            ...bi,
+            hellend_dak_multipliers: buildHellendDakMultiplierMap(
+              isMirrorEnabled(bi?.hellend_dak_mirror),
+              bi?.hellend_dak_multipliers
+            )
+          };
+        })
+        : baseItems;
+
+      // Check if any item has a mirror flag
+      const isBoeiboordMirrored = Array.isArray(normalizedBaseItems) && normalizedBaseItems.some((bi: any) => isMirrorEnabled(bi?.boeiboord_mirror));
+      const isHellendDakMirrored = Array.isArray(normalizedBaseItems) && normalizedBaseItems.some((bi: any) => isMirrorEnabled(bi?.hellend_dak_mirror));
+      const isHellendDakMirroredFromMaatwerkBasis = (() => {
+        const basisItems = (klus as any)?.maatwerk?.basis;
+        if (Array.isArray(basisItems) && basisItems.length > 0) {
+          return basisItems.some((bi: any) => isMirrorEnabled(bi?.hellend_dak_mirror));
+        }
+        return isHellendDakMirrored;
+      })();
+
+      const hellendDakSectionMultipliers = new Map<string, number>();
+      if (Array.isArray(normalizedBaseItems)) {
+        normalizedBaseItems.forEach((bi: any) => {
+          const map = bi?.hellend_dak_multipliers;
+          if (!map || typeof map !== 'object') return;
+          Object.entries(map as Record<string, any>).forEach(([sectionKey, rawMultiplier]) => {
+            const multiplier = toPositiveInt(rawMultiplier);
+            if (!sectionKey || multiplier === null) return;
+            const prev = hellendDakSectionMultipliers.get(sectionKey) ?? 1;
+            if (multiplier > prev) {
+              hellendDakSectionMultipliers.set(sectionKey, multiplier);
+            }
+          });
+        });
+      }
+
+      const getSectionMultiplier = (sectionKey?: string | null): number => {
+        if (isBoeiboordMirrored) return 2;
+        if (!isHellendDakJob) return 1;
+
+        const normalizedSectionKey = typeof sectionKey === 'string' ? sectionKey.trim() : '';
+        if (normalizedSectionKey && normalizedSectionKey in hellendDakMultiplierTemplate) {
+          if (!isHellendDakMirroredFromMaatwerkBasis) return 1;
+          return hellendDakMultiplierTemplate[normalizedSectionKey] ?? 1;
+        }
+        if (normalizedSectionKey) {
+          const mappedMultiplier = hellendDakSectionMultipliers.get(normalizedSectionKey);
+          if (mappedMultiplier && mappedMultiplier > 0) return mappedMultiplier;
+        }
+
+        if (!isHellendDakMirrored) return 1;
+        return normalizedSectionKey === 'ruiter' ? 1 : 2;
+      };
 
       const materialenLijst: Record<string, any> = {};
 
-      const fallbackRuleAttachment = (sectionKey?: string | null) => ({
-        rule: null,
-        rule_meta: {
-          source: 'static_file' as const,
-          slug: jobSlug,
-          sectionKey: sectionKey ?? null,
-          version: KLUS_REGELS_STATIC_VERSION,
-          status: 'missing' as const,
-        },
+      const applySectionMultiplierToMaterial = (material: any, sectionMultiplier: number): any => {
+        if (!material) return material;
+        const {
+          hellend_dak_multiplier: _legacyHellendDakMultiplier,
+          hellend_dak_multipliers: _legacyHellendDakMultipliers,
+          boeiboord_multiplier: _legacyBoeiMultiplier,
+          boeiboord_multipliers: _legacyBoeiMultipliers,
+          ...rest
+        } = material;
+
+        if (isHellendDakJob) {
+          return {
+            ...rest,
+            hellend_dak_multiplier: sectionMultiplier,
+            aantal: sectionMultiplier,
+          };
+        }
+
+        return rest;
+      };
+
+      const fallbackRuleMeta = (sectionKey?: string | null) => ({
+        source: 'static_file' as const,
+        slug: jobSlug,
+        sectionKey: sectionKey ?? null,
+        version: KLUS_REGELS_STATIC_VERSION,
+        status: 'missing' as const,
       });
 
       const withRuleAttachment = (entry: Record<string, any>, sectionKey?: string | null): Record<string, any> => {
-        const attachment = getMaterialRule(jobSlug, sectionKey) || fallbackRuleAttachment(sectionKey);
+        const attachment = getMaterialRule(jobSlug, sectionKey);
+        const strippedRule = attachment?.rule && typeof attachment.rule === 'object'
+          ? (() => {
+            const { required_inputs, missing_input_behavior, ...rest } = attachment.rule as Record<string, any>;
+            return rest;
+          })()
+          : null;
         return {
           ...entry,
-          rule: attachment.rule,
-          rule_meta: attachment.rule_meta,
+          rule: strippedRule,
+          rule_meta: attachment?.rule_meta ?? fallbackRuleMeta(sectionKey),
         };
       };
 
@@ -2675,8 +2912,6 @@ export default function GenericMaterialsPageRedesigned() {
 
       const ensurePriceSnapshot = (cleaned: any): any => {
         if (!cleaned) return cleaned;
-        const hasPrice = getPositivePriceFromMaterial(cleaned);
-        if (hasPrice) return cleaned;
 
         const refId = cleaned.material_ref_id || cleaned.row_id || cleaned.id;
         const catalog = (refId ? catalogById.get(String(refId)) : null)
@@ -2684,20 +2919,47 @@ export default function GenericMaterialsPageRedesigned() {
         if (!catalog) return cleaned;
 
         const next = { ...cleaned };
-        const incl = parseNLMoneyToNumber(catalog.prijs_incl_btw ?? catalog.prijs_per_stuk ?? catalog.prijs);
-        const excl = parseNLMoneyToNumber(catalog.prijs_excl_btw);
-        const resolvedExcl = (excl && excl > 0)
-          ? excl
-          : (incl && incl > 0 ? Number((incl / 1.21).toFixed(2)) : null);
-        if (incl && incl > 0) {
-          next.prijs_incl_btw = String(incl);
+        const hasPrice = getPositivePriceFromMaterial(next);
+        if (!hasPrice) {
+          const incl = parseNLMoneyToNumber(catalog.prijs_incl_btw ?? catalog.prijs_per_stuk ?? catalog.prijs);
+          const excl = parseNLMoneyToNumber(catalog.prijs_excl_btw);
+          const resolvedExcl = (excl && excl > 0)
+            ? excl
+            : (incl && incl > 0 ? Number((incl / 1.21).toFixed(2)) : null);
+          const resolvedIncl = (incl && incl > 0)
+            ? incl
+            : (resolvedExcl && resolvedExcl > 0 ? Number((resolvedExcl * 1.21).toFixed(2)) : null);
+          if (resolvedExcl && resolvedExcl > 0) {
+            next.prijs_excl_btw = String(resolvedExcl);
+          }
+          if (resolvedIncl && resolvedIncl > 0) {
+            next.prijs_incl_btw = String(resolvedIncl);
+          }
         }
-        if (resolvedExcl && resolvedExcl > 0) {
-          next.prijs = String(resolvedExcl);
-          next.prijs_per_stuk = String(resolvedExcl);
-          next.prijs_excl_btw = String(resolvedExcl);
-        }
+
+        const isEmptyValue = (value: any): boolean => (
+          value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+        );
+        const firstFilled = (...values: any[]): any => values.find((value) => !isEmptyValue(value));
+
         if (!next.eenheid && catalog.eenheid) next.eenheid = catalog.eenheid;
+
+        const helperBackfillSpecs: Array<{ target: string; sources: string[] }> = [
+          { target: 'verbruik_per_m2', sources: ['verbruik_per_m2', 'vebruik_per_m2'] },
+          { target: 'max_werkende_lengte_mm', sources: ['max_werkende_lengte_mm', 'max_werkende_hoogte_mm'] },
+          { target: 'min_werkende_lengte_mm', sources: ['min_werkende_lengte_mm', 'min_werkende_hoogte_mm'] },
+          { target: 'max_werkende_breedte_mm', sources: ['max_werkende_breedte_mm', 'werkende_breedte_maat', 'werkende_breedte_mm'] },
+          { target: 'min_werkende_breedte_mm', sources: ['min_werkende_breedte_mm', 'werkende_breedte_maat', 'werkende_breedte_mm'] },
+          { target: 'max_werkende_hoogte_mm', sources: ['max_werkende_hoogte_mm', 'werkende_hoogte_maat', 'werkende_hoogte_mm'] },
+          { target: 'min_werkende_hoogte_mm', sources: ['min_werkende_hoogte_mm', 'werkende_hoogte_maat', 'werkende_hoogte_mm'] },
+        ];
+
+        helperBackfillSpecs.forEach(({ target, sources }) => {
+          if (!isEmptyValue(next[target])) return;
+          const fillValue = firstFilled(...sources.map((sourceKey) => catalog?.[sourceKey]));
+          if (!isEmptyValue(fillValue)) next[target] = fillValue;
+        });
+
         return next;
       };
 
@@ -2712,11 +2974,18 @@ export default function GenericMaterialsPageRedesigned() {
           v.entries.forEach((entry, idx) => {
             const cleaned = ensurePriceSnapshot(cleanMaterialData(entry.material));
             if (cleaned) {
+              const sectionMultiplier = getSectionMultiplier(k);
+              const parsedAantal = Number(entry.aantal);
+              const finalAantal = Number.isFinite(parsedAantal)
+                ? parsedAantal * sectionMultiplier
+                : entry.aantal;
+              const cleanedWithMultiplier = applySectionMultiplierToMaterial(cleaned, sectionMultiplier);
               const indexedKey = `${k}__${idx}`;
               materialenLijst[indexedKey] = withRuleAttachment({
                 sectionKey: k,
-                material: cleaned,
-                aantal: entry.aantal,
+                material: cleanedWithMultiplier,
+                aantal: finalAantal,
+                ...(isHellendDakJob ? { hellend_dak_multiplier: sectionMultiplier } : {}),
                 context: JOB_TITEL,
                 type: 'multi_entry',
                 wastePercentage: typeof wasteByEntryKey[indexedKey] === 'number'
@@ -2730,14 +2999,13 @@ export default function GenericMaterialsPageRedesigned() {
 
         const cleaned = ensurePriceSnapshot(cleanMaterialData(v));
         if (cleaned) {
-          // Rule: If mirror mode is enabled (boeiboord/hellend-dak), double standard selections.
-          if (shouldApplyDoubleQuantity) {
-            cleaned.aantal = 2;
-          }
+          const sectionMultiplier = getSectionMultiplier(k);
+          const cleanedWithMultiplier = applySectionMultiplierToMaterial(cleaned, sectionMultiplier);
 
           materialenLijst[k] = withRuleAttachment({
             sectionKey: k,
-            material: cleaned,
+            material: cleanedWithMultiplier,
+            ...(isHellendDakJob ? { hellend_dak_multiplier: sectionMultiplier } : {}),
             context: JOB_TITEL,
             wastePercentage: typeof wasteByEntryKey[k] === 'number'
               ? wasteByEntryKey[k]
@@ -2794,7 +3062,7 @@ export default function GenericMaterialsPageRedesigned() {
       });
 
       // Auto-sync maatwerk.aantal with sum of multi-entry quantities
-      let syncedBaseItems = baseItems;
+      let syncedBaseItems = normalizedBaseItems;
       const multiEntryTotalAantal = Object.values(gekozenMaterialen).reduce((sum, v) => {
         if (isMultiEntrySlot(v)) {
           return sum + v.entries.reduce((s: number, e: MultiEntryEntry) => s + (e.aantal || 0), 0);
@@ -2802,8 +3070,8 @@ export default function GenericMaterialsPageRedesigned() {
         return sum;
       }, 0);
 
-      if (multiEntryTotalAantal > 0 && Array.isArray(baseItems) && baseItems.length > 0) {
-        syncedBaseItems = baseItems.map((item: any, idx: number) =>
+      if (multiEntryTotalAantal > 0 && Array.isArray(normalizedBaseItems) && normalizedBaseItems.length > 0) {
+        syncedBaseItems = normalizedBaseItems.map((item: any, idx: number) =>
           idx === 0 ? { ...item, aantal: multiEntryTotalAantal } : item
         );
       }
@@ -2862,9 +3130,12 @@ export default function GenericMaterialsPageRedesigned() {
         router.push(options.navigateTo);
       }
 
+      return true;
+
     } catch (e: any) {
       console.error(e);
       if (!options.silent) toast({ variant: 'destructive', title: "Fout bij opslaan", description: e.message });
+      return false;
     } finally {
       if (!options.silent) setIsOpslaan(false);
       else setIsAutosaving(false);
@@ -2873,7 +3144,11 @@ export default function GenericMaterialsPageRedesigned() {
 
   // Autosave Effect
   useEffect(() => {
-    if (!isMounted || isHydratingRef.current || isPaginaLaden) return;
+    if (
+      !isMounted ||
+      isHydratingRef.current ||
+      isPresetNotReadyForSave
+    ) return;
 
     // Debounce save by 2 seconds
     const timer = setTimeout(() => {
@@ -2890,7 +3165,9 @@ export default function GenericMaterialsPageRedesigned() {
     collapsedSections,
     // hiddenCategories removed from autosave - now stored in user profile only (via toggleCategoryVisibility)
     gekozenPresetId,
-    notities
+    notities,
+    isMounted,
+    isPresetNotReadyForSave,
   ]);
 
   const getMissingPriceItems = useCallback(() => {
@@ -2953,6 +3230,15 @@ export default function GenericMaterialsPageRedesigned() {
   const handleNext = async (e: React.MouseEvent) => {
     e.preventDefault();
 
+    if (isPresetNotReadyForSave) {
+      toast({
+        variant: 'destructive',
+        title: 'Nog bezig met laden',
+        description: 'Wacht tot het werkpakket volledig is geladen voordat je opslaat.',
+      });
+      return;
+    }
+
 
     const hasMeasurements = jobConfig?.measurements && jobConfig.measurements.length > 0;
     const navigateTo = hasMeasurements
@@ -2960,7 +3246,8 @@ export default function GenericMaterialsPageRedesigned() {
       : `/offertes/${quoteId}/overzicht`;
 
     // Save to Firestore first (without navigation)
-    await saveToFirestore({});
+    const didSave = await saveToFirestore({});
+    if (!didSave) return;
 
     const missing = getMissingPriceItems();
 
@@ -2979,6 +3266,14 @@ export default function GenericMaterialsPageRedesigned() {
 
   const handleBack = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (isPresetNotReadyForSave) {
+      toast({
+        variant: 'destructive',
+        title: 'Nog bezig met laden',
+        description: 'Wacht tot het werkpakket volledig is geladen voordat je verdergaat.',
+      });
+      return;
+    }
     // Material page is now the first step after job selection — go back to category/job selection
     const hasOnlyOneItem = categoryConfig?.items?.length === 1;
     const backUrl = hasOnlyOneItem
@@ -3610,13 +3905,13 @@ export default function GenericMaterialsPageRedesigned() {
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" disabled={isOpslaan || isApplyingPreset} onClick={handleBack}>
+          <Button variant="outline" disabled={isOpslaan || isPresetNotReadyForSave} onClick={handleBack}>
             Terug
           </Button>
 
           <Button
             variant="outline"
-            disabled={isApplyingPreset}
+            disabled={isPresetNotReadyForSave}
             onClick={() => setSavePresetModalOpen(true)}
             className="gap-2"
           >
@@ -3627,10 +3922,10 @@ export default function GenericMaterialsPageRedesigned() {
           <Button
             type="submit"
             variant="success"
-            disabled={isOpslaan || isApplyingPreset || isPaginaLaden}
+            disabled={isOpslaan || isPresetNotReadyForSave}
             onClick={handleNext}
           >
-            {isOpslaan ? 'Opslaan...' : isApplyingPreset ? 'Configuratie toepassen...' : 'Opslaan'}
+            {isOpslaan ? 'Opslaan...' : isPresetNotReadyForSave ? 'Werkpakket laden...' : 'Opslaan'}
           </Button>
         </div>
       </div >

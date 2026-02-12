@@ -659,10 +659,11 @@ export function MaterialSelectionModal({
         prijs_excl_btw: prijsExclBtwLocal,
         prijs_incl_btw: prijsNumLocal,
         prijs_per_stuk: calculatedPiecePrice, // Calculated piece price (same as unit price for simple items)
-        categorie: customSubsectie.trim() || 'Overig',
-        leverancier: customLeverancier.trim() || null,
-        wastePercentage: wastePercentage || 0,
       };
+      const categorie = customSubsectie.trim();
+      const leverancier = customLeverancier.trim();
+      if (categorie) payload.categorie = categorie;
+      if (leverancier) payload.leverancier = leverancier;
 
       // 4. API Call
       // (Assuming `haalFirebaseIdToken` is available globally or imported)
@@ -691,12 +692,22 @@ export function MaterialSelectionModal({
 
       // 5. Success Callback
       if (onMaterialAdded) {
+        const mergedRow = row && typeof row === 'object'
+          ? { ...payload, ...row }
+          : payload;
+        const resolvedExclPrice =
+          parsePriceToNumber((mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
+          prijsNumLocal;
+        const resolvedPiecePrice =
+          parsePriceToNumber((mergedRow as any).prijs_per_stuk ?? (mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
+          calculatedPiecePrice;
         onMaterialAdded({
-          ...payload,
-          id: realId,
-          row_id: realId,
-          prijs: prijsNumLocal,
-          prijs_per_stuk: calculatedPiecePrice,
+          ...mergedRow,
+          id: realId || (mergedRow as any).id,
+          row_id: realId || (mergedRow as any).row_id,
+          prijs: resolvedExclPrice,
+          prijs_per_stuk: resolvedPiecePrice,
+          wastePercentage: wastePercentage || 0,
         });
       }
 

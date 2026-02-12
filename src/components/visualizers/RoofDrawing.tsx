@@ -43,6 +43,7 @@ export interface RoofDrawingProps {
     isMagnifier?: boolean;
     startFromRight?: boolean;
     startLattenFromBottom?: boolean;
+    halfLatafstandFromBottom?: boolean;
     title?: string;
     doubleEndBattens?: boolean;
     includeOuterBattens?: boolean;
@@ -76,6 +77,7 @@ export function RoofDrawing({
     isMagnifier,
     startFromRight,
     startLattenFromBottom,
+    halfLatafstandFromBottom,
     title = 'Dak Vlak',
     doubleEndBattens,
     includeOuterBattens,
@@ -197,13 +199,37 @@ export function RoofDrawing({
 
         // 2. Horizontal rachels
         if (latafstandNum > 0) {
-            const rachelFraming = calculateGridGaps({
-                wallLength: effectiveHeight,
-                spacing: latafstandNum,
-                studWidth: 50,
-                startFromRight: startLattenFromBottom
-            });
-            rachelFraming.beamCenters.forEach(cy => {
+            const shouldUseHalfBottomStart = startLattenFromBottom && !!halfLatafstandFromBottom && !!includeOuterBattens;
+            const rachelCenters: number[] = [];
+            const MAX_LOOPS = 1000;
+            let safety = 0;
+
+            if (startLattenFromBottom) {
+                let cy = includeOuterBattens ? effectiveHeight : (effectiveHeight - latafstandNum);
+                let firstStep = true;
+
+                while (cy >= 0 && safety < MAX_LOOPS) {
+                    rachelCenters.push(cy);
+                    const step = shouldUseHalfBottomStart && firstStep ? (latafstandNum / 2) : latafstandNum;
+                    if (step <= 0) break;
+                    cy -= step;
+                    firstStep = false;
+                    safety++;
+                }
+            } else {
+                let cy = includeOuterBattens ? 0 : latafstandNum;
+                while (cy <= effectiveHeight && safety < MAX_LOOPS) {
+                    rachelCenters.push(cy);
+                    cy += latafstandNum;
+                    safety++;
+                }
+            }
+
+            const uniqueCenters = Array.from(
+                new Set(rachelCenters.map(v => Math.round(v * 1000) / 1000))
+            );
+
+            uniqueCenters.forEach(cy => {
                 beams.push({
                     type: 'beam',
                     xMm: 0,
@@ -228,6 +254,7 @@ export function RoofDrawing({
                 variant,
                 startFromRight,
                 startLattenFromBottom,
+                halfLatafstandFromBottom,
                 doubleEndBattens,
                 includeOuterBattens,
                 edgeLeft,
@@ -240,7 +267,7 @@ export function RoofDrawing({
             lastDataRef.current = dataString;
             onDataGeneratedRef.current?.(data);
         }
-    }, [lengteNum, effectiveHeight, shape, balkafstandNum, latafstandNum, startFromRight, startLattenFromBottom, doubleEndBattens, includeOuterBattens, edgeLeft, edgeRight, openings, title, variant, balkafstand, latafstand]);
+    }, [lengteNum, effectiveHeight, shape, balkafstandNum, latafstandNum, startFromRight, startLattenFromBottom, halfLatafstandFromBottom, doubleEndBattens, includeOuterBattens, edgeLeft, edgeRight, openings, title, variant, balkafstand, latafstand]);
 
     // Calculate M2
     const areaStats = React.useMemo(() => {
@@ -370,18 +397,13 @@ export function RoofDrawing({
                 };
 
                 const label = currentType === 'gevel' ? "VRIJ" : "BUREN";
-                const color = currentType === 'gevel' ? "rgb(16, 185, 129)" : "rgb(148, 163, 184)"; // Green if Vrij (Good?), Gray if Buren
+                const color = "rgb(148, 163, 184)";
 
                 return (
                     <g key={key} onClick={interact} cursor={onEdgeChange ? "pointer" : "default"}>
                         <title>{currentType === 'gevel' ? "Wijzig naar Buren (Aansluitend)" : "Wijzig naar Vrij (Kopgevel)"}</title>
                         {/* Hit Area */}
                         <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="transparent" strokeWidth={40} />
-
-                        {/* Visible Line Indication if Vrij? */}
-                        {currentType === 'gevel' && (
-                            <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={color} strokeWidth={4} strokeOpacity={0.5} />
-                        )}
 
                         {/* Label */}
                         <text
@@ -417,6 +439,7 @@ export function RoofDrawing({
                 c1: startX + g.c1 * pxPerMmW,
                 c2: startX + g.c2 * pxPerMmW
             }));
+            let lattenGridGaps: Array<{ value: number; c1: number; c2: number }> = [];
 
             const elements: React.ReactNode[] = [];
             const inputW = lengteNum || 2000; // Use fallback for internal calc
@@ -744,6 +767,7 @@ export function RoofDrawing({
             const clippedContent: React.ReactNode[] = [];
             const structureColor = "rgb(70, 75, 85)";
             const rachelColor = "rgb(70, 75, 85)";
+            const rachelTopEdgesForDims: number[] = [];
 
             const beamCentersForDims: number[] = [];
 
@@ -814,6 +838,7 @@ export function RoofDrawing({
                 const rachelHeightPx = RACHEL_WIDTH_MM * pxPerMmH;
                 const halfRachel = rachelHeightPx / 2;
                 const spacingPx = latafstandNum * pxPerMmH;
+                const shouldUseHalfBottomStart = startLattenFromBottom && !!halfLatafstandFromBottom && !!includeOuterBattens;
 
                 const rStartX = startX;
                 const rEndX = startX + rectW;
@@ -840,7 +865,11 @@ export function RoofDrawing({
                 if (curY > bottomBoundY) curY = bottomBoundY;
 
                 // Helper to draw rachel
-                const drawRachel = (y: number, key: string) => {
+                const drawRachel = (y: number, key: string, includeForDimensions = true) => {
+                    if (includeForDimensions) {
+                        // h.o.h. for panlatten is measured top-edge to top-edge
+                        rachelTopEdgesForDims.push(y - halfRachel);
+                    }
                     clippedContent.push(
                         <g key={key}>
                             <line x1={rStartX} y1={y - halfRachel} x2={rEndX} y2={y - halfRachel} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" opacity="1.0" />
@@ -860,9 +889,13 @@ export function RoofDrawing({
 
                 if (startLattenFromBottom) {
                     const limitTop = includeOuterBattens ? topBoundY - 1 : topBoundY;
+                    let firstStep = true;
                     while (curY > limitTop && safety < MAX_LOOPS) {
                         drawRachel(curY, `rachel-${rachelIndex}`);
-                        curY -= spacingPx;
+                        const stepPx = shouldUseHalfBottomStart && firstStep ? (spacingPx / 2) : spacingPx;
+                        if (stepPx <= 0) break;
+                        curY -= stepPx;
+                        firstStep = false;
                         rachelIndex++;
                         safety++;
                     }
@@ -892,8 +925,8 @@ export function RoofDrawing({
                     const extraTopY = topBoundY + (rachelHeightPx * 1.5);
                     const extraBottomY = bottomBoundY - (rachelHeightPx * 1.5);
 
-                    drawRachel(extraTopY, 'rachel-double-top');
-                    drawRachel(extraBottomY, 'rachel-double-bottom');
+                    drawRachel(extraTopY, 'rachel-double-top', false);
+                    drawRachel(extraBottomY, 'rachel-double-bottom', false);
                 }
 
                 // Special 22mm Bottom Rachel (Roof Specific)
@@ -910,6 +943,24 @@ export function RoofDrawing({
                         <line x1={rStartX} y1={bRachelY + bRachelHalf} x2={rEndX} y2={bRachelY + bRachelHalf} stroke={rachelColor} strokeWidth="1" strokeDasharray="4 2" />
                     </g>
                 );
+
+                if (rachelTopEdgesForDims.length > 1) {
+                    const sortedTopEdges = Array.from(new Set(
+                        rachelTopEdgesForDims.map(v => Math.round(v * 1000) / 1000)
+                    )).sort((a, b) => a - b);
+
+                    lattenGridGaps = sortedTopEdges
+                        .slice(0, -1)
+                        .map((edgeTopY, idx) => {
+                            const nextEdgeTopY = sortedTopEdges[idx + 1];
+                            return {
+                                value: Math.round((nextEdgeTopY - edgeTopY) / pxPerMmH),
+                                c1: edgeTopY,
+                                c2: nextEdgeTopY
+                            };
+                        })
+                        .filter(gap => gap.value > 0);
+                }
             }
 
             // 3. OPENINGS
@@ -1036,6 +1087,14 @@ export function RoofDrawing({
                         <GridMeasurements
                             gaps={gridGaps}
                             svgBaseYTop={startY}
+                        />
+                    )}
+
+                    {lattenGridGaps.length > 0 && (
+                        <GridMeasurements
+                            gaps={lattenGridGaps}
+                            orientation="vertical"
+                            svgBaseX={startX + rectW}
                         />
                     )}
 

@@ -180,6 +180,46 @@ const EMPTY_CLIENT: Client = {
   projectPlaats: '',
 };
 
+function toQuoteKlantinformatie(client: Client): Record<string, unknown> {
+  const projectStraat = (client.projectStraat || '').trim();
+  const projectHuisnummer = (client.projectHuisnummer || '').trim();
+  const projectPostcode = (client.projectPostcode || '').trim();
+  const projectPlaats = (client.projectPlaats || '').trim();
+  const hasProjectAddress = !!(projectStraat || projectHuisnummer || projectPostcode || projectPlaats);
+  const emailadres = (client.emailadres || '').trim();
+
+  return {
+    klanttype: (client.bedrijfsnaam || '').trim() ? 'Zakelijk' : 'Particulier',
+    voornaam: (client.voornaam || '').trim(),
+    achternaam: (client.achternaam || '').trim(),
+    bedrijfsnaam: (client.bedrijfsnaam || '').trim(),
+    emailadres,
+    'e-mailadres': emailadres,
+    telefoonnummer: (client.telefoonnummer || '').trim(),
+    straat: (client.straat || '').trim(),
+    huisnummer: (client.huisnummer || '').trim(),
+    postcode: (client.postcode || '').trim(),
+    plaats: (client.plaats || '').trim(),
+    factuuradres: {
+      straat: (client.straat || '').trim(),
+      huisnummer: (client.huisnummer || '').trim(),
+      postcode: (client.postcode || '').trim(),
+      plaats: (client.plaats || '').trim(),
+    },
+    afwijkendProjectadres: hasProjectAddress,
+    projectStraat,
+    projectHuisnummer,
+    projectPostcode,
+    projectPlaats,
+    projectadres: {
+      straat: projectStraat || null,
+      huisnummer: projectHuisnummer || null,
+      postcode: projectPostcode || null,
+      plaats: projectPlaats || null,
+    },
+  };
+}
+
 export default function OffertesPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
@@ -306,16 +346,30 @@ export default function OffertesPage() {
       .slice(0, 40);
   }, [clientSearch, clients]);
 
-  async function handleCreateEmptyQuote(): Promise<void> {
+  async function handleCreateEmptyQuote(options?: { withSelectedClient?: boolean }): Promise<void> {
     if (!user || !firestore || creatingQuoteRef.current) return;
+    const withSelectedClient = !!options?.withSelectedClient;
     creatingQuoteRef.current = true;
     setCreatingQuote(true);
     try {
       const quoteId = await createEmptyQuote(firestore, user.uid);
+      let nextPath = `/offertes/${quoteId}/klant`;
+
+      if (withSelectedClient && selectedClientId) {
+        const selectedClient = clients.find((client) => client.id === selectedClientId);
+        if (selectedClient) {
+          await updateDoc(doc(firestore, 'quotes', quoteId), {
+            klantinformatie: toQuoteKlantinformatie(selectedClient),
+            updatedAt: serverTimestamp(),
+          } as any);
+          nextPath = `/offertes/${quoteId}/klus/nieuw`;
+        }
+      }
+
       setCreateOpen(false);
       setSelectedClientId(null);
       setClientSearch('');
-      router.push(`/offertes/${quoteId}`);
+      router.push(nextPath);
     } catch (e: any) {
       console.error(e);
       setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon geen offerte aanmaken.'}`);
@@ -549,7 +603,7 @@ export default function OffertesPage() {
                                 type="button"
                                 variant="outline"
                                 className="h-10"
-                                onClick={handleCreateEmptyQuote}
+                                onClick={() => handleCreateEmptyQuote()}
                                 disabled={creatingQuote}
                               >
                                 {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -558,11 +612,11 @@ export default function OffertesPage() {
                               <Button
                                 type="button"
                                 className="h-10 border-cyan-500/50 bg-cyan-500/20 text-cyan-100 hover:bg-cyan-500/30"
-                                onClick={handleCreateEmptyQuote}
+                                onClick={() => handleCreateEmptyQuote({ withSelectedClient: true })}
                                 disabled={creatingQuote || !selectedClientId}
                               >
                                 {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                Start lege offerte
+                                Start met klant
                               </Button>
                             </div>
                           </div>

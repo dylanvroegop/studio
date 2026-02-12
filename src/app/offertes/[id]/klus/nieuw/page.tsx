@@ -51,15 +51,18 @@ const categories: CategoryItem[] = [
   { name: 'Afwerkingen', description: 'Plinten, vensterbanken & betimmering', slug: 'afwerkingen' },
   { name: 'Glas zetten', description: 'Isolatieglas', slug: 'glas-zetten' },
 
-  { name: 'Overzettreden', description: 'Traprenovatie met overzettreden', slug: 'overzettreden' },
+  // Temporarily hidden per request:
+  // { name: 'Overzettreden', description: 'Traprenovatie met overzettreden', slug: 'overzettreden' },
   { name: 'Vlizotrappen', description: 'Zoldertrappen & vlizotrappen', slug: 'vlizotrap' },
   { name: 'Houtrotreparatie', description: 'Herstel met epoxy of inzetstukken', slug: 'houtrotreparatie' },
 
 
-  { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
+  // Temporarily hidden per request:
+  // { name: 'Keukens', description: 'Montage en renovatie van keukens', slug: 'keukens' },
   { name: 'Dakramen', description: 'Diverse dakramen', slug: 'dakramen' },
   { name: 'Lichtkoepel', description: 'Diverse lichtkoepels', slug: 'lichtkoepel' },
-  { name: 'Isolatiewerken', description: 'Plafond / Wand / Vloer', slug: 'isolatie' },
+  // Temporarily hidden per request:
+  // { name: 'Isolatiewerken', description: 'Plafond / Wand / Vloer', slug: 'isolatie' },
 ];
 
 export default function NewJobPage() {
