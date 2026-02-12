@@ -47,6 +47,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
+import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
+import { supabase } from '@/lib/supabase';
 import type { Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -163,6 +165,68 @@ function getStatusMeta(
   return map[status || 'concept'] || map.concept;
 }
 
+function hasCalculatedAmount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
+  const normalized = normalizeDataJson(input as any);
+  const rawInst = (normalized?.instellingen || {}) as any;
+  const rawExtras = (normalized?.extras || {}) as any;
+
+  return {
+    btwTarief: rawInst?.btwTarief || 21,
+    uurTariefExclBtw: rawInst?.uurTariefExclBtw || rawInst?.uurTarief || 50,
+    schattingUren: rawInst?.schattingUren ?? false,
+    extras: {
+      transport: {
+        prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
+        vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
+        tunnelkosten: rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
+        mode: rawExtras?.transport?.mode ?? rawInst?.extras?.transport?.mode,
+      },
+      winstMarge: {
+        percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
+        fixedAmount: rawExtras?.winstMarge?.fixedAmount ?? 0,
+        mode: rawExtras?.winstMarge?.mode ?? 'percentage',
+        basis: rawExtras?.winstMarge?.basis ?? 'totaal',
+      },
+    },
+  };
+}
+
+function haalTotaalUitCalculatie(dataJson: unknown): number | null {
+  if (!dataJson) return null;
+
+  try {
+    const settings = mapSettingsForTotals(dataJson);
+    const totals = calculateQuoteTotals(dataJson as any, settings);
+    const total = Number(totals?.totaalInclBtw || 0);
+    if (Number.isFinite(total) && total > 0) return total;
+  } catch (err) {
+    console.warn('Kon totaal niet berekenen uit calculatie-data:', err);
+  }
+
+  const normalized = normalizeDataJson(dataJson as any) as any;
+  const fallbackCandidates = [
+    normalized?.totaalInclBtw,
+    normalized?.totaal_incl_btw,
+    normalized?.totals?.totaalInclBtw,
+    normalized?.totals?.totaal_incl_btw,
+    (dataJson as any)?.totaalInclBtw,
+    (dataJson as any)?.totaal_incl_btw,
+    (dataJson as any)?.totals?.totaalInclBtw,
+    (dataJson as any)?.totals?.totaal_incl_btw,
+  ];
+
+  for (const candidate of fallbackCandidates) {
+    const n = Number(candidate);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  return null;
+}
+
 const EMPTY_CLIENT: Client = {
   id: '',
   voornaam: '',
@@ -246,6 +310,7 @@ export default function OffertesPage() {
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [deletingConcepts, setDeletingConcepts] = useState(false);
+  const isSyncingTotalsRef = useRef(false);
 
   const isDev = process.env.NODE_ENV !== 'production';
 
@@ -316,6 +381,81 @@ export default function OffertesPage() {
       }
     })();
   }, [createOpen, firestore, user]);
+
+  const pendingQuoteIds = useMemo(
+    () =>
+      quotes
+        .filter((q) => q.status === 'in_behandeling' && !hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
+        .map((q) => q.id),
+    [quotes]
+  );
+
+  useEffect(() => {
+    if (!user || !firestore || pendingQuoteIds.length === 0) return;
+
+    let cancelled = false;
+
+    const syncPendingTotals = async () => {
+      if (isSyncingTotalsRef.current || cancelled) return;
+
+      const quoteIdsToCheck = pendingQuoteIds;
+      if (!quoteIdsToCheck.length) return;
+
+      isSyncingTotalsRef.current = true;
+
+      try {
+        const { data, error } = await supabase
+          .from('quotes_collection')
+          .select('quoteid, data_json, created_at')
+          .in('quoteid', quoteIdsToCheck)
+          .order('created_at', { ascending: false });
+
+        if (error || !data?.length) return;
+
+        const rowsByQuote = new Map<string, Array<{ data_json: unknown }>>();
+        for (const row of data as Array<{ quoteid: string; data_json: unknown }>) {
+          if (!row?.quoteid) continue;
+          const existing = rowsByQuote.get(row.quoteid) || [];
+          existing.push({ data_json: row.data_json });
+          rowsByQuote.set(row.quoteid, existing);
+        }
+
+        for (const quoteId of quoteIdsToCheck) {
+          const rows = rowsByQuote.get(quoteId) || [];
+          let totalFromCalculation: number | null = null;
+
+          for (const row of rows) {
+            totalFromCalculation = haalTotaalUitCalculatie(row.data_json);
+            if (hasCalculatedAmount(totalFromCalculation)) break;
+          }
+
+          if (!hasCalculatedAmount(totalFromCalculation) || cancelled) continue;
+
+          try {
+            await updateDoc(doc(firestore, 'quotes', quoteId), {
+              totaalbedrag: totalFromCalculation,
+              amount: totalFromCalculation,
+              updatedAt: serverTimestamp(),
+            });
+          } catch (err) {
+            console.warn(`Kon quote totaal niet syncen voor ${quoteId}:`, err);
+          }
+        }
+      } finally {
+        isSyncingTotalsRef.current = false;
+      }
+    };
+
+    void syncPendingTotals();
+    const intervalId = setInterval(() => {
+      void syncPendingTotals();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [firestore, pendingQuoteIds, user]);
 
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();

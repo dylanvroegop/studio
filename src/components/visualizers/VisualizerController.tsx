@@ -111,6 +111,10 @@ export function VisualizerController({
             toPositiveNum(item.werkende_hoogte_mm);
         const halfLatafstandFromBottom =
             item.halfLatafstandFromBottom ?? slug.includes('hellend-dak');
+        const mirrorBadgeText =
+            slug.includes('hellend-dak') && item.hellend_dak_mirror
+                ? '2x calculatie'
+                : undefined;
 
         if (slug.includes('epdm-dakbedekking')) {
             return (
@@ -159,6 +163,7 @@ export function VisualizerController({
                 onOpeningsChange={onOpeningsChange}
                 includeOuterBattens={slug.includes('hellend-dak')}
                 halfLatafstandFromBottom={halfLatafstandFromBottom}
+                mirrorBadgeText={mirrorBadgeText}
                 edgeLeft={item.edge_left || item.edgeLeft}
                 edgeRight={item.edge_right || item.edgeRight}
                 onEdgeChange={onEdgeChange}

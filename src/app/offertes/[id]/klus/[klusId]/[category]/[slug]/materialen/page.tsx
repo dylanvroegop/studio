@@ -186,6 +186,7 @@ const BLOCKLIST = [
   'gebruikerid',
   'row_id',
   'order_id',
+  'prijs_incl_btw',
   'prijs',
   'prijs_per_stuk',
   'hellend_dak_multiplier',
@@ -285,22 +286,37 @@ function mergeMaterialForPriceCheck(material: any): any {
   };
 }
 
-function getPositivePriceFromMaterial(material: any): number | null {
+function getExclPriceFromMaterial(material: any): number | null {
   if (!material) return null;
-  const candidates = [
+
+  const exclCandidates = [
     material.prijs_excl_btw,
-    material.prijs_incl_btw,
     material.prijs_per_stuk,
     material.prijs,
     material._raw?.prijs_excl_btw,
-    material._raw?.prijs_incl_btw,
     material._raw?.prijs_per_stuk,
     material._raw?.prijs,
   ];
-  for (const c of candidates) {
+  for (const c of exclCandidates) {
     const n = parseNLMoneyToNumber(c);
     if (typeof n === 'number' && n > 0) return n;
   }
+
+  // Fallback for legacy/catalog rows that still only contain incl. btw.
+  const inclCandidates = [material.prijs_incl_btw, material._raw?.prijs_incl_btw];
+  for (const c of inclCandidates) {
+    const incl = parseNLMoneyToNumber(c);
+    if (typeof incl === 'number' && incl > 0) {
+      return Number((incl / 1.21).toFixed(2));
+    }
+  }
+
+  return null;
+}
+
+function getPositivePriceFromMaterial(material: any): number | null {
+  const excl = getExclPriceFromMaterial(material);
+  if (typeof excl === 'number' && excl > 0) return excl;
   return null;
 }
 
@@ -1578,18 +1594,22 @@ export default function GenericMaterialsPageRedesigned() {
         throw new Error(json.error || 'Fout bij ophalen');
       }
 
-      const materialenData = (json.data || []).map((m: any) => ({
-        ...m, // Keep all raw fields
-        _raw: m, // Store exact raw object for pristine saving
-        id: m.row_id || m.id,
-        // In de offerte-flow is prijs_per_stuk excl. btw.
-        prijs: parseNLMoneyToNumber(m.prijs_excl_btw) || Number(((parseNLMoneyToNumber(m.prijs_incl_btw ?? m.prijs) || 0) / 1.21).toFixed(2)),
-        prijs_per_stuk: parseNLMoneyToNumber(m.prijs_excl_btw) || Number(((parseNLMoneyToNumber(m.prijs_incl_btw ?? m.prijs) || 0) / 1.21).toFixed(2)),
-        // Map standard keys for UI filtering
-        categorie: m.categorie || m.subsectie || 'Overig',
-        subsectie: m.subsectie || m.categorie || 'Overig',
-        leverancier: m.merk || m.leverancier,
-      }));
+      const materialenData = (json.data || []).map((m: any) => {
+        const exclPrice = getExclPriceFromMaterial(m);
+        return {
+          ...m, // Keep all raw fields
+          _raw: m, // Store exact raw object for pristine saving
+          id: m.row_id || m.id,
+          // In de offerte-flow is prijs_per_stuk excl. btw.
+          prijs: exclPrice || 0,
+          prijs_per_stuk: exclPrice || 0,
+          prijs_excl_btw: exclPrice,
+          // Map standard keys for UI filtering
+          categorie: m.categorie || m.subsectie || 'Overig',
+          subsectie: m.subsectie || m.categorie || 'Overig',
+          leverancier: m.merk || m.leverancier,
+        };
+      });
 
       setAlleMaterialen(materialenData);
     } catch (err) {
@@ -2758,6 +2778,13 @@ export default function GenericMaterialsPageRedesigned() {
         return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'ja';
       };
 
+      const normalizeHellendDakEdge = (value: any): 'gevel' | 'buren' => {
+        const normalized = String(value ?? '').trim().toLowerCase();
+        if (['gevel', 'vrij', 'free'].includes(normalized)) return 'gevel';
+        if (['buren', 'muur', 'wall'].includes(normalized)) return 'buren';
+        return 'buren';
+      };
+
       const hellendDakMultiplierTemplate: Record<string, number> = {
         constructieplaat: 2,
         folie_buiten: 2,
@@ -2765,7 +2792,7 @@ export default function GenericMaterialsPageRedesigned() {
         panlatten: 2,
         dakpannen: 2,
         gevelpannen: 2,
-        nokvorsten: 2,
+        nokvorsten: 1,
         ondervorst: 1,
         dakvoetprofiel: 2,
         ruiter: 1,
@@ -2803,6 +2830,8 @@ export default function GenericMaterialsPageRedesigned() {
           if (!isHellendDakJob) return bi;
           return {
             ...bi,
+            edge_left: normalizeHellendDakEdge(bi?.edge_left),
+            edge_right: normalizeHellendDakEdge(bi?.edge_right),
             hellend_dak_multipliers: buildHellendDakMultiplierMap(
               isMirrorEnabled(bi?.hellend_dak_mirror),
               bi?.hellend_dak_multipliers
@@ -2915,26 +2944,21 @@ export default function GenericMaterialsPageRedesigned() {
 
         const refId = cleaned.material_ref_id || cleaned.row_id || cleaned.id;
         const catalog = (refId ? catalogById.get(String(refId)) : null)
-          || (cleaned.materiaalnaam ? catalogByName.get(String(cleaned.materiaalnaam)) : null);
-        if (!catalog) return cleaned;
+          || (cleaned.materiaalnaam ? catalogByName.get(String(cleaned.materiaalnaam)) : null)
+          || null;
 
         const next = { ...cleaned };
-        const hasPrice = getPositivePriceFromMaterial(next);
-        if (!hasPrice) {
-          const incl = parseNLMoneyToNumber(catalog.prijs_incl_btw ?? catalog.prijs_per_stuk ?? catalog.prijs);
-          const excl = parseNLMoneyToNumber(catalog.prijs_excl_btw);
-          const resolvedExcl = (excl && excl > 0)
-            ? excl
-            : (incl && incl > 0 ? Number((incl / 1.21).toFixed(2)) : null);
-          const resolvedIncl = (incl && incl > 0)
-            ? incl
-            : (resolvedExcl && resolvedExcl > 0 ? Number((resolvedExcl * 1.21).toFixed(2)) : null);
-          if (resolvedExcl && resolvedExcl > 0) {
-            next.prijs_excl_btw = String(resolvedExcl);
-          }
-          if (resolvedIncl && resolvedIncl > 0) {
-            next.prijs_incl_btw = String(resolvedIncl);
-          }
+        const localExcl = getPositivePriceFromMaterial(next);
+        const catalogExcl = getPositivePriceFromMaterial(catalog);
+        const resolvedExcl = localExcl ?? catalogExcl;
+
+        if (resolvedExcl && resolvedExcl > 0) {
+          next.prijs_excl_btw = String(Number(resolvedExcl.toFixed(2)));
+        }
+
+        // Firestore materiaal-snapshots are excl-only to prevent accidental +21% recalc bugs.
+        if ('prijs_incl_btw' in next) {
+          delete next.prijs_incl_btw;
         }
 
         const isEmptyValue = (value: any): boolean => (
@@ -2942,7 +2966,7 @@ export default function GenericMaterialsPageRedesigned() {
         );
         const firstFilled = (...values: any[]): any => values.find((value) => !isEmptyValue(value));
 
-        if (!next.eenheid && catalog.eenheid) next.eenheid = catalog.eenheid;
+        if (catalog && !next.eenheid && catalog.eenheid) next.eenheid = catalog.eenheid;
 
         const helperBackfillSpecs: Array<{ target: string; sources: string[] }> = [
           { target: 'verbruik_per_m2', sources: ['verbruik_per_m2', 'vebruik_per_m2'] },

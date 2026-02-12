@@ -535,7 +535,9 @@ export default function MaterialenPage() {
         // Gebruik hier de geformatteerde naam
         materiaalnaam: stripMaatSuffix(formattedName),
         eenheid,
+        // Canonical: prijs is excl. btw om ambiguiteit te voorkomen.
         prijs: prijsNumLocal,
+        prijs_excl_btw: prijsNumLocal,
         unit: maatUnitLocal,
       };
       if (categorie) payload.categorie = categorie;
@@ -1001,7 +1003,7 @@ export default function MaterialenPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="text-sm font-medium">Prijs per eenheid (incl. btw) *</div>
+                      <div className="text-sm font-medium">Prijs per eenheid (excl. btw) *</div>
                       <Input
                         value={customPrijs}
                         onChange={(e) => setCustomPrijs(e.target.value)}

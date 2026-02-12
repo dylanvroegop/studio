@@ -7,6 +7,103 @@ import { useDraggableOpenings } from './shared/useDraggableOpenings';
 import { OpeningLabels } from './shared/OpeningLabels';
 import { DrawingData, Beam } from '@/lib/drawing-types';
 
+interface RachelCentersOptions {
+    heightMm: number;
+    spacingMm: number;
+    startFromBottom?: boolean;
+    includeOuter?: boolean;
+    halfBottomStart?: boolean;
+}
+
+function buildRachelCentersMm({
+    heightMm,
+    spacingMm,
+    startFromBottom,
+    includeOuter,
+    halfBottomStart
+}: RachelCentersOptions): number[] {
+    if (!(spacingMm > 0) || !(heightMm >= 0)) return [];
+
+    const EPS = 0.001;
+    const MAX_LOOPS = 2000;
+    const centers: number[] = [];
+
+    const pushCenter = (value: number) => {
+        if (!Number.isFinite(value)) return;
+        if (value < -EPS || value > heightMm + EPS) return;
+        const clamped = Math.max(0, Math.min(heightMm, value));
+        centers.push(Math.round(clamped * 1000) / 1000);
+    };
+
+    if (startFromBottom) {
+        let current = includeOuter ? heightMm : (heightMm - spacingMm);
+        let safety = 0;
+        const limitTop = includeOuter ? -EPS : 0;
+
+        while (current > limitTop && safety < MAX_LOOPS) {
+            pushCenter(current);
+            current -= spacingMm;
+            safety++;
+        }
+    } else {
+        let current = includeOuter ? 0 : spacingMm;
+        let safety = 0;
+        const limitBottom = includeOuter ? (heightMm + EPS) : heightMm;
+
+        while (current < limitBottom && safety < MAX_LOOPS) {
+            pushCenter(current);
+            current += spacingMm;
+            safety++;
+        }
+    }
+
+    if (includeOuter) {
+        pushCenter(0);
+        pushCenter(heightMm);
+    }
+
+    let uniqueAsc = Array.from(new Set(centers)).sort((a, b) => a - b);
+
+    // "1e onderafstand 1/2":
+    // Keep the TOP spacing stable by anchoring the base grid from the top edge,
+    // then force only the first inner row from the bottom to half spacing.
+    if (halfBottomStart && includeOuter && heightMm > 0) {
+        const topAnchored: number[] = [0];
+        let cursor = spacingMm;
+        let safety = 0;
+        while (cursor < heightMm - EPS && safety < MAX_LOOPS) {
+            topAnchored.push(Math.round(cursor * 1000) / 1000);
+            cursor += spacingMm;
+            safety++;
+        }
+        topAnchored.push(Math.round(heightMm * 1000) / 1000);
+
+        uniqueAsc = Array.from(new Set(topAnchored)).sort((a, b) => a - b);
+
+        const desiredFirstInner = Math.round((heightMm - (spacingMm / 2)) * 1000) / 1000;
+        const isValidInner = desiredFirstInner > EPS && desiredFirstInner < heightMm - EPS;
+
+        if (isValidInner) {
+            if (uniqueAsc.length > 2) {
+                // Replace only the row nearest to the bottom edge.
+                uniqueAsc[uniqueAsc.length - 2] = desiredFirstInner;
+            } else {
+                uniqueAsc.splice(1, 0, desiredFirstInner);
+            }
+            uniqueAsc = Array.from(new Set(uniqueAsc)).sort((a, b) => a - b);
+        }
+
+        // Guarantee explicit outer rows.
+        uniqueAsc = Array.from(new Set([
+            0,
+            ...uniqueAsc,
+            Math.round(heightMm * 1000) / 1000
+        ])).sort((a, b) => a - b);
+    }
+
+    return startFromBottom ? [...uniqueAsc].reverse() : uniqueAsc;
+}
+
 export interface RoofOpening {
     id: string;
     type: 'dakraam' | 'schoorsteen' | 'opening'; // Skylight, chimney, or other opening
@@ -45,6 +142,7 @@ export interface RoofDrawingProps {
     startLattenFromBottom?: boolean;
     halfLatafstandFromBottom?: boolean;
     title?: string;
+    mirrorBadgeText?: string;
     doubleEndBattens?: boolean;
     includeOuterBattens?: boolean;
     // Edge Types for "Hoek", "Tussen", "Vrij" logic
@@ -79,6 +177,7 @@ export function RoofDrawing({
     startLattenFromBottom,
     halfLatafstandFromBottom,
     title = 'Dak Vlak',
+    mirrorBadgeText,
     doubleEndBattens,
     includeOuterBattens,
     edgeLeft = 'buren',
@@ -199,35 +298,13 @@ export function RoofDrawing({
 
         // 2. Horizontal rachels
         if (latafstandNum > 0) {
-            const shouldUseHalfBottomStart = startLattenFromBottom && !!halfLatafstandFromBottom && !!includeOuterBattens;
-            const rachelCenters: number[] = [];
-            const MAX_LOOPS = 1000;
-            let safety = 0;
-
-            if (startLattenFromBottom) {
-                let cy = includeOuterBattens ? effectiveHeight : (effectiveHeight - latafstandNum);
-                let firstStep = true;
-
-                while (cy >= 0 && safety < MAX_LOOPS) {
-                    rachelCenters.push(cy);
-                    const step = shouldUseHalfBottomStart && firstStep ? (latafstandNum / 2) : latafstandNum;
-                    if (step <= 0) break;
-                    cy -= step;
-                    firstStep = false;
-                    safety++;
-                }
-            } else {
-                let cy = includeOuterBattens ? 0 : latafstandNum;
-                while (cy <= effectiveHeight && safety < MAX_LOOPS) {
-                    rachelCenters.push(cy);
-                    cy += latafstandNum;
-                    safety++;
-                }
-            }
-
-            const uniqueCenters = Array.from(
-                new Set(rachelCenters.map(v => Math.round(v * 1000) / 1000))
-            );
+            const uniqueCenters = buildRachelCentersMm({
+                heightMm: effectiveHeight,
+                spacingMm: latafstandNum,
+                startFromBottom: startLattenFromBottom,
+                includeOuter: includeOuterBattens,
+                halfBottomStart: !!halfLatafstandFromBottom && !!includeOuterBattens
+            });
 
             uniqueCenters.forEach(cy => {
                 beams.push({
@@ -837,8 +914,6 @@ export function RoofDrawing({
                 const RACHEL_WIDTH_MM = 50;
                 const rachelHeightPx = RACHEL_WIDTH_MM * pxPerMmH;
                 const halfRachel = rachelHeightPx / 2;
-                const spacingPx = latafstandNum * pxPerMmH;
-                const shouldUseHalfBottomStart = startLattenFromBottom && !!halfLatafstandFromBottom && !!includeOuterBattens;
 
                 const rStartX = startX;
                 const rEndX = startX + rectW;
@@ -846,23 +921,13 @@ export function RoofDrawing({
                 // We cover entire bounding box vertically
                 const topBoundY = startY;
                 const bottomBoundY = startY + rectH;
-
-                // Default: Start one spacing down (inner)
-                let curY = topBoundY + spacingPx;
-
-                // If includeOuterBattens, start at Top (Ridge)
-                if (includeOuterBattens) {
-                    curY = topBoundY;
-                }
-
-                // If starting from bottom, flip direction
-                if (startLattenFromBottom) {
-                    curY = includeOuterBattens ? bottomBoundY : (bottomBoundY - spacingPx);
-                }
-
-                // Adjust start to prevent overlap/bad loop
-                if (curY < topBoundY) curY = topBoundY;
-                if (curY > bottomBoundY) curY = bottomBoundY;
+                const rachelCentersMm = buildRachelCentersMm({
+                    heightMm: effectiveHeight,
+                    spacingMm: latafstandNum,
+                    startFromBottom: startLattenFromBottom,
+                    includeOuter: includeOuterBattens,
+                    halfBottomStart: !!halfLatafstandFromBottom && !!includeOuterBattens
+                });
 
                 // Helper to draw rachel
                 const drawRachel = (y: number, key: string, includeForDimensions = true) => {
@@ -879,34 +944,10 @@ export function RoofDrawing({
                 };
 
                 // Standard Rachels
-                let rachelIndex = 0;
-                // Force a safety limit
-                const MAX_LOOPS = 1000;
-                let safety = 0;
-
-                // For outer battens, we want to include the bottom edge (approx)
-                const limitY = includeOuterBattens ? bottomBoundY + 1 : bottomBoundY;
-
-                if (startLattenFromBottom) {
-                    const limitTop = includeOuterBattens ? topBoundY - 1 : topBoundY;
-                    let firstStep = true;
-                    while (curY > limitTop && safety < MAX_LOOPS) {
-                        drawRachel(curY, `rachel-${rachelIndex}`);
-                        const stepPx = shouldUseHalfBottomStart && firstStep ? (spacingPx / 2) : spacingPx;
-                        if (stepPx <= 0) break;
-                        curY -= stepPx;
-                        firstStep = false;
-                        rachelIndex++;
-                        safety++;
-                    }
-                } else {
-                    while (curY < limitY && safety < MAX_LOOPS) {
-                        drawRachel(curY, `rachel-${rachelIndex}`);
-                        curY += spacingPx;
-                        rachelIndex++;
-                        safety++;
-                    }
-                }
+                rachelCentersMm.forEach((centerMm, index) => {
+                    const centerY = topBoundY + (centerMm * pxPerMmH);
+                    drawRachel(centerY, `rachel-${index}`);
+                });
 
                 // Double End Rachels Logic
                 // Note: In RoofDrawing, we iterate DOWN screen Y.
@@ -1168,6 +1209,36 @@ export function RoofDrawing({
                     >
                         {title}
                     </text>
+                );
+            }
+
+            if (mirrorBadgeText) {
+                const badgeWidth = Math.max(90, mirrorBadgeText.length * 7 + 16);
+                elements.push(
+                    <g key="mirror-badge">
+                        <rect
+                            x={10}
+                            y={10}
+                            width={badgeWidth}
+                            height={22}
+                            rx={4}
+                            fill="rgba(0,0,0,0.6)"
+                            stroke="rgba(255,255,255,0.15)"
+                            strokeWidth="0.5"
+                        />
+                        <text
+                            x={10 + badgeWidth / 2}
+                            y={22}
+                            fontSize="11"
+                            fontWeight="bold"
+                            fill="rgb(167, 243, 208)"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            style={{ fontFamily: 'monospace' }}
+                        >
+                            {mirrorBadgeText}
+                        </text>
+                    </g>
                 );
             }
 

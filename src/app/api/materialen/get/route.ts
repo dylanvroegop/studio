@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { parsePriceToNumber } from '@/lib/utils';
 
 // Re-using your existing logic from your other route.ts files
 function krijgFirebaseAdminApp() {
@@ -19,8 +20,7 @@ export async function GET(req: Request) {
     if (!token) return NextResponse.json({ ok: false, error: 'No token' }, { status: 401 });
 
     krijgFirebaseAdminApp();
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    const uid = decodedToken.uid;
+    await admin.auth().verifyIdToken(token);
 
     // 2. Use Shared Supabase Admin Client
 
@@ -34,14 +34,26 @@ export async function GET(req: Request) {
     if (error) throw error;
 
     const normalized = Array.isArray(data)
-      ? data.map((row: any) => ({
-          ...row,
-          // `prijs` is used as fallback unit price in multiple UIs; keep it EXCL by default.
-          prijs: row?.prijs_excl_btw ?? row?.prijs_incl_btw ?? row?.prijs ?? null,
-          prijs_excl_btw: row?.prijs_excl_btw ?? null,
-          prijs_incl_btw: row?.prijs_incl_btw ?? null,
-          subsectie: row?.subsectie ?? row?.categorie ?? null,
-        }))
+      ? data.map((row: any) => {
+          const excl =
+            parsePriceToNumber(row?.prijs_excl_btw ?? row?.prijs) ??
+            (() => {
+              const incl = parsePriceToNumber(row?.prijs_incl_btw);
+              return incl == null ? null : Number((incl / 1.21).toFixed(2));
+            })();
+          const incl =
+            parsePriceToNumber(row?.prijs_incl_btw) ??
+            (excl == null ? null : Number((excl * 1.21).toFixed(2)));
+
+          return {
+            ...row,
+            // Canonical unit price in the app is excl. btw.
+            prijs: excl,
+            prijs_excl_btw: excl,
+            prijs_incl_btw: incl,
+            subsectie: row?.subsectie ?? row?.categorie ?? null,
+          };
+        })
       : data;
 
     return NextResponse.json({ ok: true, data: normalized });

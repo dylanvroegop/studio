@@ -108,7 +108,7 @@ const HELLEND_DAK_SECTION_MULTIPLIERS: Record<string, number> = {
   panlatten: 2,
   dakpannen: 2,
   gevelpannen: 2,
-  nokvorsten: 2,
+  nokvorsten: 1,
   ondervorst: 1,
   dakvoetprofiel: 2,
   ruiter: 1,
@@ -504,6 +504,60 @@ export default function GenericMeasurementPage() {
     return parsed;
   };
 
+  const parsePriceValue = (value: any): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value !== 'string') return null;
+
+    let s = value.trim();
+    if (!s) return null;
+    s = s.replace(/€/g, '').replace(/\s+/g, '');
+    s = s.replace(/[^0-9,.-]/g, '');
+    if (!s) return null;
+
+    const hasDot = s.includes('.');
+    const hasComma = s.includes(',');
+    if (hasDot && hasComma) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else if (hasComma && !hasDot) {
+      s = s.replace(',', '.');
+    }
+
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const sanitizeMaterialenLijstEntryForFirestore = (entry: any): any => {
+    if (!entry || typeof entry !== 'object') return entry;
+    const nextEntry: any = { ...entry };
+    if (!nextEntry.material || typeof nextEntry.material !== 'object') return nextEntry;
+
+    const nextMaterial: any = { ...nextEntry.material };
+    const excl =
+      parsePriceValue(nextMaterial.prijs_excl_btw ?? nextMaterial.prijs ?? nextMaterial.prijs_per_stuk);
+    const incl = parsePriceValue(nextMaterial.prijs_incl_btw);
+    const resolvedExcl = excl ?? (incl != null ? Number((incl / 1.21).toFixed(2)) : null);
+
+    if (resolvedExcl != null && resolvedExcl > 0) {
+      nextMaterial.prijs_excl_btw = Number(resolvedExcl.toFixed(2));
+    }
+
+    // Canonical in Firestore: excl only.
+    delete nextMaterial.prijs_incl_btw;
+    nextEntry.material = nextMaterial;
+    return nextEntry;
+  };
+
+  const isHalfAfstandEnabled = (value: any): boolean => {
+    if (value === undefined || value === null || value === '') return true; // hellend-dak default
+    if (value === true || value === 1) return true;
+    if (value === false || value === 0) return false;
+    const normalized = String(value).trim().toLowerCase();
+    if (['false', '0', 'nee', 'no'].includes(normalized)) return false;
+    if (['true', '1', 'ja', 'yes'].includes(normalized)) return true;
+    return Boolean(value);
+  };
+
   const buildHellendDakMultipliers = (mirrorEnabled: boolean): Record<string, number> => {
     return Object.fromEntries(
       Object.entries(HELLEND_DAK_SECTION_MULTIPLIERS).map(([sectionKey, mirroredMultiplier]) => [
@@ -532,6 +586,13 @@ export default function GenericMeasurementPage() {
     if (value === true || value === 1) return true;
     const normalized = String(value ?? '').trim().toLowerCase();
     return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'ja';
+  };
+
+  const normalizeHellendDakEdge = (value: any): 'gevel' | 'buren' => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (['gevel', 'vrij', 'free'].includes(normalized)) return 'gevel';
+    if (['buren', 'muur', 'wall'].includes(normalized)) return 'buren';
+    return 'buren';
   };
 
   const buildMergedHellendDakMultipliers = (sourceItems: any[]): Record<string, number> => {
@@ -586,7 +647,7 @@ export default function GenericMeasurementPage() {
         };
       }
 
-      synced[entryKey] = nextEntry;
+      synced[entryKey] = sanitizeMaterialenLijstEntryForFirestore(nextEntry);
     });
 
     return synced;
@@ -605,12 +666,29 @@ export default function GenericMeasurementPage() {
     const countHoogte = toPositiveNumber(next.aantal_pannen_hoogte);
     const werkendeBreedte = parseDimToMm(next.werkende_breedte_mm);
     const werkendeHoogte = parseDimToMm(next.werkende_hoogte_mm);
+    const halfOffsetEnabled = isHalfAfstandEnabled(next.halfLatafstandFromBottom);
+    const breedteHalfOffset = halfOffsetEnabled && werkendeBreedte ? (werkendeBreedte / 2) : 0;
+    const hoogteHalfOffset = halfOffsetEnabled && werkendeHoogte ? (werkendeHoogte / 2) : 0;
 
     if (countBreedte && werkendeBreedte && (!onlyWhenEmpty || isEmptyValue(next.lengte))) {
-      next.lengte = Math.round(countBreedte * werkendeBreedte);
+      next.lengte = Math.max(0, Math.round((countBreedte * werkendeBreedte) - breedteHalfOffset));
+    } else if (onlyWhenEmpty && countBreedte && werkendeBreedte && halfOffsetEnabled) {
+      // Safe migration: adjust persisted legacy full-span values to half-offset formula.
+      const currentLengte = parseDimToMm(next.lengte);
+      const legacyFullLengte = Math.round(countBreedte * werkendeBreedte);
+      if (currentLengte !== null && Math.round(currentLengte) === legacyFullLengte) {
+        next.lengte = Math.max(0, Math.round((countBreedte * werkendeBreedte) - breedteHalfOffset));
+      }
     }
     if (countHoogte && werkendeHoogte && (!onlyWhenEmpty || isEmptyValue(next.hoogte))) {
-      next.hoogte = Math.round(countHoogte * werkendeHoogte);
+      next.hoogte = Math.max(0, Math.round((countHoogte * werkendeHoogte) - hoogteHalfOffset));
+    } else if (onlyWhenEmpty && countHoogte && werkendeHoogte && halfOffsetEnabled) {
+      // Safe migration: adjust persisted legacy full-span values to half-offset formula.
+      const currentHoogte = parseDimToMm(next.hoogte);
+      const legacyFullHoogte = Math.round(countHoogte * werkendeHoogte);
+      if (currentHoogte !== null && Math.round(currentHoogte) === legacyFullHoogte) {
+        next.hoogte = Math.max(0, Math.round((countHoogte * werkendeHoogte) - hoogteHalfOffset));
+      }
     }
     if (syncLatafstand && werkendeHoogte && (!onlyWhenEmpty || isEmptyValue(next.latafstand))) {
       next.latafstand = Math.round(werkendeHoogte);
@@ -974,6 +1052,11 @@ export default function GenericMeasurementPage() {
       delete item.dagkant_lengte;
       delete item.vensterbank_diepte;
       delete item.vensterbank_lengte;
+    }
+
+    if (isHellendDak) {
+      item.edge_left = normalizeHellendDakEdge(item.edge_left);
+      item.edge_right = normalizeHellendDakEdge(item.edge_right);
     }
 
     return item;
@@ -1488,7 +1571,7 @@ export default function GenericMeasurementPage() {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
       let newItem = { ...item, [key]: value };
-      if (isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'werkende_breedte_mm', 'werkende_hoogte_mm'].includes(key)) {
+      if (isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'werkende_breedte_mm', 'werkende_hoogte_mm', 'halfLatafstandFromBottom'].includes(key)) {
         newItem = applyHellendDakAutoCalculations(newItem, { onlyWhenEmpty: false, syncLatafstand: true });
       }
       return applyHellendDakMultipliers(newItem);
@@ -2601,8 +2684,8 @@ export default function GenericMeasurementPage() {
                             )}
 
                             {isHellendDak && (() => {
-                              const edgeLeftValue = item.edge_left === 'gevel' ? 'gevel' : 'buren';
-                              const edgeRightValue = item.edge_right === 'gevel' ? 'gevel' : 'buren';
+                              const edgeLeftValue = normalizeHellendDakEdge(item.edge_left);
+                              const edgeRightValue = normalizeHellendDakEdge(item.edge_right);
                               const sideToggleButtonClass = "flex-1 text-xs py-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
                               return (

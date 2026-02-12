@@ -36,7 +36,7 @@ export default function GenericSubCategoryPage() {
   }
 
   // ✅ Hooks
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [isPending, startTransition] = useTransition();
 
@@ -57,15 +57,47 @@ export default function GenericSubCategoryPage() {
 
   // 2. Fetch Quote
   useEffect(() => {
+    let isCancelled = false;
+
     async function fetchQuote() {
-      if (!quoteId) return;
+      if (!quoteId || isUserLoading) return;
+      if (!user) {
+        if (!isCancelled) {
+          setQuote(null);
+          setLoading(false);
+        }
+        return;
+      }
+
       setLoading(true);
-      const quoteData = await getQuoteById(quoteId);
-      setQuote(quoteData || null);
-      setLoading(false);
+      try {
+        const quoteData = await getQuoteById(quoteId);
+        if (!isCancelled) {
+          setQuote(quoteData || null);
+        }
+      } catch (err: any) {
+        if (!isCancelled) {
+          setQuote(null);
+        }
+        if (err?.code === 'permission-denied') {
+          console.warn('[Subcategorie] quote ophalen geweigerd (waarschijnlijk auth race of geen toegang).', {
+            quoteId,
+            uid: user.uid,
+          });
+        } else {
+          console.error('[Subcategorie] fout bij ophalen quote:', err);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
     fetchQuote();
-  }, [quoteId]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [quoteId, user, isUserLoading]);
 
   // 3. Real-time Favorites Sync
   useEffect(() => {

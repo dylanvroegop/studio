@@ -202,18 +202,24 @@ export default function QuotePage() {
                 const json = await res.json();
 
                 if (res.ok && json.ok) {
-                    const materialenData = (json.data || []).map((m: any) => ({
-                        ...m,
-                        id: m.row_id || m.id,
-                        // In offertes we treat row/unit price as EXCL. BTW.
-                        prijs: parsePriceToNumber(m.prijs_excl_btw) ?? Number((((parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? 0) / 1.21)).toFixed(2)),
-                        prijs_per_stuk: parsePriceToNumber(m.prijs_excl_btw) ?? Number((((parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? 0) / 1.21)).toFixed(2)),
-                        prijs_excl_btw: parsePriceToNumber(m.prijs_excl_btw) ?? null,
-                        prijs_incl_btw: parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? null,
-                        // Standardization for the modal
-                        materiaalnaam: m.materiaalnaam || m.naam,
-                        categorie: m.categorie || m.subsectie || 'Overig',
-                    }));
+                    const materialenData = (json.data || []).map((m: any) => {
+                        const excl = parsePriceToNumber(m.prijs_excl_btw)
+                            ?? Number((((parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? 0) / 1.21)).toFixed(2));
+                        const incl = parsePriceToNumber(m.prijs_incl_btw)
+                            ?? Number((excl * 1.21).toFixed(2));
+                        return {
+                            ...m,
+                            id: m.row_id || m.id,
+                            // In offertes we treat row/unit price as EXCL. BTW.
+                            prijs: excl,
+                            prijs_per_stuk: excl,
+                            prijs_excl_btw: excl,
+                            prijs_incl_btw: incl,
+                            // Standardization for the modal
+                            materiaalnaam: m.materiaalnaam || m.naam,
+                            categorie: m.categorie || m.subsectie || 'Overig',
+                        };
+                    });
                     setAlleMaterialen(materialenData);
                 }
             } catch (err) {

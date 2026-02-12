@@ -55,6 +55,38 @@ function normalizeNullableNumber(v: unknown, fieldName: string): number | null |
   return parsed;
 }
 
+function roundToCents(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function resolveCanonicalPrices(body: Body): { prijsExcl: number | null; prijsIncl: number | null } {
+  const explicitExcl = parsePriceToNumber(body.prijs_excl_btw);
+  const explicitIncl = parsePriceToNumber(body.prijs_incl_btw);
+  const legacyPrijs = parsePriceToNumber(body.prijs);
+
+  // Canonical truth: excl. btw.
+  let prijsExcl = explicitExcl;
+  let prijsIncl = explicitIncl;
+
+  if (prijsExcl === null && prijsIncl !== null) {
+    prijsExcl = roundToCents(prijsIncl / 1.21);
+  }
+
+  if (prijsIncl === null && prijsExcl !== null) {
+    prijsIncl = roundToCents(prijsExcl * 1.21);
+  }
+
+  // Legacy fallback: treat ambiguous `prijs` as excl to avoid mixed semantics.
+  if (prijsExcl === null && legacyPrijs !== null) {
+    prijsExcl = legacyPrijs;
+    if (prijsIncl === null) {
+      prijsIncl = roundToCents(legacyPrijs * 1.21);
+    }
+  }
+
+  return { prijsExcl, prijsIncl };
+}
+
 function bepaalN8nUrlVoorMaterialenUpsert(): string {
   const direct = process.env.N8N_MATERIALEN_UPSERT_URL;
   if (direct && direct.trim()) return direct.trim();
@@ -139,8 +171,7 @@ export async function POST(req: Request) {
     const naam = typeof body.materiaalnaam === 'string' ? body.materiaalnaam.trim() : null;
 
     const eenheid = normalizeString(body.eenheid);
-    const prijsInclNum = parsePriceToNumber(body.prijs_incl_btw ?? body.prijs);
-    const prijsExclNumInput = parsePriceToNumber(body.prijs_excl_btw);
+    const { prijsExcl: prijsExclNum, prijsIncl: prijsInclNum } = resolveCanonicalPrices(body);
 
     const categorie =
       normalizeString(body.categorie) ??
@@ -178,12 +209,9 @@ export async function POST(req: Request) {
 
     if (!naam) return jsonFail('Materiaalnaam is verplicht.', 400);
     if (!eenheid) return jsonFail('Eenheid is verplicht.', 400);
-    if (prijsInclNum === null) return jsonFail('Prijs is ongeldig.', 400);
-    if (prijsInclNum < 0) return jsonFail('Prijs mag niet negatief zijn.', 400);
-    const prijsExclNum =
-      prijsExclNumInput !== null
-        ? prijsExclNumInput
-        : Number((prijsInclNum / 1.21).toFixed(2));
+    if (prijsExclNum === null) return jsonFail('Prijs (excl. btw) is ongeldig.', 400);
+    if (prijsExclNum < 0) return jsonFail('Prijs mag niet negatief zijn.', 400);
+    const prijsInclSafe = prijsInclNum ?? roundToCents(prijsExclNum * 1.21);
 
     // 4) Supabase service role (server-side) using shared client
     // supabaseAdmin is already initialized
@@ -193,7 +221,7 @@ export async function POST(req: Request) {
       gebruikerid: uid,
       materiaalnaam: naam, // This now contains the full string correctly
       eenheid,
-      prijs_incl_btw: prijsInclNum,
+      prijs_incl_btw: prijsInclSafe,
       prijs_excl_btw: prijsExclNum,
     };
     if (categorie) payload.categorie = categorie;
@@ -288,17 +316,50 @@ export async function POST(req: Request) {
       }
     }
 
+    // Defensive repair: if n8n returned/stored only incl. btw, patch row to always include excl. btw.
+    const storedExcl = parsePriceToNumber((data as any)?.prijs_excl_btw ?? (data as any)?.prijs);
+    const storedIncl = parsePriceToNumber((data as any)?.prijs_incl_btw);
+    const resolvedStoredExcl =
+      storedExcl ??
+      (storedIncl !== null ? roundToCents(storedIncl / 1.21) : prijsExclNum);
+
+    if (realRowId && resolvedStoredExcl !== null && storedExcl === null) {
+      const repairPayload: Record<string, unknown> = {
+        prijs_excl_btw: resolvedStoredExcl,
+      };
+      if (storedIncl === null) {
+        repairPayload.prijs_incl_btw = roundToCents(resolvedStoredExcl * 1.21);
+      }
+
+      const repair = await supabaseAdmin
+        .from('main_material_list')
+        .update(repairPayload)
+        .eq('row_id', realRowId)
+        .eq('gebruikerid', uid)
+        .select('*')
+        .maybeSingle();
+
+      if (!repair.error && repair.data) {
+        data = repair.data;
+      }
+    }
+
+    const finalExcl =
+      parsePriceToNumber((data as any)?.prijs_excl_btw ?? (data as any)?.prijs) ??
+      resolvedStoredExcl;
+    const finalIncl =
+      parsePriceToNumber((data as any)?.prijs_incl_btw) ??
+      (finalExcl !== null ? roundToCents(finalExcl * 1.21) : null);
+
     const normalized =
       data && typeof data === 'object'
         ? {
             ...data,
             prijs:
-              (data as any).prijs ??
-              (data as any).prijs_incl_btw ??
+              finalExcl ??
               null,
-            prijs_excl_btw:
-              (data as any).prijs_excl_btw ??
-              null,
+            prijs_excl_btw: finalExcl ?? null,
+            prijs_incl_btw: finalIncl ?? null,
             subsectie:
               (data as any).subsectie ??
               (data as any).categorie ??
