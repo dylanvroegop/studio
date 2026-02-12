@@ -34,7 +34,7 @@ VALUES
       "snelbeton": {
         "sectionKey": "snelbeton",
         "logic": "verbruik per paal (materiaalgestuurd)",
-        "formula": "if material.verbruik_per_paal || material.verbruik exists then totaal = post_count * (1 + waste/100) * (material.verbruik_per_paal ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_paal || material.verbruik exists then totaal = post_count * (material.verbruik_per_paal ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -47,7 +47,7 @@ VALUES
       "opsluitbanden": {
         "sectionKey": "opsluitbanden",
         "logic": "lineair over totale schuttinglengte",
-        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -58,7 +58,7 @@ VALUES
       "paalpunthouder": {
         "sectionKey": "paalpunthouder",
         "logic": "1 per paalpositie",
-        "formula": "aantal = ceil(post_count * (1 + waste/100))",
+        "formula": "aantal = ceil(post_count)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -71,7 +71,7 @@ VALUES
       "schuttingpalen_hout": {
         "sectionKey": "schuttingpalen_hout",
         "logic": "palen op vaste maat tussen palen + hoekcorrectie",
-        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total * (1 + waste/100))",
+        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -82,7 +82,7 @@ VALUES
       "paalkap": {
         "sectionKey": "paalkap",
         "logic": "1 kap per paalpositie",
-        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total * (1 + waste/100))",
+        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -93,7 +93,7 @@ VALUES
       "tuinscherm_hout": {
         "sectionKey": "tuinscherm_hout",
         "logic": "primair 1 scherm per vak; fallback op netto oppervlak",
-        "formula": "if type_schutting == 'schermen' then stuks = panel_count; else if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(fence_area_m2 / plaat_m2); else requires_manual_input; aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if type_schutting == 'schermen' then stuks = panel_count; else if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(fence_area_m2 / plaat_m2); else requires_manual_input; aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -105,7 +105,7 @@ VALUES
       "afdeklat_hout": {
         "sectionKey": "afdeklat_hout",
         "logic": "lineair over bovenzijde schutting",
-        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -116,7 +116,7 @@ VALUES
       "tuinplanken": {
         "sectionKey": "tuinplanken",
         "logic": "plankverdeling voor planken-systeem, fallback op oppervlakte",
-        "formula": "if type_schutting == 'planken' && material.werkende_breedte_mm exists then rows = ceil(effective_height_mm / material.werkende_breedte_mm); cols = ceil(fence_length_mm / material.lengte_mm); stuks = rows * cols; else if type_schutting == 'planken' && material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(fence_area_m2 / plaat_m2); else requires_manual_input; aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if type_schutting == 'planken' && material.werkende_breedte_mm exists then rows = ceil(effective_height_mm / material.werkende_breedte_mm); cols = ceil(fence_length_mm / material.lengte_mm); stuks = rows * cols; else if type_schutting == 'planken' && material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(fence_area_m2 / plaat_m2); else requires_manual_input; aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -130,7 +130,7 @@ VALUES
       "tuinpoort": {
         "sectionKey": "tuinpoort",
         "logic": "alleen bij expliciete poort-input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal"
@@ -141,7 +141,7 @@ VALUES
       "stalen_frame": {
         "sectionKey": "stalen_frame",
         "logic": "alleen bij expliciete poort-input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal"
@@ -152,7 +152,7 @@ VALUES
       "kozijnbalken": {
         "sectionKey": "kozijnbalken",
         "logic": "poortkader lineair op expliciete input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if maatwerk_item.poort_aanwezig == true && material.lengte && material.verbruik_per_poort exists then lineair_m1 = material.verbruik_per_poort; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else if maatwerk_item.poort_aanwezig == true && material.lengte && material.verbruik_per_poort exists then lineair_m1 = material.verbruik_per_poort; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || (material.verbruik_per_poort && material.lengte)"
@@ -165,7 +165,7 @@ VALUES
       "hengselset": {
         "sectionKey": "hengselset",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -176,7 +176,7 @@ VALUES
       "hengen": {
         "sectionKey": "hengen",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -187,7 +187,7 @@ VALUES
       "plaatduimen": {
         "sectionKey": "plaatduimen",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -198,7 +198,7 @@ VALUES
       "poortbeslag": {
         "sectionKey": "poortbeslag",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -209,7 +209,7 @@ VALUES
       "cilinderslot": {
         "sectionKey": "cilinderslot",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -220,7 +220,7 @@ VALUES
       "grondgrendel": {
         "sectionKey": "grondgrendel",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -231,7 +231,7 @@ VALUES
       "vloerstop": {
         "sectionKey": "vloerstop",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -273,7 +273,7 @@ VALUES
       "snelbeton": {
         "sectionKey": "snelbeton",
         "logic": "verbruik per paal (materiaalgestuurd)",
-        "formula": "if material.verbruik_per_paal || material.verbruik exists then totaal = post_count * (1 + waste/100) * (material.verbruik_per_paal ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_paal || material.verbruik exists then totaal = post_count * (material.verbruik_per_paal ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -286,7 +286,7 @@ VALUES
       "opsluitbanden": {
         "sectionKey": "opsluitbanden",
         "logic": "lineair over totale schuttinglengte",
-        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -297,7 +297,7 @@ VALUES
       "paalpunthouder": {
         "sectionKey": "paalpunthouder",
         "logic": "1 per paalpositie",
-        "formula": "aantal = ceil(post_count * (1 + waste/100))",
+        "formula": "aantal = ceil(post_count)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -310,7 +310,7 @@ VALUES
       "betonpalen": {
         "sectionKey": "betonpalen",
         "logic": "palen op vaste maat tussen palen + hoekcorrectie",
-        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total * (1 + waste/100))",
+        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -321,7 +321,7 @@ VALUES
       "onderplaten": {
         "sectionKey": "onderplaten",
         "logic": "1 onderplaat per vak",
-        "formula": "aantal = ceil(panel_count * (1 + waste/100))",
+        "formula": "aantal = ceil(panel_count)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -332,7 +332,7 @@ VALUES
       "afdekkap_beton": {
         "sectionKey": "afdekkap_beton",
         "logic": "1 kap per paalpositie",
-        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total * (1 + waste/100))",
+        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -343,7 +343,7 @@ VALUES
       "unibeslag": {
         "sectionKey": "unibeslag",
         "logic": "verbruik per vak (materiaalgestuurd)",
-        "formula": "if material.verbruik_per_vak || material.verbruik exists then totaal = panel_count * (1 + waste/100) * (material.verbruik_per_vak ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_vak || material.verbruik exists then totaal = panel_count * (material.verbruik_per_vak ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -358,7 +358,7 @@ VALUES
       "tuinpoort": {
         "sectionKey": "tuinpoort",
         "logic": "alleen bij expliciete poort-input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal"
@@ -369,7 +369,7 @@ VALUES
       "stalen_frame": {
         "sectionKey": "stalen_frame",
         "logic": "alleen bij expliciete poort-input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal"
@@ -380,7 +380,7 @@ VALUES
       "kozijnbalken": {
         "sectionKey": "kozijnbalken",
         "logic": "poortkader lineair op expliciete input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if maatwerk_item.poort_aanwezig == true && material.lengte && material.verbruik_per_poort exists then lineair_m1 = material.verbruik_per_poort; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else if maatwerk_item.poort_aanwezig == true && material.lengte && material.verbruik_per_poort exists then lineair_m1 = material.verbruik_per_poort; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || (material.verbruik_per_poort && material.lengte)"
@@ -393,7 +393,7 @@ VALUES
       "hengselset": {
         "sectionKey": "hengselset",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -404,7 +404,7 @@ VALUES
       "hengen": {
         "sectionKey": "hengen",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -415,7 +415,7 @@ VALUES
       "plaatduimen": {
         "sectionKey": "plaatduimen",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -426,7 +426,7 @@ VALUES
       "poortbeslag": {
         "sectionKey": "poortbeslag",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -437,7 +437,7 @@ VALUES
       "cilinderslot": {
         "sectionKey": "cilinderslot",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -448,7 +448,7 @@ VALUES
       "grondgrendel": {
         "sectionKey": "grondgrendel",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -459,7 +459,7 @@ VALUES
       "vloerstop": {
         "sectionKey": "vloerstop",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -501,7 +501,7 @@ VALUES
       "snelbeton": {
         "sectionKey": "snelbeton",
         "logic": "verbruik per paal (materiaalgestuurd)",
-        "formula": "if material.verbruik_per_paal || material.verbruik exists then totaal = post_count * (1 + waste/100) * (material.verbruik_per_paal ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_paal || material.verbruik exists then totaal = post_count * (material.verbruik_per_paal ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -514,7 +514,7 @@ VALUES
       "opsluitbanden": {
         "sectionKey": "opsluitbanden",
         "logic": "lineair over totale schuttinglengte",
-        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = fence_length_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -525,7 +525,7 @@ VALUES
       "paalpunthouder": {
         "sectionKey": "paalpunthouder",
         "logic": "1 per paalpositie",
-        "formula": "aantal = ceil(post_count * (1 + waste/100))",
+        "formula": "aantal = ceil(post_count)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -538,7 +538,7 @@ VALUES
       "aluminium_palen": {
         "sectionKey": "aluminium_palen",
         "logic": "palen op vaste maat tussen palen + hoekcorrectie",
-        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total * (1 + waste/100))",
+        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -549,7 +549,7 @@ VALUES
       "paalvoet": {
         "sectionKey": "paalvoet",
         "logic": "1 paalvoet per paalpositie",
-        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total * (1 + waste/100))",
+        "formula": "posts_total = post_count + max(0, hoek_count); aantal = ceil(posts_total)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.paalafstand"
@@ -560,7 +560,7 @@ VALUES
       "tuinscherm_composiet": {
         "sectionKey": "tuinscherm_composiet",
         "logic": "primair 1 scherm per vak; fallback op netto oppervlak",
-        "formula": "if type_schutting == 'schermen' then stuks = panel_count; else if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(fence_area_m2 / plaat_m2); else requires_manual_input; aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if type_schutting == 'schermen' then stuks = panel_count; else if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(fence_area_m2 / plaat_m2); else requires_manual_input; aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -572,7 +572,7 @@ VALUES
       "u_profiel": {
         "sectionKey": "u_profiel",
         "logic": "2 zijprofielen per vak over effectieve schuttinghoogte",
-        "formula": "lineair_m1 = (2 * panel_count * effective_height_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * panel_count * effective_height_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -587,7 +587,7 @@ VALUES
       "tuinpoort": {
         "sectionKey": "tuinpoort",
         "logic": "alleen bij expliciete poort-input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal"
@@ -598,7 +598,7 @@ VALUES
       "stalen_frame": {
         "sectionKey": "stalen_frame",
         "logic": "alleen bij expliciete poort-input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal"
@@ -609,7 +609,7 @@ VALUES
       "kozijnbalken": {
         "sectionKey": "kozijnbalken",
         "logic": "poortkader lineair op expliciete input",
-        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if maatwerk_item.poort_aanwezig == true && material.lengte && material.verbruik_per_poort exists then lineair_m1 = material.verbruik_per_poort; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && material.aantal exists then aantal = ceil(material.aantal); else if maatwerk_item.poort_aanwezig == true && material.lengte && material.verbruik_per_poort exists then lineair_m1 = material.verbruik_per_poort; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || (material.verbruik_per_poort && material.lengte)"
@@ -622,7 +622,7 @@ VALUES
       "hengselset": {
         "sectionKey": "hengselset",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -633,7 +633,7 @@ VALUES
       "hengen": {
         "sectionKey": "hengen",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -644,7 +644,7 @@ VALUES
       "plaatduimen": {
         "sectionKey": "plaatduimen",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -655,7 +655,7 @@ VALUES
       "poortbeslag": {
         "sectionKey": "poortbeslag",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -666,7 +666,7 @@ VALUES
       "cilinderslot": {
         "sectionKey": "cilinderslot",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -677,7 +677,7 @@ VALUES
       "grondgrendel": {
         "sectionKey": "grondgrendel",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"
@@ -688,7 +688,7 @@ VALUES
       "vloerstop": {
         "sectionKey": "vloerstop",
         "logic": "set per poort (materiaalgestuurd)",
-        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if maatwerk_item.poort_aanwezig == true && (material.aantal || material.verbruik_per_poort || material.verbruik) exists then totaal = (material.aantal ?? (material.verbruik_per_poort ?? material.verbruik)); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.poort_aanwezig",
           "material.aantal || material.verbruik_per_poort || material.verbruik"

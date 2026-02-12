@@ -27,7 +27,7 @@ VALUES
       "balken": {
         "sectionKey": "balken",
         "logic": "raveling rondom trapopening",
-        "formula": "lineair_m1 = trap_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = trap_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -41,7 +41,7 @@ VALUES
       "trap": {
         "sectionKey": "trap",
         "logic": "complete trapset per trapopening of expliciete materiaalhoeveelheid",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if trap_lengte_mm && trap_hoogte_mm then aantal = ceil(1 * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if trap_lengte_mm && trap_hoogte_mm then aantal = ceil(1); else requires_manual_input",
         "required_inputs": [
           "material.aantal || (maatwerk_item.lengte && maatwerk_item.hoogte)"
         ],
@@ -51,7 +51,7 @@ VALUES
       "luik": {
         "sectionKey": "luik",
         "logic": "zolderluik per trapopening of expliciete materiaalhoeveelheid",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if trap_lengte_mm && trap_hoogte_mm then aantal = ceil(1 * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if trap_lengte_mm && trap_hoogte_mm then aantal = ceil(1); else requires_manual_input",
         "required_inputs": [
           "material.aantal || (maatwerk_item.lengte && maatwerk_item.hoogte)"
         ],
@@ -63,7 +63,7 @@ VALUES
       "traphek": {
         "sectionKey": "traphek",
         "logic": "veiligheidshek op expliciet aantal, verbruik-per-meter of lineair over opening",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_m1 || material.verbruik exists then totaal = trap_perimeter_m1 * (1 + waste/100) * (material.verbruik_per_m1 ?? material.verbruik); aantal = ceil(totaal); else if material.lengte exists then lineair_m1 = trap_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_m1 || material.verbruik exists then totaal = trap_perimeter_m1 * (material.verbruik_per_m1 ?? material.verbruik); aantal = ceil(totaal); else if material.lengte exists then lineair_m1 = trap_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -75,7 +75,7 @@ VALUES
       "poortje": {
         "sectionKey": "poortje",
         "logic": "veiligheidspoort op expliciet aantal of verbruik-per-set",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else if trap_lengte_mm && trap_hoogte_mm then aantal = ceil(1 * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik); aantal = ceil(totaal); else if trap_lengte_mm && trap_hoogte_mm then aantal = ceil(1); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_set || material.verbruik || (maatwerk_item.lengte && maatwerk_item.hoogte)"
         ],
@@ -87,7 +87,7 @@ VALUES
       "scharnieren": {
         "sectionKey": "scharnieren",
         "logic": "beslag op expliciet aantal of verbruik-per-set",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_set || material.verbruik"
         ],
@@ -97,7 +97,7 @@ VALUES
       "sluiting": {
         "sectionKey": "sluiting",
         "logic": "beslag op expliciet aantal of verbruik-per-set",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_set || material.verbruik"
         ],
@@ -107,7 +107,7 @@ VALUES
       "veer": {
         "sectionKey": "veer",
         "logic": "beslag op expliciet aantal of verbruik-per-set",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_set || material.verbruik"
         ],
@@ -117,7 +117,7 @@ VALUES
       "handgreep": {
         "sectionKey": "handgreep",
         "logic": "beslag op expliciet aantal of verbruik-per-set",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_set || material.verbruik exists then totaal = (material.verbruik_per_set ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_set || material.verbruik"
         ],
@@ -129,7 +129,7 @@ VALUES
       "architraaf": {
         "sectionKey": "architraaf",
         "logic": "koplatten lineair over omtrek van trapopening",
-        "formula": "lineair_m1 = trap_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = trap_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",

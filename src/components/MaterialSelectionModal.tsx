@@ -349,17 +349,42 @@ export function MaterialSelectionModal({
 
   const isAllSubCategoriesSelected = subCategoryFilter === 'all' || (Array.isArray(subCategoryFilter) && subCategoryFilter.length === 0);
 
-  const toggleSubCategorySelection = (subCategory: string): void => {
-    if (subCategoryFilter === 'all') {
-      setSubCategoryFilter([subCategory]);
-      return;
-    }
-    const current = Array.isArray(subCategoryFilter) ? subCategoryFilter : [];
+  const isMultiSelectableSubCategory = (
+    subCategory: string,
+    allowPendingFavorite = false
+  ): boolean => {
+    if (subCategory === FAVORITE_SUBCATEGORY_FILTER) return true;
+    return favoriteSubCategories.includes(subCategory) || allowPendingFavorite;
+  };
+
+  const toggleSubCategorySelection = (
+    subCategory: string,
+    allowPendingFavorite = false
+  ): void => {
+    const current = subCategoryFilter === 'all'
+      ? []
+      : Array.isArray(subCategoryFilter)
+        ? subCategoryFilter
+        : [subCategoryFilter];
+
     if (current.includes(subCategory)) {
       const next = current.filter((item) => item !== subCategory);
       setSubCategoryFilter(next.length > 0 ? next : 'all');
       return;
     }
+
+    const canUseMultiSelect = isMultiSelectableSubCategory(subCategory, allowPendingFavorite);
+    if (!canUseMultiSelect) {
+      setSubCategoryFilter([subCategory]);
+      return;
+    }
+
+    const currentSupportsMultiSelect = current.every((item) => isMultiSelectableSubCategory(item));
+    if (!currentSupportsMultiSelect) {
+      setSubCategoryFilter([subCategory]);
+      return;
+    }
+
     setSubCategoryFilter([...current, subCategory]);
   };
 
@@ -375,7 +400,7 @@ export function MaterialSelectionModal({
 
     setFavoriteSubCategories((prev) => [...prev, subCategory]);
     if (!isSubCategorySelected(subCategory)) {
-      toggleSubCategorySelection(subCategory);
+      toggleSubCategorySelection(subCategory, true);
     }
   };
 

@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "sync": "python3 sync.py"
+    "sync": "python3 sync.py",
+    "set-dev-claim": "ts-node --transpile-only src/scripts/set-dev-claim.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "1.2.3",

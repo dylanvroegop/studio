@@ -38,8 +38,8 @@ VALUES
       "regelwerk": {
         "sectionKey": "regelwerk",
         "logic": "primary latten_samenvatting; fallback geometry",
-        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
-        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
+        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm) / material.lengte_mm)",
+        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm) / material.lengte_mm)",
         "required_inputs_fallback": [
           "front_latafstand_mm",
           "underside_latafstand_mm",
@@ -54,7 +54,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "area based",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -65,7 +65,7 @@ VALUES
       "isolatie": {
         "sectionKey": "isolatie",
         "logic": "area based with pack detection",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -80,7 +80,7 @@ VALUES
         "sectionKey": "boeiboord_plaat",
         "logic": "visual_center_joint_layout",
         "joint_alignment": "centered",
-        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2) * (1 + waste/100)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
+        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
         "required_inputs": [
           "material.lengte",
           "material.breedte",
@@ -94,7 +94,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "lineair voorzijde + onderzijde",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -104,7 +104,7 @@ VALUES
       "voegband": {
         "sectionKey": "voegband",
         "logic": "naadlengte + kopkanten",
-        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte",
           "maatwerk_item['naad dikte tussen 2 platen kopkant']"
@@ -115,7 +115,7 @@ VALUES
       "eindprofiel": {
         "sectionKey": "eindprofiel",
         "logic": "kopkanten afsluiting",
-        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -125,7 +125,7 @@ VALUES
       "afwerk_profiel": {
         "sectionKey": "afwerk_profiel",
         "logic": "zichtbare randen",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -144,7 +144,7 @@ VALUES
       "daktrim": {
         "sectionKey": "daktrim",
         "logic": "lineair voorzijde",
-        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -189,8 +189,8 @@ VALUES
       "regelwerk": {
         "sectionKey": "regelwerk",
         "logic": "primary latten_samenvatting; fallback geometry",
-        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
-        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
+        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm) / material.lengte_mm)",
+        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm) / material.lengte_mm)",
         "required_inputs_fallback": [
           "front_latafstand_mm",
           "underside_latafstand_mm",
@@ -205,7 +205,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "area based",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -216,7 +216,7 @@ VALUES
       "isolatie": {
         "sectionKey": "isolatie",
         "logic": "area based with pack detection",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -231,7 +231,7 @@ VALUES
         "sectionKey": "boeiboord_plaat",
         "logic": "visual_center_joint_layout",
         "joint_alignment": "centered",
-        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2) * (1 + waste/100)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
+        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
         "required_inputs": [
           "material.lengte",
           "material.breedte",
@@ -245,7 +245,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "lineair voorzijde + onderzijde",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -255,7 +255,7 @@ VALUES
       "voegband": {
         "sectionKey": "voegband",
         "logic": "naadlengte + kopkanten",
-        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte",
           "maatwerk_item['naad dikte tussen 2 platen kopkant']"
@@ -266,7 +266,7 @@ VALUES
       "eindprofiel": {
         "sectionKey": "eindprofiel",
         "logic": "kopkanten afsluiting",
-        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -276,7 +276,7 @@ VALUES
       "afwerk_profiel": {
         "sectionKey": "afwerk_profiel",
         "logic": "zichtbare randen",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -295,7 +295,7 @@ VALUES
       "daktrim": {
         "sectionKey": "daktrim",
         "logic": "lineair voorzijde",
-        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -340,8 +340,8 @@ VALUES
       "regelwerk": {
         "sectionKey": "regelwerk",
         "logic": "primary latten_samenvatting; fallback geometry",
-        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
-        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
+        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm) / material.lengte_mm)",
+        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm) / material.lengte_mm)",
         "required_inputs_fallback": [
           "front_latafstand_mm",
           "underside_latafstand_mm",
@@ -356,7 +356,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "area based",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -367,7 +367,7 @@ VALUES
       "isolatie": {
         "sectionKey": "isolatie",
         "logic": "area based with pack detection",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -382,7 +382,7 @@ VALUES
         "sectionKey": "boeiboord_hout",
         "logic": "visual_center_joint_layout",
         "joint_alignment": "centered",
-        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2) * (1 + waste/100)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
+        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
         "required_inputs": [
           "material.lengte",
           "material.breedte",
@@ -396,7 +396,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "lineair voorzijde + onderzijde",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -406,7 +406,7 @@ VALUES
       "voegband": {
         "sectionKey": "voegband",
         "logic": "naadlengte + kopkanten",
-        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte",
           "maatwerk_item['naad dikte tussen 2 platen kopkant']"
@@ -417,7 +417,7 @@ VALUES
       "eindprofiel": {
         "sectionKey": "eindprofiel",
         "logic": "kopkanten afsluiting",
-        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -434,7 +434,7 @@ VALUES
       "afwerklatten": {
         "sectionKey": "afwerklatten",
         "logic": "zichtbare randen",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -446,7 +446,7 @@ VALUES
       "daktrim": {
         "sectionKey": "daktrim",
         "logic": "lineair voorzijde",
-        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -491,8 +491,8 @@ VALUES
       "regelwerk": {
         "sectionKey": "regelwerk",
         "logic": "primary latten_samenvatting; fallback geometry",
-        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
-        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm * (1 + waste/100)) / material.lengte_mm)",
+        "primary_formula": "total_latten_mm = sum(item.lengte_mm * item.aantal from maatwerk_item.latten_samenvatting.totaal.items); stuks = ceil((total_latten_mm) / material.lengte_mm)",
+        "fallback_formula": "rows_per_panel = ceil(panel_height_mm / side_latafstand_mm) + 1; total_latten_mm = sum(rows_per_panel * paneel.lengte); stuks = ceil((total_latten_mm) / material.lengte_mm)",
         "required_inputs_fallback": [
           "front_latafstand_mm",
           "underside_latafstand_mm",
@@ -507,7 +507,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "area based",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; dekking_m2 = material.lengte_m * material.breedte_m; aantal = ceil(netto_m2 / dekking_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -518,7 +518,7 @@ VALUES
       "isolatie": {
         "sectionKey": "isolatie",
         "logic": "area based with pack detection",
-        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2 * (1 + waste/100); element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
+        "formula": "bruto_m2 = total_panel_area_m2 + kopkanten_area_m2; netto_m2 = bruto_m2; element_m2 = material.lengte_m * material.breedte_m; stuks = ceil(netto_m2 / element_m2)",
         "required_inputs": [
           "material.lengte",
           "material.breedte"
@@ -533,7 +533,7 @@ VALUES
         "sectionKey": "keralit_panelen",
         "logic": "visual_center_joint_layout",
         "joint_alignment": "centered",
-        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2) * (1 + waste/100)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
+        "formula": "for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)",
         "required_inputs": [
           "material.lengte",
           "material.breedte",
@@ -547,7 +547,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "lineair voorzijde + onderzijde",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -557,7 +557,7 @@ VALUES
       "voegband": {
         "sectionKey": "voegband",
         "logic": "naadlengte + kopkanten",
-        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "seam_m1 = sum((segments_per_strip - 1) * strip_height_mm / 1000) + kopkanten_length_m1; aantal = ceil((seam_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte",
           "maatwerk_item['naad dikte tussen 2 platen kopkant']"
@@ -568,7 +568,7 @@ VALUES
       "eindprofiel": {
         "sectionKey": "eindprofiel",
         "logic": "kopkanten afsluiting",
-        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -585,7 +585,7 @@ VALUES
       "keralit_profielen": {
         "sectionKey": "keralit_profielen",
         "logic": "zichtbare randen",
-        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1 + underside_length_m1 + kopkanten_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],
@@ -597,7 +597,7 @@ VALUES
       "daktrim": {
         "sectionKey": "daktrim",
         "logic": "lineair voorzijde",
-        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = front_length_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "material.lengte"
         ],

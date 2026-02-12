@@ -343,6 +343,47 @@ export async function POST(req: Request) {
         });
       };
 
+      // Strip waste multipliers from embedded rule formulas so legacy quotes
+      // follow the same "base quantity first, waste afterwards" strategy.
+      const stripWasteFromFormula = (formula: string): string => (
+        formula
+          .replace(/\s*\*\s*\(1\s*\+\s*waste\/100\)/g, '')
+          .replace(/\(1\s*\+\s*waste\/100\)\s*\*\s*/g, '')
+          .replace(/\s*\*\s*\(1\s*\+\s*\(user_input_wastePercentage\s*\/\s*100\)\)/g, '')
+          .replace(/\(1\s*\+\s*\(user_input_wastePercentage\s*\/\s*100\)\)\s*\*\s*/g, '')
+          .replace(/\s*\*\s*wastePercentage\b/g, '')
+          .replace(/\bwastePercentage\s*\*\s*/g, '')
+          .replace(/\s*\*\s*waste_multiplier\b/g, '')
+          .replace(/\bwaste_multiplier\s*\*\s*/g, '')
+      );
+
+      const sanitizeRuleObject = (rule: any): any => {
+        if (Array.isArray(rule)) {
+          return rule.map((item) => sanitizeRuleObject(item));
+        }
+        if (!rule || typeof rule !== 'object') return rule;
+
+        const next: Record<string, any> = {};
+        Object.entries(rule).forEach(([key, value]) => {
+          if ((key === 'formula' || key === 'primary_formula' || key === 'fallback_formula') && typeof value === 'string') {
+            next[key] = stripWasteFromFormula(value);
+          } else if (value && typeof value === 'object') {
+            next[key] = sanitizeRuleObject(value);
+          } else {
+            next[key] = value;
+          }
+        });
+        return next;
+      };
+
+      const sanitizeEntryRule = (entry: any) => {
+        if (!entry || typeof entry !== 'object' || !entry.rule || typeof entry.rule !== 'object') return entry;
+        return {
+          ...entry,
+          rule: sanitizeRuleObject(entry.rule),
+        };
+      };
+
       // ─── Helper: Enrich a single material entry with Supabase data ───
       const enrichMaterial = (entry: any) => {
         const mat = entry?.material;
@@ -439,7 +480,7 @@ export async function POST(req: Request) {
             // B1. Materials from materialen_lijst (primary source)
             const materialenLijst = enrichedJob.materialen?.materialen_lijst || {};
             Object.entries(materialenLijst).forEach(([slotKey, entry]: [string, any]) => {
-              const enriched = enrichMaterial(entry);
+              const enriched = sanitizeEntryRule(enrichMaterial(entry));
               if (!enriched?.material) return;
               const isComponentEntry = slotKey.startsWith('comp_') || enriched.type === 'component_material';
               const rawSectionKey = typeof enriched.sectionKey === 'string' ? enriched.sectionKey : null;

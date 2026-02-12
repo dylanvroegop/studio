@@ -17,7 +17,7 @@ import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -38,6 +38,20 @@ import { useToast } from '@/hooks/use-toast';
 import { parsePriceToNumber } from '@/lib/utils';
 
 import { Quote } from "@/lib/types";
+
+interface GrootCompareQuoteColumn {
+    quoteId: string;
+    label: string;
+    offerteNummer: number | null;
+    grootSubtotal: number;
+    totalHours: number | null;
+    itemsByProduct: Record<string, { aantal: number; totaal: number }>;
+}
+
+interface GrootCompareRow {
+    product: string;
+    values: Array<{ aantal: number | null; totaal: number | null }>;
+}
 
 export default function QuotePage() {
     const params = useParams();
@@ -109,6 +123,40 @@ export default function QuotePage() {
 
     const [userProfile, setUserProfile] = useState<any>(null);
     const [businessData, setBusinessData] = useState<any>(null);
+    const [isDevUser, setIsDevUser] = useState(false);
+    const [isComparingGrootPrices, setIsComparingGrootPrices] = useState(false);
+    const [isGrootCompareOpen, setIsGrootCompareOpen] = useState(false);
+    const [grootCompareError, setGrootCompareError] = useState<string | null>(null);
+    const [grootCompareQuotes, setGrootCompareQuotes] = useState<GrootCompareQuoteColumn[]>([]);
+    const [grootCompareRows, setGrootCompareRows] = useState<GrootCompareRow[]>([]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadDevClaim = async () => {
+            if (!user) {
+                setIsDevUser(false);
+                return;
+            }
+
+            try {
+                const tokenResult = await user.getIdTokenResult(true);
+                if (!cancelled) {
+                    setIsDevUser(tokenResult?.claims?.dev === true);
+                }
+            } catch {
+                if (!cancelled) {
+                    setIsDevUser(false);
+                }
+            }
+        };
+
+        void loadDevClaim();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.uid]);
 
     // Fetch user profile and business details
     useEffect(() => {
@@ -703,6 +751,157 @@ export default function QuotePage() {
 
         handleAddItem(activeCategory, newItem);
         setActiveCategory(null);
+    };
+
+    const handleCompareLastThreeGrootPrices = async () => {
+        if (!user || !firestore || isComparingGrootPrices) return;
+
+        setIsComparingGrootPrices(true);
+        setGrootCompareError(null);
+
+        try {
+            const quotesSnapshot = await getDocs(
+                query(collection(firestore, 'quotes'), where('userId', '==', user.uid))
+            );
+
+            const recentQuotes = quotesSnapshot.docs
+                .map((docSnap) => {
+                    const data = docSnap.data() as any;
+                    const offerteNummerRaw = Number(data?.offerteNummer);
+                    const offerteNummer = Number.isFinite(offerteNummerRaw) ? offerteNummerRaw : null;
+                    const createdAtMs =
+                        typeof data?.createdAt?.toMillis === 'function'
+                            ? data.createdAt.toMillis()
+                            : typeof data?.updatedAt?.toMillis === 'function'
+                                ? data.updatedAt.toMillis()
+                                : 0;
+
+                    return {
+                        quoteId: docSnap.id,
+                        offerteNummer,
+                        createdAtMs,
+                    };
+                })
+                .sort((a, b) => {
+                    const aNr = a.offerteNummer ?? -1;
+                    const bNr = b.offerteNummer ?? -1;
+                    if (aNr !== bNr) return bNr - aNr;
+                    return b.createdAtMs - a.createdAtMs;
+                })
+                .slice(0, 3);
+
+            if (recentQuotes.length === 0) {
+                throw new Error('Geen offertes gevonden voor vergelijking.');
+            }
+
+            const quoteIds = recentQuotes.map((quoteMeta) => quoteMeta.quoteId);
+            const { data: calculationRows, error: calculationRowsError } = await supabase
+                .from('quotes_collection')
+                .select('quoteid, data_json, created_at')
+                .in('quoteid', quoteIds)
+                .order('created_at', { ascending: false });
+
+            if (calculationRowsError) {
+                throw new Error(calculationRowsError.message || 'Kon calculaties niet ophalen.');
+            }
+
+            const latestCalculationByQuote = new Map<string, { quoteid: string; data_json: unknown }>();
+            for (const row of calculationRows || []) {
+                if (!row?.quoteid || latestCalculationByQuote.has(row.quoteid)) continue;
+                latestCalculationByQuote.set(row.quoteid, row as { quoteid: string; data_json: unknown });
+            }
+
+            const productNameByKey = new Map<string, string>();
+
+            const quoteColumns: GrootCompareQuoteColumn[] = recentQuotes.map((quoteMeta, index) => {
+                const calculationRow = latestCalculationByQuote.get(quoteMeta.quoteId);
+                const normalized = calculationRow?.data_json ? normalizeDataJson(calculationRow.data_json as any) : null;
+                const grootItems = Array.isArray(normalized?.grootmaterialen) ? normalized.grootmaterialen : [];
+                const itemsByProduct: Record<string, { aantal: number; totaal: number }> = {};
+
+                for (const item of grootItems) {
+                    const name = String(item?.product || '').trim();
+                    if (!name) continue;
+                    const key = name.toLowerCase();
+                    const parsedPrice = parsePriceToNumber((item as any)?.prijs_per_stuk ?? (item as any)?.prijs_excl_btw ?? (item as any)?.prijs);
+                    const parsedAantal = parsePriceToNumber((item as any)?.aantal);
+                    const prijs = parsedPrice !== null && Number.isFinite(parsedPrice) ? parsedPrice : 0;
+                    const aantal = parsedAantal !== null && Number.isFinite(parsedAantal) ? parsedAantal : 0;
+                    const regelTotaal = prijs * aantal;
+
+                    const existing = itemsByProduct[key] || { aantal: 0, totaal: 0 };
+                    itemsByProduct[key] = {
+                        aantal: Number((existing.aantal + aantal).toFixed(2)),
+                        totaal: Number((existing.totaal + regelTotaal).toFixed(2)),
+                    };
+
+                    if (!productNameByKey.has(key)) {
+                        productNameByKey.set(key, name);
+                    }
+                }
+
+                const grootSubtotal = grootItems.reduce((sum, item) => {
+                    const parsedPrice = parsePriceToNumber((item as any)?.prijs_per_stuk ?? (item as any)?.prijs_excl_btw ?? (item as any)?.prijs);
+                    const parsedAantal = parsePriceToNumber((item as any)?.aantal);
+                    const prijs = parsedPrice !== null && Number.isFinite(parsedPrice) ? parsedPrice : 0;
+                    const aantal = parsedAantal !== null && Number.isFinite(parsedAantal) ? parsedAantal : 0;
+                    return sum + prijs * aantal;
+                }, 0);
+
+                const label =
+                    quoteMeta.offerteNummer !== null
+                        ? `Offerte ${quoteMeta.offerteNummer}`
+                        : `Offerte ${index + 1}`;
+
+                const parsedHours = parsePriceToNumber((normalized as any)?.totaal_uren);
+                const totalHours = parsedHours !== null && Number.isFinite(parsedHours)
+                    ? Number(parsedHours.toFixed(2))
+                    : null;
+
+                return {
+                    quoteId: quoteMeta.quoteId,
+                    label,
+                    offerteNummer: quoteMeta.offerteNummer,
+                    grootSubtotal: Number(grootSubtotal.toFixed(2)),
+                    totalHours,
+                    itemsByProduct,
+                };
+            });
+
+            const sortedProductKeys = Array.from(productNameByKey.keys()).sort((a, b) =>
+                (productNameByKey.get(a) || '').localeCompare(productNameByKey.get(b) || '', 'nl')
+            );
+
+            const compareRows: GrootCompareRow[] = sortedProductKeys.map((productKey) => {
+                const values = quoteColumns.map((col) => {
+                    const item = col.itemsByProduct[productKey];
+                    if (!item) return { aantal: null, totaal: null };
+                    return { aantal: item.aantal, totaal: item.totaal };
+                });
+
+                return {
+                    product: productNameByKey.get(productKey) || productKey,
+                    values,
+                };
+            });
+
+            setGrootCompareQuotes(quoteColumns);
+            setGrootCompareRows(compareRows);
+            setIsGrootCompareOpen(true);
+        } catch (error: any) {
+            setGrootCompareError(error?.message || 'Vergelijken mislukt.');
+            setIsGrootCompareOpen(true);
+        } finally {
+            setIsComparingGrootPrices(false);
+        }
+    };
+
+    const formatAantal = (value: number): string => {
+        const isWhole = Math.abs(value - Math.round(value)) < 0.00001;
+        return new Intl.NumberFormat('nl-NL', {
+            minimumFractionDigits: isWhole ? 0 : 2,
+            maximumFractionDigits: 2,
+        }).format(value);
     };
 
     // Calculate subtotals for display
@@ -1478,6 +1677,26 @@ export default function QuotePage() {
                                         </div>
                                     </div>
 
+                                    {isDevUser && (
+                                        <div className="mb-3 flex items-center justify-end">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 text-xs"
+                                                onClick={handleCompareLastThreeGrootPrices}
+                                                disabled={isComparingGrootPrices}
+                                            >
+                                                {isComparingGrootPrices ? (
+                                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <Eye className="mr-2 h-3.5 w-3.5" />
+                                                )}
+                                                Compare laatste 3 offertes materialen (groot): aantal + totaal
+                                            </Button>
+                                        </div>
+                                    )}
+
                                     <MaterialEditor
                                         title="GROOTMATERIALEN"
                                         items={materials.groot}
@@ -1506,6 +1725,98 @@ export default function QuotePage() {
                                         calculationRowLabel="Waarom dit"
                                         showDontAutoIncludeOption
                                     />
+
+                                    <Dialog open={isGrootCompareOpen} onOpenChange={setIsGrootCompareOpen}>
+                                        <DialogContent className="sm:max-w-6xl max-h-[94vh] overflow-hidden">
+                                            <DialogHeader>
+                                                <DialogTitle>Vergelijking laatste 3 offertes - Grootmaterialen</DialogTitle>
+                                                <DialogDescription>
+                                                    Vergelijkt per product het aantal en de regel-totalen in je meest recente offertes.
+                                                </DialogDescription>
+                                            </DialogHeader>
+
+                                            {grootCompareError ? (
+                                                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                                                    {grootCompareError}
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4 overflow-y-auto">
+                                                    <div className="grid gap-2 md:grid-cols-3">
+                                                        {grootCompareQuotes.map((quoteColumn) => (
+                                                            <div
+                                                                key={quoteColumn.quoteId}
+                                                                className="rounded-md border border-border bg-muted/20 px-3 py-2"
+                                                            >
+                                                                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                    {quoteColumn.label}
+                                                                </div>
+                                                                <div className="text-sm font-medium">
+                                                                    Totaal groot: {formatCurrency(quoteColumn.grootSubtotal)}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                    <div className="rounded-md border border-border overflow-hidden">
+                                                        <div className="max-h-[72vh] overflow-auto">
+                                                            <table className="w-full border-collapse text-sm">
+                                                                <thead className="bg-muted/30">
+                                                                    <tr>
+                                                                        <th className="px-3 py-2 text-left font-semibold">Product</th>
+                                                                        {grootCompareQuotes.map((quoteColumn) => (
+                                                                            <th key={quoteColumn.quoteId} className="px-3 py-2 text-right font-semibold">
+                                                                                {quoteColumn.offerteNummer !== null ? `#${quoteColumn.offerteNummer}` : quoteColumn.label}
+                                                                            </th>
+                                                                        ))}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <tr className="border-t border-border bg-muted/10">
+                                                                        <td className="px-3 py-2 font-medium">Uren</td>
+                                                                        {grootCompareQuotes.map((quoteColumn) => (
+                                                                            <td key={`hours-${quoteColumn.quoteId}`} className="px-3 py-2 text-right font-mono">
+                                                                                {quoteColumn.totalHours === null ? '—' : `${formatAantal(quoteColumn.totalHours)} u`}
+                                                                            </td>
+                                                                        ))}
+                                                                    </tr>
+                                                                    {grootCompareRows.length === 0 ? (
+                                                                        <tr>
+                                                                            <td
+                                                                                colSpan={grootCompareQuotes.length + 1}
+                                                                                className="px-3 py-4 text-center text-muted-foreground"
+                                                                            >
+                                                                                Geen grootmaterialen gevonden in de laatste offertes.
+                                                                            </td>
+                                                                        </tr>
+                                                                    ) : (
+                                                                        grootCompareRows.map((row) => (
+                                                                            <tr key={row.product} className="border-t border-border">
+                                                                                <td className="px-3 py-2">{row.product}</td>
+                                                                                {row.values.map((value, index) => (
+                                                                                    <td key={`${row.product}-${index}`} className="px-3 py-2 text-right">
+                                                                                        {value.aantal === null || value.totaal === null ? (
+                                                                                            <span className="font-mono">—</span>
+                                                                                        ) : (
+                                                                                            <div className="flex flex-col items-end leading-tight">
+                                                                                                <span className="font-mono">{formatAantal(value.aantal)} st</span>
+                                                                                                <span className="text-xs text-muted-foreground font-mono">
+                                                                                                    {formatCurrency(value.totaal)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </td>
+                                                                                ))}
+                                                                            </tr>
+                                                                        ))
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </DialogContent>
+                                    </Dialog>
                                 </>
                             )}
                         </TabsContent>

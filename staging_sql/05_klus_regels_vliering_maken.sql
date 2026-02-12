@@ -43,7 +43,7 @@ VALUES
       "randbalken": {
         "sectionKey": "randbalken",
         "logic": "2 randbalken langs vloer-lengte",
-        "formula": "aantal = ceil((randbalk_total_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "aantal = ceil((randbalk_total_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -54,7 +54,7 @@ VALUES
       "vloerbalken": {
         "sectionKey": "vloerbalken",
         "logic": "balken op h.o.h. + extra raveelhout bij vlizotrap-openingen",
-        "formula": "totale_lengte_mm = vloerbalk_total_mm + raveel_extra_mm; aantal = ceil((totale_lengte_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "totale_lengte_mm = vloerbalk_total_mm + raveel_extra_mm; aantal = ceil((totale_lengte_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -67,7 +67,7 @@ VALUES
       "balkdragers": {
         "sectionKey": "balkdragers",
         "logic": "2 dragers per interne balk + extra per vlizotrap-raveling",
-        "formula": "interne_balken = max(0, beam_count - 2); basis = interne_balken * 2; raveel = vlizotrap_count * 4; aantal = ceil((basis + raveel) * (1 + waste/100))",
+        "formula": "interne_balken = max(0, beam_count - 2); basis = interne_balken * 2; raveel = vlizotrap_count * 4; aantal = ceil((basis + raveel))",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.balkafstand"
@@ -80,7 +80,7 @@ VALUES
       "beplating": {
         "sectionKey": "beplating",
         "logic": "vloer-oppervlakte minus openingen",
-        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((vloer_netto_m2 * (1 + waste/100)) / plaat_m2)",
+        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((vloer_netto_m2) / plaat_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -105,7 +105,7 @@ VALUES
       "luik_afwerking": {
         "sectionKey": "luik_afwerking",
         "logic": "omtrek van vlizotrap/luik-openingen",
-        "formula": "lineair_m1 = vlizotrap_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = vlizotrap_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.openings",
           "material.lengte"
@@ -118,7 +118,7 @@ VALUES
       "koof_regelwerk": {
         "sectionKey": "koof_regelwerk",
         "logic": "lineair koof-frame op basis van koven[]",
-        "formula": "aantal = ceil((koof_total_lineair_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "aantal = ceil((koof_total_lineair_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.koven",
           "material.lengte"
@@ -129,7 +129,7 @@ VALUES
       "koof_constructieplaat": {
         "sectionKey": "koof_constructieplaat",
         "logic": "koof-oppervlakte (front + onderzijde)",
-        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((koof_total_surface_m2 * (1 + waste/100)) / plaat_m2)",
+        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((koof_total_surface_m2) / plaat_m2)",
         "required_inputs": [
           "maatwerk_item.koven",
           "material.lengte",
@@ -141,7 +141,7 @@ VALUES
       "koof_afwerkplaat": {
         "sectionKey": "koof_afwerkplaat",
         "logic": "zelfde oppervlak als koof_constructieplaat",
-        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((koof_total_surface_m2 * (1 + waste/100)) / plaat_m2)",
+        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((koof_total_surface_m2) / plaat_m2)",
         "required_inputs": [
           "maatwerk_item.koven",
           "material.lengte",
@@ -153,7 +153,7 @@ VALUES
       "koof_isolatie": {
         "sectionKey": "koof_isolatie",
         "logic": "koof-oppervlakte met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((koof_total_surface_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((koof_total_surface_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.koven",
@@ -168,7 +168,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "oppervlakte vloer minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((vloer_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((vloer_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -181,7 +181,7 @@ VALUES
       "isolatie_basis": {
         "sectionKey": "isolatie_basis",
         "logic": "oppervlakte vloer minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -197,7 +197,7 @@ VALUES
       "plinten_plafond": {
         "sectionKey": "plinten_plafond",
         "logic": "perimeter van vloer/plafondvlak",
-        "formula": "lineair_m1 = (2 * (floor_length_mm + floor_width_mm)) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * (floor_length_mm + floor_width_mm)) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -209,7 +209,7 @@ VALUES
       "gips_vuller": {
         "sectionKey": "gips_vuller",
         "logic": "verbruik per m2 (materiaalgestuurd)",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_netto_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_netto_m2 * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -222,7 +222,7 @@ VALUES
       "gips_finish": {
         "sectionKey": "gips_finish",
         "logic": "verbruik per m2 (materiaalgestuurd)",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_netto_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_netto_m2 * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",

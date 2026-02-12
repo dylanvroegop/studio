@@ -25,7 +25,7 @@ VALUES
       "plinten": {
         "sectionKey": "plinten",
         "logic": "lineair langs opgegeven lengte",
-        "formula": "if material.lengte exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.dekking_m1 exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.lengte exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m); else if material.dekking_m1 exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte || material.dekking_m1 || material.aantal"
@@ -36,7 +36,7 @@ VALUES
       "vloerplinten": {
         "sectionKey": "vloerplinten",
         "logic": "lineair langs opgegeven lengte",
-        "formula": "if material.lengte exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.dekking_m1 exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.lengte exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m); else if material.dekking_m1 exists then lineair_m1 = lengte_mm / 1000; aantal = ceil((lineair_m1) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte || material.dekking_m1 || material.aantal"
@@ -49,7 +49,7 @@ VALUES
       "koplatten": {
         "sectionKey": "koplatten",
         "logic": "lineair op som van lengte + hoogte",
-        "formula": "if material.lengte exists then lineair_m1 = (lengte_mm + hoogte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.lengte exists then lineair_m1 = (lengte_mm + hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -85,7 +85,7 @@ VALUES
       "frame": {
         "sectionKey": "frame",
         "logic": "regelwerk rondom vensteropening (2x hoogte + 1x breedte) per stuk",
-        "formula": "lineair_m1 = (((2 * opening_height_mm) + opening_width_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "lineair_m1 = (((2 * opening_height_mm) + opening_width_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",
@@ -100,7 +100,7 @@ VALUES
       "vensterbank": {
         "sectionKey": "vensterbank",
         "logic": "primair lineair op vensterbankbreedte; fallback op plaatoppervlakte",
-        "formula": "lineair_m1 = (opening_width_mm * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.lengte && material.breedte then totaal_m2 = opening_area_m2 * opening_count; plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((totaal_m2 * (1 + waste/100)) / plaat_m2); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "lineair_m1 = (opening_width_mm * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1) / material.lengte_m); else if material.lengte && material.breedte then totaal_m2 = opening_area_m2 * opening_count; plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((totaal_m2) / plaat_m2); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",
@@ -113,7 +113,7 @@ VALUES
       "roosters": {
         "sectionKey": "roosters",
         "logic": "roosters per vensterbank of expliciete materiaalhoeveelheid",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_stuk || material.verbruik exists then totaal = opening_count * (1 + waste/100) * (material.verbruik_per_stuk ?? material.verbruik); aantal = ceil(totaal); else aantal = ceil(opening_count * (1 + waste/100))",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_stuk || material.verbruik exists then totaal = opening_count * (material.verbruik_per_stuk ?? material.verbruik); aantal = ceil(totaal); else aantal = ceil(opening_count)",
         "required_inputs": [
           "maatwerk_item.aantal"
         ],
@@ -123,7 +123,7 @@ VALUES
       "behandeling": {
         "sectionKey": "behandeling",
         "logic": "behandeling op verbruik-per-m2 of expliciete materiaalhoeveelheid",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = (opening_area_m2 * opening_count) * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil(((opening_area_m2 * opening_count) * (1 + waste/100)) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = (opening_area_m2 * opening_count) * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil(((opening_area_m2 * opening_count)) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.breedte",
@@ -160,7 +160,7 @@ VALUES
       "frame": {
         "sectionKey": "frame",
         "logic": "regelwerk rondom dagkantopening (2x hoogte + 1x breedte) per stuk",
-        "formula": "lineair_m1 = (((2 * opening_height_mm) + opening_width_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "lineair_m1 = (((2 * opening_height_mm) + opening_width_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",
@@ -175,7 +175,7 @@ VALUES
       "dagkant": {
         "sectionKey": "dagkant",
         "logic": "betimmering rondom opening, lineair of op verbruik",
-        "formula": "lineair_m1 = (((2 * opening_height_mm) + opening_width_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.verbruik_per_m1 || material.verbruik exists then totaal = lineair_m1 * (1 + waste/100) * (material.verbruik_per_m1 ?? material.verbruik); aantal = ceil(totaal); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "lineair_m1 = (((2 * opening_height_mm) + opening_width_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1) / material.lengte_m); else if material.verbruik_per_m1 || material.verbruik exists then totaal = lineair_m1 * (material.verbruik_per_m1 ?? material.verbruik); aantal = ceil(totaal); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",
@@ -188,7 +188,7 @@ VALUES
       "hoekprofiel": {
         "sectionKey": "hoekprofiel",
         "logic": "hoekprofiel over verticale dagkanthoogtes",
-        "formula": "lineair_m1 = ((2 * opening_height_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "lineair_m1 = ((2 * opening_height_mm) * opening_count) / 1000; if material.lengte exists then aantal = ceil((lineair_m1) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.hoogte",
           "maatwerk_item.aantal",

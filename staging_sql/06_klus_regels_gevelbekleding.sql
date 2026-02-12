@@ -34,7 +34,7 @@ VALUES
       "regelwerk_basis": {
         "sectionKey": "regelwerk_basis",
         "logic": "verticale tengels + horizontale regels op opgegeven h.o.h.",
-        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -50,7 +50,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "oppervlakte gevel minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -63,7 +63,7 @@ VALUES
       "isolatie_gevel": {
         "sectionKey": "isolatie_gevel",
         "logic": "oppervlakte gevel minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -79,7 +79,7 @@ VALUES
       "gevelplaat": {
         "sectionKey": "gevelplaat",
         "logic": "gevelbekleding op netto oppervlak met optionele werkende-breedte logica",
-        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -93,7 +93,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "onder- en bovenzijde van het gevelvlak",
-        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -104,7 +104,7 @@ VALUES
       "waterslag": {
         "sectionKey": "waterslag",
         "logic": "lineair over raam/opening-breedtes",
-        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.openings",
           "material.lengte"
@@ -146,7 +146,7 @@ VALUES
       "regelwerk_basis": {
         "sectionKey": "regelwerk_basis",
         "logic": "verticale tengels + horizontale regels op opgegeven h.o.h.",
-        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -162,7 +162,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "oppervlakte gevel minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -175,7 +175,7 @@ VALUES
       "isolatie_gevel": {
         "sectionKey": "isolatie_gevel",
         "logic": "oppervlakte gevel minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -191,7 +191,7 @@ VALUES
       "gevelplaat_rockpanel": {
         "sectionKey": "gevelplaat_rockpanel",
         "logic": "gevelbekleding op netto oppervlak met optionele werkende-breedte logica",
-        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -205,7 +205,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "onder- en bovenzijde van het gevelvlak",
-        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -216,7 +216,7 @@ VALUES
       "waterslag": {
         "sectionKey": "waterslag",
         "logic": "lineair over raam/opening-breedtes",
-        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.openings",
           "material.lengte"
@@ -258,7 +258,7 @@ VALUES
       "regelwerk_basis": {
         "sectionKey": "regelwerk_basis",
         "logic": "verticale tengels + horizontale regels op opgegeven h.o.h.",
-        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -274,7 +274,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "oppervlakte gevel minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -287,7 +287,7 @@ VALUES
       "isolatie_gevel": {
         "sectionKey": "isolatie_gevel",
         "logic": "oppervlakte gevel minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -303,7 +303,7 @@ VALUES
       "gevelbekleding_hout": {
         "sectionKey": "gevelbekleding_hout",
         "logic": "gevelbekleding op netto oppervlak met optionele werkende-breedte logica",
-        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -317,7 +317,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "onder- en bovenzijde van het gevelvlak",
-        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -328,7 +328,7 @@ VALUES
       "waterslag": {
         "sectionKey": "waterslag",
         "logic": "lineair over raam/opening-breedtes",
-        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.openings",
           "material.lengte"
@@ -339,7 +339,7 @@ VALUES
       "hoek_hout": {
         "sectionKey": "hoek_hout",
         "logic": "lineair op buitenhoeken",
-        "formula": "if maatwerk_item.aantal_hoeken exists then lineair_m1 = (maatwerk_item.aantal_hoeken * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if maatwerk_item.aantal_hoeken exists then lineair_m1 = (maatwerk_item.aantal_hoeken * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.hoogte",
           "maatwerk_item.aantal_hoeken",
@@ -382,7 +382,7 @@ VALUES
       "regelwerk_basis": {
         "sectionKey": "regelwerk_basis",
         "logic": "verticale tengels + horizontale regels op opgegeven h.o.h.",
-        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -398,7 +398,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "oppervlakte gevel minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((gevel_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -411,7 +411,7 @@ VALUES
       "isolatie_gevel": {
         "sectionKey": "isolatie_gevel",
         "logic": "oppervlakte gevel minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((gevel_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -427,7 +427,7 @@ VALUES
       "gevelbekleding_kunststof": {
         "sectionKey": "gevelbekleding_kunststof",
         "logic": "gevelbekleding op netto oppervlak met optionele werkende-breedte logica",
-        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -441,7 +441,7 @@ VALUES
       "ventilatieprofiel": {
         "sectionKey": "ventilatieprofiel",
         "logic": "onder- en bovenzijde van het gevelvlak",
-        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * gevel_lengte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -452,7 +452,7 @@ VALUES
       "waterslag": {
         "sectionKey": "waterslag",
         "logic": "lineair over raam/opening-breedtes",
-        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if openings_waterslag_m1 > 0 then aantal = ceil((openings_waterslag_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.openings",
           "material.lengte"
@@ -463,7 +463,7 @@ VALUES
       "keralit_startprofiel": {
         "sectionKey": "keralit_startprofiel",
         "logic": "lineair onderzijde gevel",
-        "formula": "lineair_m1 = gevel_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = gevel_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -474,7 +474,7 @@ VALUES
       "keralit_eindprofiel": {
         "sectionKey": "keralit_eindprofiel",
         "logic": "lineair linker + rechter zijkant",
-        "formula": "lineair_m1 = (2 * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.hoogte",
           "material.lengte"
@@ -485,7 +485,7 @@ VALUES
       "keralit_hoekprofiel": {
         "sectionKey": "keralit_hoekprofiel",
         "logic": "lineair op opgegeven buitenhoeken",
-        "formula": "if maatwerk_item.aantal_hoeken exists then lineair_m1 = (maatwerk_item.aantal_hoeken * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if maatwerk_item.aantal_hoeken exists then lineair_m1 = (maatwerk_item.aantal_hoeken * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.hoogte",
           "maatwerk_item.aantal_hoeken",

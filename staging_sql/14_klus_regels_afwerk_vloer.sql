@@ -27,7 +27,7 @@ VALUES
       "egaliseren": {
         "sectionKey": "egaliseren",
         "logic": "egaliseren op verbruik-per-m2 of expliciete materiaalhoeveelheid",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -40,7 +40,7 @@ VALUES
       "folie": {
         "sectionKey": "folie",
         "logic": "oppervlakte gebaseerd met overlap via waste",
-        "formula": "if material.dekking_m2 exists then aantal = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.lengte && material.breedte then dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((vloer_area_m2 * (1 + waste/100)) / dekkings_m2); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.dekking_m2 exists then aantal = ceil((vloer_area_m2) / material.dekking_m2); else if material.lengte && material.breedte then dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((vloer_area_m2) / dekkings_m2); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -52,7 +52,7 @@ VALUES
       "ondervloer": {
         "sectionKey": "ondervloer",
         "logic": "oppervlakte gebaseerd met pack-detectie",
-        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2 * (1 + waste/100)) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2) / material.dekking_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -67,7 +67,7 @@ VALUES
       "vloerdelen": {
         "sectionKey": "vloerdelen",
         "logic": "vloeroppervlakte met dekking/werkende maat + pack-detectie",
-        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.werkende_breedte_mm && material.lengte exists then element_m2 = material.lengte_m * (material.werkende_breedte_mm / 1000); stuks = ceil((vloer_area_m2 * (1 + waste/100)) / element_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2 * (1 + waste/100)) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2) / material.dekking_m2); else if material.werkende_breedte_mm && material.lengte exists then element_m2 = material.lengte_m * (material.werkende_breedte_mm / 1000); stuks = ceil((vloer_area_m2) / element_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -82,7 +82,7 @@ VALUES
       "plinten_muur": {
         "sectionKey": "plinten_muur",
         "logic": "lineair over vloeromtrek",
-        "formula": "if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.dekking_m1 exists then aantal = ceil((vloer_perimeter_m1 * (1 + waste/100)) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m); else if material.dekking_m1 exists then aantal = ceil((vloer_perimeter_m1) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -94,7 +94,7 @@ VALUES
       "profielen_overgang": {
         "sectionKey": "profielen_overgang",
         "logic": "overgangsprofielen op expliciete aantallen of verbruik-per-overgang",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_overgang || material.verbruik"
         ],
@@ -104,7 +104,7 @@ VALUES
       "profielen_eind": {
         "sectionKey": "profielen_eind",
         "logic": "eindprofielen op expliciete aantallen of verbruik-per-overgang",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_overgang || material.verbruik"
         ],
@@ -114,7 +114,7 @@ VALUES
       "kruipluik": {
         "sectionKey": "kruipluik",
         "logic": "kruipluikprofiel op expliciet aantal of verbruik",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik || material.verbruik_per_stuk exists then totaal = (material.verbruik_per_stuk ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik || material.verbruik_per_stuk exists then totaal = (material.verbruik_per_stuk ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik || material.verbruik_per_stuk"
         ],
@@ -148,7 +148,7 @@ VALUES
       "primer": {
         "sectionKey": "primer",
         "logic": "primer op verbruik-per-m2 of expliciete materiaalhoeveelheid",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -161,7 +161,7 @@ VALUES
       "ondervloer": {
         "sectionKey": "ondervloer",
         "logic": "oppervlakte gebaseerd met pack-detectie",
-        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2 * (1 + waste/100)) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2) / material.dekking_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -174,7 +174,7 @@ VALUES
       "egaline": {
         "sectionKey": "egaline",
         "logic": "egaliseren op verbruik-per-m2 of expliciete materiaalhoeveelheid",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -189,7 +189,7 @@ VALUES
       "vloerdelen": {
         "sectionKey": "vloerdelen",
         "logic": "vloeroppervlakte met dekking/werkende maat + pack-detectie",
-        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.werkende_breedte_mm && material.lengte exists then element_m2 = material.lengte_m * (material.werkende_breedte_mm / 1000); stuks = ceil((vloer_area_m2 * (1 + waste/100)) / element_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2 * (1 + waste/100)) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.dekking_m2 exists then stuks = ceil((vloer_area_m2) / material.dekking_m2); else if material.werkende_breedte_mm && material.lengte exists then element_m2 = material.lengte_m * (material.werkende_breedte_mm / 1000); stuks = ceil((vloer_area_m2) / element_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -202,7 +202,7 @@ VALUES
       "parketlijm": {
         "sectionKey": "parketlijm",
         "logic": "lijmverbruik op m2 of expliciete hoeveelheid",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else if material.aantal exists then totaal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (material.verbruik_per_m2 ?? material.verbruik); else if material.aantal exists then totaal = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -217,7 +217,7 @@ VALUES
       "plinten": {
         "sectionKey": "plinten",
         "logic": "lineair over vloeromtrek",
-        "formula": "if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.dekking_m1 exists then aantal = ceil((vloer_perimeter_m1 * (1 + waste/100)) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m); else if material.dekking_m1 exists then aantal = ceil((vloer_perimeter_m1) / material.dekking_m1); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -229,7 +229,7 @@ VALUES
       "deklatten": {
         "sectionKey": "deklatten",
         "logic": "lineair over vloeromtrek",
-        "formula": "if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.breedte",
@@ -241,7 +241,7 @@ VALUES
       "dorpels": {
         "sectionKey": "dorpels",
         "logic": "overgangsprofielen/dorpels op expliciete aantallen of verbruik-per-overgang",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_overgang || material.verbruik"
         ],
@@ -251,7 +251,7 @@ VALUES
       "vloerolie": {
         "sectionKey": "vloerolie",
         "logic": "afwerklaag op verbruik-per-m2 of expliciete hoeveelheid",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = vloer_area_m2 * (material.verbruik_per_m2 ?? material.verbruik); else if material.dekking_m2 exists then totaal = ceil((vloer_area_m2) / material.dekking_m2); else if material.aantal exists then totaal = ceil(material.aantal); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",

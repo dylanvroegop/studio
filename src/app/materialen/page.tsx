@@ -142,6 +142,18 @@ function buildMergedNaam(opts: {
   return `${base} ${maat}`;
 }
 
+function mergeSafetyAnswerIntoNaam(naam: string, antwoord: string): string {
+  const cleanNaam = naam.trim();
+  const cleanAntwoord = antwoord.trim();
+  if (!cleanAntwoord) return cleanNaam;
+
+  if (cleanNaam.toLowerCase().includes(cleanAntwoord.toLowerCase())) {
+    return cleanNaam;
+  }
+
+  return `${cleanNaam} ${cleanAntwoord}`.replace(/\s+/g, ' ').trim();
+}
+
 function InputMetSuffix(props: {
   value: string;
   onChange: (v: string) => void;
@@ -210,6 +222,11 @@ export default function MaterialenPage() {
   const [customPrijs, setCustomPrijs] = useState<string>('');
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>(''); // leeg
+
+  const [safetyPopupOpen, setSafetyPopupOpen] = useState<boolean>(false);
+  const [safetyQuestion, setSafetyQuestion] = useState<string>('');
+  const [safetyAnswer, setSafetyAnswer] = useState<string>('');
+  const [safetyAnswerError, setSafetyAnswerError] = useState<string | null>(null);
 
   const [maatUnit, setMaatUnit] = useState<string>('mm');
   const [maatLengte, setMaatLengte] = useState<string>('');
@@ -401,6 +418,11 @@ export default function MaterialenPage() {
     setMaatBreedte('');
     setMaatDikte('');
     setMaatHoogte('');
+
+    setSafetyPopupOpen(false);
+    setSafetyQuestion('');
+    setSafetyAnswer('');
+    setSafetyAnswerError(null);
   }, []);
 
   const openCustomDialog = useCallback(() => {
@@ -412,6 +434,10 @@ export default function MaterialenPage() {
 
   const closeCustomDialog = useCallback(() => {
     setDialogOpen(false);
+    setSafetyPopupOpen(false);
+    setSafetyQuestion('');
+    setSafetyAnswer('');
+    setSafetyAnswerError(null);
   }, []);
 
   useEffect(() => {
@@ -474,9 +500,9 @@ export default function MaterialenPage() {
     return merged || stripMaatSuffix(base);
   }, [customNaam, maatVereist, customEenheid, maatUnit, maatLengte, maatBreedte, maatDikte, maatHoogte]);
 
-  const saveCustomMaterial = useCallback(async () => {
+  const runSaveCustomMaterial = useCallback(async (safetyAnswerOverride?: string) => {
     try {
-      const naamRaw = customNaam.trim();
+      const naamRaw = mergeSafetyAnswerIntoNaam(customNaam.trim(), safetyAnswerOverride || '');
       if (!naamRaw) {
         setPageError('Materiaalnaam is verplicht.');
         return;
@@ -570,6 +596,44 @@ export default function MaterialenPage() {
         return;
       }
 
+      const n8nPayload = json?.n8n;
+      const responseData = json?.data;
+
+      const n8nReady =
+        n8nPayload && typeof n8nPayload === 'object'
+          ? (n8nPayload as any).ready
+          : undefined;
+      const dataReady =
+        responseData && typeof responseData === 'object'
+          ? (responseData as any).ready
+          : undefined;
+
+      const n8nQuestion =
+        n8nPayload && typeof n8nPayload === 'object'
+          ? (n8nPayload as any).question ?? (n8nPayload as any).vraag
+          : undefined;
+      const dataQuestion =
+        responseData && typeof responseData === 'object'
+          ? (responseData as any).question ?? (responseData as any).vraag
+          : undefined;
+
+      const questionText =
+        typeof n8nQuestion === 'string'
+          ? n8nQuestion.trim()
+          : typeof dataQuestion === 'string'
+            ? dataQuestion.trim()
+            : '';
+
+      if ((n8nReady === false || dataReady === false) && questionText) {
+        setSafetyQuestion(questionText);
+        setSafetyAnswer('');
+        setSafetyAnswerError(null);
+        setSafetyPopupOpen(true);
+        setCustomNaam(stripMaatSuffix(formattedName));
+        setSavingCustom(false);
+        return;
+      }
+
       await fetchMaterials();
       setSavingCustom(false);
       setDialogOpen(false);
@@ -591,6 +655,23 @@ export default function MaterialenPage() {
     maatHoogte,
     fetchMaterials,
   ]);
+
+  const saveCustomMaterial = useCallback(() => {
+    void runSaveCustomMaterial();
+  }, [runSaveCustomMaterial]);
+
+  const handleSafetyAnswerConfirm = useCallback(() => {
+    const answer = safetyAnswer.trim();
+    if (!answer) {
+      setSafetyAnswerError('Vul eerst een antwoord in.');
+      return;
+    }
+
+    setSafetyAnswerError(null);
+    setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, answer));
+    setSafetyPopupOpen(false);
+    void runSaveCustomMaterial(answer);
+  }, [safetyAnswer, runSaveCustomMaterial]);
 
   // ✅ Open delete confirm
   const openDeleteDialog = useCallback((m: Material) => {
@@ -1140,6 +1221,55 @@ export default function MaterialenPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        <AlertDialog
+          open={safetyPopupOpen}
+          onOpenChange={(open) => {
+            setSafetyPopupOpen(open);
+            if (!open) {
+              setSafetyAnswer('');
+              setSafetyAnswerError(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Controle voordat je opslaat</AlertDialogTitle>
+              <AlertDialogDescription>
+                {safetyQuestion || 'Vul extra verpakkingsinformatie in (zoals 750ml of 25kg).'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <div className="space-y-2">
+              <Input
+                value={safetyAnswer}
+                onChange={(e) => {
+                  setSafetyAnswer(e.target.value);
+                  if (safetyAnswerError) setSafetyAnswerError(null);
+                }}
+                placeholder="Bijv. 750ml, 5 liter, 25kg"
+                autoFocus
+              />
+              {safetyAnswerError ? (
+                <p className="text-sm text-destructive">{safetyAnswerError}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Deze info wordt toegevoegd aan de materiaalnaam en daarna opnieuw opgeslagen.
+                </p>
+              )}
+            </div>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant="ghost">Terug</Button>
+              </AlertDialogCancel>
+              <Button type="button" variant="success" onClick={handleSafetyAnswerConfirm}>
+                Aanvullen en opslaan
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* ✅ DELETE DIALOG (was missing) */}
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <AlertDialogContent>

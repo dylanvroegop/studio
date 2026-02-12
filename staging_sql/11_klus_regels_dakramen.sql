@@ -29,7 +29,7 @@ VALUES
       "vensterset_compleet": {
         "sectionKey": "vensterset_compleet",
         "logic": "complete set per dakraam",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else aantal = ceil(window_count * (1 + waste/100))",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else aantal = ceil(window_count)",
         "required_inputs": [
           "maatwerk_item.aantal"
         ],
@@ -41,7 +41,7 @@ VALUES
       "venster_los": {
         "sectionKey": "venster_los",
         "logic": "los venster per dakraam",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else aantal = ceil(window_count * (1 + waste/100))",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else aantal = ceil(window_count)",
         "required_inputs": [
           "maatwerk_item.aantal"
         ],
@@ -53,7 +53,7 @@ VALUES
       "gootstuk": {
         "sectionKey": "gootstuk",
         "logic": "stuk-per-raam of lineair op raamomtrek",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.eenheid == 'stuk' then aantal = ceil(window_count * (1 + waste/100)); else if material.lengte exists then lineair_m1 = (window_perimeter_m1 * window_count); aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.eenheid == 'stuk' then aantal = ceil(window_count); else if material.lengte exists then lineair_m1 = (window_perimeter_m1 * window_count); aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",
@@ -67,7 +67,7 @@ VALUES
       "betimmering": {
         "sectionKey": "betimmering",
         "logic": "aftimmering op totaal opening-oppervlak",
-        "formula": "if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((window_total_area_m2 * (1 + waste/100)) / plaat_m2); else if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else requires_manual_input",
+        "formula": "if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((window_total_area_m2) / plaat_m2); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",
@@ -79,7 +79,7 @@ VALUES
       "plinten": {
         "sectionKey": "plinten",
         "logic": "lineair over omtrek van alle dakramen",
-        "formula": "lineair_m1 = window_perimeter_m1 * window_count; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = window_perimeter_m1 * window_count; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",

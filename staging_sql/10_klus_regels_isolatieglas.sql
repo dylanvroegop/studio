@@ -27,7 +27,7 @@ VALUES
       "glas": {
         "sectionKey": "glas",
         "logic": "primair stuk, fallback op dekking/oppervlakte",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.eenheid == 'stuk' then aantal = ceil(1 * (1 + waste/100)); else if material.dekking_m2 exists then aantal = ceil((ruit_area_m2 * (1 + waste/100)) / material.dekking_m2); else if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((ruit_area_m2 * (1 + waste/100)) / plaat_m2); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.eenheid == 'stuk' then aantal = ceil(1); else if material.dekking_m2 exists then aantal = ceil((ruit_area_m2) / material.dekking_m2); else if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((ruit_area_m2) / plaat_m2); else requires_manual_input",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte"
@@ -38,7 +38,7 @@ VALUES
       "roosters": {
         "sectionKey": "roosters",
         "logic": "verbruik per ruit of expliciete aantallen",
-        "formula": "if material.aantal exists then aantal = ceil(material.aantal * (1 + waste/100)); else if material.verbruik_per_ruit || material.verbruik exists then totaal = (material.verbruik_per_ruit ?? material.verbruik) * (1 + waste/100); aantal = ceil(totaal); else requires_manual_input",
+        "formula": "if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_ruit || material.verbruik exists then totaal = (material.verbruik_per_ruit ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input",
         "required_inputs": [
           "material.aantal || material.verbruik_per_ruit || material.verbruik"
         ],
@@ -48,7 +48,7 @@ VALUES
       "glaslatten": {
         "sectionKey": "glaslatten",
         "logic": "lineair over ruitomtrek",
-        "formula": "lineair_m1 = ruit_perimeter_m1; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = ruit_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.breedte",
           "maatwerk_item.hoogte",

@@ -33,7 +33,7 @@ VALUES
       "constructieplaat": {
         "sectionKey": "constructieplaat",
         "logic": "oppervlakte dakvlak minus openingen",
-        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2 * (1 + waste/100)) / plaat_m2)",
+        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2) / plaat_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -48,7 +48,7 @@ VALUES
       "isolatie_dak": {
         "sectionKey": "isolatie_dak",
         "logic": "oppervlakte dakvlak minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((dak_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((dak_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -62,7 +62,7 @@ VALUES
       "folie_buiten": {
         "sectionKey": "folie_buiten",
         "logic": "oppervlakte dakvlak minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -77,7 +77,7 @@ VALUES
       "tengels": {
         "sectionKey": "tengels",
         "logic": "verticale regels op tengelafstand (h.o.h.)",
-        "formula": "count = ceil(dak_lengte_mm / tengelafstand_mm) + 1; totaal_mm = count * dak_hoogte_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "count = ceil(dak_lengte_mm / tengelafstand_mm) + 1; totaal_mm = count * dak_hoogte_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -90,7 +90,7 @@ VALUES
       "panlatten": {
         "sectionKey": "panlatten",
         "logic": "horizontale panlatten op panlatafstand (h.o.h.)",
-        "formula": "count = ceil(dak_hoogte_mm / panlatafstand_mm) + 1; totaal_mm = count * dak_lengte_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "count = ceil(dak_hoogte_mm / panlatafstand_mm) + 1; totaal_mm = count * dak_lengte_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -103,7 +103,7 @@ VALUES
       "ruiter": {
         "sectionKey": "ruiter",
         "logic": "lineair over de nok",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -116,7 +116,7 @@ VALUES
       "dakvoetprofiel": {
         "sectionKey": "dakvoetprofiel",
         "logic": "lineair langs de dakvoet",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -127,7 +127,7 @@ VALUES
       "dakpannen": {
         "sectionKey": "dakpannen",
         "logic": "primair op aantal pannen (breedte x hoogte), fallback op m2-dekking",
-        "formula": "if maatwerk_item.aantal_pannen_breedte && maatwerk_item.aantal_pannen_hoogte then stuks = maatwerk_item.aantal_pannen_breedte * maatwerk_item.aantal_pannen_hoogte; else if material.dekking_m2 exists then stuks = ceil(dak_netto_m2 / material.dekking_m2); else requires_manual_input; aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if maatwerk_item.aantal_pannen_breedte && maatwerk_item.aantal_pannen_hoogte then stuks = maatwerk_item.aantal_pannen_breedte * maatwerk_item.aantal_pannen_hoogte; else if material.dekking_m2 exists then stuks = ceil(dak_netto_m2 / material.dekking_m2); else requires_manual_input; aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.aantal_pannen_breedte || material.dekking_m2",
           "maatwerk_item.aantal_pannen_hoogte || material.dekking_m2"
@@ -138,7 +138,7 @@ VALUES
       "gevelpannen": {
         "sectionKey": "gevelpannen",
         "logic": "2 gevelranden op aantal pannenhoogte",
-        "formula": "if maatwerk_item.aantal_pannen_hoogte exists then stuks = 2 * maatwerk_item.aantal_pannen_hoogte; else requires_manual_input; aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if maatwerk_item.aantal_pannen_hoogte exists then stuks = 2 * maatwerk_item.aantal_pannen_hoogte; else requires_manual_input; aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.aantal_pannen_hoogte"
         ],
@@ -148,7 +148,7 @@ VALUES
       "ondervorst": {
         "sectionKey": "ondervorst",
         "logic": "lineair over de nok",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -159,7 +159,7 @@ VALUES
       "nokvorsten": {
         "sectionKey": "nokvorsten",
         "logic": "lineair over de nok",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -172,7 +172,7 @@ VALUES
       "lood": {
         "sectionKey": "lood",
         "logic": "lineair langs beide zijkanten van dakvlak",
-        "formula": "lineair_m1 = (2 * dak_hoogte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * dak_hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.hoogte",
           "material.lengte"
@@ -183,7 +183,7 @@ VALUES
       "dakgoot": {
         "sectionKey": "dakgoot",
         "logic": "lineair langs dakvoet",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -194,7 +194,7 @@ VALUES
       "nok_kit": {
         "sectionKey": "nok_kit",
         "logic": "verbruik per meter over de nok",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; if material.verbruik_per_m1 || material.verbruik exists then totaal = lineair_m1 * (1 + waste/100) * (material.verbruik_per_m1 ?? material.verbruik); else requires_manual_input",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; if material.verbruik_per_m1 || material.verbruik exists then totaal = lineair_m1 * (material.verbruik_per_m1 ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -254,7 +254,7 @@ VALUES
       "constructieplaat": {
         "sectionKey": "constructieplaat",
         "logic": "oppervlakte dakvlak minus openingen",
-        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2 * (1 + waste/100)) / plaat_m2)",
+        "formula": "plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2) / plaat_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -269,7 +269,7 @@ VALUES
       "folie_binnen": {
         "sectionKey": "folie_binnen",
         "logic": "oppervlakte dakvlak minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -282,7 +282,7 @@ VALUES
       "isolatie_dak": {
         "sectionKey": "isolatie_dak",
         "logic": "oppervlakte dakvlak minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((dak_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((dak_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -298,7 +298,7 @@ VALUES
       "epdm_folie": {
         "sectionKey": "epdm_folie",
         "logic": "dakvlak plus opstand op basis van dakrandbreedte",
-        "formula": "dekking_m2 = material.dekking_m2 ?? (material.lengte_m * material.breedte_m); aantal = ceil((basis_m2 * (1 + waste/100)) / dekking_m2)",
+        "formula": "dekking_m2 = material.dekking_m2 ?? (material.lengte_m * material.breedte_m); aantal = ceil((basis_m2) / dekking_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -311,7 +311,7 @@ VALUES
       "epdm_lijm": {
         "sectionKey": "epdm_lijm",
         "logic": "verbruik per m2 op EPDM totaaloppervlak",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = basis_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = basis_m2 * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -327,7 +327,7 @@ VALUES
       "daktrim": {
         "sectionKey": "daktrim",
         "logic": "lineair over vrije randen",
-        "formula": "free_top_mm = (maatwerk_item.edge_top == 'free' ? dak_lengte_mm : 0); free_bottom_mm = (maatwerk_item.edge_bottom == 'free' ? dak_lengte_mm : 0); free_left_mm = (maatwerk_item.edge_left == 'free' ? dak_hoogte_mm : 0); free_right_mm = (maatwerk_item.edge_right == 'free' ? dak_hoogte_mm : 0); lineair_m1 = (free_top_mm + free_bottom_mm + free_left_mm + free_right_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "free_top_mm = (maatwerk_item.edge_top == 'free' ? dak_lengte_mm : 0); free_bottom_mm = (maatwerk_item.edge_bottom == 'free' ? dak_lengte_mm : 0); free_left_mm = (maatwerk_item.edge_left == 'free' ? dak_hoogte_mm : 0); free_right_mm = (maatwerk_item.edge_right == 'free' ? dak_hoogte_mm : 0); lineair_m1 = (free_top_mm + free_bottom_mm + free_left_mm + free_right_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -363,7 +363,7 @@ VALUES
       "lood": {
         "sectionKey": "lood",
         "logic": "lineair over randen die tegen gevel/muur liggen",
-        "formula": "wall_top_mm = (maatwerk_item.edge_top == 'wall' ? dak_lengte_mm : 0); wall_bottom_mm = (maatwerk_item.edge_bottom == 'wall' ? dak_lengte_mm : 0); wall_left_mm = (maatwerk_item.edge_left == 'wall' ? dak_hoogte_mm : 0); wall_right_mm = (maatwerk_item.edge_right == 'wall' ? dak_hoogte_mm : 0); lineair_m1 = (wall_top_mm + wall_bottom_mm + wall_left_mm + wall_right_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "wall_top_mm = (maatwerk_item.edge_top == 'wall' ? dak_lengte_mm : 0); wall_bottom_mm = (maatwerk_item.edge_bottom == 'wall' ? dak_lengte_mm : 0); wall_left_mm = (maatwerk_item.edge_left == 'wall' ? dak_hoogte_mm : 0); wall_right_mm = (maatwerk_item.edge_right == 'wall' ? dak_hoogte_mm : 0); lineair_m1 = (wall_top_mm + wall_bottom_mm + wall_left_mm + wall_right_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -421,7 +421,7 @@ VALUES
       "gordingen": {
         "sectionKey": "gordingen",
         "logic": "horizontale dragers op balkafstand (h.o.h.)",
-        "formula": "count = ceil(dak_hoogte_mm / gordingafstand_mm) + 1; totaal_mm = count * dak_lengte_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "count = ceil(dak_hoogte_mm / gordingafstand_mm) + 1; totaal_mm = count * dak_lengte_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -434,7 +434,7 @@ VALUES
       "tengels": {
         "sectionKey": "tengels",
         "logic": "verticale regels op latafstand (h.o.h.)",
-        "formula": "count = ceil(dak_lengte_mm / tengelafstand_mm) + 1; totaal_mm = count * dak_hoogte_mm; aantal = ceil((totaal_mm * (1 + waste/100)) / material.lengte_mm)",
+        "formula": "count = ceil(dak_lengte_mm / tengelafstand_mm) + 1; totaal_mm = count * dak_hoogte_mm; aantal = ceil((totaal_mm) / material.lengte_mm)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -449,7 +449,7 @@ VALUES
       "isolatie_dak": {
         "sectionKey": "isolatie_dak",
         "logic": "oppervlakte dakvlak minus openingen met pack-detectie",
-        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((dak_netto_m2 * (1 + waste/100)) / element_m2)",
+        "formula": "element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((dak_netto_m2) / element_m2)",
         "pack_handling": "if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -463,7 +463,7 @@ VALUES
       "folie": {
         "sectionKey": "folie",
         "logic": "oppervlakte dakvlak minus openingen",
-        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2 * (1 + waste/100)) / dekkings_m2)",
+        "formula": "dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((dak_netto_m2) / dekkings_m2)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -478,7 +478,7 @@ VALUES
       "golfplaten": {
         "sectionKey": "golfplaten",
         "logic": "vlakvulling op werkende breedte, fallback op m2",
-        "formula": "if material.werkende_breedte_mm exists then rows = ceil(dak_hoogte_mm / material.werkende_breedte_mm); cols = ceil(dak_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(dak_netto_m2 / plaat_m2); aantal = ceil(stuks * (1 + waste/100))",
+        "formula": "if material.werkende_breedte_mm exists then rows = ceil(dak_hoogte_mm / material.werkende_breedte_mm); cols = ceil(dak_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(dak_netto_m2 / plaat_m2); aantal = ceil(stuks)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "maatwerk_item.hoogte",
@@ -500,7 +500,7 @@ VALUES
       "nokstukken": {
         "sectionKey": "nokstukken",
         "logic": "lineair over de nok",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
@@ -511,7 +511,7 @@ VALUES
       "hoekstukken": {
         "sectionKey": "hoekstukken",
         "logic": "lineair over linker + rechter zijkant",
-        "formula": "lineair_m1 = (2 * dak_hoogte_mm) / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = (2 * dak_hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.hoogte",
           "material.lengte"
@@ -524,7 +524,7 @@ VALUES
       "golfplaatschroeven": {
         "sectionKey": "golfplaatschroeven",
         "logic": "verbruik per m2 op netto dakvlak",
-        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = dak_netto_m2 * (1 + waste/100) * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
+        "formula": "if material.verbruik_per_m2 || material.verbruik exists then totaal = dak_netto_m2 * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input",
         "pack_handling": "if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)",
         "required_inputs": [
           "maatwerk_item.lengte",
@@ -537,7 +537,7 @@ VALUES
       "dakgoot": {
         "sectionKey": "dakgoot",
         "logic": "lineair langs dakvoet",
-        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1 * (1 + waste/100)) / material.lengte_m)",
+        "formula": "lineair_m1 = dak_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)",
         "required_inputs": [
           "maatwerk_item.lengte",
           "material.lengte"
