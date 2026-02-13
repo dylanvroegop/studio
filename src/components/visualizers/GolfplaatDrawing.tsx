@@ -1,12 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import React from 'react';
 import { BaseDrawingFrame } from './BaseDrawingFrame';
-import { OverallDimensions, OpeningMeasurements } from './shared/measurements';
+import { GridMeasurements, OverallDimensions, OpeningMeasurements } from './shared/measurements';
 import { OpeningLabels } from './shared/OpeningLabels';
 
 interface GolfplaatDrawingProps {
-    lengte?: number | string;
-    hoogte?: number | string; // Using 'hoogte' as breedte for consistency with other drawings
+    lengte?: number | string; // Horizontal axis in drawing (UI: Breedte)
+    hoogte?: number | string; // Vertical axis in drawing (UI: Lengte)
+    balkafstand?: number | string;
+    startFromRight?: boolean;
+    includeTopBottomGording?: boolean;
+    aantalDaken?: number | string;
+    tussenmuur?: number | string;
     title?: string;
     className?: string;
     fitContainer?: boolean;
@@ -14,7 +19,11 @@ interface GolfplaatDrawingProps {
     onOpeningsChange?: (newOpenings: any[]) => void;
 }
 
-const structureColor = "rgb(70, 75, 85)";
+const BEAM_FILL = 'rgb(70, 75, 85)';
+const BEAM_STROKE = 'rgb(55, 60, 70)';
+const GORDING_HEIGHT_MM = 44;
+const HALF_GORDING_HEIGHT_MM = GORDING_HEIGHT_MM / 2;
+const TUSSENMUUR_WIDTH_MM = 100;
 
 const labelMap: Record<string, string> = {
     'dakraam': 'Lichtkoepel',
@@ -27,7 +36,12 @@ const labelMap: Record<string, string> = {
 
 export function GolfplaatDrawing({
     lengte,
-    hoogte, // This is "breedte" in the UI but we use height for vertical axis
+    hoogte,
+    balkafstand,
+    startFromRight = false,
+    includeTopBottomGording = false,
+    aantalDaken,
+    tussenmuur,
     title = 'Dakvlak',
     className,
     fitContainer,
@@ -97,9 +111,24 @@ export function GolfplaatDrawing({
 
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
+    const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
+    const aantalDakenNum = Math.max(1, Math.floor(typeof aantalDaken === 'number' ? aantalDaken : parseFloat(String(aantalDaken)) || 1));
+    const tussenmuurNum = typeof tussenmuur === 'number' ? tussenmuur : parseFloat(String(tussenmuur)) || 0;
 
-    // Use fallback dimensions for rendering if input is empty/zero
+    const splitPositionsMm = React.useMemo(() => {
+        if (lengteNum <= 0) return [];
 
+        if (tussenmuurNum > 0 && tussenmuurNum < lengteNum) {
+            return [tussenmuurNum];
+        }
+
+        if (aantalDakenNum > 1) {
+            const step = lengteNum / aantalDakenNum;
+            return Array.from({ length: aantalDakenNum - 1 }, (_, idx) => Math.round((idx + 1) * step));
+        }
+
+        return [];
+    }, [lengteNum, tussenmuurNum, aantalDakenNum]);
 
     const areaStats = React.useMemo(() => {
         const gross = lengteNum * heightNum;
@@ -140,29 +169,176 @@ export function GolfplaatDrawing({
                     />
                 );
 
-                // --- 2. Corrugated Lines (Visual representation of golfplaat) ---
-                const corrugatedLines: React.ReactNode[] = [];
-                const waveSpacing = 50 * pxPerMm; // 50mm spacing between waves
-                const numWaves = Math.floor(rectW / waveSpacing);
+                // --- 2. Gordingen (horizontal framing) ---
+                const showGordingen = balkafstandNum > 0 && lengteNum > 0 && heightNum > 0;
+                const yFromBottomMm = (mmFromBottom: number): number => (startY + rectH) - (mmFromBottom * pxPerMm);
 
-                for (let i = 1; i <= numWaves; i++) {
-                    const x = startX + (i * waveSpacing);
-                    if (x < startX + rectW - 5) {
-                        corrugatedLines.push(
-                            <line
-                                key={`wave-${i}`}
-                                x1={x}
-                                y1={startY}
-                                x2={x}
-                                y2={startY + rectH}
-                                stroke={structureColor}
-                                strokeWidth="0.5"
-                                opacity="0.3"
-                                strokeDasharray="4 4"
-                            />
-                        );
+                const interiorGordingCentersMm: number[] = [];
+                if (showGordingen) {
+                    const numIntervals = Math.floor(heightNum / balkafstandNum);
+                    for (let i = 1; i <= numIntervals; i++) {
+                        const centerMm = startFromRight
+                            ? (heightNum - (i * balkafstandNum))
+                            : (i * balkafstandNum);
+                        if (centerMm <= 0 || centerMm >= heightNum) continue;
+                        interiorGordingCentersMm.push(centerMm);
                     }
                 }
+
+                const edgeGordingCentersMm: number[] = [];
+                if (showGordingen && includeTopBottomGording && heightNum > 0) {
+                    edgeGordingCentersMm.push(HALF_GORDING_HEIGHT_MM, Math.max(HALF_GORDING_HEIGHT_MM, heightNum - HALF_GORDING_HEIGHT_MM));
+                }
+
+                const sortedCenters = [...new Set([...interiorGordingCentersMm, ...edgeGordingCentersMm])]
+                    .filter((centerMm) => centerMm >= 0 && centerMm <= heightNum)
+                    .sort((a, b) => a - b);
+                const gordingHeightPx = Math.max(1.5, GORDING_HEIGHT_MM * pxPerMm);
+
+                const gordingElements = sortedCenters.map((centerMm, i) => {
+                    const centerYPx = yFromBottomMm(centerMm);
+                    return (
+                        <rect
+                            key={`gording-${i}`}
+                            x={startX}
+                            y={centerYPx - (gordingHeightPx / 2)}
+                            width={rectW}
+                            height={gordingHeightPx}
+                            fill={BEAM_FILL}
+                            stroke={BEAM_STROKE}
+                            strokeWidth="0.5"
+                        />
+                    );
+                });
+
+                const gordingGapMeasurements = (() => {
+                    if (!showGordingen) return [];
+
+                    const gaps: { value: number; c1: number; c2: number }[] = [];
+
+                    if (includeTopBottomGording) {
+                        if (sortedCenters.length < 2) return gaps;
+                        for (let i = 0; i < sortedCenters.length - 1; i++) {
+                            const startMm = i === 0 ? 0 : sortedCenters[i];
+                            const endMm = i === sortedCenters.length - 2 ? heightNum : sortedCenters[i + 1];
+                            gaps.push({
+                                value: Math.max(0, endMm - startMm),
+                                c1: yFromBottomMm(startMm),
+                                c2: yFromBottomMm(endMm),
+                            });
+                        }
+                        return gaps;
+                    }
+
+                    if (interiorGordingCentersMm.length === 0) return gaps;
+
+                    const interiorSorted = [...new Set(interiorGordingCentersMm)].sort((a, b) => a - b);
+                    const anchors = [0, ...interiorSorted, heightNum];
+                    for (let i = 0; i < anchors.length - 1; i++) {
+                        const startMm = anchors[i];
+                        const endMm = anchors[i + 1];
+                        gaps.push({
+                            value: Math.max(0, endMm - startMm),
+                            c1: yFromBottomMm(startMm),
+                            c2: yFromBottomMm(endMm),
+                        });
+                    }
+                    return gaps;
+                })();
+
+                const splitPositionsPx = splitPositionsMm.map((mm) => startX + (mm * pxPerMm));
+                const splitBoundaryMm = [0, ...splitPositionsMm, lengteNum];
+                const splitBoundaryPx = splitBoundaryMm.map((mm) => startX + (mm * pxPerMm));
+                const splitGapMeasurements = splitBoundaryPx.slice(1).map((x2, idx) => ({
+                    value: splitBoundaryMm[idx + 1] - splitBoundaryMm[idx],
+                    c1: splitBoundaryPx[idx],
+                    c2: x2,
+                }));
+                const splitDimY = startY + rectH + 18;
+                const splitElements = splitPositionsPx.map((xPos, idx) => (
+                    <g key={`tussenmuur-${idx}`}>
+                        <line
+                            x1={xPos}
+                            y1={startY}
+                            x2={xPos}
+                            y2={startY + rectH}
+                            stroke="#14b8a6"
+                            strokeWidth="1"
+                            strokeDasharray="4,4"
+                            opacity="0.7"
+                        />
+                        <text
+                            x={xPos}
+                            y={startY - 8}
+                            textAnchor="middle"
+                            className="fill-teal-500 text-[10px] font-mono select-none"
+                        >
+                            {'tussenmuur'}
+                        </text>
+                    </g>
+                ));
+                const splitMeasurementElements = splitGapMeasurements.map((gap, idx) => {
+                    const midVal = (gap.c1 + gap.c2) / 2;
+                    return (
+                        <g key={`split-gap-${idx}`}>
+                            <line
+                                x1={gap.c1}
+                                y1={splitDimY}
+                                x2={gap.c1}
+                                y2={startY + rectH}
+                                stroke="#14b8a6"
+                                strokeWidth="0.5"
+                                opacity="0.5"
+                            />
+                            <line
+                                x1={gap.c2}
+                                y1={splitDimY}
+                                x2={gap.c2}
+                                y2={startY + rectH}
+                                stroke="#14b8a6"
+                                strokeWidth="0.5"
+                                opacity="0.5"
+                            />
+                            <line
+                                x1={gap.c1}
+                                y1={splitDimY}
+                                x2={gap.c2}
+                                y2={splitDimY}
+                                stroke="#14b8a6"
+                                strokeWidth="0.5"
+                            />
+                            <circle cx={gap.c1} cy={splitDimY} r="1.5" fill="#14b8a6" />
+                            <circle cx={gap.c2} cy={splitDimY} r="1.5" fill="#14b8a6" />
+                            <text
+                                x={midVal}
+                                y={splitDimY + 11}
+                                textAnchor="middle"
+                                className="fill-teal-500 text-[10px] font-mono select-none"
+                            >
+                                {Math.round(gap.value)}
+                            </text>
+                        </g>
+                    );
+                });
+                const splitWallElements = splitPositionsMm.map((centerMm, idx) => {
+                    const leftMm = Math.max(0, centerMm - (TUSSENMUUR_WIDTH_MM / 2));
+                    const rightMm = Math.min(lengteNum, centerMm + (TUSSENMUUR_WIDTH_MM / 2));
+                    const leftPx = startX + (leftMm * pxPerMm);
+                    const widthPx = Math.max(1, (rightMm - leftMm) * pxPerMm);
+                    return (
+                        <g key={`tussenmuur-band-${idx}`}>
+                            <rect
+                                x={leftPx}
+                                y={startY}
+                                width={widthPx}
+                                height={rectH}
+                                fill="rgba(20, 184, 166, 0.12)"
+                                stroke="#14b8a6"
+                                strokeWidth="0.8"
+                            />
+                        </g>
+                    );
+                });
 
                 // --- 3. Opening Visuals (Interactive) ---
                 const openingElements = openings.map(op => {
@@ -179,12 +355,12 @@ export function GolfplaatDrawing({
                         >
                             <rect
                                 x={xPx} y={yPx} width={wPx} height={hPx}
-                                fill="#09090b" stroke="rgb(70, 75, 85)" strokeWidth="2"
+                                fill="#09090b" stroke={BEAM_STROKE} strokeWidth="2"
                                 opacity={draggingId === op.id ? 0.7 : 1}
                             />
                             <path
                                 d={`M ${xPx} ${yPx} L ${xPx + wPx} ${yPx + hPx} M ${xPx + wPx} ${yPx} L ${xPx} ${yPx + hPx}`}
-                                stroke="rgb(70, 75, 85)" strokeWidth="1" opacity="0.3"
+                                stroke={BEAM_FILL} strokeWidth="1" opacity="0.3"
                             />
                             <OpeningLabels
                                 centerX={xPx + wPx / 2}
@@ -199,10 +375,22 @@ export function GolfplaatDrawing({
 
                 return (
                     <>
-                        <rect x={startX} y={startY} width={rectW} height={rectH} fill="none" stroke="rgb(70, 75, 85)" strokeWidth="2" />
+                        <rect x={startX} y={startY} width={rectW} height={rectH} fill="none" stroke={BEAM_FILL} strokeWidth="2" />
                         {surfaceElement}
-                        {corrugatedLines}
+                        {gordingElements}
+                        {splitWallElements}
+                        {splitElements}
                         {openingElements}
+
+                        {showGordingen && gordingGapMeasurements.length > 0 && (
+                            <GridMeasurements
+                                gaps={gordingGapMeasurements}
+                                svgBaseX={startX + rectW}
+                                orientation="vertical"
+                            />
+                        )}
+
+                        {splitPositionsMm.length > 0 && splitGapMeasurements.length > 1 && splitMeasurementElements}
 
                         {/* UNIVERSAL DIMENSIONS */}
                         <OverallDimensions
@@ -227,6 +415,7 @@ export function GolfplaatDrawing({
                             svgBaseX={startX}
                             svgBaseY={startY + rectH}
                             pxPerMm={pxPerMm}
+                            compactLabels={true}
                         />
 
                         {/* Custom Title Placement (Bottom Right, above Area) */}

@@ -63,4 +63,5 @@
 - wanddikte (text)
 - werkend (text)
 - zijde (text)
+- ai_extra_data (jsonb)
 - row_id (uuid)

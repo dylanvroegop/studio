@@ -29,6 +29,7 @@ interface OpeningMeasurementsProps {
 
     // Optional: For complex shapes that need dynamic height calculation
     getWallTopMm?: (xMm: number) => number;
+    compactLabels?: boolean;
 }
 
 export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
@@ -40,7 +41,8 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
     pxPerMm,
     getWallTopMm,
     showVertical = true,
-    showHorizontal = true
+    showHorizontal = true,
+    compactLabels = false
 }) => {
     if (!openings || openings.length === 0) return null;
 
@@ -94,17 +96,30 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                         />
                                         <circle cx={dimX} cy={svgBaseY} r="1.5" fill="#10b981" />
                                         <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />
-                                        <g transform={`translate(${dimX}, ${(svgBaseY + openingBottomY) / 2}) rotate(-90)`}>
-                                            <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
-                                            <text
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                fill="#10b981"
-                                                className="text-[12px] font-mono select-none font-medium"
-                                            >
-                                                {op.fromBottom}
-                                            </text>
-                                        </g>
+                                        {compactLabels ? (
+                                            <g transform={`translate(${dimX + 5}, ${(svgBaseY + openingBottomY) / 2}) rotate(-90)`}>
+                                                <text
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    fill="#10b981"
+                                                    className="text-[10px] font-mono select-none"
+                                                >
+                                                    {op.fromBottom}
+                                                </text>
+                                            </g>
+                                        ) : (
+                                            <g transform={`translate(${dimX}, ${(svgBaseY + openingBottomY) / 2}) rotate(-90)`}>
+                                                <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
+                                                <text
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    fill="#10b981"
+                                                    className="text-[12px] font-mono select-none font-medium"
+                                                >
+                                                    {op.fromBottom}
+                                                </text>
+                                            </g>
+                                        )}
                                     </>
                                 )}
 
@@ -116,17 +131,30 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                 />
                                 <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
                                 {op.fromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
-                                <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
-                                    <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
-                                    <text
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fill="#10b981"
-                                        className="text-[12px] font-mono select-none font-medium"
-                                    >
-                                        {op.height}
-                                    </text>
-                                </g>
+                                {compactLabels ? (
+                                    <g transform={`translate(${dimX + 5}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
+                                        <text
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            fill="#10b981"
+                                            className="text-[10px] font-mono select-none"
+                                        >
+                                            {op.height}
+                                        </text>
+                                    </g>
+                                ) : (
+                                    <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
+                                        <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
+                                        <text
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            fill="#10b981"
+                                            className="text-[12px] font-mono select-none font-medium"
+                                        >
+                                            {op.height}
+                                        </text>
+                                    </g>
+                                )}
 
                                 {/* Segment 3: Opening Top to Wall Top */}
                                 {topSegmentHeight > 0 && (
@@ -137,17 +165,30 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                             stroke="#10b981" strokeWidth="0.5"
                                         />
                                         <circle cx={dimX} cy={wallTopY} r="1.5" fill="#10b981" />
-                                        <g transform={`translate(${dimX}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
-                                            <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
-                                            <text
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                fill="#10b981"
-                                                className="text-[12px] font-mono select-none font-medium"
-                                            >
-                                                {topSegmentHeight}
-                                            </text>
-                                        </g>
+                                        {compactLabels ? (
+                                            <g transform={`translate(${dimX + 5}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
+                                                <text
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    fill="#10b981"
+                                                    className="text-[10px] font-mono select-none"
+                                                >
+                                                    {topSegmentHeight}
+                                                </text>
+                                            </g>
+                                        ) : (
+                                            <g transform={`translate(${dimX}, ${(openingTopY + wallTopY) / 2}) rotate(-90)`}>
+                                                <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
+                                                <text
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    fill="#10b981"
+                                                    className="text-[12px] font-mono select-none font-medium"
+                                                >
+                                                    {topSegmentHeight}
+                                                </text>
+                                            </g>
+                                        )}
                                     </>
                                 )}
 
@@ -172,14 +213,16 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                         />
                                         <circle cx={svgBaseX} cy={dimY} r="1.5" fill="#10b981" />
                                         <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
-                                        <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                        {!compactLabels && (
+                                            <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                        )}
                                         <text
                                             x={(svgBaseX + drawX) / 2}
-                                            y={dimY + 0.5}
+                                            y={compactLabels ? dimY + 10 : dimY + 0.5}
                                             textAnchor="middle"
                                             dominantBaseline="middle"
                                             fill="#10b981"
-                                            className="text-[12px] font-mono select-none font-medium"
+                                            className={compactLabels ? "text-[10px] font-mono select-none" : "text-[12px] font-mono select-none font-medium"}
                                         >
                                             {op.fromLeft}
                                         </text>
@@ -195,14 +238,16 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                 <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
                                 {op.fromLeft === 0 && <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />}
                                 <circle cx={drawX + wPx} cy={dimY} r="1.5" fill="#10b981" />
-                                <rect x={(drawX + drawX + wPx) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                {!compactLabels && (
+                                    <rect x={(drawX + drawX + wPx) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                )}
                                 <text
                                     x={(drawX + drawX + wPx) / 2}
-                                    y={dimY + 0.5}
+                                    y={compactLabels ? dimY + 10 : dimY + 0.5}
                                     textAnchor="middle"
                                     dominantBaseline="middle"
                                     fill="#10b981"
-                                    className="text-[12px] font-mono select-none font-medium"
+                                    className={compactLabels ? "text-[10px] font-mono select-none" : "text-[12px] font-mono select-none font-medium"}
                                 >
                                     {op.width}
                                 </text>
@@ -222,14 +267,16 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                                 stroke="#10b981" strokeWidth="0.5"
                                             />
                                             <circle cx={svgBaseX + wallLength * pxPerMm} cy={dimY} r="1.5" fill="#10b981" />
-                                            <rect x={midX - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                            {!compactLabels && (
+                                                <rect x={midX - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                            )}
                                             <text
                                                 x={midX}
-                                                y={dimY + 0.5}
+                                                y={compactLabels ? dimY + 10 : dimY + 0.5}
                                                 textAnchor="middle"
                                                 dominantBaseline="middle"
                                                 fill="#10b981"
-                                                className="text-[12px] font-mono select-none font-medium"
+                                                className={compactLabels ? "text-[10px] font-mono select-none" : "text-[12px] font-mono select-none font-medium"}
                                             >
                                                 {Math.round(rightSegmentWidth)}
                                             </text>

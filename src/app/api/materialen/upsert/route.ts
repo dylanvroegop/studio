@@ -118,6 +118,119 @@ function parseBooleanLike(value: unknown): boolean {
   return false;
 }
 
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function normalizeSafetyAnswers(
+  raw: Record<string, unknown> | null
+): Record<string, string | number | boolean> {
+  if (!raw) return {};
+  const normalized: Record<string, string | number | boolean> = {};
+  Object.entries(raw).forEach(([key, value]) => {
+    const cleanKey = key.trim();
+    if (!cleanKey) return;
+    if (typeof value === 'string') {
+      const cleanValue = value.trim();
+      if (!cleanValue) return;
+      normalized[cleanKey] = cleanValue;
+      return;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      normalized[cleanKey] = value;
+      return;
+    }
+    if (typeof value === 'boolean') {
+      normalized[cleanKey] = value;
+    }
+  });
+  return normalized;
+}
+
+function buildAiExtraData(input: {
+  safetyAnswer: string | null;
+  safetyAnswers: Record<string, string | number | boolean>;
+  expectedUnit: string | null;
+}): Record<string, unknown> | null {
+  const { safetyAnswer, safetyAnswers, expectedUnit } = input;
+  const hasSafetyAnswers = Object.keys(safetyAnswers).length > 0;
+  if (!safetyAnswer && !expectedUnit && !hasSafetyAnswers) return null;
+
+  const payload: Record<string, unknown> = {
+    captured_at: new Date().toISOString(),
+  };
+  if (safetyAnswer) payload.safety_answer = safetyAnswer;
+  if (expectedUnit) payload.expected_unit = expectedUnit;
+  if (hasSafetyAnswers) payload.safety_answers = safetyAnswers;
+  return payload;
+}
+
+function mergeAiExtraData(
+  existing: unknown,
+  incoming: Record<string, unknown>
+): Record<string, unknown> {
+  const base = toRecord(existing) ?? {};
+  const merged: Record<string, unknown> = {
+    ...base,
+    ...incoming,
+  };
+
+  const baseAnswers = toRecord(base.safety_answers) ?? {};
+  const incomingAnswers = toRecord(incoming.safety_answers) ?? {};
+  if (Object.keys(baseAnswers).length > 0 || Object.keys(incomingAnswers).length > 0) {
+    merged.safety_answers = {
+      ...baseAnswers,
+      ...incomingAnswers,
+    };
+  }
+
+  return merged;
+}
+
+function isAiExtraDataColumnMissing(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as Record<string, unknown>;
+  const code = typeof err.code === 'string' ? err.code : '';
+  const message = [
+    typeof err.message === 'string' ? err.message : '',
+    typeof err.details === 'string' ? err.details : '',
+    typeof err.hint === 'string' ? err.hint : '',
+  ].join(' ').toLowerCase();
+
+  const mentionsColumn = message.includes('ai_extra_data');
+  const columnMissing = message.includes('does not exist') || message.includes('schema cache');
+  return (code === 'PGRST204' || columnMissing) && mentionsColumn;
+}
+
+const MAIN_MATERIAL_LIST_COLUMNS = new Set<string>([
+  'gebruikerid',
+  'materiaalnaam',
+  'eenheid',
+  'prijs_incl_btw',
+  'prijs_excl_btw',
+  'categorie',
+  'leverancier',
+  'lengte',
+  'breedte',
+  'dikte',
+  'hoogte',
+  'werkende_breedte_maat',
+  'werkende_breedte_mm',
+  'werkende_hoogte_maat',
+  'werkende_hoogte_mm',
+  'verbruik_per_m2',
+]);
+
+function toMainMaterialListPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const cleanPayload: Record<string, unknown> = {};
+  Object.entries(payload).forEach(([key, value]) => {
+    if (!MAIN_MATERIAL_LIST_COLUMNS.has(key)) return;
+    cleanPayload[key] = value;
+  });
+  return cleanPayload;
+}
+
 function bepaalN8nUrlVoorMaterialenUpsert(safetyConfirmed = false): string {
   if (safetyConfirmed) {
     const confirmedUrl = process.env.N8N_MATERIALEN_UPSERT_CONFIRMED_URL;
@@ -562,13 +675,19 @@ export async function POST(req: Request) {
     const hoogte = normalizeString(body.hoogte);
     const safetyConfirmed = parseBooleanLike(body.safety_confirmed);
     const safetyAnswer = normalizeString(body.safety_answer);
-    const safetyAnswers =
+    const rawSafetyAnswers =
       body.safety_answers && typeof body.safety_answers === 'object' && !Array.isArray(body.safety_answers)
         ? (body.safety_answers as Record<string, unknown>)
         : null;
+    const safetyAnswers = normalizeSafetyAnswers(rawSafetyAnswers);
     const expectedUnit =
       normalizeString(body.expected_unit) ??
       normalizeString(body.safety_expected_unit);
+    const aiExtraData = buildAiExtraData({
+      safetyAnswer,
+      safetyAnswers,
+      expectedUnit,
+    });
 
     let werkendeBreedteMaat: number | null | undefined;
     let werkendeHoogteMaat: number | null | undefined;
@@ -637,9 +756,11 @@ export async function POST(req: Request) {
       payload.klus_id = klusId!;
     }
     const n8nPayload =
-      safetyAnswers && Object.keys(safetyAnswers).length > 0
+      Object.keys(safetyAnswers).length > 0
         ? { ...payload, safety_answers: safetyAnswers }
         : payload;
+    const dbPayload = toMainMaterialListPayload(payload);
+    const useN8nMaterialenUpsertRoute = process.env.USE_N8N_MATERIALEN_UPSERT_ROUTE === 'true';
 
     let data: any = null;
     let realRowId: string | null = null;
@@ -651,7 +772,7 @@ export async function POST(req: Request) {
       // maken we een persoonlijke kopie i.p.v. het globale item aan te passen.
       const upd = await supabaseAdmin
         .from('main_material_list')
-        .update(payload)
+        .update(dbPayload)
         .eq('row_id', incomingRowId)
         .eq('gebruikerid', uid)
         .select('*')
@@ -672,7 +793,7 @@ export async function POST(req: Request) {
 
         const insCopy = await supabaseAdmin
           .from('main_material_list')
-          .insert(payload)
+          .insert(dbPayload)
           .select('*')
           .single();
 
@@ -681,84 +802,147 @@ export async function POST(req: Request) {
       }
       realRowId = data?.row_id ?? incomingRowId ?? null;
     } else {
-      // Nieuwe materialen lopen via n8n AI-agent -> Supabase
-      if (hasPendingContext) {
-        await writePendingState({
-          status: safetyConfirmed ? 'saving' : 'analyzing',
-          materiaalnaam: naam,
-          expected_unit: expectedUnit,
-          safety_confirmed: safetyConfirmed,
-          draft_payload: n8nPayload,
-          error: null,
-        }, { setCreatedAt: true });
-      }
-      n8nResponse = await stuurNaarN8nVoorMaterialenUpsert(n8nPayload, { safetyConfirmed });
-
-      const n8nSafety = extractN8nSafetyPrompt(n8nResponse);
-      const n8nQuestions = n8nSafety.questions || [];
-      if (n8nSafety.ready === false && n8nQuestions.length > 0) {
-        const firstQuestion = n8nQuestions[0];
-        await writePendingState({
-          status: 'needs_answer',
-          question: firstQuestion?.question || n8nSafety.question,
-          expected_unit: firstQuestion?.expectedUnit || n8nSafety.expectedUnit || expectedUnit,
-          questions: n8nQuestions,
-          draft_payload: n8nPayload,
-          error: null,
-        });
-        return jsonOk(
-          {
-            ok: true,
-            data: {
-              ready: false,
-              question: firstQuestion?.question || n8nSafety.question,
-              expected_unit: firstQuestion?.expectedUnit || n8nSafety.expectedUnit || null,
-              questions: n8nQuestions.map((q) => ({
-                key: q.key,
-                question: q.question,
-                expected_unit: q.expectedUnit,
-                target_field: q.targetField,
-                value_type: q.valueType,
-              })),
-            },
-            row_id: null,
-            n8n: n8nResponse,
-          },
-          200
-        );
-      }
-
-      const n8nRow = extractN8nRow(n8nResponse);
-      if (n8nRow) {
-        data = n8nRow;
-        realRowId =
-          normalizeString((n8nRow as any).row_id) ??
-          normalizeString((n8nRow as any).id) ??
-          null;
-      }
-
-      // Fallback: wacht kort en haal laatste insert op als n8n geen row terugstuurt
-      if (!realRowId) {
-        try {
-          const lookedUp = await lookupLatestInsertedMaterial(uid, naam, safetyConfirmed ? 20 : 8, 300);
-          if (lookedUp) {
-            data = lookedUp;
-            realRowId = normalizeString((lookedUp as any).row_id) ?? null;
-          }
-        } catch (lookupErr: any) {
-          return jsonFail(lookupErr?.message || 'Insert lookup failed', 500);
+      // Default: directe insert/update in Supabase, zonder n8n vraag-flow.
+      // Bestaande n8n-flow blijft beschikbaar via USE_N8N_MATERIALEN_UPSERT_ROUTE=true.
+      if (!useN8nMaterialenUpsertRoute) {
+        if (hasPendingContext) {
+          await writePendingState({
+            status: 'saving',
+            materiaalnaam: naam,
+            expected_unit: expectedUnit,
+            safety_confirmed: safetyConfirmed,
+            draft_payload: n8nPayload,
+            error: null,
+          }, { setCreatedAt: true });
         }
-      }
 
-      if (!realRowId) {
-        await writePendingState({
-          status: 'error',
-          error: 'Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw.',
-        });
-        return jsonFail(
-          'Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw of controleer add-workflow response.',
-          502
-        );
+        const existingByName = await supabaseAdmin
+          .from('main_material_list')
+          .select('row_id')
+          .eq('gebruikerid', uid)
+          .eq('materiaalnaam', naam)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingByName.error) {
+          return jsonFail(existingByName.error.message || 'Lookup failed', 500);
+        }
+
+        if (existingByName.data?.row_id) {
+          const updByName = await supabaseAdmin
+            .from('main_material_list')
+            .update(dbPayload)
+            .eq('row_id', existingByName.data.row_id)
+            .eq('gebruikerid', uid)
+            .select('*')
+            .maybeSingle();
+
+          if (updByName.error) return jsonFail(updByName.error.message || 'Update failed', 500);
+          data = updByName.data;
+        } else {
+          const ins = await supabaseAdmin
+            .from('main_material_list')
+            .insert(dbPayload)
+            .select('*')
+            .single();
+
+          if (ins.error) return jsonFail(ins.error.message || 'Insert failed', 500);
+          data = ins.data;
+        }
+
+        realRowId =
+          normalizeString((data as any)?.row_id) ??
+          normalizeString((data as any)?.id) ??
+          null;
+
+        if (!realRowId) {
+          await writePendingState({
+            status: 'error',
+            error: 'Materiaal kon niet worden opgeslagen.',
+          });
+          return jsonFail('Materiaal kon niet worden opgeslagen.', 500);
+        }
+      } else {
+        // Nieuwe materialen lopen via n8n AI-agent -> Supabase
+        if (hasPendingContext) {
+          await writePendingState({
+            status: safetyConfirmed ? 'saving' : 'analyzing',
+            materiaalnaam: naam,
+            expected_unit: expectedUnit,
+            safety_confirmed: safetyConfirmed,
+            draft_payload: n8nPayload,
+            error: null,
+          }, { setCreatedAt: true });
+        }
+        n8nResponse = await stuurNaarN8nVoorMaterialenUpsert(n8nPayload, { safetyConfirmed });
+
+        const n8nSafety = extractN8nSafetyPrompt(n8nResponse);
+        const n8nQuestions = n8nSafety.questions || [];
+        if (n8nSafety.ready === false && n8nQuestions.length > 0) {
+          const firstQuestion = n8nQuestions[0];
+          await writePendingState({
+            status: 'needs_answer',
+            question: firstQuestion?.question || n8nSafety.question,
+            expected_unit: firstQuestion?.expectedUnit || n8nSafety.expectedUnit || expectedUnit,
+            questions: n8nQuestions,
+            draft_payload: n8nPayload,
+            error: null,
+          });
+          return jsonOk(
+            {
+              ok: true,
+              data: {
+                ready: false,
+                question: firstQuestion?.question || n8nSafety.question,
+                expected_unit: firstQuestion?.expectedUnit || n8nSafety.expectedUnit || null,
+                questions: n8nQuestions.map((q) => ({
+                  key: q.key,
+                  question: q.question,
+                  expected_unit: q.expectedUnit,
+                  target_field: q.targetField,
+                  value_type: q.valueType,
+                })),
+              },
+              row_id: null,
+              n8n: n8nResponse,
+            },
+            200
+          );
+        }
+
+        const n8nRow = extractN8nRow(n8nResponse);
+        if (n8nRow) {
+          data = n8nRow;
+          realRowId =
+            normalizeString((n8nRow as any).row_id) ??
+            normalizeString((n8nRow as any).id) ??
+            null;
+        }
+
+        // Fallback: wacht kort en haal laatste insert op als n8n geen row terugstuurt
+        if (!realRowId) {
+          try {
+            const lookedUp = await lookupLatestInsertedMaterial(uid, naam, safetyConfirmed ? 20 : 8, 300);
+            if (lookedUp) {
+              data = lookedUp;
+              realRowId = normalizeString((lookedUp as any).row_id) ?? null;
+            }
+          } catch (lookupErr: any) {
+            return jsonFail(lookupErr?.message || 'Insert lookup failed', 500);
+          }
+        }
+
+        if (!realRowId) {
+          await writePendingState({
+            status: 'error',
+            error: 'Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw.',
+          });
+          return jsonFail(
+            'Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw of controleer add-workflow response.',
+            502
+          );
+        }
       }
     }
 
@@ -787,6 +971,30 @@ export async function POST(req: Request) {
 
       if (!repair.error && repair.data) {
         data = repair.data;
+      }
+    }
+
+    if (realRowId && aiExtraData) {
+      const mergedAiExtraData = mergeAiExtraData((data as any)?.ai_extra_data, aiExtraData);
+      const aiUpdate = await supabaseAdmin
+        .from('main_material_list')
+        .update({ ai_extra_data: mergedAiExtraData })
+        .eq('row_id', realRowId)
+        .eq('gebruikerid', uid)
+        .select('*')
+        .maybeSingle();
+
+      if (aiUpdate.error) {
+        if (!isAiExtraDataColumnMissing(aiUpdate.error)) {
+          console.error('Kon ai_extra_data niet opslaan:', aiUpdate.error);
+        }
+        if (data && typeof data === 'object') {
+          (data as any).ai_extra_data = mergedAiExtraData;
+        }
+      } else if (aiUpdate.data) {
+        data = aiUpdate.data;
+      } else if (data && typeof data === 'object') {
+        (data as any).ai_extra_data = mergedAiExtraData;
       }
     }
 

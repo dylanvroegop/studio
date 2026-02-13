@@ -21,6 +21,7 @@ interface BalkenSectionProps {
     doubleTopPlate?: boolean;
     doubleBottomPlate?: boolean;
     surroundingBeams?: boolean;
+    includeTopBottomGording?: boolean;
 
     optionsConfig: BalkenOptionsConfig;
     onUpdate: (key: string, value: any) => void;
@@ -41,6 +42,7 @@ export function BalkenSection({
     doubleTopPlate,
     doubleBottomPlate,
     surroundingBeams,
+    includeTopBottomGording,
     optionsConfig,
     onUpdate,
     isWallCategory,
@@ -51,15 +53,21 @@ export function BalkenSection({
     const [localIsCollapsed, setLocalIsCollapsed] = useState(true);
     const isCollapsed = propsIsCollapsed !== undefined ? propsIsCollapsed : localIsCollapsed;
     const isMetalStud = jobSlug.includes('metalstud');
-    const sectionTitle = jobSlug.includes('hellend-dak')
+    const isGolfplaatDak = jobSlug.includes('golfplaat-dak');
+    const sectionTitle = isGolfplaatDak
+        ? 'Gordingen'
+        : jobSlug.includes('hellend-dak')
         ? 'Tengel latten'
         : (isMetalStud ? 'Profielen' : 'Balken');
-    const spacingLabel = jobSlug.includes('hellend-dak')
+    const spacingLabel = isGolfplaatDak
+        ? 'Gordingafstand (h.o.h)'
+        : jobSlug.includes('hellend-dak')
         ? 'Tengelafstand (h.o.h)'
         : (isMetalStud ? 'Profielafstand (h.o.h)' : 'Balkafstand (h.o.h)');
     const showWallOptions = isWallCategory && (optionsConfig.dblEindbalk || optionsConfig.dblBovenbalk || optionsConfig.dblOnderbalk);
-    const showSurrounding = !jobSlug.includes('hellend-dak') && !isWallCategory && optionsConfig.surroundingBeams;
-    const showOptions = showWallOptions || showSurrounding;
+    const showSurrounding = !jobSlug.includes('hellend-dak') && !isWallCategory && !isGolfplaatDak && optionsConfig.surroundingBeams;
+    const showGolfplaatTopBottom = isGolfplaatDak;
+    const showOptions = showWallOptions || showSurrounding || showGolfplaatTopBottom;
 
     const handleToggle = () => {
         if (onToggleCollapsed) {
@@ -161,6 +169,13 @@ export function BalkenSection({
                                         <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                             <Label className="text-[10px] text-zinc-400">Kader (Rondom)</Label>
                                             <Switch checked={surroundingBeams || false} onCheckedChange={(c: boolean) => onUpdate('surroundingBeams', c)} className="scale-75 origin-right" />
+                                        </div>
+                                    )}
+
+                                    {showGolfplaatTopBottom && (
+                                        <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                                            <Label className="text-[10px] text-zinc-400">Boven & onder gording</Label>
+                                            <Switch checked={includeTopBottomGording || false} onCheckedChange={(c: boolean) => onUpdate('includeTopBottomGording', c)} className="scale-75 origin-right" />
                                         </div>
                                     )}
                                 </div>

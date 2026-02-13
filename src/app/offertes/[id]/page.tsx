@@ -55,6 +55,8 @@ interface GrootCompareRow {
     values: Array<{ aantal: number; totaal: number; detail: string }>;
 }
 
+const CALCULATION_ESTIMATE_SECONDS = 180;
+
 export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
@@ -135,6 +137,8 @@ export default function QuotePage() {
     const [showGrootCalculation, setShowGrootCalculation] = useState(false);
     const [showVerbruikToelichting, setShowVerbruikToelichting] = useState(false);
     const [compareMaterialView, setCompareMaterialView] = useState<'groot' | 'verbruik'>('groot');
+    const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
+    const calculationTimerStartedAtRef = useRef<number | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -1343,27 +1347,71 @@ export default function QuotePage() {
     // Old handleDownloadPDF removed to fix duplicate declaration.
     // The new one is defined above at line ~523.
 
+    const formatTimerValue = (totalSeconds: number): string => {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+
     const calculationInProgress = quote?.status === 'in_behandeling' && !calculation?.data_json;
+
+    useEffect(() => {
+        if (!calculationInProgress) {
+            calculationTimerStartedAtRef.current = null;
+            setCalculationElapsedSeconds(0);
+            return;
+        }
+
+        if (calculationTimerStartedAtRef.current === null) {
+            calculationTimerStartedAtRef.current = Date.now();
+        }
+
+        const updateElapsed = () => {
+            const startedAt = calculationTimerStartedAtRef.current ?? Date.now();
+            const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+            setCalculationElapsedSeconds(Math.min(CALCULATION_ESTIMATE_SECONDS, Math.max(0, elapsedSeconds)));
+        };
+
+        updateElapsed();
+        const intervalId = window.setInterval(updateElapsed, 1000);
+        return () => window.clearInterval(intervalId);
+    }, [calculationInProgress]);
+
     const loading = calculationLoading || calculationInProgress || firebaseLoading || isUserLoading;
     const error = calculationError || firebaseError;
-
-
+    const calculationProgressPercentage = Math.min(
+        100,
+        (calculationElapsedSeconds / CALCULATION_ESTIMATE_SECONDS) * 100
+    );
 
     const LoadingPanel = () => (
         <div className="flex flex-col items-center justify-center py-20 gap-6">
-            <div className="relative">
-                <Loader2 className="h-12 w-12 animate-spin text-emerald-500/80" />
-                <div className="absolute inset-0 blur-xl bg-emerald-500/20 rounded-full animate-pulse" />
-            </div>
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex w-full max-w-sm flex-col items-center gap-3">
                 <div className="text-emerald-400 font-medium tracking-wide">
                     {quote?.status === 'in_behandeling' ? 'MATERIALEN BEREKENEN' : 'LADEN'}
                 </div>
-                <div className="text-muted-foreground text-sm animate-pulse">
+                <div className="text-muted-foreground text-sm animate-pulse text-center">
                     {quote?.status === 'in_behandeling'
                         ? 'De AI berekent de benodigde materialen en uren...'
                         : 'Even geduld afrubelen...'}
                 </div>
+                {quote?.status === 'in_behandeling' && (
+                    <div className="w-full space-y-2 pt-1">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{formatTimerValue(calculationElapsedSeconds)}</span>
+                            <span>{formatTimerValue(CALCULATION_ESTIMATE_SECONDS)}</span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full border border-emerald-500/20 bg-emerald-950/50">
+                            <div
+                                className="h-full rounded-full bg-gradient-to-r from-emerald-500/70 to-emerald-400 transition-[width] duration-1000 ease-linear"
+                                style={{ width: `${calculationProgressPercentage}%` }}
+                            />
+                        </div>
+                        <div className="text-center text-xs text-muted-foreground">
+                            Gemiddelde reken tijd; 3 minuten
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

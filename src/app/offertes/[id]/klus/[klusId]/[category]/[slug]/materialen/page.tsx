@@ -339,6 +339,8 @@ const BLOCKLIST = [
 ];
 const DEFAULT_WASTE_PERCENTAGE = 10;
 const ZERO_WASTE_PATTERNS = [
+  // Golfplaat-dak sections that should default to 0% afval.
+  /(golfplaten?|lichtplaten?|nokstukken?|hoekstukken?|zijstukken?|dakgoot|hwa[_\s-]?afvoer)/i,
   /(\bdeur\b|deuren|binnendeur|buitendeur)/i,
   /(scharnier|scharnieren|slot|sluit|meerpuntsluiting|cilinderslot|hang[_\\s-]?sluit|beslag|kruk|greep|paumelle)/i,
   /(kozijn|kozijnhout|stelkozijn|kozijnelement|raamkozijn|raamhout|stalen_kozijn)/i,
@@ -3479,6 +3481,7 @@ export default function GenericMaterialsPageRedesigned() {
         jobSlug.includes('hellend-dak') ||
         jobSlug.includes('dakrenovatie-pannen') ||
         (jobConfig?.title || '').toLowerCase().includes('hellend dak');
+      const isGolfplaatDakJob = jobSlug.includes('golfplaat-dak');
 
       const isMirrorEnabled = (value: any): boolean => {
         if (value === true || value === 1) return true;
@@ -3512,6 +3515,40 @@ export default function GenericMaterialsPageRedesigned() {
         return parsed;
       };
 
+      const toPositiveNumber = (value: any): number | null => {
+        const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return parsed;
+      };
+
+      const buildGolfplaatGordingLengte = (sourceItem: any): string | null => {
+        if (!sourceItem || typeof sourceItem !== 'object') return null;
+
+        const lengteMm = toPositiveNumber(sourceItem.lengte);
+        const breedteMm = toPositiveNumber(sourceItem.breedte ?? sourceItem.hoogte);
+        const balkafstandMm = toPositiveNumber(sourceItem.balkafstand);
+        if (!lengteMm || !breedteMm || !balkafstandMm) return null;
+
+        const includeTopBottom = Boolean(sourceItem.includeTopBottomGording);
+        const interiorRows = Math.max(0, Math.ceil(lengteMm / balkafstandMm) - 1);
+        const rows = interiorRows + (includeTopBottom ? 2 : 0);
+        if (rows <= 0) return null;
+
+        const tussenmuurMm = toPositiveNumber(sourceItem.tussenmuur_vanaf_links_maat ?? sourceItem.tussenmuur);
+        if (tussenmuurMm && tussenmuurMm > 0 && tussenmuurMm < breedteMm) {
+          const leftLen = Math.round(tussenmuurMm);
+          const rightLen = Math.round(breedteMm - tussenmuurMm);
+          if (leftLen > 0 && rightLen > 0) {
+            if (leftLen === rightLen) {
+              return `${rows * 2}x ${leftLen}mm`;
+            }
+            return `${rows}x ${leftLen}mm + ${rows}x ${rightLen}mm`;
+          }
+        }
+
+        return `${rows}x ${Math.round(breedteMm)}mm`;
+      };
+
       const buildHellendDakMultiplierMap = (mirrorEnabled: boolean, existing: any): Record<string, number> => {
         const defaults = Object.fromEntries(
           Object.entries(hellendDakMultiplierTemplate).map(([sectionKey, mirroredMultiplier]) => [
@@ -3535,14 +3572,45 @@ export default function GenericMaterialsPageRedesigned() {
 
       const normalizedBaseItems = Array.isArray(baseItems)
         ? baseItems.map((bi: any) => {
-          if (!isHellendDakJob) return bi;
+          if (!bi || typeof bi !== 'object') return bi;
+
+          const baseItem = { ...bi };
+
+          if (isGolfplaatDakJob) {
+            // Persist explicit false when toggle is untouched, instead of omitting the key.
+            baseItem.includeTopBottomGording = Boolean(baseItem.includeTopBottomGording);
+            baseItem.gording_in_breedte = 'horizontaal';
+            if (baseItem.breedte === undefined || baseItem.breedte === null || baseItem.breedte === '') {
+              if (baseItem.hoogte !== undefined && baseItem.hoogte !== null && baseItem.hoogte !== '') {
+                baseItem.breedte = baseItem.hoogte;
+              }
+            }
+            if (
+              (baseItem.tussenmuur_vanaf_links_maat === undefined
+                || baseItem.tussenmuur_vanaf_links_maat === null
+                || baseItem.tussenmuur_vanaf_links_maat === '')
+              && baseItem.tussenmuur !== undefined
+              && baseItem.tussenmuur !== null
+              && baseItem.tussenmuur !== ''
+            ) {
+              baseItem.tussenmuur_vanaf_links_maat = baseItem.tussenmuur;
+            }
+            delete baseItem.hoogte;
+            delete baseItem.tussenmuur;
+            delete baseItem.aantal_daken;
+            const gordingLengte = buildGolfplaatGordingLengte(baseItem);
+            if (gordingLengte) baseItem.gording_lengte = gordingLengte;
+            else delete baseItem.gording_lengte;
+          }
+
+          if (!isHellendDakJob) return baseItem;
           return {
-            ...bi,
-            edge_left: normalizeHellendDakEdge(bi?.edge_left),
-            edge_right: normalizeHellendDakEdge(bi?.edge_right),
+            ...baseItem,
+            edge_left: normalizeHellendDakEdge(baseItem?.edge_left),
+            edge_right: normalizeHellendDakEdge(baseItem?.edge_right),
             hellend_dak_multipliers: buildHellendDakMultiplierMap(
-              isMirrorEnabled(bi?.hellend_dak_mirror),
-              bi?.hellend_dak_multipliers
+              isMirrorEnabled(baseItem?.hellend_dak_mirror),
+              baseItem?.hellend_dak_multipliers
             )
           };
         })

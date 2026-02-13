@@ -348,8 +348,16 @@ export default function GenericMeasurementPage() {
   const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const isHellendDak = !!jobSlug && jobSlug.includes('hellend-dak');
+  const isGolfplaatDak = jobSlug === 'golfplaat-dak';
+  const isEpdmDak = jobSlug === 'epdm-dakbedekking';
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
   const isVoorzetwandParity = !!jobSlug && (jobSlug.includes('hsb-voorzetwand') || jobSlug.includes('metalstud-voorzetwand'));
+  const isNadenVullenJob = [
+    'hsb-voorzetwand',
+    'metalstud-voorzetwand',
+    'hsb-tussenwand',
+    'metalstud-tussenwand',
+  ].includes(jobSlug);
   const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
   const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
@@ -373,6 +381,70 @@ export default function GenericMeasurementPage() {
   const [dakpanWerkendeMaten, setDakpanWerkendeMaten] = useState<DakpanWerkendeMaten | null>(null);
   const prevVakIdsRef = useRef<Record<number, Set<string>>>({});
   const [manualVakkenOverride, setManualVakkenOverride] = useState<Record<number, boolean>>({});
+  const hasFilledMaterialInSnapshotEntry = (entry: any): boolean => {
+    if (!entry || typeof entry !== 'object') return false;
+    const material = entry.material;
+    if (!material || typeof material !== 'object') return false;
+    const hasName = typeof material.materiaalnaam === 'string' && material.materiaalnaam.trim().length > 0;
+    const hasRef = Boolean(material.id || material.row_id || material.material_ref_id);
+    return hasName || hasRef;
+  };
+  const hasMaterialInSnapshotBySection = (
+    snapshot: Record<string, any>,
+    sectionKeys: string[],
+    keywordHints: string[] = []
+  ): boolean => {
+    const normalizedKeys = new Set(sectionKeys.map((key) => key.toLowerCase()));
+    const normalizedHints = keywordHints.map((hint) => hint.toLowerCase());
+    return Object.values(snapshot || {}).some((entry: any) => {
+      if (!entry || typeof entry !== 'object') return false;
+      const sectionKey = String(entry.sectionKey || entry.material?.sectionKey || '').trim().toLowerCase();
+      const sectionLabel = String(entry.sectionLabel || entry.label || entry.title || '').trim().toLowerCase();
+      const materialName = String(entry.material?.materiaalnaam || '').trim().toLowerCase();
+      const keyMatch = sectionKey.length > 0 && normalizedKeys.has(sectionKey);
+      const hintMatch = normalizedHints.some((hint) => sectionLabel.includes(hint) || materialName.includes(hint));
+      if (!keyMatch && !hintMatch) return false;
+      return hasFilledMaterialInSnapshotEntry(entry);
+    });
+  };
+  const hasLoodMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(materialenLijstSnapshot, ['lood']);
+  }, [materialenLijstSnapshot]);
+  const hasDaktrimMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['daktrim', 'daktrim_hoeken'],
+      ['daktrim']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasDakgootMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(materialenLijstSnapshot, ['dakgoot'], ['dakgoot']);
+  }, [materialenLijstSnapshot]);
+  const hasHwaMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(materialenLijstSnapshot, ['hwa'], [' hwa', 'afvoer']);
+  }, [materialenLijstSnapshot]);
+  const hasHwaUitloopMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(materialenLijstSnapshot, ['hwa_uitloop'], ['stadsuitloop', 'uitloop']);
+  }, [materialenLijstSnapshot]);
+  const hasNadenStucMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['gips_vuller', 'gips_finish'],
+      ['voegenmiddel', 'finish pasta']
+    );
+  }, [materialenLijstSnapshot]);
+
+  const epdmSideRows: Array<{
+    side: 'top' | 'right' | 'bottom' | 'left';
+    key: 'edge_top' | 'edge_right' | 'edge_bottom' | 'edge_left';
+    sideLabel: string;
+    directionLabel: string;
+  }> = [
+      { side: 'top', key: 'edge_top', sideLabel: 'Boven', directionLabel: 'Noord' },
+      { side: 'right', key: 'edge_right', sideLabel: 'Rechts', directionLabel: 'Oost' },
+      { side: 'bottom', key: 'edge_bottom', sideLabel: 'Onder', directionLabel: 'Zuid' },
+      { side: 'left', key: 'edge_left', sideLabel: 'Links', directionLabel: 'West' },
+    ];
 
   // Auto-open vak cards (always open)
   useEffect(() => {
@@ -502,6 +574,33 @@ export default function GenericMeasurementPage() {
     const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
     return parsed;
+  };
+
+  const isEpdmEdgeField = (key: string): key is 'edge_top' | 'edge_bottom' | 'edge_left' | 'edge_right' => (
+    key === 'edge_top' || key === 'edge_bottom' || key === 'edge_left' || key === 'edge_right'
+  );
+
+  const normalizeEpdmEdgeValue = (
+    value: any,
+    fallback: 'free' | 'wall' = 'free'
+  ): 'free' | 'wall' => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (['wall', 'gevel', 'muur'].includes(normalized)) return 'wall';
+    if (['free', 'vrij', 'vrijstaand'].includes(normalized)) return 'free';
+    return fallback;
+  };
+
+  const epdmDefaultEdgeForKey = (key: 'edge_top' | 'edge_bottom' | 'edge_left' | 'edge_right'): 'free' | 'wall' => {
+    return key === 'edge_top' ? 'wall' : 'free';
+  };
+
+  const toNonNegativeIntOrNull = (value: any): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(parsed)) return null;
+    const intVal = Math.floor(parsed);
+    if (intVal < 0) return null;
+    return intVal;
   };
 
   const parsePriceValue = (value: any): number | null => {
@@ -717,6 +816,64 @@ export default function GenericMeasurementPage() {
 
     const withAutoValues = applyHellendDakAutoCalculations(next, { onlyWhenEmpty: true, syncLatafstand: true });
     return applyHellendDakMultipliers(withAutoValues);
+  };
+
+  const applyGolfplaatDakverdelingAuto = (sourceItem: any, changedKey?: string) => {
+    if (!isGolfplaatDak) return sourceItem;
+    if (!sourceItem || typeof sourceItem !== 'object') return sourceItem;
+    if (changedKey === 'tussenmuur') return sourceItem;
+
+    const shouldRecompute =
+      !changedKey ||
+      changedKey === 'aantal_daken' ||
+      changedKey === 'hoogte' ||
+      changedKey === 'breedte';
+    if (!shouldRecompute) return sourceItem;
+
+    const next = { ...sourceItem };
+    const dakCount = Math.max(1, Math.floor(toPositiveNumber(next.aantal_daken) ?? 1));
+    const breedteMm = toPositiveNumber(next.hoogte ?? next.breedte);
+
+    // On hydration, preserve explicit/manual value if already present.
+    if (!changedKey && !isEmptyValue(next.tussenmuur)) {
+      return next;
+    }
+
+    if (dakCount > 1 && breedteMm && breedteMm > 0) {
+      next.tussenmuur = Math.round(breedteMm / dakCount);
+    } else if (changedKey === 'aantal_daken' && dakCount <= 1) {
+      next.tussenmuur = '';
+    }
+
+    return next;
+  };
+
+  const buildGolfplaatGordingLengte = (sourceItem: any): string | null => {
+    if (!sourceItem || typeof sourceItem !== 'object') return null;
+
+    const lengteMm = toPositiveNumber(sourceItem.lengte);
+    const breedteMm = toPositiveNumber(sourceItem.breedte ?? sourceItem.hoogte);
+    const balkafstandMm = toPositiveNumber(sourceItem.balkafstand);
+    if (!lengteMm || !breedteMm || !balkafstandMm) return null;
+
+    const includeTopBottom = Boolean(sourceItem.includeTopBottomGording);
+    const interiorRows = Math.max(0, Math.ceil(lengteMm / balkafstandMm) - 1);
+    const rows = interiorRows + (includeTopBottom ? 2 : 0);
+    if (rows <= 0) return null;
+
+    const tussenmuurMm = toPositiveNumber(sourceItem.tussenmuur_vanaf_links_maat ?? sourceItem.tussenmuur);
+    if (tussenmuurMm && tussenmuurMm > 0 && tussenmuurMm < breedteMm) {
+      const leftLen = Math.round(tussenmuurMm);
+      const rightLen = Math.round(breedteMm - tussenmuurMm);
+      if (leftLen > 0 && rightLen > 0) {
+        if (leftLen === rightLen) {
+          return `${rows * 2}x ${leftLen}mm`;
+        }
+        return `${rows}x ${leftLen}mm + ${rows}x ${rightLen}mm`;
+      }
+    }
+
+    return `${rows}x ${Math.round(breedteMm)}mm`;
   };
 
   const formatWerkendeRange = (min: number | null, max: number | null): string | null => {
@@ -1054,10 +1211,78 @@ export default function GenericMeasurementPage() {
       delete item.vensterbank_lengte;
     }
 
+    if (isNadenVullenJob) {
+      const hasNadenVerbruikValues =
+        !isEmptyValue(item.naden_vullen_verbruik_per_m2) ||
+        !isEmptyValue(item.naden_afwerken_verbruik_per_m2);
+      const shouldAutoDefaultAfwerking = hasNadenStucMaterialFromPreviousPage || hasNadenVerbruikValues;
+      const afwerking = typeof item.naden_vullen_afwerking === 'string'
+        ? item.naden_vullen_afwerking.toLowerCase()
+        : '';
+      if (afwerking === 'behangklaar' || afwerking === 'schilderklaar') {
+        item.naden_vullen_afwerking = afwerking;
+      } else if (shouldAutoDefaultAfwerking) {
+        item.naden_vullen_afwerking = 'behangklaar';
+      } else {
+        delete item.naden_vullen_afwerking;
+      }
+    } else {
+      delete item.naden_vullen_verbruik_per_m2;
+      delete item.naden_afwerken_verbruik_per_m2;
+      delete item.naden_vullen_afwerking;
+    }
+
     if (isHellendDak) {
       item.edge_left = normalizeHellendDakEdge(item.edge_left);
       item.edge_right = normalizeHellendDakEdge(item.edge_right);
     }
+
+    if (isEpdmDak) {
+      item.edge_top = normalizeEpdmEdgeValue(item.edge_top, epdmDefaultEdgeForKey('edge_top'));
+      item.edge_bottom = normalizeEpdmEdgeValue(item.edge_bottom, epdmDefaultEdgeForKey('edge_bottom'));
+      item.edge_left = normalizeEpdmEdgeValue(item.edge_left, epdmDefaultEdgeForKey('edge_left'));
+      item.edge_right = normalizeEpdmEdgeValue(item.edge_right, epdmDefaultEdgeForKey('edge_right'));
+      item.dakrand_breedte = 50;
+
+      const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall'> = {
+        top: item.edge_top,
+        right: item.edge_right,
+        bottom: item.edge_bottom,
+        left: item.edge_left,
+      };
+
+      const hasExplicitLoodSides = ['top', 'right', 'bottom', 'left'].some((side) =>
+        typeof item[`lood_${side}`] === 'boolean'
+      );
+      const legacyLoodValue = Boolean(item.lood_gevelzijde);
+      ['top', 'right', 'bottom', 'left'].forEach((side) => {
+        const sideKey = side as 'top' | 'right' | 'bottom' | 'left';
+        const sideType = edgeBySide[sideKey];
+        const loodKey = `lood_${side}`;
+        const daktrimKey = `daktrim_${side}`;
+        const dakgootKey = `dakgoot_${side}`;
+
+        if (typeof item[loodKey] !== 'boolean') {
+          if (hasExplicitLoodSides) {
+            item[loodKey] = Boolean(item[loodKey]);
+          } else {
+            item[loodKey] = sideType === 'wall' ? legacyLoodValue : false;
+          }
+        }
+        if (typeof item[daktrimKey] !== 'boolean') {
+          item[daktrimKey] = false;
+        }
+        if (typeof item[dakgootKey] !== 'boolean') {
+          item[dakgootKey] = false;
+        }
+        if (sideType !== 'free') {
+          item[dakgootKey] = false;
+        }
+      });
+
+      item.lood_gevelzijde = ['top', 'right', 'bottom', 'left'].some((side) => Boolean(item[`lood_${side}`]));
+    }
+    delete item.epdm_orientatie_startpositie;
 
     return item;
   };
@@ -1328,7 +1553,25 @@ export default function GenericMeasurementPage() {
         if (snapshot.exists()) {
           const data = snapshot.data();
           const container = data.klussen?.[klusId] || {};
-          setMaterialenLijstSnapshot(container?.materialen?.materialen_lijst || {});
+          const materialenLijstInContainer = container?.materialen?.materialen_lijst || {};
+          setMaterialenLijstSnapshot(materialenLijstInContainer);
+          const hasNadenStucMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['gips_vuller', 'gips_finish'],
+            ['voegenmiddel', 'finish pasta']
+          );
+          const hasLoodMaterialInContainer = hasMaterialInSnapshotBySection(materialenLijstInContainer, ['lood']);
+          const hasDaktrimMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['daktrim', 'daktrim_hoeken'],
+            ['daktrim']
+          );
+          const hasHwaMaterialInContainer = hasMaterialInSnapshotBySection(materialenLijstInContainer, ['hwa'], [' hwa', 'afvoer']);
+          const hasHwaUitloopMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['hwa_uitloop'],
+            ['stadsuitloop', 'uitloop']
+          );
           const maatwerk = container.maatwerk;
           const vlizotrapMaterial = findVlizotrapMaterial(container);
           const kozijnhoutMaterial = isMaatwerkKozijn ? findKozijnhoutMaterial(container) : null;
@@ -1367,6 +1610,26 @@ export default function GenericMeasurementPage() {
 
               // Initialize/remove arrays based on job config
               const normalizedItem = sanitizeItemBySections(item);
+
+              if (isEpdmDak) {
+                if (hasHwaMaterialInContainer && isEmptyValue(normalizedItem.hwa_aantal)) {
+                  normalizedItem.hwa_aantal = 1;
+                }
+                if (hasHwaUitloopMaterialInContainer && isEmptyValue(normalizedItem.hwa_uitloop_aantal)) {
+                  normalizedItem.hwa_uitloop_aantal = 1;
+                }
+              }
+
+              if (isGolfplaatDak) {
+                // Persisted shape uses `breedte`, while the current form field key is `hoogte`.
+                // Mirror into UI state so existing inputs keep showing the value.
+                if (isEmptyValue(normalizedItem.hoogte) && !isEmptyValue(normalizedItem.breedte)) {
+                  normalizedItem.hoogte = normalizedItem.breedte;
+                }
+                if (isEmptyValue(normalizedItem.tussenmuur) && !isEmptyValue(normalizedItem.tussenmuur_vanaf_links_maat)) {
+                  normalizedItem.tussenmuur = normalizedItem.tussenmuur_vanaf_links_maat;
+                }
+              }
 
 
               // Data Migration for HSB Voorzetwand
@@ -1498,9 +1761,20 @@ export default function GenericMeasurementPage() {
             const withDakpanDefaults = withBalkafstandDefaults.map((item: any) =>
               applyHellendDakDefaultsFromDakpan(item, dakpanMaten)
             );
-            setItems(withDakpanDefaults);
+            const withGolfplaatAuto = withDakpanDefaults.map((item: any) =>
+              applyGolfplaatDakverdelingAuto(item)
+            );
+            setItems(withGolfplaatAuto);
           } else {
-            const emptyItem = createEmptyItem();
+            const emptyItem = createEmptyItem({
+              withNadenDefaults: hasNadenStucMaterialInContainer,
+              epdmDefaults: {
+                hasLoodMaterial: hasLoodMaterialInContainer,
+                hasDaktrimMaterial: hasDaktrimMaterialInContainer,
+                hasHwaMaterial: hasHwaMaterialInContainer,
+                hasHwaUitloopMaterial: hasHwaUitloopMaterialInContainer,
+              }
+            });
             const withVlizotrap = vlizotrapMaterial
               ? syncVlizotrapOpening(emptyItem, vlizotrapMaterial)
               : emptyItem;
@@ -1508,7 +1782,8 @@ export default function GenericMeasurementPage() {
               applyCeilingBalkafstandDefault(withVlizotrap, !!balklaagMaterial)
             );
             const withDakpanDefaults = applyHellendDakDefaultsFromDakpan(withBalkafstandDefaults, dakpanMaten);
-            setItems([withDakpanDefaults]);
+            const withGolfplaatAuto = applyGolfplaatDakverdelingAuto(withDakpanDefaults);
+            setItems([withGolfplaatAuto]);
           }
 
           // 2. Load Components
@@ -1534,7 +1809,15 @@ export default function GenericMeasurementPage() {
     loadData();
   }, [quoteId, klusId, firestore, jobSlug]);
 
-  const createEmptyItem = () => {
+  const createEmptyItem = (options?: {
+    withNadenDefaults?: boolean;
+    epdmDefaults?: {
+      hasLoodMaterial?: boolean;
+      hasDaktrimMaterial?: boolean;
+      hasHwaMaterial?: boolean;
+      hasHwaUitloopMaterial?: boolean;
+    };
+  }) => {
     const newItem: Record<string, any> = {};
     fields.forEach(f => {
       newItem[f.key] = f.defaultValue !== undefined ? f.defaultValue : '';
@@ -1545,6 +1828,42 @@ export default function GenericMeasurementPage() {
     if (isMaatwerkKozijn) {
       newItem.vakken = [];
       newItem.tussenstijlen = [];
+    }
+    if (isNadenVullenJob) {
+      const shouldSetNadenDefaults = options?.withNadenDefaults ?? hasNadenStucMaterialFromPreviousPage;
+      newItem.naden_vullen_verbruik_per_m2 = shouldSetNadenDefaults ? '0,3' : '';
+      newItem.naden_afwerken_verbruik_per_m2 = shouldSetNadenDefaults ? '0,1' : '';
+      newItem.naden_vullen_afwerking = shouldSetNadenDefaults ? 'behangklaar' : '';
+    }
+    if (isEpdmDak) {
+      newItem.edge_top = 'wall';
+      newItem.edge_bottom = 'free';
+      newItem.edge_left = 'free';
+      newItem.edge_right = 'free';
+      newItem.dakrand_breedte = 50;
+      const hasLoodMaterial = options?.epdmDefaults?.hasLoodMaterial ?? hasLoodMaterialFromPreviousPage;
+      const hasDaktrimMaterial = options?.epdmDefaults?.hasDaktrimMaterial ?? hasDaktrimMaterialFromPreviousPage;
+      const hasHwaMaterial = options?.epdmDefaults?.hasHwaMaterial ?? hasHwaMaterialFromPreviousPage;
+      const hasHwaUitloopMaterial = options?.epdmDefaults?.hasHwaUitloopMaterial ?? hasHwaUitloopMaterialFromPreviousPage;
+
+      newItem.lood_top = hasLoodMaterial;
+      newItem.lood_right = false;
+      newItem.lood_bottom = false;
+      newItem.lood_left = false;
+      newItem.lood_gevelzijde = Boolean(newItem.lood_top || newItem.lood_right || newItem.lood_bottom || newItem.lood_left);
+
+      newItem.daktrim_top = false;
+      newItem.daktrim_right = hasDaktrimMaterial;
+      newItem.daktrim_bottom = hasDaktrimMaterial;
+      newItem.daktrim_left = hasDaktrimMaterial;
+
+      newItem.dakgoot_top = false;
+      newItem.dakgoot_right = false;
+      newItem.dakgoot_bottom = false;
+      newItem.dakgoot_left = false;
+
+      if (hasHwaMaterial) newItem.hwa_aantal = 1;
+      if (hasHwaUitloopMaterial) newItem.hwa_uitloop_aantal = 1;
     }
     const sanitized = sanitizeItemBySections(newItem);
     return applyHellendDakMultipliers(sanitized);
@@ -1571,6 +1890,53 @@ export default function GenericMeasurementPage() {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
       let newItem = { ...item, [key]: value };
+
+      if (isEpdmDak && isEpdmEdgeField(key)) {
+        const nextEpdmEdge = normalizeEpdmEdgeValue(value, epdmDefaultEdgeForKey(key));
+        const side = key.replace('edge_', '') as 'top' | 'right' | 'bottom' | 'left';
+
+        if (hasLoodMaterialFromPreviousPage) {
+          newItem[`lood_${side}`] = nextEpdmEdge === 'wall';
+        }
+        if (hasDaktrimMaterialFromPreviousPage) {
+          newItem[`daktrim_${side}`] = nextEpdmEdge === 'free';
+        }
+        if (hasDakgootMaterialFromPreviousPage && nextEpdmEdge !== 'free') {
+          newItem[`dakgoot_${side}`] = false;
+        }
+
+        newItem.lood_gevelzijde = ['top', 'right', 'bottom', 'left'].some((s) => Boolean(newItem[`lood_${s}`]));
+      }
+
+      if (isEpdmDak && key.startsWith('lood_')) {
+        const side = key.replace('lood_', '') as 'top' | 'right' | 'bottom' | 'left';
+        const edgeKey = `edge_${side}` as 'edge_top' | 'edge_right' | 'edge_bottom' | 'edge_left';
+        const edgeType = normalizeEpdmEdgeValue(newItem[edgeKey], epdmDefaultEdgeForKey(edgeKey));
+        if (edgeType !== 'wall') {
+          newItem[key] = false;
+        }
+        newItem.lood_gevelzijde = ['top', 'right', 'bottom', 'left'].some((s) => Boolean(newItem[`lood_${s}`]));
+      }
+
+      if (isEpdmDak && key.startsWith('daktrim_')) {
+        const side = key.replace('daktrim_', '') as 'top' | 'right' | 'bottom' | 'left';
+        const edgeKey = `edge_${side}` as 'edge_top' | 'edge_right' | 'edge_bottom' | 'edge_left';
+        const edgeType = normalizeEpdmEdgeValue(newItem[edgeKey], epdmDefaultEdgeForKey(edgeKey));
+        if (edgeType !== 'free') {
+          newItem[key] = false;
+        }
+      }
+
+      if (isEpdmDak && key.startsWith('dakgoot_')) {
+        const side = key.replace('dakgoot_', '') as 'top' | 'right' | 'bottom' | 'left';
+        const edgeKey = `edge_${side}` as 'edge_top' | 'edge_right' | 'edge_bottom' | 'edge_left';
+        const edgeType = normalizeEpdmEdgeValue(newItem[edgeKey], epdmDefaultEdgeForKey(edgeKey));
+        if (edgeType !== 'free') {
+          newItem[key] = false;
+        }
+      }
+
+      newItem = applyGolfplaatDakverdelingAuto(newItem, key);
       if (isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'werkende_breedte_mm', 'werkende_hoogte_mm', 'halfLatafstandFromBottom'].includes(key)) {
         newItem = applyHellendDakAutoCalculations(newItem, { onlyWhenEmpty: false, syncLatafstand: true });
       }
@@ -2160,6 +2526,82 @@ export default function GenericMeasurementPage() {
             processed.hellend_dak_multipliers = buildHellendDakMultipliers(processed.hellend_dak_mirror === true);
           }
 
+          if (isEpdmDak) {
+            const allSides: Array<'top' | 'right' | 'bottom' | 'left'> = ['top', 'right', 'bottom', 'left'];
+            const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall'> = {
+              top: normalizeEpdmEdgeValue(processed.edge_top, 'wall'),
+              right: normalizeEpdmEdgeValue(processed.edge_right, 'free'),
+              bottom: normalizeEpdmEdgeValue(processed.edge_bottom, 'free'),
+              left: normalizeEpdmEdgeValue(processed.edge_left, 'free'),
+            };
+
+            processed.dakrand_breedte = 50;
+
+            if (hasLoodMaterialFromPreviousPage) {
+              allSides.forEach((side) => {
+                const key = `lood_${side}`;
+                processed[key] = edgeBySide[side] === 'wall' ? Boolean(processed[key]) : false;
+              });
+              processed.lood_gevelzijde = allSides.some((side) => Boolean(processed[`lood_${side}`]));
+            } else {
+              allSides.forEach((side) => delete processed[`lood_${side}`]);
+              delete processed.lood_gevelzijde;
+            }
+
+            if (hasDaktrimMaterialFromPreviousPage) {
+              allSides.forEach((side) => {
+                const key = `daktrim_${side}`;
+                processed[key] = edgeBySide[side] === 'free' ? Boolean(processed[key]) : false;
+              });
+            } else {
+              allSides.forEach((side) => delete processed[`daktrim_${side}`]);
+            }
+
+            if (hasDakgootMaterialFromPreviousPage) {
+              allSides.forEach((side) => {
+                const key = `dakgoot_${side}`;
+                processed[key] = edgeBySide[side] === 'free' ? Boolean(processed[key]) : false;
+              });
+            } else {
+              allSides.forEach((side) => delete processed[`dakgoot_${side}`]);
+            }
+
+            if (hasHwaMaterialFromPreviousPage) {
+              const hwaAantal = toNonNegativeIntOrNull(processed.hwa_aantal);
+              if (hwaAantal === null) delete processed.hwa_aantal;
+              else processed.hwa_aantal = hwaAantal;
+            } else {
+              delete processed.hwa_aantal;
+            }
+
+            if (hasHwaUitloopMaterialFromPreviousPage) {
+              const hwaUitloopAantal = toNonNegativeIntOrNull(processed.hwa_uitloop_aantal);
+              if (hwaUitloopAantal === null) delete processed.hwa_uitloop_aantal;
+              else processed.hwa_uitloop_aantal = hwaUitloopAantal;
+            } else {
+              delete processed.hwa_uitloop_aantal;
+            }
+          }
+
+          if (isGolfplaatDak) {
+            // Persist explicit boolean so backend/payload never sees "missing" when toggle was not touched.
+            processed.includeTopBottomGording = Boolean(processed.includeTopBottomGording);
+            // Current golfplaat gording layout is horizontal over the width.
+            processed.gording_in_breedte = 'horizontaal';
+            if (isEmptyValue(processed.breedte) && !isEmptyValue(processed.hoogte)) {
+              processed.breedte = processed.hoogte;
+            }
+            if (isEmptyValue(processed.tussenmuur_vanaf_links_maat) && !isEmptyValue(processed.tussenmuur)) {
+              processed.tussenmuur_vanaf_links_maat = processed.tussenmuur;
+            }
+            delete processed.hoogte;
+            delete processed.tussenmuur;
+            delete processed.aantal_daken;
+            const gordingLengte = buildGolfplaatGordingLengte(processed);
+            if (gordingLengte) processed.gording_lengte = gordingLengte;
+            else delete processed.gording_lengte;
+          }
+
           if (processed.openings && Array.isArray(processed.openings)) {
             processed.openings = processed.openings.map((op: any) => {
               const { width, height, ...rest } = op;
@@ -2597,8 +3039,9 @@ export default function GenericMeasurementPage() {
                         const showBreedte = shape === 'rectangle' && !!fBreedte;
 
                         const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak) && showLengte && showHoogte;
-                        const useInlineLengteBreedte = !useSideBySideLengteHoogte && showLengte && showBreedte;
-                        const showSwapDimensions = !useSideBySideLengteHoogte && showLengte && (showHoogte || showBreedte);
+                        const useSideBySideLengteBreedteGolfplaat = (isGolfplaatDak || isEpdmDak) && showLengte && showHoogte;
+                        const useInlineLengteBreedte = !useSideBySideLengteHoogte && !useSideBySideLengteBreedteGolfplaat && showLengte && showBreedte;
+                        const showSwapDimensions = !useSideBySideLengteHoogte && !useSideBySideLengteBreedteGolfplaat && showLengte && (showHoogte || showBreedte);
                         const useSideBySidePannenAfmetingen = isHellendDak && !!fAantalPannenBreedte && !!fAantalPannenHoogte;
                         const dakpanBreedteRange = formatWerkendeRange(dakpanWerkendeMaten?.minBreedteMm ?? null, dakpanWerkendeMaten?.maxBreedteMm ?? null);
                         const dakpanHoogteRange = formatWerkendeRange(dakpanWerkendeMaten?.minHoogteMm ?? null, dakpanWerkendeMaten?.maxHoogteMm ?? null);
@@ -2676,10 +3119,29 @@ export default function GenericMeasurementPage() {
                               </>
                             )}
 
-                            {useSideBySideLengteHoogte ? (
-                              <div className="grid grid-cols-2 gap-3 items-end">
+                            {(useSideBySideLengteHoogte || useSideBySideLengteBreedteGolfplaat) ? (
+                              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 items-end">
                                 <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
-                                <DynamicInput field={fHoogte!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                <div className="flex justify-center pb-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full bg-zinc-900 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all shadow-md group/swap"
+                                    onClick={() => handleSwapDimensions(index, 'lengte', showBreedte ? 'breedte' : 'hoogte')}
+                                    disabled={disabledAll}
+                                    title="Wissel afmetingen"
+                                  >
+                                    <ArrowDownUp className="h-4 w-4 rotate-90" />
+                                  </Button>
+                                </div>
+                                <DynamicInput
+                                  field={showBreedte ? fBreedte! : fHoogte!}
+                                  value={showBreedte ? item.breedte : item.hoogte}
+                                  onChange={v => updateItem(index, showBreedte ? 'breedte' : 'hoogte', v)}
+                                  onKeyDown={handleKeyDown}
+                                  disabled={disabledAll}
+                                />
                               </div>
                             ) : useInlineLengteBreedte ? (
                               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 items-end">
@@ -2822,10 +3284,10 @@ export default function GenericMeasurementPage() {
                               </>
                             )}
 
-                            {!useSideBySideLengteHoogte && showHoogte && (
+                            {!useSideBySideLengteHoogte && !useSideBySideLengteBreedteGolfplaat && showHoogte && (
                               <DynamicInput field={fHoogte!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
-                            {!useInlineLengteBreedte && showBreedte && (
+                            {!useInlineLengteBreedte && !useSideBySideLengteBreedteGolfplaat && showBreedte && (
                               <DynamicInput field={fBreedte!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
                           </div>
@@ -3177,39 +3639,280 @@ export default function GenericMeasurementPage() {
                       </>
                     )}
 
-                    {/* Dakrand Configuration */}
-                    {fields.find(f => f.key === 'dakrand_breedte') && (
+                    {isEpdmDak && (
                       <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                        <div
-                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                          onClick={() => toggleCollapsed(`dakrand-${index}`)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium text-zinc-200">Dakrand</span>
-                            {/* Collapse default: true (collapsed) */}
-                            {collapsedSections[`dakrand-${index}`] !== false && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                {item.dakrand_breedte ? `${item.dakrand_breedte}mm` : 'Ingesteld'}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-zinc-500">
-                            {collapsedSections[`dakrand-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </div>
-                        </div>
+                        {(() => {
+                          const gevelCount = epdmSideRows.filter((row) =>
+                            normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key)) === 'wall'
+                          ).length;
+                          const vrijstaandCount = 4 - gevelCount;
 
-                        {collapsedSections[`dakrand-${index}`] === false && (
-                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
-                              {fields.find(f => f.key === 'dakrand_breedte') && (
-                                <DynamicInput field={fields.find(f => f.key === 'dakrand_breedte')!} value={item.dakrand_breedte} onChange={(v) => updateItem(index, 'dakrand_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                          return (
+                            <>
+                              <div
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                onClick={() => toggleCollapsed(`gevel-vrijstaand-${index}`)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-medium text-zinc-200">Gevel / vrijstaand</span>
+                                  {collapsedSections[`gevel-vrijstaand-${index}`] !== false && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                      {`${gevelCount}x gevel • ${vrijstaandCount}x vrijstaand`}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-zinc-500">
+                                  {collapsedSections[`gevel-vrijstaand-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </div>
+                              </div>
+
+                              {collapsedSections[`gevel-vrijstaand-${index}`] === false && (
+                                <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                  <div className="pt-2 border-t border-white/5 space-y-4">
+                                    <div className="space-y-3">
+                                      {epdmSideRows.map((row) => {
+                                        const currentValue = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
+                                        return (
+                                          <div key={row.key} className="space-y-1">
+                                            <Label className="text-xs">{`${row.directionLabel} (${row.sideLabel})`}</Label>
+                                            <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                              <button
+                                                type="button"
+                                                onClick={() => updateItem(index, row.key, 'wall')}
+                                                className={cn(
+                                                  "flex-1 text-xs py-1.5 rounded transition-colors",
+                                                  currentValue === 'wall'
+                                                    ? "bg-emerald-500/20 text-emerald-400"
+                                                    : "text-zinc-500 hover:text-zinc-300"
+                                                )}
+                                              >
+                                                Gevel
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => updateItem(index, row.key, 'free')}
+                                                className={cn(
+                                                  "flex-1 text-xs py-1.5 rounded transition-colors",
+                                                  currentValue === 'free'
+                                                    ? "bg-emerald-500/20 text-emerald-400"
+                                                    : "text-zinc-500 hover:text-zinc-300"
+                                                )}
+                                              >
+                                                Vrijstaand
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
                               )}
-                              {fields.find(f => f.key === 'dakrand_hoogte') && (
-                                <DynamicInput field={fields.find(f => f.key === 'dakrand_hoogte')!} value={item.dakrand_hoogte} onChange={(v) => updateItem(index, 'dakrand_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {isEpdmDak && hasLoodMaterialFromPreviousPage && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        {(() => {
+                          const enabledCount = epdmSideRows.filter((row) => Boolean(item[`lood_${row.side}`])).length;
+                          return (
+                            <>
+                              <div
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                onClick={() => toggleCollapsed(`lood-${index}`)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-medium text-zinc-200">Lood</span>
+                                  {collapsedSections[`lood-${index}`] !== false && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                      {`${enabledCount}x aan`}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-zinc-500">
+                                  {collapsedSections[`lood-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </div>
+                              </div>
+
+                              {collapsedSections[`lood-${index}`] === false && (
+                                <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                  <div className="pt-2 border-t border-white/5 space-y-3">
+                                    {epdmSideRows.map((row) => {
+                                      const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
+                                      const isGevelSide = edgeType === 'wall';
+                                      const checked = isGevelSide ? Boolean(item[`lood_${row.side}`]) : false;
+                                      return (
+                                        <div key={`lood-${row.side}`} className="flex items-center justify-between bg-black/20 p-3 rounded border border-white/5">
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-zinc-300">{`${row.directionLabel} (${row.sideLabel}) • ${isGevelSide ? 'Gevel' : 'Vrijstaand'}`}</Label>
+                                            {!isGevelSide && <p className="text-[11px] text-zinc-500">Alleen op Gevel-zijde.</p>}
+                                          </div>
+                                          <Switch
+                                            checked={checked}
+                                            onCheckedChange={(checkedState) => updateItem(index, `lood_${row.side}`, checkedState)}
+                                            disabled={disabledAll || !isGevelSide}
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               )}
-                            </div>
-                          </div>
-                        )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {isEpdmDak && hasDaktrimMaterialFromPreviousPage && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        {(() => {
+                          const enabledCount = epdmSideRows.filter((row) => Boolean(item[`daktrim_${row.side}`])).length;
+                          return (
+                            <>
+                              <div
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                onClick={() => toggleCollapsed(`daktrim-${index}`)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-medium text-zinc-200">Daktrim</span>
+                                  {collapsedSections[`daktrim-${index}`] !== false && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                      {`${enabledCount}x aan`}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-zinc-500">
+                                  {collapsedSections[`daktrim-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </div>
+                              </div>
+
+                              {collapsedSections[`daktrim-${index}`] === false && (
+                                <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                  <div className="pt-2 border-t border-white/5 space-y-3">
+                                    {epdmSideRows.map((row) => {
+                                      const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
+                                      const isVrijstaandSide = edgeType === 'free';
+                                      const checked = isVrijstaandSide ? Boolean(item[`daktrim_${row.side}`]) : false;
+                                      return (
+                                        <div key={`daktrim-${row.side}`} className="flex items-center justify-between bg-black/20 p-3 rounded border border-white/5">
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-zinc-300">{`${row.directionLabel} (${row.sideLabel}) • ${isVrijstaandSide ? 'Vrijstaand' : 'Gevel'}`}</Label>
+                                            {!isVrijstaandSide && <p className="text-[11px] text-zinc-500">Alleen op Vrijstaand-zijde.</p>}
+                                          </div>
+                                          <Switch
+                                            checked={checked}
+                                            onCheckedChange={(checkedState) => updateItem(index, `daktrim_${row.side}`, checkedState)}
+                                            disabled={disabledAll || !isVrijstaandSide}
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {isEpdmDak && (hasDakgootMaterialFromPreviousPage || hasHwaMaterialFromPreviousPage || hasHwaUitloopMaterialFromPreviousPage) && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        {(() => {
+                          const dakgootEnabledCount = epdmSideRows.filter((row) => Boolean(item[`dakgoot_${row.side}`])).length;
+                          const hwaCount = toNonNegativeIntOrNull(item.hwa_aantal) ?? 0;
+                          const hwaUitloopCount = toNonNegativeIntOrNull(item.hwa_uitloop_aantal) ?? 0;
+                          const summary: string[] = [];
+                          if (hasDakgootMaterialFromPreviousPage) summary.push(`${dakgootEnabledCount}x dakgoot`);
+                          if (hasHwaMaterialFromPreviousPage) summary.push(`${hwaCount}x hwa`);
+                          if (hasHwaUitloopMaterialFromPreviousPage) summary.push(`${hwaUitloopCount}x stadsuitloop`);
+
+                          return (
+                            <>
+                              <div
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                onClick={() => toggleCollapsed(`dakgoot-hwa-${index}`)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-medium text-zinc-200">Dakgoot & HWA</span>
+                                  {collapsedSections[`dakgoot-hwa-${index}`] !== false && summary.length > 0 && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                      {summary.join(' • ')}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-zinc-500">
+                                  {collapsedSections[`dakgoot-hwa-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </div>
+                              </div>
+
+                              {collapsedSections[`dakgoot-hwa-${index}`] === false && (
+                                <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                  <div className="pt-2 border-t border-white/5 space-y-3">
+                                    {hasDakgootMaterialFromPreviousPage && epdmSideRows.map((row) => {
+                                      const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
+                                      const isVrijstaandSide = edgeType === 'free';
+                                      const checked = isVrijstaandSide ? Boolean(item[`dakgoot_${row.side}`]) : false;
+                                      return (
+                                        <div key={`dakgoot-${row.side}`} className="flex items-center justify-between bg-black/20 p-3 rounded border border-white/5">
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-zinc-300">{`Dakgoot ${row.directionLabel} (${row.sideLabel}) • ${isVrijstaandSide ? 'Vrijstaand' : 'Gevel'}`}</Label>
+                                            {!isVrijstaandSide && <p className="text-[11px] text-zinc-500">Alleen op Vrijstaand-zijde.</p>}
+                                          </div>
+                                          <Switch
+                                            checked={checked}
+                                            onCheckedChange={(checkedState) => updateItem(index, `dakgoot_${row.side}`, checkedState)}
+                                            disabled={disabledAll || !isVrijstaandSide}
+                                          />
+                                        </div>
+                                      );
+                                    })}
+
+                                    {hasHwaMaterialFromPreviousPage && (
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`hwa-aantal-${index}`} className="text-xs">HWA aantal</Label>
+                                        <Input
+                                          id={`hwa-aantal-${index}`}
+                                          type="number"
+                                          min={0}
+                                          step={1}
+                                          className="bg-black/20 border-white/10 h-9 text-sm"
+                                          placeholder="Bijv. 1"
+                                          value={item.hwa_aantal ?? ''}
+                                          onChange={(e) => updateItem(index, 'hwa_aantal', e.target.value)}
+                                          onKeyDown={handleKeyDown}
+                                          disabled={disabledAll}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {hasHwaUitloopMaterialFromPreviousPage && (
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`hwa-uitloop-aantal-${index}`} className="text-xs">Stadsuitloop aantal</Label>
+                                        <Input
+                                          id={`hwa-uitloop-aantal-${index}`}
+                                          type="number"
+                                          min={0}
+                                          step={1}
+                                          className="bg-black/20 border-white/10 h-9 text-sm"
+                                          placeholder="Bijv. 1"
+                                          value={item.hwa_uitloop_aantal ?? ''}
+                                          onChange={(e) => updateItem(index, 'hwa_uitloop_aantal', e.target.value)}
+                                          onKeyDown={handleKeyDown}
+                                          disabled={disabledAll}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
 
@@ -3405,6 +4108,7 @@ export default function GenericMeasurementPage() {
                             doubleTopPlate={item.doubleTopPlate}
                             doubleBottomPlate={item.doubleBottomPlate}
                             surroundingBeams={item.surroundingBeams}
+                            includeTopBottomGording={item.includeTopBottomGording}
                             optionsConfig={specificJobConfig.balkenConfig.options}
                             onUpdate={(key, val) => updateItem(index, key, val)}
                             isWallCategory={isWallCategory}
@@ -3426,6 +4130,7 @@ export default function GenericMeasurementPage() {
                         doubleTopPlate={item.doubleTopPlate}
                         doubleBottomPlate={item.doubleBottomPlate}
                         surroundingBeams={item.surroundingBeams}
+                        includeTopBottomGording={item.includeTopBottomGording}
                         optionsConfig={specificJobConfig.balkenConfig?.options}
                         onUpdate={(key, val) => updateItem(index, key, val)}
                         isWallCategory={isWallCategory}
@@ -3434,6 +4139,78 @@ export default function GenericMeasurementPage() {
                         isCollapsed={collapsedSections[`balken-${index}`] !== false}
                         onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
                       />
+                    )}
+
+                    {isGolfplaatDak && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                          onClick={() => toggleCollapsed(`dakverdeling-${index}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Dakverdeling</span>
+                            {collapsedSections[`dakverdeling-${index}`] !== false && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                {item.tussenmuur
+                                  ? `Tussenmuur ${item.tussenmuur}mm`
+                                  : (item.aantal_daken && Number(item.aantal_daken) > 1
+                                    ? `${item.aantal_daken} daken`
+                                    : 'Geen verdeling')}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-zinc-500">
+                            {collapsedSections[`dakverdeling-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </div>
+                        </div>
+
+                        {collapsedSections[`dakverdeling-${index}`] === false && (
+                          <div className="px-4 pb-4 pt-0 space-y-3 animate-in slide-in-from-top-2">
+                            <div className="pt-2 border-t border-white/5">
+                              <p className="text-[11px] text-zinc-500">
+                                Vul óf `Aantal daken` in voor gelijke verdeling, óf een exacte `Tussenmuur`.
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label htmlFor={`aantal-daken-${index}`} className="text-xs">Aantal daken / schuren</Label>
+                                <Input
+                                  id={`aantal-daken-${index}`}
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  className="bg-black/20 border-white/10 h-9 text-sm"
+                                  placeholder="Bijv. 2"
+                                  value={item.aantal_daken ?? ''}
+                                  onChange={(e) => updateItem(index, 'aantal_daken', e.target.value === '' ? '' : Number(e.target.value))}
+                                  onKeyDown={handleKeyDown}
+                                  disabled={disabledAll}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor={`tussenmuur-${index}`} className="text-xs">Tussenmuur</Label>
+                                <div className="relative">
+                                  <Input
+                                    id={`tussenmuur-${index}`}
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    className="bg-black/20 border-white/10 h-9 text-sm pr-10"
+                                    placeholder="Bijv. 3333"
+                                    value={item.tussenmuur ?? ''}
+                                    onChange={(e) => updateItem(index, 'tussenmuur', e.target.value === '' ? '' : Number(e.target.value))}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={disabledAll}
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {!isCeilingCategory && (
@@ -3629,6 +4406,7 @@ export default function GenericMeasurementPage() {
                             doubleTopPlate={item.doubleTopPlate}
                             doubleBottomPlate={item.doubleBottomPlate}
                             surroundingBeams={item.surroundingBeams}
+                            includeTopBottomGording={item.includeTopBottomGording}
                             optionsConfig={specificJobConfig.balkenConfig?.options}
                             onUpdate={(key, val) => updateItem(index, key, val)}
                             isWallCategory={isWallCategory}
@@ -3752,6 +4530,113 @@ export default function GenericMeasurementPage() {
                       />
                     )}
 
+                    {isNadenVullenJob && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                          onClick={() => toggleCollapsed(`naden-vullen-${index}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Naden verbruik</span>
+                            {collapsedSections[`naden-vullen-${index}`] !== false && (() => {
+                              const hasNadenVerbruikValues =
+                                !isEmptyValue(item.naden_vullen_verbruik_per_m2) ||
+                                !isEmptyValue(item.naden_afwerken_verbruik_per_m2);
+                              const hasAfwerkingChoice =
+                                item.naden_vullen_afwerking === 'behangklaar' ||
+                                item.naden_vullen_afwerking === 'schilderklaar';
+                              const shouldShowBadge =
+                                hasNadenVerbruikValues ||
+                                (hasNadenStucMaterialFromPreviousPage && hasAfwerkingChoice);
+                              if (!shouldShowBadge) return null;
+                              return (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                  {hasNadenVerbruikValues
+                                    ? 'Ingesteld'
+                                    : (item.naden_vullen_afwerking === 'schilderklaar' ? 'Schilderklaar' : 'Behangklaar')}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="text-zinc-500">
+                            {collapsedSections[`naden-vullen-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </div>
+                        </div>
+
+                        {collapsedSections[`naden-vullen-${index}`] === false && (
+                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                            <div className="pt-2 border-t border-white/5 space-y-4">
+                              <div className="space-y-2">
+                                <Label className="text-xs">Afwerking</Label>
+                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'naden_vullen_afwerking', 'behangklaar')}
+                                    className={cn(
+                                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                                      item.naden_vullen_afwerking === 'behangklaar'
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Behangklaar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItem(index, 'naden_vullen_afwerking', 'schilderklaar')}
+                                    className={cn(
+                                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                                      item.naden_vullen_afwerking === 'schilderklaar'
+                                        ? "bg-emerald-500/20 text-emerald-400"
+                                        : "text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                  >
+                                    Schilderklaar
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor={`naden-vullen-verbruik-${index}`} className="text-xs">Naden vullen (verbruik p/m²)</Label>
+                                <div className="relative">
+                                  <Input
+                                    id={`naden-vullen-verbruik-${index}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    className="bg-black/20 border-white/10 h-9 text-sm pr-14"
+                                    placeholder="Bijv. 0,3"
+                                    value={item.naden_vullen_verbruik_per_m2 ?? ''}
+                                    onChange={(e) => updateItem(index, 'naden_vullen_verbruik_per_m2', e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={disabledAll}
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">p/m²</span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor={`naden-afwerken-verbruik-${index}`} className="text-xs">Naden afwerken (verbruik p/m²)</Label>
+                                <div className="relative">
+                                  <Input
+                                    id={`naden-afwerken-verbruik-${index}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    className="bg-black/20 border-white/10 h-9 text-sm pr-14"
+                                    placeholder="Bijv. 0,1"
+                                    value={item.naden_afwerken_verbruik_per_m2 ?? ''}
+                                    onChange={(e) => updateItem(index, 'naden_afwerken_verbruik_per_m2', e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={disabledAll}
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">p/m²</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Balken Section (non-ceiling, moved lower - ONLY for Gevelbekleding) */}
                     {!isCeilingCategory && isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (
                       <BalkenSection
@@ -3761,6 +4646,7 @@ export default function GenericMeasurementPage() {
                         doubleTopPlate={item.doubleTopPlate}
                         doubleBottomPlate={item.doubleBottomPlate}
                         surroundingBeams={item.surroundingBeams}
+                        includeTopBottomGording={item.includeTopBottomGording}
                         optionsConfig={specificJobConfig.balkenConfig.options}
                         onUpdate={(key, val) => updateItem(index, key, val)}
                         isWallCategory={isWallCategory}
@@ -3790,6 +4676,48 @@ export default function GenericMeasurementPage() {
                               {fields.find(f => f.key === 'kopkant_hoogte') && (
                                 <DynamicInput field={fields.find(f => f.key === 'kopkant_hoogte')!} value={item.kopkant_hoogte} onChange={v => updateItem(index, 'kopkant_hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Lichtplaten Card */}
+                    {isGolfplaatDak && fields.find(f => f.key === 'lichtplaten_aantal') && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        <div
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                          onClick={() => toggleCollapsed(`lichtplaten-${index}`)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-zinc-200">Lichtplaten</span>
+                            {collapsedSections[`lichtplaten-${index}`] !== false && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                {item.lichtplaten_aantal ? `${item.lichtplaten_aantal} stuks` : 'Niet ingevuld'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-zinc-500">
+                            {collapsedSections[`lichtplaten-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </div>
+                        </div>
+
+                        {collapsedSections[`lichtplaten-${index}`] === false && (
+                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                            <div className="pt-2 border-t border-white/5 space-y-2">
+                              <Label htmlFor={`lichtplaten-aantal-${index}`} className="text-xs">Aantal</Label>
+                              <Input
+                                id={`lichtplaten-aantal-${index}`}
+                                type="number"
+                                min={0}
+                                step={1}
+                                className="bg-black/20 border-white/10 h-9 text-sm"
+                                placeholder="Bijv. 2"
+                                value={item.lichtplaten_aantal ?? ''}
+                                onChange={(e) => updateItem(index, 'lichtplaten_aantal', e.target.value === '' ? '' : Number(e.target.value))}
+                                onKeyDown={handleKeyDown}
+                                disabled={disabledAll}
+                              />
                             </div>
                           </div>
                         )}
@@ -3833,11 +4761,11 @@ export default function GenericMeasurementPage() {
                     )}
 
                     {/* Extra Fields - NO SLICE, just filter out known keys and grouped fields */}
-                    {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
+                    {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'aantal_daken', 'tussenmuur', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lichtplaten_aantal', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
                       <div className="space-y-3 pt-4 border-t border-white/5">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
                         <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                          {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
+                          {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'aantal_daken', 'tussenmuur', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lichtplaten_aantal', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
                             <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                           ))}
                         </div>

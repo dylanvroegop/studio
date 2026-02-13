@@ -93,6 +93,8 @@ export const MATERIAL_CATEGORY_INFO = {
   exterieur_details: { title: 'Exterieur Details', order: 1 },
   boeiboord: { title: 'Boeidelen', order: 15 },
   daktrim: { title: 'Daktrim', order: 99 },
+  dakgoot_hwa: { title: 'Dakgoot & HWA', order: 100 },
+  lood: { title: 'Lood', order: 101 },
   Installatie: { title: 'Installatie', order: 20 },
   Schakelmateriaal: { title: 'Schakelmateriaal', order: 21 },
 } as const;
@@ -230,7 +232,7 @@ const EPDM_FIELDS: MeasurementField[] = [
     label: 'Rand Boven',
     type: 'select',
     options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }],
-    defaultValue: 'free'
+    defaultValue: 'wall'
   },
   {
     key: 'edge_bottom',
@@ -319,6 +321,17 @@ const GEVELBEKLEDING_FIELDS: MeasurementField[] = [
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', optional: true },
   { key: 'tengelafstand', label: 'Tengelafstand (h.o.h.) *', type: 'number', suffix: 'mm', optional: true },
   { key: 'latafstand', label: 'Latafstand (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
+];
+
+const GOLFPLAAT_DAK_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 2500' },
+  // Keep key "hoogte" for backward compatibility in calculations/drawings, but show as Breedte in UI.
+  { key: 'hoogte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', optional: true },
+  { key: 'aantal_daken', label: 'Aantal daken / schuren', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 2', optional: true },
+  { key: 'tussenmuur', label: 'Tussenmuur (van links)', type: 'number', suffix: 'mm', placeholder: 'Bijv. 3333', optional: true },
+  { key: 'tengelafstand', label: 'Tengelafstand (h.o.h.) *', type: 'number', suffix: 'mm', optional: true },
+  { key: 'lichtplaten_aantal', label: 'Lichtplaten aantal', type: 'number', suffix: 'stuks', placeholder: 'Bijv. 2', optional: true },
 ];
 
 const SCHUTTING_FIELDS: MeasurementField[] = [
@@ -963,10 +976,12 @@ const DAK_EPDM_MATS: MaterialSection[] = [
   { label: 'Lijm & Contactlijm', categoryFilter: 'Epdm', category: 'dak', key: 'epdm_lijm', category_ultra_filter: '' },
 
   // 3. AFWERKING & DETAILS
-  { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking_dak', key: 'daktrim', category_ultra_filter: '' },
-  { label: 'Daktrim Hoeken', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking_dak', key: 'daktrim_hoeken', category_ultra_filter: '' },
-  { label: 'HWA Stadsuitloop / Onderuitloop', categoryFilter: 'Epdm, Ubbink', category: 'afwerking_dak', key: 'hwa_uitloop', category_ultra_filter: '' },
-  { label: 'Lood', categoryFilter: 'Lood, Loodvervanger', category: 'afwerking_dak', key: 'lood', category_ultra_filter: '' },
+  { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
+  { label: 'Daktrim Hoeken', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim_hoeken', category_ultra_filter: '' },
+  { label: 'Dakgoot', categoryFilter: 'Ubbink, Overig', category: 'dakgoot_hwa', key: 'dakgoot', category_ultra_filter: '' },
+  { label: 'HWA', categoryFilter: 'Ubbink, Overig', category: 'dakgoot_hwa', key: 'hwa', category_ultra_filter: '' },
+  { label: 'HWA Stadsuitloop', categoryFilter: 'Epdm, Ubbink', category: 'dakgoot_hwa', key: 'hwa_uitloop', category_ultra_filter: '' },
+  { label: 'Lood', categoryFilter: 'Lood, Loodvervanger', category: 'lood', key: 'lood', category_ultra_filter: '' },
 
   // 4. BOEIBOORDEN
   { label: 'Boeiboord (Optie)', categoryFilter: 'Rockpanel, Trespa, Exterieur platen', category: 'boeiboord', key: 'boeiboord_placeholder', category_ultra_filter: '' },
@@ -975,7 +990,6 @@ const DAK_EPDM_MATS: MaterialSection[] = [
 const DAK_GOLFPLAAT_MATS: MaterialSection[] = [
   // 1. CONSTRUCTIE (Houten onderbouw)
   { label: 'Gordingen / Sporen', categoryFilter: 'Vuren hout', category: 'hout', key: 'gordingen', category_ultra_filter: '' },
-  { label: 'Tengels / Regels', categoryFilter: 'Vuren hout', category: 'hout', key: 'tengels', category_ultra_filter: '' },
 
   // 2. ISOLATIE (Optioneel)
   { label: 'Dakisolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_dak', category_ultra_filter: '' },
@@ -1978,10 +1992,12 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         measurements: EPDM_FIELDS,
         materialSections: DAK_EPDM_MATS,
         categoryConfig: {
-          beplating: { title: 'Beplating', order: 3 },
-          isolatie: { title: 'Isolatie & Folies', order: 2 },
-          dak: { title: 'EPDM', order: 3 },
-          afwerking_dak: { title: 'Afwerking', order: 4 },
+          beplating: { title: 'Beplating', order: 2 },
+          isolatie: { title: 'Isolatie & Folies', order: 3 },
+          dak: { title: 'EPDM', order: 4 },
+          daktrim: { title: 'Daktrim', order: 6 },
+          dakgoot_hwa: { title: 'Dakgoot & HWA', order: 7 },
+          lood: { title: 'Lood', order: 8 },
         },
       },
       {
@@ -1989,7 +2005,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         description: 'Op houten constructie',
         slug: 'golfplaat-dak',
         measurementLabel: 'Dakvlak',
-        measurements: GEVELBEKLEDING_FIELDS,
+        measurements: GOLFPLAAT_DAK_FIELDS,
         materialSections: DAK_GOLFPLAAT_MATS,
         categoryConfig: {
           hout: { title: 'Framewerk', order: 1 },

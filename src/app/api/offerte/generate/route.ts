@@ -379,7 +379,8 @@ export async function POST(req: Request) {
         'hoogte1', 'hoogte2', 'hoogte3',
         'hoogteLinks', 'hoogteRechts', 'hoogteNok',
         'hoogteZijkant', 'balkafstand', 'latafstand',
-        'vanLinks', 'vanOnder', 'aantalZijden'
+        'vanLinks', 'vanOnder', 'aantalZijden',
+        'tussenmuur_vanaf_links_maat'
       ];
 
       const convertDimensions = (items: any[]) => {
@@ -414,6 +415,83 @@ export async function POST(req: Request) {
             });
           }
           return newItem;
+        });
+      };
+
+      const toPositiveNumber = (value: any): number | null => {
+        const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return parsed;
+      };
+
+      const buildGolfplaatGordingLengte = (sourceItem: Record<string, any>): string | null => {
+        const lengteMm = toPositiveNumber(sourceItem.lengte);
+        const breedteMm = toPositiveNumber(sourceItem.breedte ?? sourceItem.hoogte);
+        const balkafstandMm = toPositiveNumber(sourceItem.balkafstand);
+        if (!lengteMm || !breedteMm || !balkafstandMm) return null;
+
+        const includeTopBottom = Boolean(sourceItem.includeTopBottomGording);
+        const interiorRows = Math.max(0, Math.ceil(lengteMm / balkafstandMm) - 1);
+        const rows = interiorRows + (includeTopBottom ? 2 : 0);
+        if (rows <= 0) return null;
+
+        const tussenmuurMm = toPositiveNumber(sourceItem.tussenmuur_vanaf_links_maat ?? sourceItem.tussenmuur);
+        if (tussenmuurMm && tussenmuurMm > 0 && tussenmuurMm < breedteMm) {
+          const leftLen = Math.round(tussenmuurMm);
+          const rightLen = Math.round(breedteMm - tussenmuurMm);
+          if (leftLen > 0 && rightLen > 0) {
+            if (leftLen === rightLen) {
+              return `${rows * 2}x ${leftLen}mm`;
+            }
+            return `${rows}x ${leftLen}mm + ${rows}x ${rightLen}mm`;
+          }
+        }
+
+        return `${rows}x ${Math.round(breedteMm)}mm`;
+      };
+
+      const normalizeGolfplaatBasisItems = (items: any[]): any[] => {
+        if (!Array.isArray(items)) return [];
+
+        return items.map((rawItem) => {
+          if (!rawItem || typeof rawItem !== 'object') return rawItem;
+
+          const item = { ...rawItem };
+          const { tussenmuur, ...withoutTussenmuur } = item;
+          const normalized = { ...withoutTussenmuur } as Record<string, any>;
+
+          // Golfplaat UI stores horizontal span under `hoogte` for backward compatibility.
+          // For n8n payload clarity we expose this as `breedte`.
+          if (
+            (normalized.breedte === undefined || normalized.breedte === null || normalized.breedte === '')
+            && normalized.hoogte !== undefined
+            && normalized.hoogte !== null
+            && normalized.hoogte !== ''
+          ) {
+            normalized.breedte = normalized.hoogte;
+          }
+          delete normalized.hoogte;
+          delete normalized.aantal_daken;
+          if (normalized.gording_in_breedte === undefined || normalized.gording_in_breedte === null || normalized.gording_in_breedte === '') {
+            normalized.gording_in_breedte = 'horizontaal';
+          }
+          if (
+            (normalized.tussenmuur_vanaf_links_maat === undefined
+              || normalized.tussenmuur_vanaf_links_maat === null
+              || normalized.tussenmuur_vanaf_links_maat === '')
+            && tussenmuur !== undefined
+            && tussenmuur !== null
+            && tussenmuur !== ''
+          ) {
+            normalized.tussenmuur_vanaf_links_maat = tussenmuur;
+          }
+          const gordingLengte = buildGolfplaatGordingLengte({
+            ...normalized,
+          });
+          if (gordingLengte) normalized.gording_lengte = gordingLengte;
+          else delete normalized.gording_lengte;
+
+          return normalized;
         });
       };
 
@@ -456,6 +534,33 @@ export async function POST(req: Request) {
           ...entry,
           rule: sanitizeRuleObject(entry.rule),
         };
+      };
+
+      const GOLFPLAAT_OVERLAP_LOGIC =
+        'plaatlengte volgt daklengte; dakbreedte wordt gevuld met werkende breedte (plaatbreedte - 50mm overlap)';
+      const GOLFPLAAT_OVERLAP_FORMULA =
+        'dak_breedte_mm = (maatwerk_item.breedte ?? maatwerk_item.hoogte); if material.breedte_m exists then werkende_breedte_mm = max(1, (material.breedte_m * 1000) - 50); else if material.werkende_breedte_mm exists then werkende_breedte_mm = material.werkende_breedte_mm; else werkende_breedte_mm = null; if werkende_breedte_mm exists then rows = ceil(dak_lengte_mm / material.lengte_mm); cols = ceil(dak_breedte_mm / werkende_breedte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(dak_netto_m2 / plaat_m2); aantal = ceil(stuks)';
+
+      const normalizeGolfplaatRuleEntry = (
+        entry: Record<string, any>,
+        jobSlug: string,
+        sectionKey: string | null,
+      ): Record<string, any> => {
+        if (!entry || typeof entry !== 'object') return entry;
+        if (!jobSlug.includes('golfplaat-dak')) return entry;
+        if (sectionKey !== 'golfplaten') return entry;
+
+        const next = { ...entry };
+        const rule = next.rule && typeof next.rule === 'object'
+          ? { ...next.rule }
+          : {};
+
+        next.rule = {
+          ...rule,
+          logic: GOLFPLAAT_OVERLAP_LOGIC,
+          formula: GOLFPLAAT_OVERLAP_FORMULA,
+        };
+        return next;
       };
 
       // ─── Helper: Enrich a single material entry with Supabase data ───
@@ -505,6 +610,15 @@ export async function POST(req: Request) {
               || (Array.isArray(maatwerkObj) ? maatwerkObj : []);
 
             const convertedBasis = convertDimensions(basisItems);
+            const jobSlug = String(
+              enrichedJob?.meta?.slug
+              || (maatwerkObj as any)?.meta?.slug
+              || enrichedJob?.materialen?.jobKey
+              || ''
+            ).toLowerCase();
+            const normalizedBasis = jobSlug.includes('golfplaat-dak')
+              ? normalizeGolfplaatBasisItems(convertedBasis)
+              : convertedBasis;
 
             // A2. Toevoegingen (components → pure geometry with semantic keys)
             const rawComponents = (maatwerkObj as any)?.toevoegingen || [];
@@ -535,7 +649,7 @@ export async function POST(req: Request) {
             enrichedJob.maatwerk = {
               basis: {
                 omschrijving: `Hoofdberekening voor ${jobTitle}`,
-                items: convertedBasis
+                items: normalizedBasis
               },
               toevoegingen: cleanToevoegingen,
               notities: (maatwerkObj && typeof maatwerkObj === 'object' && !Array.isArray(maatwerkObj))
@@ -554,7 +668,7 @@ export async function POST(req: Request) {
             // B1. Materials from materialen_lijst (primary source)
             const materialenLijst = enrichedJob.materialen?.materialen_lijst || {};
             Object.entries(materialenLijst).forEach(([slotKey, entry]: [string, any]) => {
-              const enriched = sanitizeEntryRule(enrichMaterial(entry));
+              let enriched = sanitizeEntryRule(enrichMaterial(entry));
               if (!enriched?.material) return;
               const isComponentEntry = slotKey.startsWith('comp_') || enriched.type === 'component_material';
               const rawSectionKey = typeof enriched.sectionKey === 'string' ? enriched.sectionKey : null;
@@ -575,10 +689,13 @@ export async function POST(req: Request) {
                 if (normalizedSectionKey === 'isolatie') normalizedSectionKey = 'koof_isolatie';
               }
 
+              const finalSectionKey = normalizedSectionKey || slotKey;
+              enriched = normalizeGolfplaatRuleEntry(enriched, jobSlug, finalSectionKey);
+
               const qty = enriched.quantity ?? enriched.aantal ?? null;
               normalizedMaterialenLijst[slotKey] = {
                 ...enriched,
-                sectionKey: normalizedSectionKey || slotKey,
+                sectionKey: finalSectionKey,
                 quantity: qty,
                 aantal: qty,
                 context: enriched.context || `Basis: ${jobTitle}`,

@@ -121,7 +121,7 @@ export function VisualizerController({
                 <EPDMDrawing
                     {...normalizedItem}
                     openings={item.openings}
-                    dakrandWidth={item.dakrand_breedte}
+                    dakrandWidth={50}
                     edgeTop={item.edge_top}
                     edgeBottom={item.edge_bottom}
                     edgeLeft={item.edge_left}
@@ -139,8 +139,13 @@ export function VisualizerController({
         if (slug.includes('golfplaat-dak')) {
             return (
                 <GolfplaatDrawing
-                    lengte={item.lengte}
-                    hoogte={item.breedte}
+                    lengte={item.hoogte ?? item.breedte}
+                    hoogte={item.lengte}
+                    balkafstand={item.balkafstand}
+                    startFromRight={item.startFromRight}
+                    includeTopBottomGording={item.includeTopBottomGording}
+                    aantalDaken={item.aantal_daken}
+                    tussenmuur={item.tussenmuur}
                     openings={item.openings}
                     fitContainer={fitContainer}
                     className={className}

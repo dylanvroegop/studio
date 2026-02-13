@@ -51,7 +51,6 @@ export function EPDMDrawing({
     const [draggingId, setDraggingId] = React.useState<string | null>(null);
     const dragStartRef = React.useRef<{ x: number; y: number; opId: string; origLeft: number; origBottom: number } | null>(null);
     const metricsRef = React.useRef<any>(null);
-    const clipBaseId = React.useId(); // Move hook to top level
 
     const handlePointerDown = (e: React.PointerEvent, op: any) => {
         if (!onOpeningsChange) return;
@@ -325,15 +324,18 @@ export function EPDMDrawing({
                     const dx = p2.x - p1.x;
                     const dy = p2.y - p1.y;
                     const len = Math.sqrt(dx * dx + dy * dy);
+                    if (len <= 0) return null;
                     let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+                    const ux = dx / len;
+                    const uy = dy / len;
 
                     const midX = (p1.x + p2.x) / 2;
                     const midY = (p1.y + p2.y) / 2;
 
                     // Calculate Inside Normal (Clockwise winding -> 90deg right is inside)
                     // Normal = (-dy, dx) normalized
-                    const nx = -dy / len;
-                    const ny = dx / len;
+                    const nx = -uy;
+                    const ny = ux;
 
                     // Label Position (Inside)
                     const textDist = 25;
@@ -355,6 +357,29 @@ export function EPDMDrawing({
 
                     // Beam Visualization
                     const showBeam = !isWall && dakrandNum > 0;
+                    const trimStartRaw =
+                        side === 'right' ? (edgeTop === 'free' ? thickness : 0)
+                            : side === 'left' ? (edgeBottom === 'free' ? thickness : 0)
+                                : 0;
+                    const trimEndRaw =
+                        side === 'right' ? (edgeBottom === 'free' ? thickness : 0)
+                            : side === 'left' ? (edgeTop === 'free' ? thickness : 0)
+                                : 0;
+                    const maxTrimTotal = Math.max(0, len - 1);
+                    const trimScale =
+                        trimStartRaw + trimEndRaw > maxTrimTotal && trimStartRaw + trimEndRaw > 0
+                            ? maxTrimTotal / (trimStartRaw + trimEndRaw)
+                            : 1;
+                    const trimStart = trimStartRaw * trimScale;
+                    const trimEnd = trimEndRaw * trimScale;
+                    const beamStartX = p1.x + (ux * trimStart);
+                    const beamStartY = p1.y + (uy * trimStart);
+                    const beamEndX = p2.x - (ux * trimEnd);
+                    const beamEndY = p2.y - (uy * trimEnd);
+                    const beamInnerStartX = beamStartX + (nx * thickness);
+                    const beamInnerStartY = beamStartY + (ny * thickness);
+                    const beamInnerEndX = beamEndX + (nx * thickness);
+                    const beamInnerEndY = beamEndY + (ny * thickness);
 
                     // Interaction Zone (Invisible but clickable)
                     const hitThickness = 40;
@@ -365,12 +390,10 @@ export function EPDMDrawing({
 
                             {/* Visual Beam (Only if dakrand) */}
                             {showBeam && (
-                                <line
-                                    x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-                                    stroke="rgb(70, 75, 85)"
-                                    strokeWidth={thickness * 2} // Double width, then clipped effectively
-                                    strokeOpacity={0.5}
-                                    clipPath={`url(#${clipId})`} // We'll need a clip path for the whole shape
+                                <path
+                                    d={`M ${beamStartX} ${beamStartY} L ${beamEndX} ${beamEndY} L ${beamInnerEndX} ${beamInnerEndY} L ${beamInnerStartX} ${beamInnerStartY} Z`}
+                                    fill="rgb(70, 75, 85)"
+                                    fillOpacity={0.5}
                                 />
                             )}
 
@@ -396,18 +419,8 @@ export function EPDMDrawing({
                     );
                 };
 
-                // --- Clip Path for Beams ---
-                // We define a clip path matching the main polygon so 'centered' edge-strokes are cut in half (inner part remains)
-                const clipId = `poly-clip-${clipBaseId.replace(/:/g, '')}`;
-
                 return (
                     <>
-                        <defs>
-                            <clipPath id={clipId}>
-                                <path d={outlinePath} />
-                            </clipPath>
-                        </defs>
-
                         {/* Shape Outline / Surface */}
                         <path d={outlinePath} fill="none" stroke="rgb(70, 75, 85)" strokeWidth="0.5" />
 

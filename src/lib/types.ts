@@ -297,6 +297,7 @@ export type Material = {
   prijs_per_stuk?: number;
   eenheid: string;
   leverancier: string;
+  ai_extra_data?: Record<string, unknown>;
   updatedAt: Timestamp;
 };
 
