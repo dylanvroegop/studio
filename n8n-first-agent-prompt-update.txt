@@ -1,0 +1,3 @@
+**EXTRA TAAK:**
+Genereer ook een lijst van 5-10 specifieke Nederlandse zoekwoorden voor kleinmateriaalgroepen die nodig kunnen zijn (bijv. 'schroef', 'kit', 'plug', 'tape', 'gips').
+Voeg dit toe aan je JSON output als een nieuw veld: `"keywords": ["woord1", "woord2", ...]`

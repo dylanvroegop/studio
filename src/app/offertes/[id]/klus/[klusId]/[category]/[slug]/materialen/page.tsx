@@ -2266,10 +2266,13 @@ export default function GenericMaterialsPageRedesigned() {
         // NOTE: hiddenCategories are now stored ONLY in user profile (hidden_categories_by_job)
         // We no longer load from klusNode.uiState.hiddenCategories (per-quote storage removed)
 
-        // Apply job-specific defaults (not override user preferences, just set initial values)
-        const defaultHiddenForDeuren = (jobSlug === 'binnendeur-afhangen' || jobSlug === 'buitendeur-afhangen')
-          ? { glas: true, tochtstrips: true, ventilatie: true }
-          : null;
+        // Apply job-specific defaults (first-visit defaults only; never override saved user prefs)
+        const defaultHiddenForJob: Record<string, boolean> | null =
+          (jobSlug === 'binnendeur-afhangen' || jobSlug === 'buitendeur-afhangen')
+            ? { glas: true, tochtstrips: true, ventilatie: true }
+            : (jobSlug === 'golfplaat-dak')
+              ? { isolatie: true, afwerking_dak: true }
+              : null;
 
         // Auto-unhide categories that have active components (force-show these)
         const componentBasedUnhide: Record<string, boolean> = {};
@@ -2296,8 +2299,8 @@ export default function GenericMaterialsPageRedesigned() {
           }
 
           // Apply job defaults only for keys not already set by user
-          if (defaultHiddenForDeuren) {
-            Object.entries(defaultHiddenForDeuren).forEach(([key, value]) => {
+          if (defaultHiddenForJob) {
+            Object.entries(defaultHiddenForJob).forEach(([key, value]) => {
               if (merged[key] === undefined) merged[key] = value;
             });
           }

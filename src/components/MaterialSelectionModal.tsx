@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil } from 'lucide-react';
+import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -369,6 +369,7 @@ export function MaterialSelectionModal({
 
   // Edit State
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const showDevCopyButton = process.env.NODE_ENV === 'development';
 
   // Form State
   const [customNaam, setCustomNaam] = useState<string>('');
@@ -1108,6 +1109,17 @@ export function MaterialSelectionModal({
     }
   };
 
+  const copyMaterialName = async (name: string): Promise<void> => {
+    const materialName = (name || '').trim();
+    if (!materialName || typeof navigator === 'undefined' || !navigator.clipboard) return;
+
+    try {
+      await navigator.clipboard.writeText(materialName);
+    } catch (error) {
+      console.error('Kon materiaalnaam niet kopieren:', error);
+    }
+  };
+
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen && onUpdateWaste) {
       onUpdateWaste(wastePercentage);
@@ -1466,6 +1478,24 @@ export function MaterialSelectionModal({
                     {visibleMaterials.map((mat) => (
                       <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
                         <div className="w-full flex items-stretch">
+
+                            {/* DEV: COPY MATERIAL NAME */}
+                            {showDevCopyButton && (
+                              <div className="flex items-center justify-center px-3 border-r border-border/30 hover:bg-muted/50 transition-colors">
+                                <button
+                                  type="button"
+                                  aria-label={`Kopieer materiaalnaam ${mat.materiaalnaam || ''}`}
+                                  title="Dev: kopieer materiaalnaam"
+                                  className="text-muted-foreground/50 hover:text-foreground focus:outline-none transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void copyMaterialName(mat.materiaalnaam || '');
+                                  }}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )}
 
                             {/* FAVORITE */}
                             {showFavorites && (

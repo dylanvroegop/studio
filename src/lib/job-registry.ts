@@ -984,13 +984,13 @@ const DAK_GOLFPLAAT_MATS: MaterialSection[] = [
   // 3. GOLFPLATEN
   { label: 'Golfplaten', categoryFilter: 'Golfplaten', category: 'dak', key: 'golfplaten', category_ultra_filter: '' },
   { label: 'Lichtplaten', categoryFilter: 'Golfplaten', category: 'dak', key: 'lichtplaten', category_ultra_filter: '' },
-  { label: 'Nokstukken', categoryFilter: 'Daktoebehoren, Overig', category: 'dak', key: 'nokstukken', category_ultra_filter: '' },
-  { label: 'Zijstukken / Hoekstukken', categoryFilter: 'Daktoebehoren, Overig', category: 'dak', key: 'hoekstukken', category_ultra_filter: '' },
+  { label: 'Nokstukken', categoryFilter: 'Golfplaten', category: 'dak', key: 'nokstukken', category_ultra_filter: '' },
+  { label: 'Zijstukken / Hoekstukken', categoryFilter: 'Golfplaten', category: 'dak', key: 'hoekstukken', category_ultra_filter: '' },
 
   // 4. BEVESTIGING & AFWERKING
-  { label: 'Golfplaatschroeven', categoryFilter: 'Golfplaten', category: 'afwerking_dak', key: 'golfplaatschroeven', category_ultra_filter: '' },
-  { label: 'Dakgoot', categoryFilter: 'Ubbink, Overig', category: 'afwerking_dak', key: 'dakgoot', category_ultra_filter: '' },
-  { label: 'HWA Afvoer', categoryFilter: 'Ubbink, Overig', category: 'afwerking_dak', key: 'hwa', category_ultra_filter: '' },
+  { label: 'Golfplaatschroeven', categoryFilter: 'Golfplaten', category: 'bevestiging', key: 'golfplaatschroeven', category_ultra_filter: '' },
+  { label: 'Dakgoot', categoryFilter: 'all', category: 'afwerking_dak', key: 'dakgoot', category_ultra_filter: '' },
+  { label: 'HWA Afvoer', categoryFilter: 'all', category: 'afwerking_dak', key: 'hwa', category_ultra_filter: '' },
 ];
 
 //#region ========================================== MATERIAL SECTIONS - BOEIBOORDEN ==========================================
@@ -1995,7 +1995,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           hout: { title: 'Framewerk', order: 1 },
           isolatie: { title: 'Isolatie & Folies', order: 2 },
           dak: { title: 'Golfplaten', order: 3 },
-          afwerking_dak: { title: 'Bevestiging & Afwerking', order: 4 },
+          bevestiging: { title: 'Golfplaat schroeven', order: 4 },
+          afwerking_dak: { title: 'Dakgoot & HWA', order: 5 },
         }
       },
     ],

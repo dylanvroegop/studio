@@ -1,5 +1,25 @@
+// 1. Get Keywords from Input
+// Preferred input field: $json.zoekwoorden
+// Backward-compatible fallback: $json.keywords
+const items = ($input && $input.all) ? $input.all() : [{ json: {} }];
+const firstJson = (items.length > 0 && items[0].json) ? items[0].json : {};
+const inputKeywords = (firstJson.zoekwoorden ?? firstJson.keywords ?? []);
 
-  {
+// Normalize to array of lowercase strings
+const keywords = (typeof inputKeywords === 'string')
+  ? inputKeywords.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+  : (Array.isArray(inputKeywords)
+    ? inputKeywords.map((s) => String(s).trim().toLowerCase()).filter(Boolean)
+    : []);
+
+// No fake defaults in production flow; empty keywords should return empty output.
+if (keywords.length === 0) {
+  return [];
+}
+
+// 2. The Material List (Embedded)
+const allMaterials =
+  [{
     "materiaalnaam": "Bandschroef ph 35 mm 1000 st zwart grove draad",
     "categorie": "Schroeven"
   },
@@ -10207,4 +10227,40 @@
     "materiaalnaam": "Multifill 5L",
     "categorie": "Overig"
   }
-]
+  ];
+
+// 3. Search Logic
+const maxResults = 75; // Increased safety net
+const scoredResults = [];
+
+for (let i = 0; i < allMaterials.length; i++) {
+  const item = allMaterials[i];
+  const name = (item.materiaalnaam || "").toLowerCase();
+  const category = (item.categorie || "").toLowerCase();
+
+  let score = 0;
+  // Calculate score for this item based on keywords
+  for (const kw of keywords) {
+    if (name.includes(kw)) score += 10;      // Name match is strong
+    if (category.includes(kw)) score += 5;   // Category match is medium
+    if (name === kw) score += 20;            // Exact name best
+    if (category === kw) score += 15;        // Exact category better
+  }
+
+  if (score > 0) {
+    // Only add if it has a relevance score
+    scoredResults.push({ item, score, name }); // Store name for tie-breaking
+  }
+}
+
+// Sort by score (descending), then by name (ascending) for deterministic results
+scoredResults.sort((a, b) => {
+  if (b.score !== a.score) return b.score - a.score;
+  return a.name.localeCompare(b.name);
+});
+
+// Take top results
+const topResults = scoredResults.slice(0, maxResults).map(r => r.item);
+
+// 4. Output for next node
+return topResults.map(r => ({ json: r }));
