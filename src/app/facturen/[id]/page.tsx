@@ -13,7 +13,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { ArrowLeft, Download, Loader2, Mail, ReceiptText } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, Loader2, Mail, ReceiptText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -84,6 +84,7 @@ export default function FactuurDetailPage() {
   const [payReference, setPayReference] = useState<string>('');
   const [payNote, setPayNote] = useState<string>('');
   const [paySaving, setPaySaving] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -260,6 +261,39 @@ export default function FactuurDetailPage() {
     } catch (e) {
       console.error(e);
       toast({ title: 'Fout', description: 'Kon status niet bijwerken.', variant: 'destructive' });
+    }
+  };
+
+  const handleMarkPaid = async () => {
+    if (!firestore || !invoiceId || markingPaid) return;
+    setMarkingPaid(true);
+    try {
+      await runTransaction(firestore, async (tx) => {
+        const invRef = doc(firestore, 'invoices', invoiceId);
+        const snap = await tx.get(invRef);
+        if (!snap.exists()) throw new Error('Factuur niet gevonden');
+
+        const data = snap.data() as any;
+        const total = Number(data?.totalsSnapshot?.totaalInclBtw ?? 0) || 0;
+        const paidNow = Number(data?.paymentSummary?.paidAmount ?? 0) || 0;
+        const nextPaidAmount = Math.max(total, paidNow);
+
+        tx.update(invRef, {
+          status: 'betaald',
+          'paymentSummary.paidAmount': nextPaidAmount,
+          'paymentSummary.openAmount': 0,
+          'paymentSummary.lastPaymentAt': data?.paymentSummary?.lastPaymentAt ?? serverTimestamp(),
+          paidAt: data?.paidAt ?? serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });
+    } catch (e) {
+      console.error(e);
+      toast({ title: 'Fout', description: 'Kon status niet bijwerken.', variant: 'destructive' });
+    } finally {
+      setMarkingPaid(false);
     }
   };
 
@@ -455,6 +489,16 @@ export default function FactuurDetailPage() {
                   disabled={invoice.status !== 'concept'}
                 >
                   Markeer als verzonden
+                </Button>
+                <Button
+                  type="button"
+                  variant={invoice.status === 'betaald' ? 'secondary' : 'success'}
+                  className="h-9 gap-2"
+                  onClick={handleMarkPaid}
+                  disabled={invoice.status === 'betaald' || markingPaid}
+                >
+                  {markingPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {invoice.status === 'betaald' ? 'Betaald' : 'Markeer als betaald'}
                 </Button>
               </div>
             </CardContent>

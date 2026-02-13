@@ -206,6 +206,80 @@ async function haalBedrijfsgegevensOp(db: FirebaseFirestore.Firestore, quote: an
   return bedrijf;
 }
 
+function bepaalTestWebhookUrl(productieUrl: string): string | null {
+  const clean = (productieUrl || '').trim();
+  if (!clean) return null;
+
+  if (clean.includes('/webhook-test/')) return clean;
+  if (clean.includes('/webhook/')) return clean.replace('/webhook/', '/webhook-test/');
+
+  return null;
+}
+
+function isTestWebhookNietActief(status: number, body: string): boolean {
+  if (status === 404 || status === 410) return true;
+
+  const txt = (body || '').toLowerCase();
+  if (!txt) return false;
+
+  const heeftWebhook = txt.includes('webhook');
+  const nietGeregistreerd = txt.includes('not registered') || txt.includes('is not registered');
+  const nietGevonden = txt.includes('not found');
+
+  return heeftWebhook && (nietGeregistreerd || nietGevonden);
+}
+
+async function postN8nMetTestFallback(payload: unknown, secret: string): Promise<void> {
+  const productieUrl = process.env.N8N_WEBHOOK_URL?.trim();
+  if (!productieUrl) throw new Error('ENV ontbreekt: N8N_WEBHOOK_URL');
+
+  const explicieteTestUrl = process.env.N8N_WEBHOOK_TEST_URL?.trim();
+  const testUrl = explicieteTestUrl || bepaalTestWebhookUrl(productieUrl);
+
+  const headers = {
+    'content-type': 'application/json',
+    'x-offertehulp-secret': secret.trim(),
+  };
+
+  const body = JSON.stringify(payload);
+
+  const post = async (url: string) => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text };
+  };
+
+  if (testUrl && testUrl !== productieUrl) {
+    let testResult: { ok: boolean; status: number; text: string } | null = null;
+
+    try {
+      testResult = await post(testUrl);
+    } catch (err) {
+      console.warn('n8n test webhook request faalde, fallback naar productie.', err);
+    }
+
+    if (testResult?.ok) return;
+
+    if (testResult && !isTestWebhookNietActief(testResult.status, testResult.text)) {
+      throw new Error(`n8n test error ${testResult.status}: ${testResult.text}`);
+    }
+
+    if (testResult) {
+      console.warn(`n8n test webhook niet actief (status ${testResult.status}), fallback naar productie.`);
+    }
+  }
+
+  const productieResult = await post(productieUrl);
+  if (!productieResult.ok) {
+    throw new Error(`n8n productie error ${productieResult.status}: ${productieResult.text}`);
+  }
+}
+
 /**
  * POST
  */
@@ -621,17 +695,7 @@ export async function POST(req: Request) {
       bedrijf,
     };
 
-    const res = await fetch(process.env.N8N_WEBHOOK_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-offertehulp-secret': process.env.N8N_HEADER_SECRET,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const tekst = await res.text();
-    if (!res.ok) throw new Error(`n8n error ${res.status}: ${tekst}`);
+    await postN8nMetTestFallback(payload, process.env.N8N_HEADER_SECRET);
 
     // Best effort: sync totaal direct to Firestore so quotes list stays up-to-date.
     await syncQuoteTotalsFromSupabase(db, quoteId);

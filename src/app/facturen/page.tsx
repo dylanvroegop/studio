@@ -9,12 +9,13 @@ import {
   getDocs,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   Timestamp,
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { Calendar, Loader2, Pencil, Plus, ReceiptText, Search, Trash2, FileText } from 'lucide-react';
+import { Calendar, CheckCircle2, Loader2, Pencil, Plus, ReceiptText, Search, Trash2, FileText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +38,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { toast } from '@/hooks/use-toast';
 
 type FilterMode = 'alle' | 'openstaand' | 'betaald';
 
@@ -84,6 +86,7 @@ export default function FacturenPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<(Invoice & { issueDateDate: Date | null }) | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -193,6 +196,39 @@ export default function FacturenPage() {
       setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon factuur niet archiveren.'}`);
     } finally {
       setArchiving(false);
+    }
+  }
+
+  async function markInvoiceAsPaid(inv: Invoice & { issueDateDate: Date | null }) {
+    if (!user || !firestore || markingPaidId) return;
+    setMarkingPaidId(inv.id);
+    try {
+      await runTransaction(firestore, async (tx) => {
+        const invRef = doc(firestore, 'invoices', inv.id);
+        const snap = await tx.get(invRef);
+        if (!snap.exists()) throw new Error('Factuur niet gevonden');
+
+        const data = snap.data() as any;
+        const total = Number(data?.totalsSnapshot?.totaalInclBtw ?? 0) || 0;
+        const paidNow = Number(data?.paymentSummary?.paidAmount ?? 0) || 0;
+        const nextPaidAmount = Math.max(total, paidNow);
+
+        tx.update(invRef, {
+          status: 'betaald',
+          'paymentSummary.paidAmount': nextPaidAmount,
+          'paymentSummary.openAmount': 0,
+          'paymentSummary.lastPaymentAt': data?.paymentSummary?.lastPaymentAt ?? serverTimestamp(),
+          paidAt: data?.paidAt ?? serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: 'Fout', description: e?.message ?? 'Kon factuur niet op betaald zetten.', variant: 'destructive' });
+    } finally {
+      setMarkingPaidId((current) => (current === inv.id ? null : current));
     }
   }
 
@@ -378,6 +414,8 @@ export default function FacturenPage() {
             <div className="space-y-3">
               {filtered.map((inv) => {
                 const open = inv.paymentSummary?.openAmount ?? inv.totalsSnapshot?.totaalInclBtw ?? 0;
+                const totaal = inv.totalsSnapshot?.totaalInclBtw ?? 0;
+                const amountToShow = inv.status === 'betaald' ? totaal : open;
                 const klant = inv.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant';
                 const datum = inv.issueDateDate;
                 const nrLabel = inv.invoiceNumberLabel ? `Factuur #${inv.invoiceNumberLabel}` : null;
@@ -426,15 +464,42 @@ export default function FacturenPage() {
                         <span
                           className={cn(
                             "font-semibold tracking-wide",
-                            open > 0 ? "text-emerald-400" : "text-zinc-600"
+                            inv.status === 'betaald' || amountToShow > 0 ? "text-emerald-400" : "text-zinc-600"
                           )}
                         >
-                          {formatCurrency(open)}
+                          {formatCurrency(amountToShow)}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={inv.status === 'betaald' ? 'secondary' : 'outline'}
+                        className={cn(
+                          'gap-2 h-9 shadow-sm',
+                          inv.status === 'betaald'
+                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/20'
+                            : 'bg-zinc-900/70 hover:bg-zinc-800 border border-white/5'
+                        )}
+                        disabled={inv.status === 'betaald' || markingPaidId === inv.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          void markInvoiceAsPaid(inv);
+                        }}
+                      >
+                        {markingPaidId === inv.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+                        <span className="text-xs sm:text-sm">
+                          {inv.status === 'betaald' ? 'Betaald' : 'Markeer als betaald'}
+                        </span>
+                      </Button>
+
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button

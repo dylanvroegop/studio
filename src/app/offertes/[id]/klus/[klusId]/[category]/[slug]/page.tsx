@@ -2597,6 +2597,8 @@ export default function GenericMeasurementPage() {
                         const showBreedte = shape === 'rectangle' && !!fBreedte;
 
                         const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak) && showLengte && showHoogte;
+                        const useInlineLengteBreedte = !useSideBySideLengteHoogte && showLengte && showBreedte;
+                        const showSwapDimensions = !useSideBySideLengteHoogte && showLengte && (showHoogte || showBreedte);
                         const useSideBySidePannenAfmetingen = isHellendDak && !!fAantalPannenBreedte && !!fAantalPannenHoogte;
                         const dakpanBreedteRange = formatWerkendeRange(dakpanWerkendeMaten?.minBreedteMm ?? null, dakpanWerkendeMaten?.maxBreedteMm ?? null);
                         const dakpanHoogteRange = formatWerkendeRange(dakpanWerkendeMaten?.minHoogteMm ?? null, dakpanWerkendeMaten?.maxHoogteMm ?? null);
@@ -2678,6 +2680,24 @@ export default function GenericMeasurementPage() {
                               <div className="grid grid-cols-2 gap-3 items-end">
                                 <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                                 <DynamicInput field={fHoogte!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                              </div>
+                            ) : useInlineLengteBreedte ? (
+                              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 items-end">
+                                <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                <div className="flex justify-center pb-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full bg-zinc-900 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all shadow-md group/swap"
+                                    onClick={() => handleSwapDimensions(index, 'lengte', 'breedte')}
+                                    disabled={disabledAll}
+                                    title="Wissel afmetingen"
+                                  >
+                                    <ArrowDownUp className="h-4 w-4 rotate-90" />
+                                  </Button>
+                                </div>
+                                <DynamicInput field={fBreedte!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               </div>
                             ) : showLengte && (
                               <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
@@ -2773,7 +2793,7 @@ export default function GenericMeasurementPage() {
                               );
                             })()}
 
-                            {!useSideBySideLengteHoogte && showLengte && (showHoogte || showBreedte) && (
+                            {!useInlineLengteBreedte && showSwapDimensions && (
                               <div className="flex justify-center -my-2 relative z-10">
                                 <Button
                                   type="button"
@@ -2784,7 +2804,7 @@ export default function GenericMeasurementPage() {
                                   disabled={disabledAll}
                                   title="Wissel afmetingen"
                                 >
-                                  <ArrowDownUp className="h-4 w-4" />
+                                  <ArrowDownUp className="h-4 w-4 rotate-90" />
                                 </Button>
                               </div>
                             )}
@@ -2805,7 +2825,7 @@ export default function GenericMeasurementPage() {
                             {!useSideBySideLengteHoogte && showHoogte && (
                               <DynamicInput field={fHoogte!} value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
-                            {showBreedte && (
+                            {!useInlineLengteBreedte && showBreedte && (
                               <DynamicInput field={fBreedte!} value={item.breedte} onChange={v => updateItem(index, 'breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                             )}
                           </div>

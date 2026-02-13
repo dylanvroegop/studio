@@ -37,7 +37,7 @@
 - For first time users, force to set pdf instellingen pop-up the way they prefer.
 - make sure that the 'onder voorbehoud' is also a toggle button, just like the 'voorschot' is.
 - Test how you implement rk gips for wanden liggend VS staand in app decision.
-- Have notes be separate showing 4 lines of text instead of 1. and fix the text itself.
+- Have notes be separate showing 4 liinnes of text instead of 1. and fix the text itself.
 - make sure the toggle button for 'afval' is bigger in width, so the last 10% is used for clickable to toggle.
 - Remove ability to ever in any measurement or number box to hit - or e etc
 - Systeem plafond new job type under 'plafonds', make sure to implement a basic mats into job-registry.

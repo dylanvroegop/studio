@@ -117,6 +117,94 @@ function toStableSortTime(value: any): number {
   return Number.MAX_SAFE_INTEGER;
 }
 
+function jobHasPendingMaterial(job: any): boolean {
+  const materialenLijst = job?.materialen?.materialen_lijst;
+  const pendingFromMaterialList =
+    !!materialenLijst &&
+    typeof materialenLijst === 'object' &&
+    Object.values(materialenLijst).some((entry: any) => {
+    const material = entry?.material ?? entry;
+    if (!material || typeof material !== 'object') return false;
+
+    const state = String(material.pending_material_state || '').trim().toLowerCase();
+    if (state === 'resolved' || state === 'done' || state === 'success') return false;
+
+    const hasPendingId = Boolean(material.pending_material_id || material.pending_id);
+    if (!hasPendingId && !state) return false;
+
+    // If we already have a concrete non-pending row/id and no active pending state, treat as resolved.
+    const materialRef =
+      String(material.row_id || material.id || material.material_ref_id || '').trim();
+    const hasResolvedRef = !!materialRef && !materialRef.startsWith('pending_');
+    if (hasResolvedRef && !state) return false;
+
+    if (state === 'analyzing' || state === 'needs_answer' || state === 'saving' || state === 'error') {
+      return true;
+    }
+
+    return hasPendingId;
+  });
+
+  return pendingFromMaterialList;
+}
+
+function extractJobsFromQuoteData(data: any, quoteId: string): any[] {
+  const extractedJobs: any[] = [];
+  let loadIndex = 0;
+  const klussen: any = data?.klussen;
+
+  if (klussen && typeof klussen === 'object') {
+    for (const klusId in klussen) {
+      const container: any = klussen[klusId] || {};
+
+      const klusinformatie = container.klusinformatie ?? {};
+      const materialen = container.materialen ?? {};
+      const werkwijze = container.werkwijze ?? null;
+      const kleinMateriaal = container.kleinMateriaal ?? null;
+      const meta = container.meta ?? null;
+      const maatwerk = container.maatwerk ?? null;
+      const maatwerkMeta = maatwerk?.meta ?? null;
+
+      const jobKey =
+        (materialen?.jobKey as string | undefined) ||
+        (maatwerkMeta?.slug as string | undefined) ||
+        (meta?.slug as string | undefined) ||
+        (meta?.jobKey as string | undefined) ||
+        (klusinformatie?.slug as string | undefined) ||
+        (klusinformatie?.jobKey as string | undefined) ||
+        'klus';
+
+      extractedJobs.push({
+        id: klusId,
+        quoteId,
+        klusId,
+        jobKey,
+        meta,
+        maatwerk,
+        klusinformatie,
+        materialen,
+        werkwijze,
+        kleinMateriaal,
+        createdAt: container.createdAt ?? null,
+        updatedAt: container.updatedAt ?? null,
+        __loadIndex: loadIndex++,
+      });
+    }
+  }
+
+  return [...extractedJobs]
+    .sort((a: any, b: any) => {
+      const ta = toStableSortTime(a?.createdAt);
+      const tb = toStableSortTime(b?.createdAt);
+      if (ta !== tb) return ta - tb; // oldest first
+      return (a?.__loadIndex ?? 0) - (b?.__loadIndex ?? 0); // fallback: original read order
+    })
+    .map((j: any) => {
+      const { __loadIndex, ...rest } = j;
+      return rest;
+    });
+}
+
 function jobIsComplete(job: any): boolean {
   // Legacy support
   const selections = job?.materialen?.selections;
@@ -139,6 +227,8 @@ function jobIsComplete(job: any): boolean {
 
   const workMethodId = job?.werkwijze?.workMethodId;
   const hasWorkMethodId = !!workMethodId && workMethodId !== 'default';
+
+  if (jobHasPendingMaterial(job)) return false;
 
   return hasSelections || hasMaterialenLijst || hasWerkwijzePreset || hasWorkMethodId;
 }
@@ -708,61 +798,7 @@ export default function OverzichtPage() {
 
         setQuote(data);
 
-        // Jobs
-        const extractedJobs: any[] = [];
-        let loadIndex = 0;
-        const klussen: any = (data as any).klussen;
-
-        if (klussen && typeof klussen === 'object') {
-          for (const klusId in klussen) {
-            const container: any = klussen[klusId] || {};
-
-            const klusinformatie = container.klusinformatie ?? {};
-            const materialen = container.materialen ?? {};
-            const werkwijze = container.werkwijze ?? null;
-            const kleinMateriaal = container.kleinMateriaal ?? null;
-            const meta = container.meta ?? null;
-            const maatwerk = container.maatwerk ?? null;
-            const maatwerkMeta = maatwerk?.meta ?? null;
-
-            const jobKey =
-              (materialen?.jobKey as string | undefined) ||
-              (maatwerkMeta?.slug as string | undefined) ||
-              (meta?.slug as string | undefined) ||
-              (meta?.jobKey as string | undefined) ||
-              (klusinformatie?.slug as string | undefined) ||
-              (klusinformatie?.jobKey as string | undefined) ||
-              'klus';
-
-            extractedJobs.push({
-              id: klusId,
-              quoteId,
-              klusId,
-              jobKey,
-              meta,
-              maatwerk,
-              klusinformatie,
-              materialen,
-              werkwijze,
-              kleinMateriaal,
-              createdAt: container.createdAt ?? null,
-              updatedAt: container.updatedAt ?? null,
-              __loadIndex: loadIndex++,
-            });
-          }
-        }
-
-        const sortedJobs = [...extractedJobs].sort((a: any, b: any) => {
-          const ta = toStableSortTime(a?.createdAt);
-          const tb = toStableSortTime(b?.createdAt);
-          if (ta !== tb) return ta - tb; // oldest first
-          return (a?.__loadIndex ?? 0) - (b?.__loadIndex ?? 0); // fallback: original read order
-        }).map((j: any) => {
-          const { __loadIndex, ...rest } = j;
-          return rest;
-        });
-
-        setJobs(sortedJobs as any);
+        setJobs(extractJobsFromQuoteData(data as any, quoteId) as any);
 
         // User instellingen (veilig)
         const instellingen = await leesGebruikerInstellingen();
@@ -940,19 +976,22 @@ export default function OverzichtPage() {
     const totaal = jobs.length;
     const compleet = jobs.filter((j: any) => jobIsComplete(j)).length;
     const incompleet = Math.max(0, totaal - compleet);
+    const pending = jobs.filter((j: any) => jobHasPendingMaterial(j)).length;
 
     return {
       totaal,
       compleet,
       incompleet,
+      pending,
       transportIsValid,
       winstMargeIsValid,
-      isReady: totaal > 0 && incompleet === 0 && transportIsValid && winstMargeIsValid,
+      isReady: totaal > 0 && incompleet === 0 && pending === 0 && transportIsValid && winstMargeIsValid,
     };
   }, [jobs, transportIsValid, winstMargeIsValid]);
 
   const primaryHint = useMemo(() => {
     if (stats.totaal === 0) return 'Voeg minimaal 1 klus toe.';
+    if (stats.pending > 0) return 'Nieuwe materialen worden nog op de achtergrond verwerkt. Wacht even met berekenen.';
     if (stats.incompleet > 0) return 'Er zijn nog onvolledige klussen. Werk ze eerst af.';
     if (!stats.transportIsValid) return 'Transport is niet ingevuld. Kies "Geen" of vul een bedrag in.';
     if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies "Geen" of vul een bedrag/percentage in.';
@@ -961,11 +1000,47 @@ export default function OverzichtPage() {
 
   const statusVariant = useMemo(() => {
     if (stats.totaal === 0) return 'warn';
+    if (stats.pending > 0) return 'warn';
     if (stats.incompleet > 0) return 'error';
     if (!stats.transportIsValid) return 'error';
     if (!stats.winstMargeIsValid) return 'error';
     return 'success';
   }, [stats]);
+
+  // Keep overview fresh while background materiaal-upserts are still running.
+  useEffect(() => {
+    if (!firestore || !user || !quoteId) return;
+    if (stats.pending <= 0) return;
+
+    let cancelled = false;
+    const qRef = doc(firestore, 'quotes', quoteId);
+
+    const refreshPendingState = async () => {
+      try {
+        const snap = await getDoc(qRef);
+        if (!snap.exists() || cancelled) return;
+
+        const data = snap.data() as Quote;
+        const ownerUid = (data as any)?.klantinformatie?.userId || (data as any)?.userId;
+        if (!ownerUid || ownerUid !== (user as any).uid || cancelled) return;
+
+        setQuote(data);
+        setJobs(extractJobsFromQuoteData(data as any, quoteId) as any);
+      } catch (err) {
+        console.warn('Kon pending status niet verversen op overzicht:', err);
+      }
+    };
+
+    void refreshPendingState();
+    const intervalId = setInterval(() => {
+      void refreshPendingState();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [firestore, user, quoteId, stats.pending]);
 
   const bouwplaatsCollapsedLabels = useMemo(() => {
     const items = (buildBouwplaatsSparse() ?? []) as Array<{

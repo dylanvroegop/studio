@@ -44,13 +44,15 @@ interface GrootCompareQuoteColumn {
     label: string;
     offerteNummer: number | null;
     grootSubtotal: number;
+    verbruikSubtotal: number;
     totalHours: number | null;
-    itemsByProduct: Record<string, { aantal: number; totaal: number }>;
+    itemsByProduct: Record<string, { aantal: number; totaal: number; detail: string }>;
+    verbruikItemsByProduct: Record<string, { aantal: number; totaal: number; detail: string }>;
 }
 
 interface GrootCompareRow {
     product: string;
-    values: Array<{ aantal: number | null; totaal: number | null }>;
+    values: Array<{ aantal: number; totaal: number; detail: string }>;
 }
 
 export default function QuotePage() {
@@ -85,7 +87,7 @@ export default function QuotePage() {
 
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
-    const [activeTab, setActiveTab] = useState('pdf');
+    const [activeTab, setActiveTab] = useState('materialen');
     const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
 
     const [materials, setMaterials] = useState<{
@@ -129,6 +131,10 @@ export default function QuotePage() {
     const [grootCompareError, setGrootCompareError] = useState<string | null>(null);
     const [grootCompareQuotes, setGrootCompareQuotes] = useState<GrootCompareQuoteColumn[]>([]);
     const [grootCompareRows, setGrootCompareRows] = useState<GrootCompareRow[]>([]);
+    const [verbruikCompareRows, setVerbruikCompareRows] = useState<GrootCompareRow[]>([]);
+    const [showGrootCalculation, setShowGrootCalculation] = useState(false);
+    const [showVerbruikToelichting, setShowVerbruikToelichting] = useState(false);
+    const [compareMaterialView, setCompareMaterialView] = useState<'groot' | 'verbruik'>('groot');
 
     useEffect(() => {
         let cancelled = false;
@@ -758,17 +764,69 @@ export default function QuotePage() {
 
         setIsComparingGrootPrices(true);
         setGrootCompareError(null);
+        setShowGrootCalculation(false);
+        setShowVerbruikToelichting(false);
+        setCompareMaterialView('groot');
 
         try {
+            const summarizeMaterialItems = (
+                items: any[],
+                productNameByKey: Map<string, string>,
+                detailFields: string[]
+            ): { itemsByProduct: Record<string, { aantal: number; totaal: number; detail: string }>; subtotal: number } => {
+                const itemsByProduct: Record<string, { aantal: number; totaal: number; detail: string }> = {};
+                let subtotal = 0;
+
+                for (const item of items) {
+                    const name = String(item?.product || '').trim();
+                    if (!name) continue;
+                    const key = name.toLowerCase();
+                    const parsedPrice = parsePriceToNumber((item as any)?.prijs_per_stuk ?? (item as any)?.prijs_excl_btw ?? (item as any)?.prijs);
+                    const parsedAantal = parsePriceToNumber((item as any)?.aantal);
+                    const prijs = parsedPrice !== null && Number.isFinite(parsedPrice) ? parsedPrice : 0;
+                    const aantal = parsedAantal !== null && Number.isFinite(parsedAantal) ? parsedAantal : 0;
+                    const regelTotaal = prijs * aantal;
+                    const detailText = detailFields
+                        .map((field) => item?.[field])
+                        .find((value) => typeof value === 'string' && value.trim().length > 0);
+
+                    subtotal += regelTotaal;
+
+                    const existing = itemsByProduct[key] || { aantal: 0, totaal: 0, detail: '' };
+                    const detailParts = existing.detail ? existing.detail.split(' | ') : [];
+                    const normalizedDetail = typeof detailText === 'string' ? detailText.trim() : '';
+                    const mergedDetail =
+                        normalizedDetail && !detailParts.includes(normalizedDetail)
+                            ? detailParts.concat(normalizedDetail).join(' | ')
+                            : existing.detail;
+
+                    itemsByProduct[key] = {
+                        aantal: Number((existing.aantal + aantal).toFixed(2)),
+                        totaal: Number((existing.totaal + regelTotaal).toFixed(2)),
+                        detail: mergedDetail,
+                    };
+
+                    if (!productNameByKey.has(key)) {
+                        productNameByKey.set(key, name);
+                    }
+                }
+
+                return {
+                    itemsByProduct,
+                    subtotal: Number(subtotal.toFixed(2)),
+                };
+            };
+
             const quotesSnapshot = await getDocs(
                 query(collection(firestore, 'quotes'), where('userId', '==', user.uid))
             );
 
-            const recentQuotes = quotesSnapshot.docs
+            const sortedActiveQuotes = quotesSnapshot.docs
                 .map((docSnap) => {
                     const data = docSnap.data() as any;
                     const offerteNummerRaw = Number(data?.offerteNummer);
                     const offerteNummer = Number.isFinite(offerteNummerRaw) ? offerteNummerRaw : null;
+                    const archived = data?.archived === true;
                     const createdAtMs =
                         typeof data?.createdAt?.toMillis === 'function'
                             ? data.createdAt.toMillis()
@@ -779,16 +837,26 @@ export default function QuotePage() {
                     return {
                         quoteId: docSnap.id,
                         offerteNummer,
+                        archived,
                         createdAtMs,
                     };
                 })
+                .filter((quoteMeta) => !quoteMeta.archived)
                 .sort((a, b) => {
                     const aNr = a.offerteNummer ?? -1;
                     const bNr = b.offerteNummer ?? -1;
                     if (aNr !== bNr) return bNr - aNr;
                     return b.createdAtMs - a.createdAtMs;
-                })
-                .slice(0, 3);
+                });
+
+            const currentQuoteMeta = sortedActiveQuotes.find((quoteMeta) => quoteMeta.quoteId === id);
+            const otherRecentQuotes = sortedActiveQuotes
+                .filter((quoteMeta) => quoteMeta.quoteId !== id)
+                .slice(0, 2);
+
+            const recentQuotes = currentQuoteMeta
+                ? [currentQuoteMeta, ...otherRecentQuotes]
+                : sortedActiveQuotes.slice(0, 3);
 
             if (recentQuotes.length === 0) {
                 throw new Error('Geen offertes gevonden voor vergelijking.');
@@ -811,45 +879,21 @@ export default function QuotePage() {
                 latestCalculationByQuote.set(row.quoteid, row as { quoteid: string; data_json: unknown });
             }
 
-            const productNameByKey = new Map<string, string>();
+            const grootProductNameByKey = new Map<string, string>();
+            const verbruikProductNameByKey = new Map<string, string>();
 
             const quoteColumns: GrootCompareQuoteColumn[] = recentQuotes.map((quoteMeta, index) => {
                 const calculationRow = latestCalculationByQuote.get(quoteMeta.quoteId);
                 const normalized = calculationRow?.data_json ? normalizeDataJson(calculationRow.data_json as any) : null;
                 const grootItems = Array.isArray(normalized?.grootmaterialen) ? normalized.grootmaterialen : [];
-                const itemsByProduct: Record<string, { aantal: number; totaal: number }> = {};
-
-                for (const item of grootItems) {
-                    const name = String(item?.product || '').trim();
-                    if (!name) continue;
-                    const key = name.toLowerCase();
-                    const parsedPrice = parsePriceToNumber((item as any)?.prijs_per_stuk ?? (item as any)?.prijs_excl_btw ?? (item as any)?.prijs);
-                    const parsedAantal = parsePriceToNumber((item as any)?.aantal);
-                    const prijs = parsedPrice !== null && Number.isFinite(parsedPrice) ? parsedPrice : 0;
-                    const aantal = parsedAantal !== null && Number.isFinite(parsedAantal) ? parsedAantal : 0;
-                    const regelTotaal = prijs * aantal;
-
-                    const existing = itemsByProduct[key] || { aantal: 0, totaal: 0 };
-                    itemsByProduct[key] = {
-                        aantal: Number((existing.aantal + aantal).toFixed(2)),
-                        totaal: Number((existing.totaal + regelTotaal).toFixed(2)),
-                    };
-
-                    if (!productNameByKey.has(key)) {
-                        productNameByKey.set(key, name);
-                    }
-                }
-
-                const grootSubtotal = grootItems.reduce((sum, item) => {
-                    const parsedPrice = parsePriceToNumber((item as any)?.prijs_per_stuk ?? (item as any)?.prijs_excl_btw ?? (item as any)?.prijs);
-                    const parsedAantal = parsePriceToNumber((item as any)?.aantal);
-                    const prijs = parsedPrice !== null && Number.isFinite(parsedPrice) ? parsedPrice : 0;
-                    const aantal = parsedAantal !== null && Number.isFinite(parsedAantal) ? parsedAantal : 0;
-                    return sum + prijs * aantal;
-                }, 0);
+                const verbruikItems = Array.isArray(normalized?.verbruiksartikelen) ? normalized.verbruiksartikelen : [];
+                const grootSummary = summarizeMaterialItems(grootItems, grootProductNameByKey, ['hoe_berekend', 'berekening']);
+                const verbruikSummary = summarizeMaterialItems(verbruikItems, verbruikProductNameByKey, ['waarom_dit', 'toelichting']);
 
                 const label =
-                    quoteMeta.offerteNummer !== null
+                    quoteMeta.quoteId === id
+                        ? `Huidige offerte${quoteMeta.offerteNummer !== null ? ` (${quoteMeta.offerteNummer})` : ''}`
+                        : quoteMeta.offerteNummer !== null
                         ? `Offerte ${quoteMeta.offerteNummer}`
                         : `Offerte ${index + 1}`;
 
@@ -862,31 +906,49 @@ export default function QuotePage() {
                     quoteId: quoteMeta.quoteId,
                     label,
                     offerteNummer: quoteMeta.offerteNummer,
-                    grootSubtotal: Number(grootSubtotal.toFixed(2)),
+                    grootSubtotal: grootSummary.subtotal,
+                    verbruikSubtotal: verbruikSummary.subtotal,
                     totalHours,
-                    itemsByProduct,
+                    itemsByProduct: grootSummary.itemsByProduct,
+                    verbruikItemsByProduct: verbruikSummary.itemsByProduct,
                 };
             });
 
-            const sortedProductKeys = Array.from(productNameByKey.keys()).sort((a, b) =>
-                (productNameByKey.get(a) || '').localeCompare(productNameByKey.get(b) || '', 'nl')
+            const sortedGrootProductKeys = Array.from(grootProductNameByKey.keys()).sort((a, b) =>
+                (grootProductNameByKey.get(a) || '').localeCompare(grootProductNameByKey.get(b) || '', 'nl')
             );
 
-            const compareRows: GrootCompareRow[] = sortedProductKeys.map((productKey) => {
+            const compareRows: GrootCompareRow[] = sortedGrootProductKeys.map((productKey) => {
                 const values = quoteColumns.map((col) => {
                     const item = col.itemsByProduct[productKey];
-                    if (!item) return { aantal: null, totaal: null };
-                    return { aantal: item.aantal, totaal: item.totaal };
+                    return item ? { aantal: item.aantal, totaal: item.totaal, detail: item.detail } : { aantal: 0, totaal: 0, detail: '' };
                 });
 
                 return {
-                    product: productNameByKey.get(productKey) || productKey,
+                    product: grootProductNameByKey.get(productKey) || productKey,
+                    values,
+                };
+            });
+
+            const sortedVerbruikProductKeys = Array.from(verbruikProductNameByKey.keys()).sort((a, b) =>
+                (verbruikProductNameByKey.get(a) || '').localeCompare(verbruikProductNameByKey.get(b) || '', 'nl')
+            );
+
+            const verbruikRows: GrootCompareRow[] = sortedVerbruikProductKeys.map((productKey) => {
+                const values = quoteColumns.map((col) => {
+                    const item = col.verbruikItemsByProduct[productKey];
+                    return item ? { aantal: item.aantal, totaal: item.totaal, detail: item.detail } : { aantal: 0, totaal: 0, detail: '' };
+                });
+
+                return {
+                    product: verbruikProductNameByKey.get(productKey) || productKey,
                     values,
                 };
             });
 
             setGrootCompareQuotes(quoteColumns);
             setGrootCompareRows(compareRows);
+            setVerbruikCompareRows(verbruikRows);
             setIsGrootCompareOpen(true);
         } catch (error: any) {
             setGrootCompareError(error?.message || 'Vergelijken mislukt.');
@@ -903,6 +965,12 @@ export default function QuotePage() {
             maximumFractionDigits: 2,
         }).format(value);
     };
+    const hasGrootCalculationDetails = grootCompareRows.some((row) =>
+        row.values.some((value) => value.detail.trim().length > 0)
+    );
+    const hasVerbruikToelichtingDetails = verbruikCompareRows.some((row) =>
+        row.values.some((value) => value.detail.trim().length > 0)
+    );
 
     // Calculate subtotals for display
     const grootSubtotal = materials.groot.reduce(
@@ -1384,15 +1452,6 @@ export default function QuotePage() {
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
                             <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
-                                <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <FileText size={16} /> PDF Preview
-                                </TabsTrigger>
-                                <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <Euro size={16} /> Overzicht
-                                </TabsTrigger>
-                                <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <PenTool size={16} /> Tekeningen
-                                </TabsTrigger>
                                 <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <Package size={16} />
                                     {materialsWithoutPrice > 0 && (
@@ -1403,8 +1462,17 @@ export default function QuotePage() {
                                     )}
                                     Materialen
                                 </TabsTrigger>
+                                <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <Euro size={16} /> Overzicht
+                                </TabsTrigger>
                                 <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <Clock size={16} /> Arbeid
+                                </TabsTrigger>
+                                <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <PenTool size={16} /> Tekeningen
+                                </TabsTrigger>
+                                <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <FileText size={16} /> PDF Preview
                                 </TabsTrigger>
                                 <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <MessageSquare size={16} /> Notities
@@ -1692,7 +1760,7 @@ export default function QuotePage() {
                                                 ) : (
                                                     <Eye className="mr-2 h-3.5 w-3.5" />
                                                 )}
-                                                Compare laatste 3 offertes materialen (groot): aantal + totaal
+                                                Compare huidige + 2 offertes materialen (groot + verbruik): aantal + totaal
                                             </Button>
                                         </div>
                                     )}
@@ -1729,9 +1797,9 @@ export default function QuotePage() {
                                     <Dialog open={isGrootCompareOpen} onOpenChange={setIsGrootCompareOpen}>
                                         <DialogContent className="sm:max-w-6xl max-h-[94vh] overflow-hidden">
                                             <DialogHeader>
-                                                <DialogTitle>Vergelijking laatste 3 offertes - Grootmaterialen</DialogTitle>
+                                                <DialogTitle>Vergelijking huidige + 2 offertes - Materialen</DialogTitle>
                                                 <DialogDescription>
-                                                    Vergelijkt per product het aantal en de regel-totalen in je meest recente offertes.
+                                                    Vergelijkt grootmaterialen en verbruiksmaterialen op aantal en regel-totalen. Ontbrekende producten worden als 0 getoond.
                                                 </DialogDescription>
                                             </DialogHeader>
 
@@ -1740,7 +1808,7 @@ export default function QuotePage() {
                                                     {grootCompareError}
                                                 </div>
                                             ) : (
-                                                <div className="space-y-4 overflow-y-auto">
+                                                <div className="space-y-5 overflow-y-auto">
                                                     <div className="grid gap-2 md:grid-cols-3">
                                                         {grootCompareQuotes.map((quoteColumn) => (
                                                             <div
@@ -1753,66 +1821,165 @@ export default function QuotePage() {
                                                                 <div className="text-sm font-medium">
                                                                     Totaal groot: {formatCurrency(quoteColumn.grootSubtotal)}
                                                                 </div>
+                                                                <div className="text-sm font-medium">
+                                                                    Totaal verbruik: {formatCurrency(quoteColumn.verbruikSubtotal)}
+                                                                </div>
                                                             </div>
                                                         ))}
                                                     </div>
 
-                                                    <div className="rounded-md border border-border overflow-hidden">
-                                                        <div className="max-h-[72vh] overflow-auto">
-                                                            <table className="w-full border-collapse text-sm">
-                                                                <thead className="bg-muted/30">
-                                                                    <tr>
-                                                                        <th className="px-3 py-2 text-left font-semibold">Product</th>
-                                                                        {grootCompareQuotes.map((quoteColumn) => (
-                                                                            <th key={quoteColumn.quoteId} className="px-3 py-2 text-right font-semibold">
-                                                                                {quoteColumn.offerteNummer !== null ? `#${quoteColumn.offerteNummer}` : quoteColumn.label}
-                                                                            </th>
-                                                                        ))}
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    <tr className="border-t border-border bg-muted/10">
-                                                                        <td className="px-3 py-2 font-medium">Uren</td>
-                                                                        {grootCompareQuotes.map((quoteColumn) => (
-                                                                            <td key={`hours-${quoteColumn.quoteId}`} className="px-3 py-2 text-right font-mono">
-                                                                                {quoteColumn.totalHours === null ? '—' : `${formatAantal(quoteColumn.totalHours)} u`}
-                                                                            </td>
-                                                                        ))}
-                                                                    </tr>
-                                                                    {grootCompareRows.length === 0 ? (
-                                                                        <tr>
-                                                                            <td
-                                                                                colSpan={grootCompareQuotes.length + 1}
-                                                                                className="px-3 py-4 text-center text-muted-foreground"
-                                                                            >
-                                                                                Geen grootmaterialen gevonden in de laatste offertes.
-                                                                            </td>
-                                                                        </tr>
-                                                                    ) : (
-                                                                        grootCompareRows.map((row) => (
-                                                                            <tr key={row.product} className="border-t border-border">
-                                                                                <td className="px-3 py-2">{row.product}</td>
-                                                                                {row.values.map((value, index) => (
-                                                                                    <td key={`${row.product}-${index}`} className="px-3 py-2 text-right">
-                                                                                        {value.aantal === null || value.totaal === null ? (
-                                                                                            <span className="font-mono">—</span>
-                                                                                        ) : (
-                                                                                            <div className="flex flex-col items-end leading-tight">
-                                                                                                <span className="font-mono">{formatAantal(value.aantal)} st</span>
-                                                                                                <span className="text-xs text-muted-foreground font-mono">
-                                                                                                    {formatCurrency(value.totaal)}
-                                                                                                </span>
-                                                                                            </div>
-                                                                                        )}
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant={compareMaterialView === 'groot' ? 'default' : 'outline'}
+                                                            onClick={() => setCompareMaterialView('groot')}
+                                                        >
+                                                            Grootmaterialen
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant={compareMaterialView === 'verbruik' ? 'default' : 'outline'}
+                                                            onClick={() => setCompareMaterialView('verbruik')}
+                                                        >
+                                                            Verbruiksmaterialen
+                                                        </Button>
+                                                    </div>
+
+                                                    {compareMaterialView === 'groot' && (
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Grootmaterialen</h4>
+                                                                {hasGrootCalculationDetails && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs text-muted-foreground">Laat berekening zien</span>
+                                                                        <Switch checked={showGrootCalculation} onCheckedChange={setShowGrootCalculation} />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="rounded-md border border-border overflow-hidden">
+                                                                <div className="max-h-[52vh] overflow-auto">
+                                                                    <table className="w-full border-collapse text-sm">
+                                                                        <thead className="bg-muted/30">
+                                                                            <tr>
+                                                                                <th className="px-3 py-2 text-left font-semibold">Product</th>
+                                                                                {grootCompareQuotes.map((quoteColumn) => (
+                                                                                    <th key={`groot-head-${quoteColumn.quoteId}`} className="px-3 py-2 text-right font-semibold">
+                                                                                        {quoteColumn.offerteNummer !== null ? `#${quoteColumn.offerteNummer}` : quoteColumn.label}
+                                                                                    </th>
+                                                                                ))}
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr className="border-t border-border bg-muted/10">
+                                                                                <td className="px-3 py-2 font-medium">Uren</td>
+                                                                                {grootCompareQuotes.map((quoteColumn) => (
+                                                                                    <td key={`hours-${quoteColumn.quoteId}`} className="px-3 py-2 text-right font-mono">
+                                                                                        {quoteColumn.totalHours === null ? '—' : `${formatAantal(quoteColumn.totalHours)} u`}
                                                                                     </td>
                                                                                 ))}
                                                                             </tr>
-                                                                        ))
-                                                                    )}
-                                                                </tbody>
-                                                            </table>
+                                                                            {grootCompareRows.length === 0 ? (
+                                                                                <tr>
+                                                                                    <td
+                                                                                        colSpan={grootCompareQuotes.length + 1}
+                                                                                        className="px-3 py-4 text-center text-muted-foreground"
+                                                                                    >
+                                                                                        Geen grootmaterialen gevonden in de geselecteerde offertes.
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ) : (
+                                                                                grootCompareRows.map((row) => (
+                                                                                    <tr key={`groot-${row.product}`} className="border-t border-border">
+                                                                                        <td className="px-3 py-2">{row.product}</td>
+                                                                                        {row.values.map((value, index) => (
+                                                                                            <td key={`groot-${row.product}-${index}`} className="px-3 py-2 text-right">
+                                                                                                <div className="flex flex-col items-end leading-tight">
+                                                                                                    <span className="font-mono">{formatAantal(value.aantal)} st</span>
+                                                                                                    <span className="text-xs text-muted-foreground font-mono">
+                                                                                                        {formatCurrency(value.totaal)}
+                                                                                                    </span>
+                                                                                                    {showGrootCalculation && (
+                                                                                                        <span className="mt-1 max-w-[28ch] text-[11px] text-muted-foreground/90">
+                                                                                                            {value.detail || '—'}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </td>
+                                                                                        ))}
+                                                                                    </tr>
+                                                                                ))
+                                                                            )}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    )}
+
+                                                    {compareMaterialView === 'verbruik' && (
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Verbruiksmaterialen</h4>
+                                                                {hasVerbruikToelichtingDetails && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs text-muted-foreground">Laat toelichting zien</span>
+                                                                        <Switch checked={showVerbruikToelichting} onCheckedChange={setShowVerbruikToelichting} />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="rounded-md border border-border overflow-hidden">
+                                                                <div className="max-h-[52vh] overflow-auto">
+                                                                    <table className="w-full border-collapse text-sm">
+                                                                        <thead className="bg-muted/30">
+                                                                            <tr>
+                                                                                <th className="px-3 py-2 text-left font-semibold">Product</th>
+                                                                                {grootCompareQuotes.map((quoteColumn) => (
+                                                                                    <th key={`verbruik-head-${quoteColumn.quoteId}`} className="px-3 py-2 text-right font-semibold">
+                                                                                        {quoteColumn.offerteNummer !== null ? `#${quoteColumn.offerteNummer}` : quoteColumn.label}
+                                                                                    </th>
+                                                                                ))}
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {verbruikCompareRows.length === 0 ? (
+                                                                                <tr>
+                                                                                    <td
+                                                                                        colSpan={grootCompareQuotes.length + 1}
+                                                                                        className="px-3 py-4 text-center text-muted-foreground"
+                                                                                    >
+                                                                                        Geen verbruiksmaterialen gevonden in de geselecteerde offertes.
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ) : (
+                                                                                verbruikCompareRows.map((row) => (
+                                                                                    <tr key={`verbruik-${row.product}`} className="border-t border-border">
+                                                                                        <td className="px-3 py-2">{row.product}</td>
+                                                                                        {row.values.map((value, index) => (
+                                                                                            <td key={`verbruik-${row.product}-${index}`} className="px-3 py-2 text-right">
+                                                                                                <div className="flex flex-col items-end leading-tight">
+                                                                                                    <span className="font-mono">{formatAantal(value.aantal)} st</span>
+                                                                                                    <span className="text-xs text-muted-foreground font-mono">
+                                                                                                        {formatCurrency(value.totaal)}
+                                                                                                    </span>
+                                                                                                    {showVerbruikToelichting && (
+                                                                                                        <span className="mt-1 max-w-[28ch] text-[11px] text-muted-foreground/90">
+                                                                                                            {value.detail || '—'}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </td>
+                                                                                        ))}
+                                                                                    </tr>
+                                                                                ))
+                                                                            )}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </DialogContent>

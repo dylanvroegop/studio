@@ -101,7 +101,7 @@ export default function EditQuotePage() {
         <div className="mx-auto w-full max-w-5xl">
           <div className="rounded-3xl border bg-card/55 shadow-sm backdrop-blur-xl">
             <div className="oh-cta-green p-5 sm:p-6">
-              <NewQuoteForm quoteId={quoteId} />
+              <NewQuoteForm quoteId={quoteId} backHref={`/offertes/${quoteId}`} />
             </div>
           </div>
         </div>

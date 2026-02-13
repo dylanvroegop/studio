@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { parsePriceToNumber } from '@/lib/utils';
+import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,8 +37,22 @@ type Body = {
   // Safety follow-up flow
   safety_confirmed?: unknown;
   safety_answer?: unknown;
+  safety_answers?: unknown;
   expected_unit?: unknown;
   safety_expected_unit?: unknown;
+
+  // Durable pending queue context
+  pending_id?: unknown;
+  quote_id?: unknown;
+  klus_id?: unknown;
+};
+
+type SafetyQuestion = {
+  key: string;
+  question: string;
+  expectedUnit: string;
+  targetField: string;
+  valueType: string;
 };
 
 function isNonEmptyString(v: unknown): v is string {
@@ -151,8 +166,8 @@ function extractN8nRow(input: any): Record<string, unknown> | null {
   return null;
 }
 
-function extractN8nSafetyPrompt(input: any): { ready?: boolean; question: string; expectedUnit: string } {
-  if (input == null) return { question: '', expectedUnit: '' };
+function extractN8nSafetyPrompt(input: any): { ready?: boolean; question: string; expectedUnit: string; questions: SafetyQuestion[] } {
+  if (input == null) return { question: '', expectedUnit: '', questions: [] };
 
   let candidate: unknown = input;
   if (Array.isArray(candidate)) {
@@ -163,7 +178,7 @@ function extractN8nSafetyPrompt(input: any): { ready?: boolean; question: string
     try {
       candidate = JSON.parse(candidate);
     } catch {
-      return { question: '', expectedUnit: '' };
+      return { question: '', expectedUnit: '', questions: [] };
     }
   }
 
@@ -180,9 +195,47 @@ function extractN8nSafetyPrompt(input: any): { ready?: boolean; question: string
     }
   }
 
-  if (!candidate || typeof candidate !== 'object') return { question: '', expectedUnit: '' };
+  if (!candidate || typeof candidate !== 'object') return { question: '', expectedUnit: '', questions: [] };
 
   const obj = candidate as Record<string, unknown>;
+  const normalizeQuestion = (raw: unknown): SafetyQuestion | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const row = raw as Record<string, unknown>;
+    const question = normalizeString(row.question ?? row.vraag) ?? '';
+    if (!question) return null;
+    const key =
+      normalizeString(row.key) ??
+      normalizeString(row.code) ??
+      normalizeString(row.id) ??
+      'naam_suffix';
+    const expectedUnit =
+      normalizeString(
+        row.expected_unit ??
+        row.expectedUnit ??
+        row.answer_unit ??
+        row.answerUnit ??
+        row.unit ??
+        row.eenheid
+      ) ?? '';
+    const targetField =
+      normalizeString(row.target_field ?? row.targetField) ??
+      (key === 'verbruik_per_m2' ? 'verbruik_per_m2' : 'naam_suffix');
+    const valueType = normalizeString(row.value_type ?? row.valueType) ?? 'text';
+
+    return {
+      key,
+      question,
+      expectedUnit,
+      targetField,
+      valueType,
+    };
+  };
+
+  const questionsRaw = Array.isArray(obj.questions) ? obj.questions : [];
+  const normalizedQuestions = questionsRaw
+    .map((entry) => normalizeQuestion(entry))
+    .filter((entry): entry is SafetyQuestion => Boolean(entry));
+
   const questionRaw = obj.question ?? obj.vraag;
   const expectedUnitRaw =
     obj.expected_unit ??
@@ -192,11 +245,105 @@ function extractN8nSafetyPrompt(input: any): { ready?: boolean; question: string
     obj.unit ??
     obj.eenheid;
 
+  const fallbackQuestion = typeof questionRaw === 'string' ? questionRaw.trim() : '';
+  const fallbackExpectedUnit = typeof expectedUnitRaw === 'string' ? expectedUnitRaw.trim() : '';
+
+  const questions =
+    normalizedQuestions.length > 0
+      ? normalizedQuestions
+      : (fallbackQuestion
+        ? [{
+            key: 'naam_suffix',
+            question: fallbackQuestion,
+            expectedUnit: fallbackExpectedUnit,
+            targetField: 'naam_suffix',
+            valueType: 'text',
+          }]
+        : []);
+
+  const first = questions[0];
+
   return {
     ready: typeof obj.ready === 'boolean' ? obj.ready : undefined,
-    question: typeof questionRaw === 'string' ? questionRaw.trim() : '',
-    expectedUnit: typeof expectedUnitRaw === 'string' ? expectedUnitRaw.trim() : '',
+    question: first?.question ?? fallbackQuestion,
+    expectedUnit: first?.expectedUnit ?? fallbackExpectedUnit,
+    questions,
   };
+}
+
+function buildResolvedMaterialSnapshotForQuote(
+  raw: unknown,
+  rowId: string,
+  fallbackName: string
+): Record<string, unknown> {
+  const base: Record<string, unknown> =
+    raw && typeof raw === 'object'
+      ? { ...(raw as Record<string, unknown>) }
+      : {};
+
+  delete base.pending_material_id;
+  delete base.pending_material_state;
+  delete base.pending_material_question;
+  delete base.pending_material_error;
+  delete base._raw;
+
+  base.row_id = rowId;
+  base.id = rowId;
+  base.material_ref_id = rowId;
+
+  const existingName = normalizeString(base.materiaalnaam);
+  if (!existingName && fallbackName) {
+    base.materiaalnaam = fallbackName;
+  }
+
+  return base;
+}
+
+function replacePendingMaterialInNode(
+  value: unknown,
+  pendingId: string,
+  resolvedMaterial: Record<string, unknown>
+): { value: unknown; changed: boolean } {
+  if (Array.isArray(value)) {
+    let changed = false;
+    const next = value.map((item) => {
+      const replaced = replacePendingMaterialInNode(item, pendingId, resolvedMaterial);
+      if (replaced.changed) changed = true;
+      return replaced.value;
+    });
+    return changed ? { value: next, changed: true } : { value, changed: false };
+  }
+
+  if (!value || typeof value !== 'object') {
+    return { value, changed: false };
+  }
+
+  const obj = value as Record<string, unknown>;
+  const directPendingId = normalizeString(obj.pending_material_id);
+  if (directPendingId === pendingId) {
+    return { value: { ...resolvedMaterial }, changed: true };
+  }
+
+  let changed = false;
+  const next: Record<string, unknown> = {};
+
+  Object.entries(obj).forEach(([key, child]) => {
+    if (key === 'material' && child && typeof child === 'object') {
+      const childObj = child as Record<string, unknown>;
+      const childPendingId = normalizeString(childObj.pending_material_id);
+      if (childPendingId === pendingId) {
+        next[key] = { ...resolvedMaterial };
+        changed = true;
+        return;
+      }
+    }
+
+    const replaced = replacePendingMaterialInNode(child, pendingId, resolvedMaterial);
+    next[key] = replaced.value;
+    if (replaced.changed) changed = true;
+  });
+
+  return changed ? { value: next, changed: true } : { value, changed: false };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -284,6 +431,119 @@ export async function POST(req: Request) {
 
     // 3) Body
     const body = (await req.json()) as Body;
+    const db = getFirestore();
+    const pendingId = normalizeString(body.pending_id);
+    const quoteId = normalizeString(body.quote_id);
+    const klusId = normalizeString(body.klus_id);
+    const hasPendingContext = Boolean(pendingId && quoteId && klusId);
+    let quoteOwnershipChecked = false;
+    let quoteOwnedByUser = false;
+
+    const ensureOwnedQuote = async (): Promise<boolean> => {
+      if (!hasPendingContext) return false;
+      if (quoteOwnershipChecked) return quoteOwnedByUser;
+      quoteOwnershipChecked = true;
+      try {
+        const snap = await db.collection('quotes').doc(quoteId!).get();
+        const ownerUid = typeof snap.get('userId') === 'string'
+          ? String(snap.get('userId'))
+          : (typeof snap.data()?.userId === 'string' ? String(snap.data()?.userId) : null);
+        quoteOwnedByUser = snap.exists && ownerUid === uid;
+      } catch {
+        quoteOwnedByUser = false;
+      }
+      return quoteOwnedByUser;
+    };
+
+    const writePendingState = async (
+      patch: Record<string, unknown>,
+      options?: { remove?: boolean; setCreatedAt?: boolean }
+    ): Promise<void> => {
+      if (!hasPendingContext) return;
+      const allowed = await ensureOwnedQuote();
+      if (!allowed) return;
+
+      const quoteRef = db.collection('quotes').doc(quoteId!);
+      const basePath = `klussen.${klusId}.materialen.pending_materials.${pendingId}`;
+      const legacyFieldNames = new Set<string>([
+        basePath,
+        `${basePath}.id`,
+        `${basePath}.updatedAt`,
+        `${basePath}.createdAt`,
+      ]);
+      Object.keys(patch).forEach((key) => {
+        legacyFieldNames.add(`${basePath}.${key}`);
+      });
+
+      const cleanupArgs: Array<FieldPath | FieldValue> = [];
+      legacyFieldNames.forEach((fieldName) => {
+        cleanupArgs.push(new FieldPath(fieldName), FieldValue.delete());
+      });
+      try {
+        if (cleanupArgs.length > 0) {
+          await (quoteRef as any).update(...cleanupArgs);
+        }
+      } catch {
+        // Best effort cleanup van oude foutieve veldnamen met punten.
+      }
+
+      if (options?.remove) {
+        await quoteRef.update({ [basePath]: FieldValue.delete() });
+        return;
+      }
+
+      const updatePayload: Record<string, unknown> = {
+        [`${basePath}.id`]: pendingId,
+        [`${basePath}.updatedAt`]: FieldValue.serverTimestamp(),
+      };
+      if (options?.setCreatedAt) {
+        updatePayload[`${basePath}.createdAt`] = FieldValue.serverTimestamp();
+      }
+      Object.entries(patch).forEach(([key, value]) => {
+        updatePayload[`${basePath}.${key}`] = value;
+      });
+
+      await quoteRef.update(updatePayload);
+    };
+
+    const replacePendingMaterialInQuote = async (
+      resolvedMaterial: Record<string, unknown>
+    ): Promise<boolean> => {
+      if (!hasPendingContext) return false;
+      const allowed = await ensureOwnedQuote();
+      if (!allowed) return false;
+
+      const quoteRef = db.collection('quotes').doc(quoteId!);
+      const snap = await quoteRef.get();
+      if (!snap.exists) return false;
+
+      const materialenLijst = snap.get(`klussen.${klusId}.materialen.materialen_lijst`);
+      if (!materialenLijst || typeof materialenLijst !== 'object') return false;
+
+      const replaced = replacePendingMaterialInNode(materialenLijst, pendingId!, resolvedMaterial);
+      if (!replaced.changed || !replaced.value || typeof replaced.value !== 'object') return false;
+
+      try {
+        await quoteRef.update(
+          new FieldPath(`klussen.${klusId}.materialen.materialen_lijst`),
+          FieldValue.delete(),
+          new FieldPath(`klussen.${klusId}.materialen.savedAt`),
+          FieldValue.delete(),
+          new FieldPath(`klussen.${klusId}.updatedAt`),
+          FieldValue.delete()
+        );
+      } catch {
+        // Best effort cleanup van oude foutieve veldnamen met punten.
+      }
+
+      await quoteRef.update({
+        [`klussen.${klusId}.materialen.materialen_lijst`]: replaced.value,
+        [`klussen.${klusId}.materialen.savedAt`]: FieldValue.serverTimestamp(),
+        [`klussen.${klusId}.updatedAt`]: FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    };
 
     // ✅ FIXED HERE: We check "typeof === string" so Typescript allows .trim()
     const naam = typeof body.materiaalnaam === 'string' ? body.materiaalnaam.trim() : null;
@@ -302,6 +562,10 @@ export async function POST(req: Request) {
     const hoogte = normalizeString(body.hoogte);
     const safetyConfirmed = parseBooleanLike(body.safety_confirmed);
     const safetyAnswer = normalizeString(body.safety_answer);
+    const safetyAnswers =
+      body.safety_answers && typeof body.safety_answers === 'object' && !Array.isArray(body.safety_answers)
+        ? (body.safety_answers as Record<string, unknown>)
+        : null;
     const expectedUnit =
       normalizeString(body.expected_unit) ??
       normalizeString(body.safety_expected_unit);
@@ -367,6 +631,15 @@ export async function POST(req: Request) {
     if (safetyConfirmed) payload.safety_confirmed = true;
     if (safetyAnswer) payload.safety_answer = safetyAnswer;
     if (expectedUnit) payload.expected_unit = expectedUnit;
+    if (hasPendingContext) {
+      payload.pending_id = pendingId!;
+      payload.quote_id = quoteId!;
+      payload.klus_id = klusId!;
+    }
+    const n8nPayload =
+      safetyAnswers && Object.keys(safetyAnswers).length > 0
+        ? { ...payload, safety_answers: safetyAnswers }
+        : payload;
 
     let data: any = null;
     let realRowId: string | null = null;
@@ -409,17 +682,44 @@ export async function POST(req: Request) {
       realRowId = data?.row_id ?? incomingRowId ?? null;
     } else {
       // Nieuwe materialen lopen via n8n AI-agent -> Supabase
-      n8nResponse = await stuurNaarN8nVoorMaterialenUpsert(payload, { safetyConfirmed });
+      if (hasPendingContext) {
+        await writePendingState({
+          status: safetyConfirmed ? 'saving' : 'analyzing',
+          materiaalnaam: naam,
+          expected_unit: expectedUnit,
+          safety_confirmed: safetyConfirmed,
+          draft_payload: n8nPayload,
+          error: null,
+        }, { setCreatedAt: true });
+      }
+      n8nResponse = await stuurNaarN8nVoorMaterialenUpsert(n8nPayload, { safetyConfirmed });
 
       const n8nSafety = extractN8nSafetyPrompt(n8nResponse);
-      if (n8nSafety.ready === false && n8nSafety.question) {
+      const n8nQuestions = n8nSafety.questions || [];
+      if (n8nSafety.ready === false && n8nQuestions.length > 0) {
+        const firstQuestion = n8nQuestions[0];
+        await writePendingState({
+          status: 'needs_answer',
+          question: firstQuestion?.question || n8nSafety.question,
+          expected_unit: firstQuestion?.expectedUnit || n8nSafety.expectedUnit || expectedUnit,
+          questions: n8nQuestions,
+          draft_payload: n8nPayload,
+          error: null,
+        });
         return jsonOk(
           {
             ok: true,
             data: {
               ready: false,
-              question: n8nSafety.question,
-              expected_unit: n8nSafety.expectedUnit || null,
+              question: firstQuestion?.question || n8nSafety.question,
+              expected_unit: firstQuestion?.expectedUnit || n8nSafety.expectedUnit || null,
+              questions: n8nQuestions.map((q) => ({
+                key: q.key,
+                question: q.question,
+                expected_unit: q.expectedUnit,
+                target_field: q.targetField,
+                value_type: q.valueType,
+              })),
             },
             row_id: null,
             n8n: n8nResponse,
@@ -440,7 +740,7 @@ export async function POST(req: Request) {
       // Fallback: wacht kort en haal laatste insert op als n8n geen row terugstuurt
       if (!realRowId) {
         try {
-          const lookedUp = await lookupLatestInsertedMaterial(uid, naam, safetyConfirmed ? 12 : 8, 300);
+          const lookedUp = await lookupLatestInsertedMaterial(uid, naam, safetyConfirmed ? 20 : 8, 300);
           if (lookedUp) {
             data = lookedUp;
             realRowId = normalizeString((lookedUp as any).row_id) ?? null;
@@ -451,6 +751,10 @@ export async function POST(req: Request) {
       }
 
       if (!realRowId) {
+        await writePendingState({
+          status: 'error',
+          error: 'Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw.',
+        });
         return jsonFail(
           'Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw of controleer add-workflow response.',
           502
@@ -508,6 +812,31 @@ export async function POST(req: Request) {
               null,
           }
         : data;
+
+    if (hasPendingContext && realRowId) {
+      const resolvedSnapshot = buildResolvedMaterialSnapshotForQuote(
+        normalized,
+        realRowId,
+        (normalized as any)?.materiaalnaam ?? naam
+      );
+
+      try {
+        await replacePendingMaterialInQuote(resolvedSnapshot);
+      } catch (quotePatchError) {
+        console.error('Kon pending materiaal in quote niet vervangen:', quotePatchError);
+      }
+
+      await writePendingState(
+        {
+          status: 'resolved',
+          row_id: realRowId,
+          materiaalnaam: (normalized as any)?.materiaalnaam ?? naam,
+          error: null,
+          resolvedAt: FieldValue.serverTimestamp(),
+        },
+        { remove: true }
+      );
+    }
 
     return jsonOk({ ok: true, data: normalized, row_id: realRowId, n8n: n8nResponse }, 200);
   } catch (e: any) {

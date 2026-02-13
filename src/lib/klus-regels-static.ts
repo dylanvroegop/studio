@@ -132,6 +132,15 @@ function createVlieringRuleSet(): Record<string, Record<string, any>> {
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     },
+    constructie_balken: {
+      sectionKey: 'constructie_balken',
+      group: 'constructievloer',
+      logic: 'randbalken + vloerbalken op h.o.h. + extra raveelhout bij vlizotrap-openingen',
+      formula: 'randbalk_total_mm = 2 * floor_length_mm; beam_count = ceil(floor_length_mm / balkafstand_mm) + 1; vloerbalk_total_mm = beam_count * floor_width_mm; raveel_extra_mm = sum((2 * opening_width_mm) + (2 * opening_height_mm) for opening in vlizotrap_openings); totale_lengte_mm = randbalk_total_mm + vloerbalk_total_mm + raveel_extra_mm; aantal = ceil((totale_lengte_mm) / material.lengte_mm)',
+      required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.breedte', 'maatwerk_item.balkafstand', 'material.lengte'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    },
     balkdragers: {
       sectionKey: 'balkdragers',
       group: 'constructievloer',
@@ -1877,9 +1886,11 @@ const SLUG_ALIASES: Record<string, string> = {
 
 const SECTION_KEY_ALIASES_BY_SLUG: Record<string, Record<string, string>> = {
   'vliering-maken': {
-    muurplaat: 'randbalken',
+    muurplaat: 'constructie_balken',
+    randbalken: 'constructie_balken',
+    vloerbalken: 'constructie_balken',
     isolatie: 'isolatie_basis',
-    balken: 'vloerbalken',
+    balken: 'constructie_balken',
     trap: 'vlizotrap_unit',
     vlizotrap: 'vlizotrap_unit',
     luik: 'vlizotrap_unit',

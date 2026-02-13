@@ -436,13 +436,16 @@ export function CeilingWoodDrawing({
             }
         });
 
+        const itemParams: Record<string, any> = { ...item };
+        delete itemParams.calculatedData;
+
         const data: DrawingData = {
             walls: [{ label: 'Main', lengte, hoogte: effectiveHeight, shape }],
             beams,
             openings: opsForOverlay as any,
             dimensions: [],
             params: {
-                ...item,
+                ...itemParams,
                 startFromRight,
                 startLattenFromBottom
             }

@@ -22,7 +22,9 @@ export interface ProfitInvoiceInput {
   id: string;
   status?: string;
   createdAt?: Timestamp | Date | { seconds: number };
+  updatedAt?: Timestamp | Date | { seconds: number };
   dueDate?: Timestamp | Date | { seconds: number };
+  paidAt?: Timestamp | Date | { seconds: number };
   archived?: boolean;
   invoiceNumberLabel?: string;
   sourceQuote?: {
@@ -34,7 +36,9 @@ export interface ProfitInvoiceInput {
     totaalInclBtw?: number;
   };
   paymentSummary?: {
+    paidAmount?: number;
     openAmount?: number;
+    lastPaymentAt?: Timestamp | Date | { seconds: number };
   };
 }
 
@@ -195,6 +199,34 @@ export function calculateProfitMetrics(params: {
   const activeInvoices = params.invoices.filter((inv) => !inv.archived);
   const activeInvoiceIds = new Set(activeInvoices.map((inv) => inv.id));
 
+  const recordedPaidByInvoice = new Map<string, number>();
+  params.payments.forEach((payment) => {
+    if (!activeInvoiceIds.has(payment.invoiceId)) return;
+    const current = recordedPaidByInvoice.get(payment.invoiceId) || 0;
+    recordedPaidByInvoice.set(payment.invoiceId, current + safeNumber(payment.amount));
+  });
+
+  // Fallback for invoices marked as paid without explicit payment documents.
+  const syntheticPayments: ProfitPaymentInput[] = activeInvoices.flatMap((invoice) => {
+    const expectedPaid = safeNumber(invoice.paymentSummary?.paidAmount);
+    if (expectedPaid <= 0) return [];
+
+    const recordedPaid = recordedPaidByInvoice.get(invoice.id) || 0;
+    const missing = expectedPaid - recordedPaid;
+    if (missing <= 0.0001) return [];
+
+    const fallbackDate =
+      parseDate(invoice.paidAt) ||
+      parseDate(invoice.paymentSummary?.lastPaymentAt) ||
+      parseDate(invoice.updatedAt) ||
+      parseDate(invoice.createdAt) ||
+      now;
+
+    return [{ invoiceId: invoice.id, amount: missing, date: fallbackDate }];
+  });
+
+  const effectivePayments = [...params.payments, ...syntheticPayments];
+
   const monthMap = new Map<string, ProfitMonthPoint>();
   monthBuckets.forEach((bucket) => {
     monthMap.set(bucket.key, {
@@ -249,7 +281,7 @@ export function calculateProfitMetrics(params: {
     }
   });
 
-  params.payments.forEach((payment) => {
+  effectivePayments.forEach((payment) => {
     if (!activeInvoiceIds.has(payment.invoiceId)) return;
     const date = parseDate(payment.date);
     if (!date) return;

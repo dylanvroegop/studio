@@ -86,6 +86,7 @@ import {
   getDoc,
   deleteField,
   setDoc,
+  FieldPath,
 } from 'firebase/firestore';
 
 import { useToast } from '@/hooks/use-toast';
@@ -169,6 +170,148 @@ function formatNlMoneyFromNumber(n: number | null | undefined): string {
   const [i, d] = fixed.split('.');
   const withDots = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${withDots},${d}`;
+}
+
+function mergeSafetyAnswerIntoNaam(naam: string, antwoord: string): string {
+  const cleanNaam = (naam || '').trim();
+  const cleanAntwoord = (antwoord || '').trim();
+  if (!cleanAntwoord) return cleanNaam;
+  if (cleanNaam.toLowerCase().includes(cleanAntwoord.toLowerCase())) return cleanNaam;
+  return `${cleanNaam} ${cleanAntwoord}`.replace(/\s+/g, ' ').trim();
+}
+
+function inferUnitFromQuestion(question: string): string {
+  const q = (question || '').toLowerCase();
+  if (!q) return '';
+
+  const beforeOf = q.split(/\sof\s/)[0] || q;
+  const unitMatch =
+    beforeOf.match(/\b(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)\b/i) ||
+    q.match(/\b(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)\b/i);
+  return unitMatch?.[1]?.trim() || '';
+}
+
+function applySafetyUnit(answer: string, expectedUnit: string, question: string): string {
+  const cleanAnswer = (answer || '').trim();
+  if (!cleanAnswer) return cleanAnswer;
+  if (/[a-zA-Z]/.test(cleanAnswer)) return cleanAnswer;
+
+  const unit = (expectedUnit || inferUnitFromQuestion(question)).trim();
+  if (!unit) return cleanAnswer;
+
+  if (/^\d+([.,]\d+)?$/.test(cleanAnswer)) {
+    if (/^(ml|cl|dl|liter|l|kg|g|mg|mm|cm|m3|m2|m)$/i.test(unit)) {
+      return `${cleanAnswer}${unit}`;
+    }
+    return `${cleanAnswer} ${unit}`;
+  }
+
+  return `${cleanAnswer} ${unit}`.replace(/\s+/g, ' ').trim();
+}
+
+function isVerbruikPerM2Question(question: string, expectedUnit: string): boolean {
+  const q = `${question || ''} ${expectedUnit || ''}`.toLowerCase();
+  if (!q.trim()) return false;
+
+  const hasPerM2 = /(\/m2|\/m²|per\s*m2|per\s*m²|\bm2\b|\bm²\b)/i.test(q);
+  const hasVerbruikWord = /(verbruik|consumptie|dosering|gebruik)/i.test(q);
+
+  return hasPerM2 && hasVerbruikWord;
+}
+
+function parseVerbruikPerM2Answer(answer: string): number | null {
+  const raw = (answer || '').trim().replace(/\u00a0/g, ' ');
+  if (!raw) return null;
+
+  const match = raw.match(/-?\d+(?:[.,]\d+)?/);
+  if (!match) return null;
+
+  const parsed = Number(match[0].replace(',', '.'));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Number(parsed.toFixed(6));
+}
+
+interface PendingSafetyQuestion {
+  key: string;
+  targetField: string;
+  question: string;
+  expectedUnit: string;
+  valueType: string;
+  answer: string;
+}
+
+function normalizePendingQuestions(
+  rawQuestions: unknown,
+  fallback?: { question?: string; expectedUnit?: string; answer?: string; key?: string; targetField?: string; valueType?: string }
+): PendingSafetyQuestion[] {
+  const clean = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const normalize = (raw: unknown): PendingSafetyQuestion | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const row = raw as Record<string, unknown>;
+    const question =
+      clean(row.question ?? row.vraag) ??
+      '';
+    if (!question) return null;
+
+    const key =
+      clean(row.key ?? row.code ?? row.id) ??
+      fallback?.key ??
+      'naam_suffix';
+    const expectedUnit =
+      clean(
+        row.expected_unit ??
+        row.expectedUnit ??
+        row.answer_unit ??
+        row.answerUnit ??
+        row.eenheid ??
+        row.unit
+      ) ??
+      fallback?.expectedUnit ??
+      '';
+    const targetField =
+      clean(row.target_field ?? row.targetField) ??
+      fallback?.targetField ??
+      (key === 'verbruik_per_m2' ? 'verbruik_per_m2' : 'naam_suffix');
+    const valueType =
+      clean(row.value_type ?? row.valueType) ??
+      fallback?.valueType ??
+      'text';
+    const answer =
+      clean(row.answer) ??
+      clean(fallback?.answer) ??
+      '';
+
+    return {
+      key,
+      targetField,
+      question,
+      expectedUnit,
+      valueType,
+      answer,
+    };
+  };
+
+  const list = Array.isArray(rawQuestions)
+    ? rawQuestions.map((entry) => normalize(entry)).filter((entry): entry is PendingSafetyQuestion => Boolean(entry))
+    : [];
+
+  if (list.length > 0) return list;
+
+  const legacy = normalize({
+    key: fallback?.key ?? 'naam_suffix',
+    target_field: fallback?.targetField ?? 'naam_suffix',
+    question: fallback?.question ?? '',
+    expected_unit: fallback?.expectedUnit ?? '',
+    value_type: fallback?.valueType ?? 'text',
+    answer: fallback?.answer ?? '',
+  });
+
+  return legacy ? [legacy] : [];
 }
 const BLOCKLIST = [
   'isFavorite',
@@ -553,6 +696,17 @@ interface MultiEntryEntry {
 interface MultiEntrySlotData {
   _multiEntry: true;
   entries: MultiEntryEntry[];
+}
+
+interface PendingSafetyItem {
+  id: string;
+  status: 'analyzing' | 'needs_answer' | 'saving' | 'error';
+  question: string;
+  expectedUnit: string;
+  answer: string;
+  questions: PendingSafetyQuestion[];
+  error?: string | null;
+  draftPayload: Record<string, unknown>;
 }
 
 function isMultiEntrySlot(val: any): val is MultiEntrySlotData {
@@ -969,6 +1123,7 @@ export default function GenericMaterialsPageRedesigned() {
 
     const isVoorzetwand = currentJobType === 'hsb-voorzetwand' || currentJobType === 'metalstud-voorzetwand';
     const isTussenwand = currentJobType === 'hsb-tussenwand';
+    const isVlieringMaken = currentJobType === 'vliering-maken';
 
     if (isTussenwand) {
       if (next.constructieplaat && !next.constructieplaat_1) next.constructieplaat_1 = next.constructieplaat;
@@ -993,6 +1148,17 @@ export default function GenericMaterialsPageRedesigned() {
       delete next.beplating_1;
       delete next.beplating_2;
       delete next.beplating;
+    }
+
+    if (isVlieringMaken) {
+      const legacyConstructieBalken = next.constructie_balken || next.vloerbalken || next.randbalken || next.muurplaat;
+      if (legacyConstructieBalken) {
+        next.constructie_balken = legacyConstructieBalken;
+      }
+
+      delete next.vloerbalken;
+      delete next.randbalken;
+      delete next.muurplaat;
     }
 
     return next;
@@ -1048,6 +1214,7 @@ export default function GenericMaterialsPageRedesigned() {
   const [missingPriceEenheden, setMissingPriceEenheden] = useState<Record<string, string>>({});
   const [missingPriceSaved, setMissingPriceSaved] = useState<Record<string, boolean>>({});
   const [isSavingPrices, setIsSavingPrices] = useState(false);
+  const [pendingSafetyItems, setPendingSafetyItems] = useState<PendingSafetyItem[]>([]);
   const [components, setComponents] = useState<JobComponent[]>([]);
 
   // Multi-entry material slots state
@@ -1067,7 +1234,6 @@ export default function GenericMaterialsPageRedesigned() {
   const hasSavedConfigRef = useRef(false);
   const autoApplyDefaultPresetRef = useRef(false);
   const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
-  const materialAddPendingRef = useRef(false);
 
   const defaultPresetCandidate = useMemo(() => (
     presets.find((p) => p.isDefault) || presets.find((p) => (p.name || '').toLowerCase().includes('standaard')) || null
@@ -1490,12 +1656,6 @@ export default function GenericMaterialsPageRedesigned() {
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
   const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
   const [isAutosaving, setIsAutosaving] = useState(false);
-  const [isMaterialAddPending, setIsMaterialAddPending] = useState(false);
-
-  const handleMaterialSavePendingChange = useCallback((pending: boolean) => {
-    materialAddPendingRef.current = pending;
-    setIsMaterialAddPending(pending);
-  }, []);
 
   useEffect(() => setIsMounted(true), []);
 
@@ -1744,9 +1904,41 @@ export default function GenericMaterialsPageRedesigned() {
     const hydrate = async () => {
       setPaginaLaden(true);
       try {
-        const snap = await getDoc(doc(firestore, 'quotes', quoteId));
+        const quoteRef = doc(firestore, 'quotes', quoteId);
+        let snap = await getDoc(quoteRef);
         if (!snap.exists()) return;
-        const data = snap.data();
+        let data = snap.data() as Record<string, any>;
+
+        const legacyMaterialenLijstKey = `klussen.${klusId}.materialen.materialen_lijst`;
+        const legacySavedAtKey = `klussen.${klusId}.materialen.savedAt`;
+        const legacyUpdatedAtKey = `klussen.${klusId}.updatedAt`;
+        const legacyMaterialenLijst = data?.[legacyMaterialenLijstKey];
+        if (legacyMaterialenLijst && typeof legacyMaterialenLijst === 'object') {
+          try {
+            await updateDoc(quoteRef, {
+              [`klussen.${klusId}.materialen.materialen_lijst`]: legacyMaterialenLijst,
+              [`klussen.${klusId}.materialen.savedAt`]: serverTimestamp(),
+              [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
+            });
+
+            await (updateDoc as any)(
+              quoteRef,
+              new FieldPath(legacyMaterialenLijstKey),
+              deleteField(),
+              new FieldPath(legacySavedAtKey),
+              deleteField(),
+              new FieldPath(legacyUpdatedAtKey),
+              deleteField()
+            );
+
+            snap = await getDoc(quoteRef);
+            if (snap.exists()) {
+              data = snap.data() as Record<string, any>;
+            }
+          } catch (repairErr) {
+            console.warn('Kon legacy materiaalvelden met punt-notatie niet herstellen:', repairErr);
+          }
+        }
         const klusNode = data?.klussen?.[klusId];
 
 
@@ -1799,6 +1991,7 @@ export default function GenericMaterialsPageRedesigned() {
           const mat = klusNode.materialen;
           // Prefer new structure 'materialen_lijst'
           const materialenLijst = mat.materialen_lijst || {};
+          const pendingMaterialsMap = mat.pending_materials || {};
 
           // Separate standard selections from custom groups based on known section keys vs arbitrary keys
           // We can use the fact that custom groups usually have 'title' and 'order' saved, while standard ones don't (or don't need them)
@@ -1911,6 +2104,155 @@ export default function GenericMaterialsPageRedesigned() {
           setGekozenMaterialen(normalizeSelectedMaterialsForJob(newGekozen, jobSlug));
           setFirestoreCustommateriaal(newCustomGroupsMap);
           setWasteByEntryKey(newWasteByEntryKey);
+          const restoredPendingById = new Map<string, PendingSafetyItem>();
+          if (pendingMaterialsMap && typeof pendingMaterialsMap === 'object') {
+            Object.entries(pendingMaterialsMap).forEach(([rawId, value]: [string, any]) => {
+              if (!value || typeof value !== 'object') return;
+              const statusRaw = String(value.status || '').trim().toLowerCase();
+              if (statusRaw === 'resolved' || statusRaw === 'done') return;
+
+              const question = String(value.question || '').trim();
+              const expectedUnit = String(value.expected_unit || value.expectedUnit || '');
+              const answer = String(value.answer || '');
+              const questions = normalizePendingQuestions(value.questions, {
+                question,
+                expectedUnit,
+                answer,
+              });
+              const firstQuestion = questions[0];
+              const updatedAtMs =
+                typeof value?.updatedAt?.toMillis === 'function'
+                  ? Number(value.updatedAt.toMillis())
+                  : null;
+              const isStaleBackgroundState =
+                (statusRaw === 'analyzing' || statusRaw === 'saving') &&
+                typeof updatedAtMs === 'number' &&
+                Number.isFinite(updatedAtMs) &&
+                Date.now() - updatedAtMs > 45_000;
+
+              let status: PendingSafetyItem['status'] =
+                statusRaw === 'needs_answer'
+                  ? 'needs_answer'
+                  : statusRaw === 'saving'
+                    ? 'saving'
+                    : statusRaw === 'error'
+                      ? 'error'
+                      : 'analyzing';
+
+              if (status === 'analyzing' && (firstQuestion?.question || question)) {
+                status = 'needs_answer';
+              } else if (isStaleBackgroundState) {
+                status = 'error';
+              }
+
+              const id = String(value.id || rawId);
+              restoredPendingById.set(id, {
+                id,
+                status,
+                question: firstQuestion?.question || question,
+                expectedUnit: firstQuestion?.expectedUnit || expectedUnit,
+                answer: firstQuestion?.answer || answer,
+                questions,
+                error: value.error
+                  ? String(value.error)
+                  : (status === 'error' ? 'Vorige achtergrond-opslag is onderbroken. Probeer opnieuw via Opslaan.' : null),
+                draftPayload: value.draft_payload && typeof value.draft_payload === 'object'
+                  ? (value.draft_payload as Record<string, unknown>)
+                  : {},
+              });
+            });
+          }
+
+          // Fallback: recover pending flow from placeholders in materialen_lijst
+          // in case pending_materials map is missing or incomplete.
+          Object.values(materialenLijst).forEach((entry: any) => {
+            const material = entry?.material && typeof entry.material === 'object'
+              ? entry.material
+              : (entry && typeof entry === 'object' ? entry : null);
+            if (!material || typeof material !== 'object') return;
+
+            const pendingId = String((material as any).pending_material_id || '').trim();
+            if (!pendingId) return;
+
+            const stateRaw = String((material as any).pending_material_state || '').trim().toLowerCase();
+            if (stateRaw === 'resolved' || stateRaw === 'done') return;
+
+            const question = String((material as any).pending_material_question || '').trim();
+            const expectedUnit = String((material as any).expected_unit || (material as any).safety_expected_unit || '');
+            const prijsExcl =
+              parseNLMoneyToNumber((material as any).prijs_excl_btw ?? (material as any).prijs_per_stuk ?? (material as any).prijs) ?? 0;
+            const prijsIncl =
+              parseNLMoneyToNumber((material as any).prijs_incl_btw ?? (material as any).prijs) ??
+              Number((prijsExcl * 1.21).toFixed(2));
+
+            const fallbackPayload: Record<string, unknown> = {
+              materiaalnaam: String((material as any).materiaalnaam || '').trim(),
+              eenheid: String((material as any).eenheid || 'stuk').trim() || 'stuk',
+              prijs: prijsIncl,
+              prijs_excl_btw: prijsExcl,
+              prijs_incl_btw: prijsIncl,
+              pending_id: pendingId,
+              quote_id: quoteId,
+              klus_id: klusId,
+            };
+            const categorie = String((material as any).categorie || (material as any).subsectie || '').trim();
+            const leverancier = String((material as any).leverancier || '').trim();
+            if (categorie) fallbackPayload.categorie = categorie;
+            if (leverancier) fallbackPayload.leverancier = leverancier;
+
+            const fallbackStatus: PendingSafetyItem['status'] =
+              stateRaw === 'error'
+                ? 'error'
+                : stateRaw === 'saving'
+                  ? 'error'
+                  : (question ? 'needs_answer' : 'analyzing');
+            const questions = normalizePendingQuestions((material as any).pending_material_questions, {
+              question,
+              expectedUnit,
+              answer: '',
+            });
+            const firstQuestion = questions[0];
+
+            const fallbackItem: PendingSafetyItem = {
+              id: pendingId,
+              status: fallbackStatus,
+              question: firstQuestion?.question || question,
+              expectedUnit: firstQuestion?.expectedUnit || expectedUnit,
+              answer: firstQuestion?.answer || '',
+              questions,
+              error: (material as any).pending_material_error
+                ? String((material as any).pending_material_error)
+                : (fallbackStatus === 'error'
+                  ? 'Vorige achtergrond-opslag is onderbroken. Probeer opnieuw via Opslaan.'
+                  : null),
+              draftPayload: fallbackPayload,
+            };
+
+            const existing = restoredPendingById.get(pendingId);
+            if (!existing) {
+              restoredPendingById.set(pendingId, fallbackItem);
+              return;
+            }
+
+            // Merge missing details from placeholder fallback.
+            const merged: PendingSafetyItem = {
+              ...existing,
+              status: existing.status === 'analyzing' && fallbackItem.status === 'needs_answer'
+                ? 'needs_answer'
+                : existing.status,
+              question: existing.question || fallbackItem.question,
+              expectedUnit: existing.expectedUnit || fallbackItem.expectedUnit,
+              answer: existing.answer || fallbackItem.answer,
+              questions: existing.questions.length > 0 ? existing.questions : fallbackItem.questions,
+              error: existing.error || fallbackItem.error,
+              draftPayload: Object.keys(existing.draftPayload || {}).length > 0
+                ? existing.draftPayload
+                : fallbackItem.draftPayload,
+            };
+            restoredPendingById.set(pendingId, merged);
+          });
+
+          setPendingSafetyItems(Array.from(restoredPendingById.values()));
           // Only mark as having saved config if there's actual data
           if (Object.keys(newGekozen).length > 0 || Object.keys(newCustomGroupsMap).length > 0) {
             hasSavedConfigRef.current = true;
@@ -2290,7 +2632,6 @@ export default function GenericMaterialsPageRedesigned() {
     groupId: string | null = null,
     sectionMeta?: { key: string; label?: string; categoryFilter?: string | string[] }
   ) => {
-    if (isMaterialAddPending) return;
     setActieveSectie(sectieKey);
     setActiveGroupId(groupId);
     setActiveSectionMeta(sectionMeta || null);
@@ -2342,7 +2683,6 @@ export default function GenericMaterialsPageRedesigned() {
   };
 
   const openMultiEntryModal = (sectionKey: string, entryId: string | null = null) => {
-    if (isMaterialAddPending) return;
     setActiveMultiEntryKey(sectionKey);
     setActiveMultiEntryId(entryId);
     setActieveSectie(sectionKey);
@@ -2350,6 +2690,353 @@ export default function GenericMaterialsPageRedesigned() {
     setActiveSectionMeta(section ? { key: section.key, label: section.label, categoryFilter: section.categoryFilter } : null);
     setIsExtraModalOpen(true);
   };
+
+  const normalizeMaterialForSelection = useCallback((material: any) => {
+    return {
+      ...material,
+      id: material?.id || material?.row_id || material?.material_ref_id,
+      row_id: material?.row_id || material?.id || material?.material_ref_id,
+      prijs: typeof material?.prijs === 'number'
+        ? material.prijs
+        : (parseNLMoneyToNumber(material?.prijs_excl_btw ?? material?.prijs ?? material?.prijs_per_stuk) || 0),
+      quantity: 1,
+    };
+  }, []);
+
+  const applyMaterialToCurrentModalTarget = useCallback((material: any) => {
+    if (activeComponentId && actieveSectie) {
+      handleComponentMaterialSelect(activeComponentId, actieveSectie, material);
+    } else if (activeGroupId) {
+      setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [material] } : g));
+    } else if (activeMultiEntryKey && actieveSectie) {
+      if (activeMultiEntryId) {
+        handleMultiEntryEdit(activeMultiEntryKey, activeMultiEntryId, material);
+      } else {
+        handleMultiEntryAdd(activeMultiEntryKey, material);
+      }
+    } else if (actieveSectie) {
+      handleMateriaalSelectie(actieveSectie, material);
+    }
+
+    resetActiveMaterialModalState();
+    setIsExtraModalOpen(false);
+  }, [
+    activeComponentId,
+    actieveSectie,
+    activeGroupId,
+    activeMultiEntryKey,
+    activeMultiEntryId,
+    handleMultiEntryAdd,
+    handleMultiEntryEdit,
+    resetActiveMaterialModalState,
+  ]);
+
+  const patchPendingMaterialById = useCallback((pendingId: string, patch: Record<string, unknown>) => {
+    setGekozenMaterialen(prev => {
+      const next = { ...prev };
+      Object.entries(next).forEach(([key, value]) => {
+        if (!value) return;
+        if (isMultiEntrySlot(value)) {
+          let changed = false;
+          const entries = value.entries.map((entry) => {
+            if (entry.material?.pending_material_id !== pendingId) return entry;
+            changed = true;
+            return { ...entry, material: { ...entry.material, ...patch } };
+          });
+          if (changed) next[key] = { ...value, entries } as MultiEntrySlotData;
+          return;
+        }
+        if ((value as any)?.pending_material_id === pendingId) {
+          next[key] = { ...(value as any), ...patch };
+        }
+      });
+      return next;
+    });
+
+    setCustomGroups(prev => prev.map((group) => ({
+      ...group,
+      materials: (group.materials || []).map((material: any) => (
+        material?.pending_material_id === pendingId ? { ...material, ...patch } : material
+      )),
+    })));
+
+    setComponents(prev => prev.map((comp) => ({
+      ...comp,
+      materials: (comp.materials || []).map((entry: any) => {
+        const mat = entry?.material || entry;
+        if (mat?.pending_material_id !== pendingId) return entry;
+        const updatedMat = { ...mat, ...patch };
+        return entry?.material ? { ...entry, material: updatedMat } : updatedMat;
+      }),
+    })));
+  }, []);
+
+  const replacePendingMaterialById = useCallback((pendingId: string, material: any) => {
+    const cleanedMaterial = { ...material };
+    delete (cleanedMaterial as any).pending_material_id;
+    delete (cleanedMaterial as any).pending_material_state;
+    delete (cleanedMaterial as any).pending_material_question;
+    delete (cleanedMaterial as any).pending_material_error;
+
+    setGekozenMaterialen(prev => {
+      const next = { ...prev };
+      Object.entries(next).forEach(([key, value]) => {
+        if (!value) return;
+        if (isMultiEntrySlot(value)) {
+          let changed = false;
+          const entries = value.entries.map((entry) => {
+            if (entry.material?.pending_material_id !== pendingId) return entry;
+            changed = true;
+            return { ...entry, material: cleanedMaterial };
+          });
+          if (changed) next[key] = { ...value, entries } as MultiEntrySlotData;
+          return;
+        }
+        if ((value as any)?.pending_material_id === pendingId) {
+          next[key] = cleanedMaterial;
+        }
+      });
+      return next;
+    });
+
+    setCustomGroups(prev => prev.map((group) => ({
+      ...group,
+      materials: (group.materials || []).map((m: any) => (
+        m?.pending_material_id === pendingId ? cleanedMaterial : m
+      )),
+    })));
+
+    setComponents(prev => prev.map((comp) => ({
+      ...comp,
+      materials: (comp.materials || []).map((entry: any) => {
+        const mat = entry?.material || entry;
+        if (mat?.pending_material_id !== pendingId) return entry;
+        return entry?.material ? { ...entry, material: cleanedMaterial } : cleanedMaterial;
+      }),
+    })));
+  }, []);
+
+  const persistPendingMaterialState = useCallback(async (
+    pendingId: string,
+    patch: Record<string, unknown>,
+    options?: { remove?: boolean; setCreatedAt?: boolean }
+  ) => {
+    if (!firestore || !quoteId || !klusId || !pendingId) return;
+    try {
+      const quoteRef = doc(firestore, 'quotes', quoteId);
+      const basePath = `klussen.${klusId}.materialen.pending_materials.${pendingId}`;
+      const legacyFieldNames = new Set<string>([
+        basePath,
+        `${basePath}.id`,
+        `${basePath}.updatedAt`,
+        `${basePath}.createdAt`,
+      ]);
+      Object.keys(patch).forEach((key) => {
+        legacyFieldNames.add(`${basePath}.${key}`);
+      });
+
+      const cleanupArgs: any[] = [];
+      legacyFieldNames.forEach((fieldName) => {
+        cleanupArgs.push(new FieldPath(fieldName), deleteField());
+      });
+      try {
+        if (cleanupArgs.length > 0) {
+          await (updateDoc as any)(quoteRef, ...cleanupArgs);
+        }
+      } catch {
+        // Best effort cleanup van oude foutieve veldnamen met punten.
+      }
+
+      if (options?.remove) {
+        await updateDoc(quoteRef, { [basePath]: deleteField() });
+        return;
+      }
+
+      const updatePayload: Record<string, unknown> = {
+        [`${basePath}.id`]: pendingId,
+        [`${basePath}.updatedAt`]: serverTimestamp(),
+      };
+      if (options?.setCreatedAt) {
+        updatePayload[`${basePath}.createdAt`] = serverTimestamp();
+      }
+      Object.entries(patch).forEach(([key, value]) => {
+        updatePayload[`${basePath}.${key}`] = value;
+      });
+
+      await updateDoc(quoteRef, updatePayload as any);
+    } catch (err) {
+      console.error('Kon pending materiaalstatus niet opslaan in Firestore:', err);
+    }
+  }, [firestore, quoteId, klusId]);
+
+  const queueSafetyConfirmationInBackground = useCallback((item: PendingSafetyItem, token?: string) => {
+    const rawQuestions = item.questions.length > 0
+      ? item.questions
+      : normalizePendingQuestions(undefined, {
+          question: item.question,
+          expectedUnit: item.expectedUnit,
+          answer: item.answer,
+        });
+    const draftPayload = item.draftPayload || {};
+    const baseNaam = String(draftPayload.materiaalnaam || '').trim();
+    let resolvedNaam = baseNaam;
+    const safetyAnswers: Record<string, unknown> = {};
+    let resolvedVerbruikPerM2: number | null = null;
+    let firstExpectedUnit = '';
+
+    rawQuestions.forEach((question, index) => {
+      const rawAnswer = String(question.answer || '').trim();
+      if (!rawAnswer) return;
+      const normalizedAnswer = applySafetyUnit(rawAnswer, question.expectedUnit, question.question);
+      const key = (question.key || `vraag_${index + 1}`).trim();
+      const targetField = (question.targetField || '').trim().toLowerCase();
+      const shouldMapToVerbruik =
+        key === 'verbruik_per_m2' ||
+        targetField === 'verbruik_per_m2' ||
+        isVerbruikPerM2Question(question.question, question.expectedUnit);
+
+      if (!firstExpectedUnit && question.expectedUnit) {
+        firstExpectedUnit = question.expectedUnit;
+      }
+
+      if (shouldMapToVerbruik) {
+        const parsedVerbruik = parseVerbruikPerM2Answer(normalizedAnswer);
+        if (parsedVerbruik !== null) {
+          safetyAnswers[key] = parsedVerbruik;
+          resolvedVerbruikPerM2 = parsedVerbruik;
+        }
+        return;
+      }
+
+      resolvedNaam = mergeSafetyAnswerIntoNaam(resolvedNaam, normalizedAnswer);
+      safetyAnswers[key] = normalizedAnswer;
+    });
+
+    const payload: Record<string, unknown> = {
+      ...draftPayload,
+      materiaalnaam: resolvedNaam,
+      safety_confirmed: true,
+    };
+    const firstAnswer = Object.values(safetyAnswers)[0];
+    if (firstAnswer !== undefined) {
+      payload.safety_answer = typeof firstAnswer === 'string' ? firstAnswer : String(firstAnswer);
+    }
+    if (Object.keys(safetyAnswers).length > 0) {
+      payload.safety_answers = safetyAnswers;
+    }
+    if (resolvedVerbruikPerM2 !== null) {
+      payload.verbruik_per_m2 = resolvedVerbruikPerM2;
+    }
+    if (firstExpectedUnit) payload.expected_unit = firstExpectedUnit;
+    if (!payload.pending_id) payload.pending_id = item.id;
+    if (!payload.quote_id && quoteId) payload.quote_id = quoteId;
+    if (!payload.klus_id && klusId) payload.klus_id = klusId;
+
+    setPendingSafetyItems((prev) => prev.map((x) => x.id === item.id ? { ...x, status: 'saving', error: null } : x));
+    patchPendingMaterialById(item.id, {
+      pending_material_state: 'saving',
+      pending_material_error: null,
+    });
+    void persistPendingMaterialState(item.id, {
+      status: 'saving',
+      question: rawQuestions[0]?.question || '',
+      expected_unit: rawQuestions[0]?.expectedUnit || '',
+      answer: rawQuestions[0]?.answer || '',
+      questions: rawQuestions,
+      error: null,
+    });
+
+    void (async () => {
+      try {
+        const authToken = token || (user ? await user.getIdToken() : null);
+        if (!authToken) throw new Error('Niet ingelogd.');
+
+        const res = await fetch('/api/materialen/upsert', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) throw new Error(json?.message || 'Opslaan mislukt');
+
+        const responseQuestions = normalizePendingQuestions(json?.data?.questions, {
+          question: String(json?.data?.question || ''),
+          expectedUnit: String(json?.data?.expected_unit || ''),
+        });
+        const responseFirst = responseQuestions[0];
+        if (json?.data?.ready === false && responseQuestions.length > 0) {
+          const answerByKey = new Map(rawQuestions.map((q) => [q.key, q.answer]));
+          const mergedQuestions = responseQuestions.map((q) => ({
+            ...q,
+            answer: answerByKey.get(q.key) || q.answer || '',
+          }));
+          setPendingSafetyItems((prev) => prev.map((x) => x.id === item.id ? {
+            ...x,
+            status: 'needs_answer',
+            question: responseFirst?.question || '',
+            expectedUnit: responseFirst?.expectedUnit || '',
+            answer: mergedQuestions[0]?.answer || '',
+            questions: mergedQuestions,
+            error: null,
+          } : x));
+          patchPendingMaterialById(item.id, {
+            pending_material_state: 'needs_answer',
+            pending_material_question: responseFirst?.question || '',
+            pending_material_error: null,
+          });
+          void persistPendingMaterialState(item.id, {
+            status: 'needs_answer',
+            question: responseFirst?.question || '',
+            expected_unit: responseFirst?.expectedUnit || '',
+            answer: mergedQuestions[0]?.answer || '',
+            questions: mergedQuestions,
+            error: null,
+          });
+          return;
+        }
+
+        const row = Array.isArray(json?.data) ? json.data[0] : json?.data;
+        const realId = row?.row_id || row?.id || json?.row_id;
+        if (!realId) throw new Error('Materiaal nog niet bevestigd opgeslagen. Probeer opnieuw.');
+
+        const mergedResolved = row && typeof row === 'object'
+          ? { ...payload, ...row, row_id: realId, id: realId }
+          : { ...payload, row_id: realId, id: realId };
+
+        replacePendingMaterialById(item.id, normalizeMaterialForSelection(mergedResolved));
+        setPendingSafetyItems((prev) => prev.filter((x) => x.id !== item.id));
+        void persistPendingMaterialState(item.id, { status: 'resolved', row_id: realId }, { remove: true });
+      } catch (err: any) {
+        const message = err?.message || 'Onbekende fout tijdens opslaan.';
+        setPendingSafetyItems((prev) => prev.map((x) => x.id === item.id ? {
+          ...x,
+          status: 'error',
+          error: message,
+        } : x));
+        patchPendingMaterialById(item.id, {
+          pending_material_state: 'error',
+          pending_material_error: message,
+        });
+        void persistPendingMaterialState(item.id, {
+          status: 'error',
+          answer: item.answer,
+          questions: rawQuestions,
+          error: message,
+        });
+      }
+    })();
+  }, [
+    klusId,
+    patchPendingMaterialById,
+    persistPendingMaterialState,
+    quoteId,
+    replacePendingMaterialById,
+    normalizeMaterialForSelection,
+    user,
+  ]);
 
   const suggestBetterBeam = useCallback((sectionKey: string) => {
     if (!beamHeightWarning || !alleMaterialen.length) return;
@@ -3292,8 +3979,9 @@ export default function GenericMaterialsPageRedesigned() {
     if (!didSave) return;
 
     const missing = getMissingPriceItems();
+    const hasPendingSafety = pendingSafetyItems.length > 0;
 
-    if (missing.length > 0) {
+    if (missing.length > 0 || hasPendingSafety) {
       setMissingPriceItems(missing);
       setMissingPriceInputsExcl({});
       setMissingPriceInputsIncl({});
@@ -3947,13 +4635,13 @@ export default function GenericMaterialsPageRedesigned() {
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" disabled={isOpslaan || isMaterialAddPending || isPresetNotReadyForSave} onClick={handleBack}>
+          <Button variant="outline" disabled={isOpslaan || isPresetNotReadyForSave} onClick={handleBack}>
             Terug
           </Button>
 
           <Button
             variant="outline"
-            disabled={isMaterialAddPending || isPresetNotReadyForSave}
+            disabled={isPresetNotReadyForSave}
             onClick={() => setSavePresetModalOpen(true)}
             className="gap-2"
           >
@@ -3964,16 +4652,10 @@ export default function GenericMaterialsPageRedesigned() {
           <Button
             type="submit"
             variant="success"
-            disabled={isOpslaan || isMaterialAddPending || isPresetNotReadyForSave}
+            disabled={isOpslaan || isPresetNotReadyForSave}
             onClick={handleNext}
           >
-            {isMaterialAddPending
-              ? 'Materiaal wordt opgeslagen'
-              : isOpslaan
-                ? 'Opslaan...'
-                : isPresetNotReadyForSave
-                  ? 'Werkpakket laden...'
-                  : 'Opslaan'}
+            {isOpslaan ? 'Opslaan...' : isPresetNotReadyForSave ? 'Werkpakket laden...' : 'Opslaan'}
           </Button>
         </div>
       </div >
@@ -4121,11 +4803,12 @@ export default function GenericMaterialsPageRedesigned() {
         open={isExtraModalOpen}
         onOpenChange={(open) => {
           setIsExtraModalOpen(open);
-          if (!open && !materialAddPendingRef.current) {
+          if (!open) {
             resetActiveMaterialModalState();
           }
         }}
-        onMaterialSavePendingChange={handleMaterialSavePendingChange}
+        quoteId={quoteId}
+        klusId={klusId}
         onUpdateWaste={(newWaste) => {
           if (activeComponentId && actieveSectie) {
             const entryKey = `comp_${activeComponentId}_${actieveSectie}`;
@@ -4178,55 +4861,132 @@ export default function GenericMaterialsPageRedesigned() {
         onToggleFavorite={toggleFavoriet}
         onSelectExisting={(result: any) => {
           const mat = result.data || result;
-          const converted: any = {
+          const converted: any = normalizeMaterialForSelection({
             ...mat,
-            id: mat.id || mat.row_id,
-            prijs: typeof mat.prijs === 'number' ? mat.prijs : (parseNLMoneyToNumber(mat.prijs) || 0),
             categorie: mat.subsectie || null,
             materiaalnaam: mat.materiaalnaam || '',
             eenheid: mat.eenheid || 'stuk',
             sort_order: null,
-            quantity: 1,
-          };
-
-          if (activeComponentId && actieveSectie) {
-            handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
-          } else if (activeGroupId) {
-            setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
-          } else if (activeMultiEntryKey && actieveSectie) {
-            if (activeMultiEntryId) {
-              handleMultiEntryEdit(activeMultiEntryKey, activeMultiEntryId, converted);
-            } else {
-              handleMultiEntryAdd(activeMultiEntryKey, converted);
-            }
-          } else if (actieveSectie) {
-            handleMateriaalSelectie(actieveSectie, converted);
-          }
-          resetActiveMaterialModalState();
-          setIsExtraModalOpen(false);
+          });
+          applyMaterialToCurrentModalTarget(converted);
         }}
         onMaterialAdded={(newMaterial: any) => {
-          const converted: any = {
-            ...newMaterial,
-            id: newMaterial.id || newMaterial.row_id,
-            prijs: typeof newMaterial.prijs === 'number' ? newMaterial.prijs : (parseNLMoneyToNumber(newMaterial.prijs) || 0),
-            quantity: 1,
-          };
-          if (activeComponentId && actieveSectie) {
-            handleComponentMaterialSelect(activeComponentId, actieveSectie, converted);
-          } else if (activeGroupId) {
-            setCustomGroups(prev => prev.map(g => g.id === activeGroupId ? { ...g, materials: [converted] } : g));
-          } else if (activeMultiEntryKey && actieveSectie) {
-            if (activeMultiEntryId) {
-              handleMultiEntryEdit(activeMultiEntryKey, activeMultiEntryId, converted);
-            } else {
-              handleMultiEntryAdd(activeMultiEntryKey, converted);
+          applyMaterialToCurrentModalTarget(normalizeMaterialForSelection(newMaterial));
+        }}
+        onPendingMaterialQueued={({ clientId, placeholderMaterial, draftPayload }) => {
+          const targetMeta =
+            activeComponentId && actieveSectie
+              ? { type: 'component', componentId: activeComponentId, sectionKey: actieveSectie }
+              : activeGroupId
+                ? { type: 'custom_group', groupId: activeGroupId }
+                : activeMultiEntryKey && actieveSectie
+                  ? { type: 'multi_entry', sectionKey: activeMultiEntryKey, entryId: activeMultiEntryId }
+                  : actieveSectie
+                    ? { type: 'section', sectionKey: actieveSectie }
+                    : null;
+
+          setPendingSafetyItems((prev) => {
+            const filtered = prev.filter((item) => item.id !== clientId);
+            return [
+              ...filtered,
+              {
+                id: clientId,
+                status: 'analyzing',
+                question: '',
+                expectedUnit: '',
+                answer: '',
+                questions: [],
+                error: null,
+                draftPayload,
+              },
+            ];
+          });
+          void persistPendingMaterialState(clientId, {
+            status: 'analyzing',
+            question: '',
+            expected_unit: '',
+            answer: '',
+            questions: [],
+            error: null,
+            draft_payload: draftPayload,
+            target: targetMeta,
+          }, { setCreatedAt: true });
+          applyMaterialToCurrentModalTarget(normalizeMaterialForSelection(placeholderMaterial));
+        }}
+        onPendingMaterialQuestion={({ clientId, questions, draftPayload }) => {
+          const normalizedQuestions = normalizePendingQuestions(questions);
+          const firstQuestion = normalizedQuestions[0];
+          const question = firstQuestion?.question || '';
+          const expectedUnit = firstQuestion?.expectedUnit || '';
+          setPendingSafetyItems((prev) => {
+            const existing = prev.find((item) => item.id === clientId);
+            if (!existing) {
+              return [
+                ...prev,
+                {
+                  id: clientId,
+                  status: 'needs_answer',
+                  question,
+                  expectedUnit,
+                  answer: '',
+                  questions: normalizedQuestions,
+                  error: null,
+                  draftPayload,
+                },
+              ];
             }
-          } else if (actieveSectie) {
-            handleMateriaalSelectie(actieveSectie, converted);
-          }
-          resetActiveMaterialModalState();
-          setIsExtraModalOpen(false);
+            return prev.map((item) => item.id === clientId ? {
+              ...item,
+              status: 'needs_answer',
+              question,
+              expectedUnit,
+              questions: normalizedQuestions,
+              draftPayload,
+              error: null,
+            } : item);
+          });
+          void persistPendingMaterialState(clientId, {
+            status: 'needs_answer',
+            question,
+            expected_unit: expectedUnit,
+            questions: normalizedQuestions,
+            draft_payload: draftPayload,
+            error: null,
+          });
+          patchPendingMaterialById(clientId, {
+            pending_material_state: 'needs_answer',
+            pending_material_question: question,
+            pending_material_error: null,
+          });
+        }}
+        onPendingMaterialResolved={({ clientId, material }) => {
+          replacePendingMaterialById(clientId, normalizeMaterialForSelection(material));
+          setPendingSafetyItems((prev) => prev.filter((item) => item.id !== clientId));
+          void persistPendingMaterialState(clientId, {
+            status: 'resolved',
+            row_id: material?.row_id || material?.id || null,
+            resolvedAt: serverTimestamp(),
+          }, { remove: true });
+        }}
+        onPendingMaterialFailed={({ clientId, error }) => {
+          setPendingSafetyItems((prev) => prev.map((item) => item.id === clientId ? {
+            ...item,
+            status: 'error',
+            error,
+          } : item));
+          void persistPendingMaterialState(clientId, {
+            status: 'error',
+            error: error || 'Onbekende fout',
+          });
+          patchPendingMaterialById(clientId, {
+            pending_material_state: 'error',
+            pending_material_error: error,
+          });
+          toast({
+            variant: 'destructive',
+            title: 'Aanmaken materiaal mislukt',
+            description: error || 'Probeer opnieuw via Opslaan.',
+          });
         }}
       />
 
@@ -4239,13 +4999,118 @@ export default function GenericMaterialsPageRedesigned() {
       }}>
         <DialogContent className={cn('max-w-2xl max-h-[80vh] overflow-y-auto', DIALOG_CLOSE_TAP)}>
           <DialogHeader>
-            <DialogTitle>Materialen zonder prijs</DialogTitle>
+            <DialogTitle>
+              {pendingSafetyItems.length > 0 && missingPriceItems.length > 0
+                ? 'Controleer materialen'
+                : pendingSafetyItems.length > 0
+                  ? 'Controlevragen voor nieuwe materialen'
+                  : 'Materialen zonder prijs'}
+            </DialogTitle>
             <DialogDescription>
-              De volgende materialen hebben nog geen prijs. Vul de prijs per stuk en eenheid in.
+              {pendingSafetyItems.length > 0 && missingPriceItems.length > 0
+                ? 'Beantwoord de controlevragen en vul waar nodig prijzen in.'
+                : pendingSafetyItems.length > 0
+                  ? 'Beantwoord eerst de controlevragen voor nieuw toegevoegde materialen.'
+                  : 'De volgende materialen hebben nog geen prijs. Vul de prijs per stuk en eenheid in.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
+            {pendingSafetyItems.length > 0 && (
+              <div className="space-y-3">
+                {pendingSafetyItems.map((item) => {
+                  const materiaalnaam = String(item.draftPayload?.materiaalnaam || 'Nieuw materiaal');
+                  const isWaiting = item.status === 'analyzing';
+                  const isBusy = item.status === 'saving';
+                  const questions = item.questions.length > 0
+                    ? item.questions
+                    : normalizePendingQuestions(undefined, {
+                        question: item.question,
+                        expectedUnit: item.expectedUnit,
+                        answer: item.answer,
+                      });
+                  return (
+                    <div key={item.id} className="space-y-3 p-4 rounded-lg border border-border bg-muted/20">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium truncate">{materiaalnaam}</p>
+                        {isWaiting ? (
+                          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Vraag wordt opgesteld...
+                          </span>
+                        ) : isBusy ? (
+                          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Bezig met opslaan...
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {!isWaiting && (
+                        <div className="space-y-2">
+                          {questions.length > 0 ? questions.map((question, questionIndex) => (
+                            <div key={`${item.id}-${question.key}-${questionIndex}`} className="space-y-2">
+                              <p className="text-sm text-muted-foreground">
+                                {question.question || 'Vul ontbrekende productinformatie in.'}
+                              </p>
+                              <Input
+                                value={question.answer}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setPendingSafetyItems((prev) => prev.map((x) => {
+                                    if (x.id !== item.id) return x;
+                                    const existingQuestions = x.questions.length > 0
+                                      ? x.questions
+                                      : normalizePendingQuestions(undefined, {
+                                          question: x.question,
+                                          expectedUnit: x.expectedUnit,
+                                          answer: x.answer,
+                                        });
+                                    const updatedQuestions = existingQuestions.map((q, idx) => (
+                                      idx === questionIndex ? { ...q, answer: value } : q
+                                    ));
+                                    return {
+                                      ...x,
+                                      questions: updatedQuestions,
+                                      question: updatedQuestions[0]?.question || x.question,
+                                      expectedUnit: updatedQuestions[0]?.expectedUnit || x.expectedUnit,
+                                      answer: updatedQuestions[0]?.answer || '',
+                                      error: null,
+                                      status: x.status === 'error' ? 'needs_answer' : x.status,
+                                    };
+                                  }));
+                                  void persistPendingMaterialState(item.id, {
+                                    answer: questionIndex === 0 ? value : (item.answer || ''),
+                                    questions: questions.map((q, idx) => (
+                                      idx === questionIndex ? { ...q, answer: value } : q
+                                    )),
+                                    error: null,
+                                    status: item.status === 'error' ? 'needs_answer' : item.status,
+                                  });
+                                }}
+                                placeholder={question.valueType === 'number' ? 'Bijv. 0,3' : 'Bijv. 750ml, 5 liter, 25kg'}
+                                disabled={isSavingPrices || isBusy}
+                              />
+                              {question.expectedUnit ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Verwachte eenheid: <span className="font-semibold">{question.expectedUnit}</span>
+                                </p>
+                              ) : null}
+                            </div>
+                          )) : (
+                            <p className="text-sm text-muted-foreground">Vul ontbrekende productinformatie in.</p>
+                          )}
+                          {item.error ? (
+                            <p className="text-xs text-destructive">{item.error}</p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {missingPriceItems.map((item, idx) => {
               const key = getMissingPriceItemKey(item, idx);
               const name = item.materiaalnaam || `Materiaal ${idx + 1}`;
@@ -4358,11 +5223,66 @@ export default function GenericMaterialsPageRedesigned() {
             </Button>
             <Button
               variant="success"
-              disabled={isSavingPrices}
+              disabled={isSavingPrices || pendingSafetyItems.some((item) => item.status === 'analyzing' || item.status === 'saving')}
               onClick={async () => {
                 setIsSavingPrices(true);
                 try {
-                  const token = await user!.getIdToken();
+                  const safetyAnalyzingCount = pendingSafetyItems.filter((item) => item.status === 'analyzing' || item.status === 'saving').length;
+                  if (safetyAnalyzingCount > 0) {
+                    toast({
+                      variant: 'destructive',
+                      title: 'Nog bezig met analyseren',
+                      description: 'Wacht tot alle controlevragen klaarstaan voordat je doorgaat.',
+                    });
+                    return;
+                  }
+
+                  const safetyToSave = pendingSafetyItems.filter((item) => item.status === 'needs_answer' || item.status === 'error');
+                  const missingAnswers = safetyToSave.filter((item) => {
+                    const questions = item.questions.length > 0
+                      ? item.questions
+                      : normalizePendingQuestions(undefined, {
+                          question: item.question,
+                          expectedUnit: item.expectedUnit,
+                          answer: item.answer,
+                        });
+                    return questions.some((question) => !String(question.answer || '').trim());
+                  });
+                  if (missingAnswers.length > 0) {
+                    toast({
+                      variant: 'destructive',
+                      title: 'Controlevragen incompleet',
+                      description: 'Vul eerst alle antwoorden in voordat je opslaat.',
+                    });
+                    return;
+                  }
+
+                  const invalidVerbruikAnswers = safetyToSave.filter((item) => {
+                    const questions = item.questions.length > 0
+                      ? item.questions
+                      : normalizePendingQuestions(undefined, {
+                          question: item.question,
+                          expectedUnit: item.expectedUnit,
+                          answer: item.answer,
+                        });
+                    return questions.some((question) => {
+                      const shouldMapToVerbruik =
+                        question.key === 'verbruik_per_m2' ||
+                        question.targetField === 'verbruik_per_m2' ||
+                        isVerbruikPerM2Question(question.question, question.expectedUnit);
+                      if (!shouldMapToVerbruik) return false;
+                      return parseVerbruikPerM2Answer(String(question.answer || '')) === null;
+                    });
+                  });
+                  if (invalidVerbruikAnswers.length > 0) {
+                    toast({
+                      variant: 'destructive',
+                      title: 'Verbruik per m² ongeldig',
+                      description: 'Vul verbruik per m² in als getal, bijv. 0,3.',
+                    });
+                    return;
+                  }
+
                   const entriesToSave = missingPriceItems.flatMap((item, idx) => {
                     const key = getMissingPriceItemKey(item, idx);
                     const prijsExcl = missingPriceInputsExcl[key];
@@ -4390,6 +5310,21 @@ export default function GenericMaterialsPageRedesigned() {
                       materiaalnaam: item.materiaalnaam || null,
                     }];
                   });
+
+                  if (entriesToSave.length === 0) {
+                    for (const item of safetyToSave) {
+                      queueSafetyConfirmationInBackground(item);
+                    }
+                    setShowMissingPriceDialog(false);
+                    if (pendingNavigateTo) router.push(pendingNavigateTo);
+                    return;
+                  }
+
+                  const token = await user!.getIdToken();
+
+                  for (const item of safetyToSave) {
+                    queueSafetyConfirmationInBackground(item, token);
+                  }
 
                   const updatedByIdExcl = new Map<string, number>();
                   const updatedByNameExcl = new Map<string, number>();
@@ -4568,6 +5503,10 @@ export default function GenericMaterialsPageRedesigned() {
                   if (remaining.length === 0) {
                     setShowMissingPriceDialog(false);
                     if (pendingNavigateTo) router.push(pendingNavigateTo);
+                  } else if (pendingSafetyItems.length > 0 && pendingNavigateTo) {
+                    // Safety confirmation runs in background; don't block user on this dialog
+                    setShowMissingPriceDialog(false);
+                    router.push(pendingNavigateTo);
                   }
                 } catch (err) {
                   console.error('Error saving prices:', err);
@@ -4582,6 +5521,8 @@ export default function GenericMaterialsPageRedesigned() {
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Opslaan...
                 </>
+              ) : pendingSafetyItems.some((item) => item.status === 'analyzing' || item.status === 'saving') ? (
+                'Vragen voorbereiden...'
               ) : (
                 'Opslaan & Volgende'
               )}

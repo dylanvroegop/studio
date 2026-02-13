@@ -810,8 +810,7 @@ const BALKLAAG_CONSTRUCTIEVLOER_MATS: MaterialSection[] = [
 
 const VLIERING_MATS: MaterialSection[] = [
   // --- FLOOR CONSTRUCTION (VLIERING DEK) ---
-  { label: 'Randbalken', categoryFilter: 'Vuren hout', category: 'Constructievloer', key: 'randbalken', category_ultra_filter: '' },
-  { label: 'Vloerbalken', categoryFilter: 'Vuren hout', category: 'Constructievloer', key: 'vloerbalken', category_ultra_filter: '' },
+  { label: 'Constructie balken', categoryFilter: 'Vuren hout', category: 'Constructievloer', key: 'constructie_balken', category_ultra_filter: '' },
   { label: 'Balkdragers', categoryFilter: 'Overig', category: 'Constructievloer', key: 'balkdragers', category_ultra_filter: '' },
 
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'beplating', category_ultra_filter: '' },
@@ -839,7 +838,7 @@ const VLIERING_MATS: MaterialSection[] = [
 
 
   // --- F. AFWERKING ---
-  { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
+  { label: 'vloer plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
   { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
   { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 ];

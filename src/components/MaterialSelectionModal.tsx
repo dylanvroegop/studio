@@ -96,8 +96,38 @@ function applySafetyUnit(answer: string, expectedUnit: string, question: string)
   return `${cleanAnswer} ${unit}`.replace(/\s+/g, ' ').trim();
 }
 
-function extractSafetyPrompt(input: unknown): { ready?: boolean; question: string; expectedUnit: string } {
-  if (input == null) return { question: '', expectedUnit: '' };
+function isVerbruikPerM2Question(question: string, expectedUnit: string): boolean {
+  const q = `${question || ''} ${expectedUnit || ''}`.toLowerCase();
+  if (!q.trim()) return false;
+
+  const hasPerM2 = /(\/m2|\/m²|per\s*m2|per\s*m²|\bm2\b|\bm²\b)/i.test(q);
+  const hasVerbruikWord = /(verbruik|consumptie|dosering|gebruik)/i.test(q);
+
+  return hasPerM2 && hasVerbruikWord;
+}
+
+function parseVerbruikPerM2Answer(answer: string): number | null {
+  const raw = (answer || '').trim().replace(/\u00a0/g, ' ');
+  if (!raw) return null;
+
+  const match = raw.match(/-?\d+(?:[.,]\d+)?/);
+  if (!match) return null;
+
+  const parsed = Number(match[0].replace(',', '.'));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Number(parsed.toFixed(6));
+}
+
+type SafetyQuestion = {
+  key: string;
+  targetField: string;
+  question: string;
+  expectedUnit: string;
+  valueType: string;
+};
+
+function extractSafetyPrompt(input: unknown): { ready?: boolean; questions: SafetyQuestion[] } {
+  if (input == null) return { questions: [] };
 
   let candidate: unknown = input;
 
@@ -109,7 +139,7 @@ function extractSafetyPrompt(input: unknown): { ready?: boolean; question: strin
     try {
       candidate = JSON.parse(candidate);
     } catch {
-      return { question: '', expectedUnit: '' };
+      return { questions: [] };
     }
   }
 
@@ -126,22 +156,60 @@ function extractSafetyPrompt(input: unknown): { ready?: boolean; question: strin
     }
   }
 
-  if (!candidate || typeof candidate !== 'object') return { question: '', expectedUnit: '' };
+  if (!candidate || typeof candidate !== 'object') return { questions: [] };
 
   const obj = candidate as Record<string, unknown>;
-  const questionRaw = obj.question ?? obj.vraag;
-  const question = typeof questionRaw === 'string' ? questionRaw.trim() : '';
-  const expectedUnitRaw =
-    obj.expected_unit ??
-    obj.expectedUnit ??
-    obj.answer_unit ??
-    obj.answerUnit ??
-    obj.eenheid ??
-    obj.unit;
-  const expectedUnit = typeof expectedUnitRaw === 'string' ? expectedUnitRaw.trim() : '';
-  const ready = typeof obj.ready === 'boolean' ? obj.ready : undefined;
+  const normalizeQuestion = (raw: unknown): SafetyQuestion | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const row = raw as Record<string, unknown>;
+    const question = typeof row.question === 'string'
+      ? row.question.trim()
+      : (typeof row.vraag === 'string' ? row.vraag.trim() : '');
+    if (!question) return null;
 
-  return { ready, question, expectedUnit };
+    const key = typeof row.key === 'string' && row.key.trim()
+      ? row.key.trim()
+      : (typeof row.code === 'string' && row.code.trim()
+        ? row.code.trim()
+        : 'naam_suffix');
+    const expectedUnitRaw =
+      row.expected_unit ??
+      row.expectedUnit ??
+      row.answer_unit ??
+      row.answerUnit ??
+      row.eenheid ??
+      row.unit;
+    const expectedUnit = typeof expectedUnitRaw === 'string' ? expectedUnitRaw.trim() : '';
+    const targetField = typeof row.target_field === 'string' && row.target_field.trim()
+      ? row.target_field.trim()
+      : (typeof row.targetField === 'string' && row.targetField.trim()
+        ? row.targetField.trim()
+        : (key === 'verbruik_per_m2' ? 'verbruik_per_m2' : 'naam_suffix'));
+    const valueType = typeof row.value_type === 'string' && row.value_type.trim()
+      ? row.value_type.trim()
+      : (typeof row.valueType === 'string' && row.valueType.trim() ? row.valueType.trim() : 'text');
+
+    return { key, targetField, question, expectedUnit, valueType };
+  };
+
+  const questionsRaw = Array.isArray(obj.questions) ? obj.questions : [];
+  const questions = questionsRaw
+    .map((entry) => normalizeQuestion(entry))
+    .filter((entry): entry is SafetyQuestion => Boolean(entry));
+
+  if (questions.length === 0) {
+    const legacyQuestion = normalizeQuestion({
+      key: 'naam_suffix',
+      target_field: 'naam_suffix',
+      question: obj.question ?? obj.vraag,
+      expected_unit: obj.expected_unit ?? obj.expectedUnit ?? obj.answer_unit ?? obj.answerUnit ?? obj.eenheid ?? obj.unit,
+      value_type: 'text',
+    });
+    if (legacyQuestion) questions.push(legacyQuestion);
+  }
+
+  const ready = typeof obj.ready === 'boolean' ? obj.ready : undefined;
+  return { ready, questions };
 }
 
 function formatPriceInput(value: number | null): string {
@@ -242,10 +310,15 @@ export type ExistingMaterial = {
 interface MaterialSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  quoteId?: string;
+  klusId?: string;
   existingMaterials?: ExistingMaterial[];
   onSelectExisting?: (material: ExistingMaterial) => void;
   onMaterialAdded?: (material: any) => void;
-  onMaterialSavePendingChange?: (pending: boolean) => void;
+  onPendingMaterialQueued?: (payload: { clientId: string; placeholderMaterial: any; draftPayload: Record<string, unknown> }) => void;
+  onPendingMaterialQuestion?: (payload: { clientId: string; questions: SafetyQuestion[]; draftPayload: Record<string, unknown> }) => void;
+  onPendingMaterialResolved?: (payload: { clientId: string; material: any }) => void;
+  onPendingMaterialFailed?: (payload: { clientId: string; error: string }) => void;
   defaultCategory?: string | string[];
   onToggleFavorite?: (id: string) => void;
   showFavorites?: boolean;
@@ -258,10 +331,15 @@ interface MaterialSelectionModalProps {
 export function MaterialSelectionModal({
   open,
   onOpenChange,
+  quoteId,
+  klusId,
   existingMaterials = [],
   onSelectExisting,
   onMaterialAdded,
-  onMaterialSavePendingChange,
+  onPendingMaterialQueued,
+  onPendingMaterialQuestion,
+  onPendingMaterialResolved,
+  onPendingMaterialFailed,
   defaultCategory,
   onToggleFavorite,
   showFavorites = true,
@@ -765,14 +843,35 @@ export function MaterialSelectionModal({
   // --- SAVE ACTION ---
   const saveCustomMaterial = async (
     safetyAnswerOverride?: string,
-    options?: { closeModalImmediately?: boolean }
+    options?: { backgroundClientId?: string }
   ) => {
-    const closeModalImmediately = options?.closeModalImmediately === true;
+    const shouldRunInBackground =
+      !editingMaterialId &&
+      typeof onPendingMaterialQueued === 'function';
+    const backgroundClientId =
+      shouldRunInBackground
+        ? (options?.backgroundClientId || (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Date.now().toString()))
+        : null;
     try {
       setError(null);
 
       // 1. Validation
-      const naamRaw = mergeSafetyAnswerIntoNaam(customNaam.trim(), safetyAnswerOverride || '');
+      const safetyAnswerFinal = (safetyAnswerOverride || '').trim();
+      const isVerbruikQuestion =
+        safetyAnswerFinal.length > 0 &&
+        isVerbruikPerM2Question(safetyQuestion, safetyExpectedUnit);
+      const verbruikPerM2Value =
+        isVerbruikQuestion
+          ? parseVerbruikPerM2Answer(safetyAnswerFinal)
+          : null;
+      if (isVerbruikQuestion && verbruikPerM2Value === null) {
+        throw new Error('Vul verbruik per m² in als getal, bijv. 0,3.');
+      }
+
+      const naamRaw = mergeSafetyAnswerIntoNaam(
+        customNaam.trim(),
+        isVerbruikQuestion ? '' : safetyAnswerFinal
+      );
       if (!naamRaw) throw new Error('Materiaalnaam is verplicht.');
       const baseName = naamRaw.charAt(0).toUpperCase() + naamRaw.slice(1);
 
@@ -783,7 +882,9 @@ export function MaterialSelectionModal({
       const eenheid = (customEenheid || '').trim();
       if (!eenheid) throw new Error('Kies een eenheid.');
 
-      setSavingCustom(true);
+      if (!shouldRunInBackground) {
+        setSavingCustom(true);
+      }
 
       // 2. Generate the FINAL string using the shared helper
       const finalNameToSend = constructFinalName(baseName);
@@ -800,18 +901,42 @@ export function MaterialSelectionModal({
         prijs_incl_btw: prijsNumLocal,
         prijs_per_stuk: calculatedPiecePrice, // Calculated piece price (same as unit price for simple items)
       };
-      const safetyAnswerFinal = (safetyAnswerOverride || '').trim();
       if (safetyAnswerFinal) {
         payload.safety_confirmed = true;
         payload.safety_answer = safetyAnswerFinal;
         if (safetyExpectedUnit.trim()) {
           payload.expected_unit = safetyExpectedUnit.trim();
         }
+        if (verbruikPerM2Value !== null) {
+          payload.verbruik_per_m2 = verbruikPerM2Value;
+        }
       }
       const categorie = customSubsectie.trim();
       const leverancier = customLeverancier.trim();
       if (categorie) payload.categorie = categorie;
       if (leverancier) payload.leverancier = leverancier;
+      if (shouldRunInBackground && backgroundClientId) {
+        payload.pending_id = backgroundClientId;
+        if (quoteId) payload.quote_id = quoteId;
+        if (klusId) payload.klus_id = klusId;
+      }
+
+      if (shouldRunInBackground && backgroundClientId) {
+        const placeholderMaterial = {
+          ...payload,
+          id: `pending_${backgroundClientId}`,
+          row_id: `pending_${backgroundClientId}`,
+          pending_material_id: backgroundClientId,
+          pending_material_state: 'analyzing',
+          wastePercentage: wastePercentage || 0,
+        };
+        onPendingMaterialQueued({
+          clientId: backgroundClientId,
+          placeholderMaterial,
+          draftPayload: payload,
+        });
+        onOpenChange(false);
+      }
 
       // 4. API Call
       // (Assuming `haalFirebaseIdToken` is available globally or imported)
@@ -837,17 +962,27 @@ export function MaterialSelectionModal({
 
       const parsedN8n = extractSafetyPrompt(json?.n8n);
       const parsedData = extractSafetyPrompt(json?.data);
-      const questionText = parsedN8n.question || parsedData.question;
-      const expectedUnit = parsedN8n.expectedUnit || parsedData.expectedUnit;
+      const questions = parsedData.questions.length > 0 ? parsedData.questions : parsedN8n.questions;
       const shouldAskSafetyQuestion = parsedN8n.ready === false || parsedData.ready === false;
 
-      if (shouldAskSafetyQuestion && questionText) {
-        setSafetyQuestion(questionText);
-        setSafetyExpectedUnit(expectedUnit);
+      if (shouldAskSafetyQuestion && questions.length > 0) {
+        if (shouldRunInBackground && backgroundClientId) {
+          onPendingMaterialQuestion?.({
+            clientId: backgroundClientId,
+            questions,
+            draftPayload: payload,
+          });
+          return;
+        }
+        const firstQuestion = questions[0];
+        setSafetyQuestion(firstQuestion.question);
+        setSafetyExpectedUnit(firstQuestion.expectedUnit);
         setSafetyAnswer('');
         setSafetyAnswerError(null);
         setSafetyDialogOpen(true);
-        setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, safetyAnswerOverride || ''));
+        if (!isVerbruikQuestion) {
+          setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, safetyAnswerOverride || ''));
+        }
         return;
       }
 
@@ -855,7 +990,7 @@ export function MaterialSelectionModal({
       const realId = row?.row_id || row?.id || json.id;
 
       // 5. Success Callback
-      if (onMaterialAdded) {
+      if (!shouldRunInBackground && onMaterialAdded) {
         const mergedRow = row && typeof row === 'object'
           ? { ...payload, ...row }
           : payload;
@@ -875,18 +1010,46 @@ export function MaterialSelectionModal({
         });
       }
 
+      if (shouldRunInBackground && backgroundClientId) {
+        const mergedRow = row && typeof row === 'object'
+          ? { ...payload, ...row }
+          : payload;
+        const resolvedExclPrice =
+          parsePriceToNumber((mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
+          prijsNumLocal;
+        const resolvedPiecePrice =
+          parsePriceToNumber((mergedRow as any).prijs_per_stuk ?? (mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
+          calculatedPiecePrice;
+        onPendingMaterialResolved?.({
+          clientId: backgroundClientId,
+          material: {
+            ...mergedRow,
+            id: realId || (mergedRow as any).id,
+            row_id: realId || (mergedRow as any).row_id,
+            prijs: resolvedExclPrice,
+            prijs_per_stuk: resolvedPiecePrice,
+            wastePercentage: wastePercentage || 0,
+          },
+        });
+        return;
+      }
+
       // Reset and close
       setEditingMaterialId(null);
       onOpenChange(false);
 
     } catch (e: any) {
       console.error("❌ Fout bij opslaan:", e);
+      if (shouldRunInBackground && backgroundClientId) {
+        onPendingMaterialFailed?.({
+          clientId: backgroundClientId,
+          error: e?.message || 'Onbekende fout.',
+        });
+        return;
+      }
       setError(e?.message || 'Onbekende fout.');
     } finally {
       setSavingCustom(false);
-      if (closeModalImmediately) {
-        onMaterialSavePendingChange?.(false);
-      }
     }
   };
 
@@ -898,12 +1061,18 @@ export function MaterialSelectionModal({
     }
 
     const answerWithUnit = applySafetyUnit(answer, safetyExpectedUnit, safetyQuestion);
+    const isVerbruikQuestion = isVerbruikPerM2Question(safetyQuestion, safetyExpectedUnit);
+    if (isVerbruikQuestion && parseVerbruikPerM2Answer(answerWithUnit) === null) {
+      setSafetyAnswerError('Vul verbruik per m² in als getal, bijv. 0,3.');
+      return;
+    }
+
     setSafetyAnswerError(null);
     setSafetyDialogOpen(false);
-    setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, answerWithUnit));
-    onMaterialSavePendingChange?.(true);
-    onOpenChange(false);
-    void saveCustomMaterial(answerWithUnit, { closeModalImmediately: true });
+    if (!isVerbruikQuestion) {
+      setCustomNaam((prev) => mergeSafetyAnswerIntoNaam(prev, answerWithUnit));
+    }
+    void saveCustomMaterial(answerWithUnit);
   };
 
   const startEditing = (mat: ExistingMaterial, e: React.MouseEvent) => {
