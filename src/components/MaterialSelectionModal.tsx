@@ -23,6 +23,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import { PriceImportRequestForm } from '@/components/PriceImportRequestForm';
 import { cn } from '@/lib/utils';
 
 // Centralized logic for naming.
@@ -369,6 +370,7 @@ export function MaterialSelectionModal({
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [quickCategoryPickerOpen, setQuickCategoryPickerOpen] = useState(false);
   const [quickCategorySearchTerm, setQuickCategorySearchTerm] = useState('');
+  const [priceImportDialogOpen, setPriceImportDialogOpen] = useState(false);
   const [favoriteSubCategories, setFavoriteSubCategories] = useState<string[]>([]);
   const [shouldApplyFavoriteOnOpen, setShouldApplyFavoriteOnOpen] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -431,6 +433,7 @@ export function MaterialSelectionModal({
       setCategoryPickerOpen(false);
       setQuickCategorySearchTerm('');
       setQuickCategoryPickerOpen(false);
+      setPriceImportDialogOpen(false);
       setFavoriteSubCategories(savedFavorites);
       setShouldApplyFavoriteOnOpen(true);
       setDisplayLimit(50);
@@ -1393,8 +1396,7 @@ export function MaterialSelectionModal({
                           title="Standaard categorie aanpassen voor dit onderdeel"
                         >
                           <Filter className="h-3.5 w-3.5" />
-                          <span className="text-[11px] font-semibold uppercase tracking-wide">Categorie</span>
-                          <span className="max-w-[160px] truncate text-xs">{selectedCategoryLabel}</span>
+                          <span className="max-w-[220px] truncate text-xs font-semibold">{selectedCategoryLabel}</span>
                           <Pencil className="h-3 w-3 opacity-70" />
                         </Button>
 
@@ -1454,6 +1456,19 @@ export function MaterialSelectionModal({
                           </div>
                         )}
                       </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setQuickCategoryPickerOpen(false);
+                          setPriceImportDialogOpen(true);
+                        }}
+                        className="hidden h-8 px-2.5 text-xs gap-2 border border-amber-400/45 bg-amber-500/12 text-amber-100 hover:bg-amber-500/20 lg:inline-flex"
+                      >
+                        Prijs import aanvragen
+                      </Button>
 
                       {isEditingWaste ? (
                         <div className="flex items-center gap-1 rounded-md border border-sky-400/50 bg-sky-500/15 px-2 py-1">
@@ -2012,6 +2027,24 @@ export function MaterialSelectionModal({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    <Dialog open={priceImportDialogOpen} onOpenChange={setPriceImportDialogOpen}>
+      <DialogContent className="w-[96vw] max-w-6xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogHeader className="px-6 pt-6 pb-0">
+          <DialogTitle>Prijs import aanvragen</DialogTitle>
+          <DialogDescription>
+            Dien je aanvraag in zonder de materialenlijst te verlaten.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-6 pt-4">
+          <PriceImportRequestForm
+            className="border-0 bg-transparent p-0"
+            onSuccess={() => {
+              setPriceImportDialogOpen(false);
+            }}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }

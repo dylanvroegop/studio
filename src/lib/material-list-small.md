@@ -1753,23 +1753,23 @@
   },
   {
     "materiaalnaam": "Fixtainer SX pluggen en schroeven 210-delig",
-    "categorie": "pluggen"
+    "categorie": "Schroeven"
   },
   {
     "materiaalnaam": "PROFI-Box SX pluggen en schroeven 160-delig",
-    "categorie": "pluggen"
+    "categorie": "Schroeven"
   },
   {
     "materiaalnaam": "Duopower & Duotec pluggen en schroeven 87-delig",
-    "categorie": "pluggen"
+    "categorie": "Schroeven"
   },
   {
     "materiaalnaam": "Assortimentsbox pluggen en schroeven 44-delig",
-    "categorie": "pluggen"
+    "categorie": "Schroeven"
   },
   {
     "materiaalnaam": "Schroefnagels 3,8x32mm",
-    "categorie": "nagels"
+    "categorie": "Schroeven"
   },
   {
     "materiaalnaam": "Vlonderschroeven T-STAR plus platkop RVS 5x60mm TX25",
@@ -2261,10 +2261,6 @@
   },
   {
     "materiaalnaam": "Siliconenkit NO+sanitary RAL 9001 crÃ¨mewit 310ml",
-    "categorie": "Kitten"
-  },
-  {
-    "materiaalnaam": "Acrylaatkit wet on wet Wit 310ml",
     "categorie": "Kitten"
   },
   {
@@ -3153,147 +3149,147 @@
   },
   {
     "materiaalnaam": "Nylon pluggen 6x30mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nylon pluggen 8x40mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 6x30mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nylon pluggen 10x50mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nylon pluggen 5x25mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nylon pluggen 12x60mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 10x55mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 12x60mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 8x40mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 5x25mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 14x70mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 4x20mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Plug SX Plus 6x30mm*",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 6x30mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 14x70mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 8x40mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 10x50mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "PROFI-Box SX pluggen 132-delig",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 12x60mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 4x20mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Fixtainer SX pluggen 210-delig",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Set nylon pluggen 330-delig",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 16x80mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SX pluggen 5x25mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandpluggen TB 9-13mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Metalen hollewandpluggen 4x32mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DuoHM S PH TX hollewandpluggen 6x55mm TX30",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Gipsplaatpluggen SP 9-15mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandpluggen TA 3-6mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Metalen hollewandpluggen 6x65mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DuoHM S PH TX hollewandpluggen 4x55mm TX20",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Gipsplaatpluggen SP-Mini 9-15mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandpluggen TD 23-26mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Metalen hollewandpluggen 5x37mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Alligator universele pluggen AF6 Ã6mm, wanddikte > 9,5mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Metalen hollewandpluggen 5x52mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandanker montagetang",
@@ -3301,31 +3297,31 @@
   },
   {
     "materiaalnaam": "Metalen hollewandpluggen 4x45mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DuoHM S PH TX hollewandpluggen 5x55mm TX25",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Alligator universele pluggen AF8 Ã8mm, wanddikte > 12,5mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandpluggen TC 15-19mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "HM S metalen hollewandpluggen 6x52mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "HM S metalen hollewandpluggen 5x52mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "HM S metalen hollewandpluggen 6x37mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "HMZ 1 profi-montagetang",
@@ -3333,19 +3329,19 @@
   },
   {
     "materiaalnaam": "Duotec hollewandpluggen 12mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "HM S metalen hollewandpluggen 5x37mm metrisch",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "K 54 tuimelpluggen",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Duotec hollewandpluggen 10mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "HMZ 2 montagetang",
@@ -3353,27 +3349,27 @@
   },
   {
     "materiaalnaam": "Alligator muurplug A8 Ã8mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Alligator muurplug A6 Ã6mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandanker + bout M10 10-64mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandanker + bout M8 10-64mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandanker + bout M6 9,5-92mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hollewandanker + bout M5 9,5-92mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "FIS V Plus 300 T chemisch ankerpatroon 300ml",
@@ -3433,211 +3429,211 @@
   },
   {
     "materiaalnaam": "Nagelpluggen 6x60mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 6x60/30mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 8x100mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 6x80mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 8x80/40mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 6x80/50mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 8x120mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 6x40mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 8x100/60mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 8x80mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 8x100mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 6x40/10mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 8x120/80mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen DuoXpand 10x100mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 8x120mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 8x80mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N P hoekankerpluggen 8x40/1mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen DuoXpand 10x120mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 5x50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 8x60mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 5x40mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 8x60/20mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 5x50/25mm PZ2",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 10x160mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 10x140mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen DuoXpand 10x80mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen DuoXpand 10x140mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen DuoXpand 10x160mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 10x100mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 10x140mm TX",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 10x120mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 10x80mm TX40*",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nagelpluggen 10x100mm TX",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 5x50/25mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SXR F US kozijnpluggen 10x60mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tuimelpluggen KD6",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "SXR T kozijnpluggen 10x80mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 8x100/60mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 6x60/30mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "N S slagpluggen 10x100/50mm*",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiekraagpluggen S12 TX40",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructie plug SXRL zeskante kop 8x80mm",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructie plug SXRL TX 10x100mm*",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL TX 8x100mm*",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 10x160mm TX40",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 10x140mm TX40",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 10x120mm TX40",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 10x100mm TX40",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 8x120mm TX30",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 8x100mm TX30",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL 8x80mm TX30*",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Constructiepluggen SXRL TX 8x140mm*",
-    "categorie": "pluggen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "M10x1m",
@@ -3841,139 +3837,139 @@
   },
   {
     "materiaalnaam": "Tapbouten RVS M6x20mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbout M8x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M6x30mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbout M6x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbout M8x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbout M10x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M8x20mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M8x20mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M6x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M8x30mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M8x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M6x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M6x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M10x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M8x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M6x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M8x30mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M6x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M8x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M6x30mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M8x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M6x20mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M10x30mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M10x100mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M6x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M5x30mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M8x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten RVS M10x30mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M10x60mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M10x50mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M8x70mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M6x12mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Set tapbouten 145-delig",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Tapbouten M10x70mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Text-[16px] font-normal",
@@ -3981,543 +3977,543 @@
   },
   {
     "materiaalnaam": "Mixbox blindklinknagels 650-delig",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Mixbox Medi bouten & moeren 285-delig",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x100mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten RVS M6x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x150mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x100mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x65mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten RVS M8x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x130mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x110mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten RVS M6x80mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x110mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x90mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x100mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x130mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x100mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x150mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x65mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten RVS M8x80mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x65mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x180mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten RVS M8x130mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten RVS M8x110mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x150mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x130mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x150mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x160mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten RVS M6x100mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x75mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x180mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x200mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M8x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x200mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x130mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x75mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x150mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x200mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x75mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x65mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x240mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x75mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x150mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x75mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M10x50mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M6x130mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Golfplaatbouten gemonteerd H3S 7x110mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Golfplaatbouten gemonteerd H3S 7x90mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M8x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M6x60mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M12x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M10x70mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M6x50mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M12x70mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M8x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Slotbouten & moeren M12x180mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M6x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M8x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M8x35mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M8x40mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M8x40mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Set HEX-bouten & moeren 75-delig",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M10x80mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M10x70mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten M6x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Zeskantbouten RVS M6x40mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 5x9mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 4x7mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Ankernagels blank 1/2kg 50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Stalen nagels 40mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Ovalen draadnagels 1/2kg 25mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Asfaltnagels 1/2kg 20mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 5x7mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 3x12mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Ankernagels blank 1/2kg 65mm*",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Stalen nagels 25mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 3x7mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Stalen nagels 50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank verloren kop 1/2kg 40mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Asfaltnagels 1/2kg 13mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 4x12mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBA16 nagels 16G 63mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels platkop 1kg 75mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels platkop 1kg 100mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Ovalen draadnagels 1/2kg 40mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank verloren kop 1/2kg 50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kram 1/2kg 30mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels platkop 1kg 125mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels platkop 1kg 65mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 4x3mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 5x3mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Ankernagels blank 1/2kg 40mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels platkop 1kg 150mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Stalen nagels 75mm*",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 40mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels platkop 1kg 50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 75mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Asfaltnagels met extra grote kop 1kg 25mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Stalen nagels 65mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Blindklinknagels 3x3mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kram 1/2kg 40mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 100mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kram 1/2kg 15mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Ovalen draadnagels 1/2kg 50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 25mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 150mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kram 1/2kg 25mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank verloren kop 1/2kg 65mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kram 1/2kg 20mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Gedraaide vierkantnagels 1/2kg 30mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 65mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Draadnagels blank platkop 1/2kg 125mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Asfaltnagels met extra grote kop 1kg 30mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Ankernagels blank 1/2kg 25mm*",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Set blindklinknagels 650-delig",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type A 8mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type A 10mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type G 10mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type G 8mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBT18 brad 18G 50mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBA16 nagels 16G 32mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type A 6mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBT18 brad 18G 40mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DSTSX nieten gegalvaniseerd 5,6x15mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type A 12mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBA16 nagels 16G 50mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DSTSX nieten gegalvaniseerd 5,6x35mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBA16 nagels 16G 38mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBSB16 brad 16G 32mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBT18 brad 18G 35mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type A 14mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Spijkers ring helder 2,8x50mm",
@@ -4525,23 +4521,23 @@
   },
   {
     "materiaalnaam": "DNBSB16 brad 16G 38mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Bostitch SX503540Z nieten gegalvaniseerd 5,6x40mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBA16 nagels 16G 44mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type G 6mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DSTSX nieten gegalvaniseerd 5,6x25mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Spijkers ring helder 2,8x63mm",
@@ -4549,43 +4545,43 @@
   },
   {
     "materiaalnaam": "Nieten Type G 12mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DSTSX nieten gegalvaniseerd 5,6x30mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DSTSX nieten gegalvaniseerd 5,6x19mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type G 14mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBSB16 brad 16G 25mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type A 4mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBSB16 brad 16G 45mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "DNBSB16 brad 16G 50mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type H 8mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type H 10mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-31838 pin 23G 25mm",
@@ -4593,27 +4589,27 @@
   },
   {
     "materiaalnaam": "DNBSB16 brad 16G 64mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-33993 brad 16G 50mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type H 6mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-31896 brad 18G 30mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type CT 12mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-33977 brad 16G 40mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Spijkers ring helder 3,10x90mm",
@@ -4629,27 +4625,27 @@
   },
   {
     "materiaalnaam": "Nieten Type G RVS 6mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Krammen Type 7 14mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-31915 brad 18G 35mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-34014 brad 16G 60mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-34043 brad 16G RVS 38mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type G RVS 12mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Spijkers ring helder 2,8x75mm",
@@ -4657,31 +4653,31 @@
   },
   {
     "materiaalnaam": "F-31883 brad 18G 25mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type G RVS 10mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type CT 8mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-31957 brad 18G 50mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Krammen Type 7 12mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Minibrad 18G 18G/32mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Type 140 nieten 140/10mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Spijkers glad 3.10x90mm",
@@ -4701,11 +4697,11 @@
   },
   {
     "materiaalnaam": "Type 500 schuine nagels 35mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Afbouwnagels maat 16 20mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Spijkers RVS/INOX geringd 2.8x63mm",
@@ -4713,35 +4709,35 @@
   },
   {
     "materiaalnaam": "Krammen Type 7 11mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten Type CT 10mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Type 140 nieten 140/12mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "F-31986 brad 15G 45mm",
-    "categorie": "brad"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Krammen Type 7 10mm",
-    "categorie": "krammen"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Schuine afbouwnagels maat 16 45mm",
-    "categorie": "nagels"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Type 140 nieten multipack",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Nieten 90 series 5,8/35mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Spijkers verzinkt ring 2.8x75mm",
@@ -4749,7 +4745,7 @@
   },
   {
     "materiaalnaam": "Nieten 90 series 5,8/40mm",
-    "categorie": "nieten"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "D-pads 100x100x8mm",
@@ -4869,7 +4865,7 @@
   },
   {
     "materiaalnaam": "Patentbout M4x38mm vernikkeld",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Vrij- & bezet rozet Gepolijst nikkel",
@@ -5037,15 +5033,15 @@
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x80mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x90mm zwart*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x90mm*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag SKG*** PC 92 Aluminium",
@@ -5061,15 +5057,15 @@
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x80mm zwart*",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x70mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x80mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag PC 85mm Aluminium SKG***",
@@ -5113,11 +5109,11 @@
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x80mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x90mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag PC 55mm zwart SKG***",
@@ -5125,7 +5121,7 @@
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag SKG*** PC 92mm Aluminium*",
@@ -5141,7 +5137,7 @@
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Dievenklauw SKG**",
@@ -5149,7 +5145,7 @@
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x52mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag SKG*** PC 92mm Aluminium",
@@ -5157,11 +5153,11 @@
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x60mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x70mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag PC 110mm Aluminium*",
@@ -5173,7 +5169,7 @@
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag SKG*** PC 55mm Aluminium*",
@@ -5181,7 +5177,7 @@
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x90mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag SKG*** PC 92mm Zwart",
@@ -5193,19 +5189,19 @@
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x50mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x70mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Wisselstift RVS + bouten M6x52mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x60mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsbeslag SKG*** PC 72mm Aluminium",
@@ -5213,7 +5209,7 @@
   },
   {
     "materiaalnaam": "Krukstift RVS + bouten M6x70mm zwart",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Kerntrekbeveiliging veiligheidsrozet SKG*** 3442-II Rechthoek*",
@@ -7361,7 +7357,7 @@
   },
   {
     "materiaalnaam": "Slotbouten zwart M8x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Staarthengen 100mm",
@@ -7377,7 +7373,7 @@
   },
   {
     "materiaalnaam": "Slotbouten zwart M6x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Lock grendel inclusief hangslot 40mm breed",
@@ -7413,7 +7409,7 @@
   },
   {
     "materiaalnaam": "Slotbouten zwart M8x50mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Hangslotschuif 100mm vlak",
@@ -7453,7 +7449,7 @@
   },
   {
     "materiaalnaam": "Slotbouten zwart M8x70mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Deuropvangbeugel Haaks zinkmagnesium*",
@@ -7529,7 +7525,7 @@
   },
   {
     "materiaalnaam": "Slotbouten zwart M6x60mm",
-    "categorie": "bouten & moeren"
+    "categorie": "Overig"
   },
   {
     "materiaalnaam": "Staarthengen 125mm",

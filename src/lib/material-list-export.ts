@@ -14,6 +14,8 @@ export interface MaterialListExportMeta {
   klusTitel?: string;
   klantNaam?: string;
   klantEmail?: string;
+  senderCompanyName?: string;
+  senderContactName?: string;
   createdAt?: Date;
 }
 
@@ -116,6 +118,9 @@ export function buildMaterialListEmailBody(
 ): string {
   const greetingName = safeString(options.greetingName);
   const introName = greetingName || 'team';
+  const senderCompanyName = safeString(options.meta?.senderCompanyName);
+  const senderContactName = safeString(options.meta?.senderContactName);
+  const signatureLines = [senderCompanyName, senderContactName].filter(Boolean);
   const listText = buildMaterialListText(items, options);
 
   return [
@@ -126,6 +131,7 @@ export function buildMaterialListEmailBody(
     listText,
     '',
     'Met vriendelijke groet,',
+    ...signatureLines,
   ].join('\n');
 }
 

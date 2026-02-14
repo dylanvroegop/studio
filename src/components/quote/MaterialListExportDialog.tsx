@@ -36,6 +36,16 @@ interface MaterialListExportDialogProps {
   meta?: MaterialListExportMeta;
   suppliers: LeverancierContact[];
   defaultSupplierId?: string;
+  onUpdateSupplierContact?: (payload: {
+    supplierId: string;
+    contactNaam: string;
+    email: string;
+  }) => Promise<void>;
+  onCreateSupplier?: (payload: {
+    naam: string;
+    contactNaam: string;
+    email: string;
+  }) => Promise<string | void>;
 }
 
 export function MaterialListExportDialog({
@@ -45,18 +55,24 @@ export function MaterialListExportDialog({
   meta,
   suppliers,
   defaultSupplierId,
+  onUpdateSupplierContact,
+  onCreateSupplier,
 }: MaterialListExportDialogProps) {
   const { toast } = useToast();
   const [includePrices, setIncludePrices] = useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [email, setEmail] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierContactName, setNewSupplierContactName] = useState('');
+  const [newSupplierEmail, setNewSupplierEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [fileName, setFileName] = useState('');
   const [subjectTouched, setSubjectTouched] = useState(false);
   const [bodyTouched, setBodyTouched] = useState(false);
-  const [emailTouched, setEmailTouched] = useState(false);
   const [isPdfBusy, setIsPdfBusy] = useState(false);
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
 
   const hasSuppliers = suppliers.length > 0;
   const selectedSupplier = useMemo(
@@ -66,15 +82,17 @@ export function MaterialListExportDialog({
 
   const selectedSupplierDisplayName = useMemo(() => {
     if (!selectedSupplier) return '';
-    const contactName = String(selectedSupplier.contactNaam || '').trim();
+    const inlineContactName = String(contactName || '').trim();
+    if (inlineContactName) return inlineContactName;
+    const defaultContactName = String(selectedSupplier.contactNaam || '').trim();
     const supplierName = String(selectedSupplier.naam || '').trim();
-    return contactName || supplierName;
-  }, [selectedSupplier]);
+    return defaultContactName || supplierName;
+  }, [selectedSupplier, contactName]);
 
   const hasValidSelectedSupplier = !!(
     selectedSupplier
     && String(selectedSupplier.naam || '').trim()
-    && String(selectedSupplier.email || '').trim()
+    && String(email || '').trim()
   );
 
   const defaultSubject = useMemo(() => {
@@ -114,6 +132,10 @@ export function MaterialListExportDialog({
     setIncludePrices(false);
     setSelectedSupplierId(resolvedDefaultSupplierId);
     setEmail(String(initialSupplier?.email || '').trim());
+    setContactName(String(initialSupplier?.contactNaam || '').trim());
+    setNewSupplierName('');
+    setNewSupplierContactName('');
+    setNewSupplierEmail('');
     setSubject(defaultSubject);
     setBody(buildMaterialListEmailBody(items, {
       includePrices: false,
@@ -123,13 +145,12 @@ export function MaterialListExportDialog({
     setFileName(defaultFileName);
     setSubjectTouched(false);
     setBodyTouched(false);
-    setEmailTouched(false);
 
     if (!suppliers.length) {
       toast({
         variant: 'destructive',
         title: 'Geen leverancier ingesteld',
-        description: 'Stel eerst een leverancier in via Instellingen voordat je e-mail gebruikt.',
+        description: 'Voeg hieronder direct een leverancier toe om e-mail te gebruiken.',
       });
     }
   }, [isOpen, defaultSupplierId, suppliers, defaultSubject, defaultFileName, items, meta, toast]);
@@ -145,9 +166,20 @@ export function MaterialListExportDialog({
   }, [isOpen, subjectTouched, bodyTouched, defaultSubject, generatedBody]);
 
   useEffect(() => {
-    if (!isOpen || emailTouched) return;
-    setEmail(String(selectedSupplier?.email || '').trim());
-  }, [isOpen, emailTouched, selectedSupplier]);
+    if (!isOpen || !selectedSupplier) return;
+    setEmail(String(selectedSupplier.email || '').trim());
+    setContactName(String(selectedSupplier.contactNaam || '').trim());
+  }, [isOpen, selectedSupplier]);
+
+  useEffect(() => {
+    if (!isOpen || selectedSupplierId || !suppliers.length) return;
+    const resolvedDefaultSupplierId = defaultSupplierId && suppliers.some((supplier) => supplier.id === defaultSupplierId)
+      ? defaultSupplierId
+      : suppliers[0]?.id || '';
+    if (resolvedDefaultSupplierId) {
+      setSelectedSupplierId(resolvedDefaultSupplierId);
+    }
+  }, [isOpen, selectedSupplierId, suppliers, defaultSupplierId]);
 
   const handleCopy = async (): Promise<void> => {
     try {
@@ -173,7 +205,7 @@ export function MaterialListExportDialog({
       toast({
         variant: 'destructive',
         title: 'Geen leverancier gekozen',
-        description: 'Voeg eerst een leverancier toe in Instellingen.',
+        description: 'Voeg eerst een leverancier toe in deze popup.',
       });
       return;
     }
@@ -182,7 +214,7 @@ export function MaterialListExportDialog({
       toast({
         variant: 'destructive',
         title: 'Leverancier onvolledig',
-        description: 'Vul naam en e-mailadres van de leverancier in via Instellingen.',
+        description: 'Vul leverancier en ontvanger e-mail in en sla op in deze popup.',
       });
       return;
     }
@@ -204,6 +236,119 @@ export function MaterialListExportDialog({
       title: 'E-mail geopend',
       description: 'Controleer ontvanger en inhoud in je mail-app.',
     });
+  };
+
+  const handleSaveSupplierContact = async (): Promise<void> => {
+    if (!selectedSupplier) {
+      toast({
+        variant: 'destructive',
+        title: 'Geen leverancier gekozen',
+        description: 'Kies eerst een leverancier.',
+      });
+      return;
+    }
+    if (!onUpdateSupplierContact) {
+      toast({
+        variant: 'destructive',
+        title: 'Opslaan niet beschikbaar',
+        description: 'Kon leveranciersinstellingen hier niet bijwerken.',
+      });
+      return;
+    }
+
+    const trimmedEmail = String(email || '').trim();
+    if (!trimmedEmail) {
+      toast({
+        variant: 'destructive',
+        title: 'E-mailadres ontbreekt',
+        description: 'Vul een ontvanger e-mailadres in.',
+      });
+      return;
+    }
+
+    setIsSavingSupplier(true);
+    try {
+      await onUpdateSupplierContact({
+        supplierId: selectedSupplier.id,
+        contactNaam: String(contactName || '').trim(),
+        email: trimmedEmail,
+      });
+      toast({
+        title: 'Leverancier bijgewerkt',
+        description: 'Contactpersoon en e-mailadres zijn opgeslagen.',
+      });
+    } catch (error) {
+      console.error('Leverancier opslaan mislukt:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Opslaan mislukt',
+        description: 'Kon leverancier niet opslaan. Probeer het opnieuw.',
+      });
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
+
+  const handleCreateSupplier = async (): Promise<void> => {
+    if (!onCreateSupplier) {
+      toast({
+        variant: 'destructive',
+        title: 'Toevoegen niet beschikbaar',
+        description: 'Kon leverancier hier niet toevoegen.',
+      });
+      return;
+    }
+
+    const trimmedName = String(newSupplierName || '').trim();
+    const trimmedEmail = String(newSupplierEmail || '').trim();
+
+    if (!trimmedName) {
+      toast({
+        variant: 'destructive',
+        title: 'Naam ontbreekt',
+        description: 'Vul een leveranciersnaam in.',
+      });
+      return;
+    }
+
+    if (!trimmedEmail) {
+      toast({
+        variant: 'destructive',
+        title: 'E-mailadres ontbreekt',
+        description: 'Vul een ontvanger e-mailadres in.',
+      });
+      return;
+    }
+
+    setIsSavingSupplier(true);
+    try {
+      const createdSupplierId = await onCreateSupplier({
+        naam: trimmedName,
+        contactNaam: String(newSupplierContactName || '').trim(),
+        email: trimmedEmail,
+      });
+
+      setNewSupplierName('');
+      setNewSupplierContactName('');
+      setNewSupplierEmail('');
+      if (createdSupplierId) {
+        setSelectedSupplierId(createdSupplierId);
+      }
+
+      toast({
+        title: 'Leverancier toegevoegd',
+        description: 'Je kunt nu direct e-mailen vanuit deze popup.',
+      });
+    } catch (error) {
+      console.error('Leverancier toevoegen mislukt:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Toevoegen mislukt',
+        description: 'Kon leverancier niet toevoegen. Probeer het opnieuw.',
+      });
+    } finally {
+      setIsSavingSupplier(false);
+    }
   };
 
   const handleDownloadPdf = async (): Promise<void> => {
@@ -261,19 +406,60 @@ export function MaterialListExportDialog({
 
         <div className="space-y-5 py-2">
           {!hasSuppliers && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm space-y-3">
               <div className="flex items-start gap-2 text-destructive">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div className="space-y-1">
                   <p className="font-semibold">Nog geen leverancier ingesteld</p>
                   <p className="text-destructive/90">
-                    Voeg een of meerdere leveranciers toe in{' '}
+                    Voeg hieronder direct je eerste leverancier toe.
+                  </p>
+                  <p className="text-destructive/80">
+                    Of beheer later alles in{' '}
                     <Link href="/instellingen" className="underline underline-offset-2 font-medium">
                       Instellingen
                     </Link>
-                    . Daarna kun je hier direct kiezen.
+                    .
                   </p>
                 </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="new-supplier-name">Leverancier</Label>
+                  <Input
+                    id="new-supplier-name"
+                    value={newSupplierName}
+                    onChange={(event) => setNewSupplierName(event.target.value)}
+                    placeholder="Bijv. Bouwmaat"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-supplier-contact">Contactpersoon</Label>
+                  <Input
+                    id="new-supplier-contact"
+                    value={newSupplierContactName}
+                    onChange={(event) => setNewSupplierContactName(event.target.value)}
+                    placeholder="Bijv. J. Jansen"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-supplier-email">Ontvanger e-mail</Label>
+                  <Input
+                    id="new-supplier-email"
+                    type="email"
+                    value={newSupplierEmail}
+                    onChange={(event) => setNewSupplierEmail(event.target.value)}
+                    placeholder="inkoop@leverancier.nl"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" onClick={handleCreateSupplier} disabled={isSavingSupplier}>
+                  {isSavingSupplier ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Leverancier toevoegen
+                </Button>
               </div>
             </div>
           )}
@@ -306,7 +492,49 @@ export function MaterialListExportDialog({
 
           {hasSuppliers && !hasValidSelectedSupplier && (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-              Selecteer een leverancier met ingevulde naam en e-mailadres in Instellingen.
+              Vul ontvanger e-mail in en klik op &quot;Contact opslaan&quot;.
+            </div>
+          )}
+
+          {hasSuppliers && selectedSupplier && (
+            <div className="rounded-lg border border-border/70 p-3 space-y-3">
+              <div className="text-xs text-muted-foreground">
+                Wijzig contactpersoon en e-mail direct voor <span className="font-medium">{selectedSupplier.naam || 'deze leverancier'}</span>.
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="material-share-contact-name">Contactpersoon</Label>
+                  <Input
+                    id="material-share-contact-name"
+                    value={contactName}
+                    onChange={(event) => setContactName(event.target.value)}
+                    placeholder="Bijv. J. Jansen"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="material-share-email">
+                    Ontvanger e-mail (contact: {String(contactName || '').trim() || 'niet ingevuld'})
+                  </Label>
+                  <Input
+                    id="material-share-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="inkoop@leverancier.nl"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSaveSupplierContact}
+                  disabled={isSavingSupplier}
+                >
+                  {isSavingSupplier ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Contact opslaan
+                </Button>
+              </div>
             </div>
           )}
 
@@ -360,20 +588,6 @@ export function MaterialListExportDialog({
               value={fileName}
               onChange={(event) => setFileName(event.target.value)}
               placeholder="Materiaallijst"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="material-share-email">Ontvanger e-mail</Label>
-            <Input
-              id="material-share-email"
-              type="email"
-              value={email}
-              onChange={(event) => {
-                setEmailTouched(true);
-                setEmail(event.target.value);
-              }}
-              placeholder="inkoop@leverancier.nl"
             />
           </div>
 

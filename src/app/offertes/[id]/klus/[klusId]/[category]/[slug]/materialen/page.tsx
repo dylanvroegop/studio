@@ -1787,6 +1787,98 @@ export default function GenericMaterialsPageRedesigned() {
     klusTitel: JOB_TITEL,
   }), [materialExportMeta, JOB_TITEL]);
 
+  const saveMaterialSupplierSettings = useCallback(async (
+    nextSuppliersInput: LeverancierContact[],
+    preferredDefaultSupplierId?: string,
+  ): Promise<string> => {
+    if (!user || !firestore) {
+      throw new Error('Gebruiker of database niet beschikbaar.');
+    }
+
+    const normalizedSuppliers = normalizeLeverancierContactList(nextSuppliersInput);
+    const resolvedDefaultSupplierId = pickDefaultLeverancierId(
+      preferredDefaultSupplierId ?? defaultMaterialSupplierId,
+      normalizedSuppliers,
+    );
+
+    await setDoc(doc(firestore, 'users', user.uid), {
+      settings: {
+        leveranciers: normalizedSuppliers,
+        defaultLeverancierId: resolvedDefaultSupplierId,
+      },
+    }, { merge: true });
+
+    setMaterialSuppliers(normalizedSuppliers);
+    setDefaultMaterialSupplierId(resolvedDefaultSupplierId);
+    return resolvedDefaultSupplierId;
+  }, [user, firestore, defaultMaterialSupplierId]);
+
+  const handleUpdateMaterialSupplierContact = useCallback(async ({
+    supplierId,
+    contactNaam,
+    email,
+  }: {
+    supplierId: string;
+    contactNaam: string;
+    email: string;
+  }): Promise<void> => {
+    const resolvedSupplierId = String(supplierId || '').trim();
+    if (!resolvedSupplierId) {
+      throw new Error('Geen leverancier geselecteerd.');
+    }
+
+    const trimmedContactNaam = String(contactNaam || '').trim();
+    const trimmedEmail = String(email || '').trim();
+
+    if (!trimmedEmail) {
+      throw new Error('E-mailadres ontbreekt.');
+    }
+
+    const nextSuppliers = (materialSuppliers || []).map((supplier) => (
+      supplier.id === resolvedSupplierId
+        ? {
+          ...supplier,
+          contactNaam: trimmedContactNaam,
+          email: trimmedEmail,
+        }
+        : supplier
+    ));
+
+    await saveMaterialSupplierSettings(nextSuppliers, defaultMaterialSupplierId || resolvedSupplierId);
+  }, [materialSuppliers, saveMaterialSupplierSettings, defaultMaterialSupplierId]);
+
+  const handleCreateMaterialSupplier = useCallback(async ({
+    naam,
+    contactNaam,
+    email,
+  }: {
+    naam: string;
+    contactNaam: string;
+    email: string;
+  }): Promise<string> => {
+    const trimmedNaam = String(naam || '').trim();
+    const trimmedContactNaam = String(contactNaam || '').trim();
+    const trimmedEmail = String(email || '').trim();
+
+    if (!trimmedNaam) {
+      throw new Error('Leveranciersnaam ontbreekt.');
+    }
+    if (!trimmedEmail) {
+      throw new Error('E-mailadres ontbreekt.');
+    }
+
+    const newSupplier: LeverancierContact = {
+      id: crypto.randomUUID(),
+      naam: trimmedNaam,
+      contactNaam: trimmedContactNaam,
+      email: trimmedEmail,
+    };
+
+    const nextSuppliers = [...(materialSuppliers || []), newSupplier];
+    await saveMaterialSupplierSettings(nextSuppliers, newSupplier.id);
+    return newSupplier.id;
+  }, [materialSuppliers, saveMaterialSupplierSettings]);
+
   const orphanedComponents = components.filter((c) => {
     const normalizedType = normalizeComponentType(c.type);
     return !normalizedType || !activeComponentTypes.has(normalizedType);
@@ -2775,16 +2867,16 @@ export default function GenericMaterialsPageRedesigned() {
         ].filter(Boolean).join(' ').trim()
           || String(klantInfo?.bedrijfsnaam || '').trim();
         const offerteNummer = String(data?.offerteNummer || '').trim();
-        setMaterialExportMeta({
-          offerteNummer,
-          klantNaam,
-        });
+        let senderCompanyName = '';
+        let senderContactName = '';
 
         if (user) {
           const userSettingsSnap = await getDoc(doc(firestore, 'users', user.uid));
           const rawSettings = userSettingsSnap.exists()
             ? (userSettingsSnap.data()?.settings || {})
             : {};
+          senderCompanyName = String(rawSettings?.bedrijfsnaam || '').trim();
+          senderContactName = String(rawSettings?.contactNaam || '').trim();
           const leveranciers = normalizeLeverancierContactList(rawSettings?.leveranciers);
           const defaultLeverancierId = pickDefaultLeverancierId(rawSettings?.defaultLeverancierId, leveranciers);
           setMaterialSuppliers(leveranciers);
@@ -2793,6 +2885,13 @@ export default function GenericMaterialsPageRedesigned() {
           setMaterialSuppliers([]);
           setDefaultMaterialSupplierId('');
         }
+
+        setMaterialExportMeta({
+          offerteNummer,
+          klantNaam,
+          senderCompanyName,
+          senderContactName,
+        });
 
         if (klusNode) setKlus(klusNode as unknown as Job);
 
@@ -5869,6 +5968,8 @@ export default function GenericMaterialsPageRedesigned() {
         meta={materialExportContext}
         suppliers={materialSuppliers}
         defaultSupplierId={defaultMaterialSupplierId}
+        onUpdateSupplierContact={handleUpdateMaterialSupplierContact}
+        onCreateSupplier={handleCreateMaterialSupplier}
       />
 
       <Dialog open={presetPickerOpen} onOpenChange={setPresetPickerOpen}>
