@@ -1177,6 +1177,7 @@ export default function GenericMaterialsPageRedesigned() {
   const klusId = params.klusId as string;
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
+  const isGevelbekledingJob = categorySlug === 'gevelbekleding' || jobSlug.includes('gevelbekleding');
   const specificJobConfig = getJobConfig(jobSlug);
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
 
@@ -1522,7 +1523,20 @@ export default function GenericMaterialsPageRedesigned() {
   const activeComponentTypes = useMemo(() => {
     const types = new Set<string>();
     const categories = Object.keys(jobConfig?.categoryConfig || MATERIAL_CATEGORY_INFO);
-    const isComplex = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat') || jobSlug.includes('kozijn') || jobSlug.includes('deur') || jobSlug.includes('boeiboord') || jobSlug.includes('afwerking'));
+    const isComplex = (
+      jobSlug.includes('hsb')
+      || jobSlug.includes('metalstud')
+      || jobSlug.includes('wand')
+      || jobSlug.includes('dak')
+      || jobSlug.includes('hellend')
+      || jobSlug.includes('plat')
+      || jobSlug.includes('kozijn')
+      || jobSlug.includes('deur')
+      || jobSlug.includes('boeiboord')
+      || jobSlug.includes('afwerking')
+      || jobSlug.includes('gevelbekleding')
+      || categorySlug === 'gevelbekleding'
+    );
     const isCeiling = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
 
     categories.forEach(key => {
@@ -1537,8 +1551,8 @@ export default function GenericMaterialsPageRedesigned() {
         else if (k === 'boeiboord' || lower === 'boeiboorden') type = 'boeiboord';
         else if (k === 'Koof') type = 'koof';
         else if (k === 'Installatie' || k === 'Schakelmateriaal') type = 'installatie';
-        else if (k === 'Dagkant') type = 'dagkant';
-        else if (k === 'Vensterbank') type = 'vensterbank';
+        else if (k === 'Dagkant' || lower === 'dagkant') type = 'dagkant';
+        else if (k === 'Vensterbank' || lower === 'vensterbank') type = 'vensterbank';
       }
 
       if (isCeiling) {
@@ -1842,16 +1856,17 @@ export default function GenericMaterialsPageRedesigned() {
   }, []);
 
   const addComponentFromVariant = useCallback((type: JobComponentType, item: any, idx = 0) => {
+    const isGevelWaterslag = type === 'vensterbank' && isGevelbekledingJob;
     const newItem = {
       id: `${type}-${Date.now()}-${idx}`,
       type,
-      label: item.title,
+      label: isGevelWaterslag ? 'Waterslag' : item.title,
       slug: item.slug,
       measurements: {},
       materials: getPresetMaterialsForType(type)
     };
     setComponents(prev => [...prev, newItem]);
-  }, [getPresetMaterialsForType]);
+  }, [getPresetMaterialsForType, isGevelbekledingJob]);
 
   const openVariantPickerOrAdd = useCallback((type: JobComponentType) => {
     const items = getVariantItemsForType(type);
@@ -4376,7 +4391,16 @@ export default function GenericMaterialsPageRedesigned() {
             {(Object.entries(jobConfig?.categoryConfig || MATERIAL_CATEGORY_INFO) as [MaterialCategoryKey, any][])
               .sort(([keyA, a], [keyB, b]) => {
                 // Check if this is a complex job with component injection sections
-                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat'));
+                const isComplexJob = (
+                  jobSlug.includes('hsb')
+                  || jobSlug.includes('metalstud')
+                  || jobSlug.includes('wand')
+                  || jobSlug.includes('dak')
+                  || jobSlug.includes('hellend')
+                  || jobSlug.includes('plat')
+                  || jobSlug.includes('gevelbekleding')
+                  || categorySlug === 'gevelbekleding'
+                );
                 const isCeilingJob = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
                 const isBoeiboordSection = (keyA === 'boeiboord' || (keyA as string).toLowerCase() === 'boeiboorden');
                 const isVlizotrapSectionA = (keyA === 'Toegang' || keyA === 'Vliering_Toegang' || (keyA as string).toLowerCase().includes('vlizotrap') || (keyA as string).toLowerCase().includes('toegang'));
@@ -4418,7 +4442,16 @@ export default function GenericMaterialsPageRedesigned() {
               })
               .map(([categoryKey, categoryInfo]) => {
                 // 1. Identify Job Context
-                const isComplexJob = (jobSlug.includes('hsb') || jobSlug.includes('metalstud') || jobSlug.includes('wand') || jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('plat'));
+                const isComplexJob = (
+                  jobSlug.includes('hsb')
+                  || jobSlug.includes('metalstud')
+                  || jobSlug.includes('wand')
+                  || jobSlug.includes('dak')
+                  || jobSlug.includes('hellend')
+                  || jobSlug.includes('plat')
+                  || jobSlug.includes('gevelbekleding')
+                  || categorySlug === 'gevelbekleding'
+                );
                 const isCeilingJob = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
 
                 // 2. Identify Section Type
@@ -4430,8 +4463,8 @@ export default function GenericMaterialsPageRedesigned() {
                 const isKoofSection = categoryKey === 'Koof';
                 const isPlafondSection = categoryKey === 'plafond';
                 const isInstallatieSection = categoryKey === 'Installatie' || categoryKey === 'Schakelmateriaal';
-                const isDagkantSection = categoryKey === 'Dagkant';
-                const isVensterbankSection = categoryKey === 'Vensterbank';
+                const isDagkantSection = categoryKey === 'Dagkant' || lowerKey === 'dagkant';
+                const isVensterbankSection = categoryKey === 'Vensterbank' || lowerKey === 'vensterbank';
                 const isGipsSection = categoryKey === 'gips_afwerking';
                 const isIsolatieSection = categoryKey === 'isolatie';
 
@@ -4477,6 +4510,29 @@ export default function GenericMaterialsPageRedesigned() {
                 if (sections.length === 0 && !targetComponentType) return null;
 
                 const isHidden = hiddenCategories[categoryKey];
+                const isWaterslagSection = targetComponentType === 'vensterbank'
+                  && String(categoryInfo?.title || '').toLowerCase().includes('water');
+                const addActionLabel = targetComponentType === 'kozijn'
+                  ? 'Kozijn'
+                  : (targetComponentType === 'deur'
+                    ? 'Deur'
+                    : (targetComponentType === 'vlizotrap'
+                      ? 'Vlizotrap'
+                      : (targetComponentType === 'koof'
+                        ? 'Koof'
+                        : (targetComponentType === 'installatie'
+                          ? 'Installatie'
+                          : (targetComponentType === 'dagkant'
+                            ? 'Dagkant'
+                            : (targetComponentType === 'vensterbank'
+                              ? (isWaterslagSection ? 'Waterslag' : 'Vensterbank')
+                              : (targetComponentType === 'gips'
+                                ? 'Naden & Stucwerk'
+                                : (targetComponentType === 'isolatie'
+                                  ? 'Isolatie & Folies'
+                                  : (targetComponentType === 'plafond'
+                                    ? 'Plafond'
+                                    : 'Boeiboord')))))))));
 
                 return (
                   <div key={categoryKey} className="space-y-2">
@@ -4537,19 +4593,7 @@ export default function GenericMaterialsPageRedesigned() {
                       {targetComponentType ? (
                         <div className="flex items-center gap-2 text-emerald-500 hover:text-emerald-400 font-medium w-full">
                           <Plus className="h-4 w-4" />
-                          <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>{
-                            targetComponentType === 'kozijn' ? 'Kozijn' :
-                              (targetComponentType === 'deur' ? 'Deur' :
-                                (targetComponentType === 'vlizotrap' ? 'Vlizotrap' :
-                                  (targetComponentType === 'koof' ? 'Koof' :
-                                    (targetComponentType === 'installatie' ? 'Installatie' :
-                                      (targetComponentType === 'dagkant' ? 'Dagkant' :
-                                        (targetComponentType === 'vensterbank' ? 'Vensterbank' :
-                                          (targetComponentType === 'gips' ? 'Naden & Stucwerk' :
-                                            (targetComponentType === 'isolatie' ? 'Isolatie & Folies' :
-                                              (targetComponentType === 'plafond' ? 'Plafond' :
-                                                'Boeiboord')))))))))
-                          } toevoegen</span>
+                          <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>{addActionLabel} toevoegen</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -4615,6 +4659,23 @@ export default function GenericMaterialsPageRedesigned() {
                                 }
 
                                 let compSections = variantItem?.materialSections || COMPONENT_REGISTRY[comp.type]?.defaultMaterials || [];
+
+                                if (isGevelbekledingJob && targetComponentType === 'koof') {
+                                  compSections = [
+                                    { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
+                                    { label: 'Constructieplaat', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
+                                    { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+                                    { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
+                                  ];
+                                } else if (isGevelbekledingJob && targetComponentType === 'dagkant') {
+                                  compSections = [
+                                    { label: 'Dagkanten', categoryFilter: 'Interieur Platen, Constructieplaten, Hardhout geschaafd, Merantie', category: 'Dagkant', key: 'dagkanten', category_ultra_filter: '' },
+                                  ];
+                                } else if (isGevelbekledingJob && targetComponentType === 'vensterbank') {
+                                  compSections = [
+                                    { label: 'Waterslagen', categoryFilter: 'Lood, Loodvervanger, Overig', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
+                                  ];
+                                }
 
                                 // Custom Filtering based on opening type for Kozijnen
                                 if (targetComponentType === 'kozijn' && comp.meta?.openingType) {
@@ -4698,7 +4759,18 @@ export default function GenericMaterialsPageRedesigned() {
 
                                       {/* Clean material list without sub-categories */}
                                       {compSections.map((section: any) => {
-                                        const selectedForThis = (comp.materials || []).find((m: any) => m.sectionKey === section.key)?.material;
+                                        const selectedForThis = (comp.materials || []).find((m: any) => {
+                                          if (m.sectionKey === section.key) return true;
+                                          if (
+                                            isGevelbekledingJob
+                                            && targetComponentType === 'vensterbank'
+                                            && section.key === 'waterslag'
+                                            && m.sectionKey === 'vensterbanken'
+                                          ) {
+                                            return true;
+                                          }
+                                          return false;
+                                        })?.material;
 
                                         return (
                                           <div key={section.key} className="relative group">
@@ -4713,7 +4785,16 @@ export default function GenericMaterialsPageRedesigned() {
                                                   categoryFilter: section.categoryFilter,
                                                 });
                                               }}
-                                              onRemove={() => handleComponentMaterialRemove(comp.id, section.key)}
+                                              onRemove={() => {
+                                                handleComponentMaterialRemove(comp.id, section.key);
+                                                if (
+                                                  isGevelbekledingJob
+                                                  && targetComponentType === 'vensterbank'
+                                                  && section.key === 'waterslag'
+                                                ) {
+                                                  handleComponentMaterialRemove(comp.id, 'vensterbanken');
+                                                }
+                                              }}
                                             />
                                           </div>
                                         );
@@ -5837,7 +5918,17 @@ export default function GenericMaterialsPageRedesigned() {
       <Dialog open={variantPickerOpen} onOpenChange={setVariantPickerOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Type {variantPickerType === 'kozijn' ? 'Kozijn' : (variantPickerType === 'deur' ? 'Deur' : (variantPickerType === 'plafond' ? 'Plafond' : 'Onderdeel'))} kiezen</DialogTitle>
+            <DialogTitle>Type {
+              variantPickerType === 'kozijn'
+                ? 'Kozijn'
+                : (variantPickerType === 'deur'
+                  ? 'Deur'
+                  : (variantPickerType === 'plafond'
+                    ? 'Plafond'
+                    : (variantPickerType === 'vensterbank' && isGevelbekledingJob
+                      ? 'Waterslag'
+                      : 'Onderdeel')))
+            } kiezen</DialogTitle>
             <DialogDescription>
               Selecteer een variant om toe te voegen aan de lijst.
             </DialogDescription>
