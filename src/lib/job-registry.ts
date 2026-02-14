@@ -1109,7 +1109,8 @@ const BOEIBOORD_KERALIT_MATS: MaterialSection[] = [
 
 const GEVEL_BEKLEDING_BASE_MATS: MaterialSection[] = [
   // 1. BASIS (SKELETON)
-  { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk_basis', category_ultra_filter: '' },
+  { label: 'Tengelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'tengelwerk_basis', category_ultra_filter: '' },
+  { label: 'Rachelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachelwerk_basis', category_ultra_filter: '' },
   { label: 'Folie', categoryFilter: 'Folieën, Dpc', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_gevel', category_ultra_filter: '' },
 ];
@@ -2048,6 +2049,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           gevel_plaat: { title: 'Trespa/HPL Geschroefd', order: 3 },
           gevel_plaat_lijm: { title: 'Trespa/HPL Verlijmd', order: 4 },
           bevestiging: { title: 'Afwerking', order: 9 },
+          Koof: { title: 'Koof', order: 10 },
+          Dagkant: { title: 'Dagkanten', order: 11 },
+          Vensterbank: { title: 'Waterslagen', order: 12 },
         }
       },
       {
@@ -2062,6 +2066,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           isolatie: { title: 'Isolatie & Folie', order: 2 },
           gevel_kunststof: { title: 'Keralit', order: 3 },
           bevestiging: { title: 'Afwerking', order: 9 },
+          Koof: { title: 'Koof', order: 10 },
+          Dagkant: { title: 'Dagkanten', order: 11 },
+          Vensterbank: { title: 'Waterslagen', order: 12 },
         }
       },
       {
@@ -2076,6 +2083,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           isolatie: { title: 'Isolatie & Folie', order: 2 },
           gevel_hout: { title: 'Hout', order: 3 },
           bevestiging: { title: 'Afwerking', order: 9 },
+          Koof: { title: 'Koof', order: 10 },
+          Dagkant: { title: 'Dagkanten', order: 11 },
+          Vensterbank: { title: 'Waterslagen', order: 12 },
         }
       },
       {
@@ -2090,6 +2100,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           isolatie: { title: 'Isolatie & Folie', order: 2 },
           gevel_plaat: { title: 'Rockpanel', order: 3 },
           bevestiging: { title: 'Afwerking', order: 9 },
+          Koof: { title: 'Koof', order: 10 },
+          Dagkant: { title: 'Dagkanten', order: 11 },
+          Vensterbank: { title: 'Waterslagen', order: 12 },
         }
       },
     ],

@@ -416,6 +416,10 @@ function normalizeEpdmDaktrimSectionKeyForSave(
   return sectionKey;
 }
 
+function isGevelbekledingJobType(jobType: string): boolean {
+  return String(jobType || '').toLowerCase().startsWith('gevelbekleding-');
+}
+
 function EuroInput({ id, value, onChange, placeholder = '0,00', disabled }: any) {
   const [focused, setFocused] = useState(false);
   const hasValue = (value ?? '').trim() !== '';
@@ -1217,6 +1221,7 @@ export default function GenericMaterialsPageRedesigned() {
 
     const isVoorzetwand = currentJobType === 'hsb-voorzetwand' || currentJobType === 'metalstud-voorzetwand';
     const isTussenwand = currentJobType === 'hsb-tussenwand';
+    const isGevelbekleding = isGevelbekledingJobType(currentJobType);
 
     if (isTussenwand) {
       if (slots.constructieplaat && !slots.constructieplaat_1) next.constructieplaat_1 = slots.constructieplaat;
@@ -1244,6 +1249,28 @@ export default function GenericMaterialsPageRedesigned() {
       delete next.beplating;
     }
 
+    if (isGevelbekleding) {
+      const legacyTengel = next.tengelwerk || next.tengels;
+      const legacyRachel = next.rachelwerk || next.rachels;
+      const legacyCombined = next.regelwerk_basis;
+
+      if (!next.tengelwerk_basis) {
+        const fallback = legacyTengel || legacyCombined;
+        if (fallback) next.tengelwerk_basis = fallback;
+      }
+
+      if (!next.rachelwerk_basis) {
+        const fallback = legacyRachel || legacyCombined;
+        if (fallback) next.rachelwerk_basis = fallback;
+      }
+
+      delete next.regelwerk_basis;
+      delete next.tengelwerk;
+      delete next.tengels;
+      delete next.rachelwerk;
+      delete next.rachels;
+    }
+
     return next;
   }, []);
 
@@ -1253,6 +1280,7 @@ export default function GenericMaterialsPageRedesigned() {
     const isVoorzetwand = currentJobType === 'hsb-voorzetwand' || currentJobType === 'metalstud-voorzetwand';
     const isTussenwand = currentJobType === 'hsb-tussenwand';
     const isVlieringMaken = currentJobType === 'vliering-maken';
+    const isGevelbekleding = isGevelbekledingJobType(currentJobType);
     const multiEntrySectionKeys = new Set(
       (materialSections || [])
         .filter((section) => section.multiEntry)
@@ -1293,6 +1321,28 @@ export default function GenericMaterialsPageRedesigned() {
       delete next.vloerbalken;
       delete next.randbalken;
       delete next.muurplaat;
+    }
+
+    if (isGevelbekleding) {
+      const legacyTengel = next.tengelwerk || next.tengels;
+      const legacyRachel = next.rachelwerk || next.rachels;
+      const legacyCombined = next.regelwerk_basis;
+
+      if (!next.tengelwerk_basis) {
+        const fallback = legacyTengel || legacyCombined;
+        if (fallback) next.tengelwerk_basis = fallback;
+      }
+
+      if (!next.rachelwerk_basis) {
+        const fallback = legacyRachel || legacyCombined;
+        if (fallback) next.rachelwerk_basis = fallback;
+      }
+
+      delete next.regelwerk_basis;
+      delete next.tengelwerk;
+      delete next.tengels;
+      delete next.rachelwerk;
+      delete next.rachels;
     }
 
     // Backward compatibility: when a section switched to multi-entry,

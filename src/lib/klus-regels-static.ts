@@ -317,12 +317,31 @@ function createGevelbekledingRuleSet(config: {
   extraRules?: Record<string, Record<string, any>>;
 }): Record<string, Record<string, any>> {
   return {
+    // Legacy gecombineerd key voor bestaande data.
     regelwerk_basis: {
       sectionKey: 'regelwerk_basis',
       group: 'hout',
       logic: 'verticale tengels + horizontale regels op opgegeven h.o.h.',
       formula: 'vertical_count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; vertical_total_mm = vertical_count * gevel_hoogte_mm; horizontal_count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; horizontal_total_mm = horizontal_count * gevel_lengte_mm; totaal_mm = vertical_total_mm + horizontal_total_mm; aantal = ceil((totaal_mm) / material.lengte_mm)',
       required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'maatwerk_item.tengelafstand', 'maatwerk_item.latafstand', 'material.lengte'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    },
+    tengelwerk_basis: {
+      sectionKey: 'tengelwerk_basis',
+      group: 'hout',
+      logic: 'verticale tengels op tengelafstand (h.o.h.)',
+      formula: 'count = ceil(gevel_lengte_mm / tengelafstand_mm) + 1; totaal_mm = count * gevel_hoogte_mm; aantal = ceil((totaal_mm) / material.lengte_mm)',
+      required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'maatwerk_item.tengelafstand', 'material.lengte'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    },
+    rachelwerk_basis: {
+      sectionKey: 'rachelwerk_basis',
+      group: 'hout',
+      logic: 'horizontale rachels op latafstand (h.o.h.)',
+      formula: 'count = ceil(gevel_hoogte_mm / latafstand_mm) + 1; totaal_mm = count * gevel_lengte_mm; aantal = ceil((totaal_mm) / material.lengte_mm)',
+      required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'maatwerk_item.latafstand', 'material.lengte'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     },
@@ -1986,20 +2005,40 @@ const SECTION_KEY_ALIASES_BY_SLUG: Record<string, Record<string, string>> = {
   'gevelbekleding-trespa-hpl': {
     gevelbekleding: 'gevelplaat',
     isolatie_basis: 'isolatie_gevel',
+    tengelwerk: 'tengelwerk_basis',
+    tengels: 'tengelwerk_basis',
+    rachelwerk: 'rachelwerk_basis',
+    rachels: 'rachelwerk_basis',
+    regelwerk_basis: 'tengelwerk_basis',
   },
   'gevelbekleding-rockpanel': {
     gevelbekleding: 'gevelplaat_rockpanel',
     isolatie_basis: 'isolatie_gevel',
     gevelplaat: 'gevelplaat_rockpanel',
+    tengelwerk: 'tengelwerk_basis',
+    tengels: 'tengelwerk_basis',
+    rachelwerk: 'rachelwerk_basis',
+    rachels: 'rachelwerk_basis',
+    regelwerk_basis: 'tengelwerk_basis',
   },
   'gevelbekleding-hout': {
     gevelbekleding: 'gevelbekleding_hout',
     isolatie_basis: 'isolatie_gevel',
+    tengelwerk: 'tengelwerk_basis',
+    tengels: 'tengelwerk_basis',
+    rachelwerk: 'rachelwerk_basis',
+    rachels: 'rachelwerk_basis',
+    regelwerk_basis: 'tengelwerk_basis',
   },
   'gevelbekleding-keralit': {
     gevelbekleding: 'gevelbekleding_kunststof',
     keralit_panelen: 'gevelbekleding_kunststof',
     isolatie_basis: 'isolatie_gevel',
+    tengelwerk: 'tengelwerk_basis',
+    tengels: 'tengelwerk_basis',
+    rachelwerk: 'rachelwerk_basis',
+    rachels: 'rachelwerk_basis',
+    regelwerk_basis: 'tengelwerk_basis',
   },
   'hellend-dak': {
     folie: 'folie_buiten',
