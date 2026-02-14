@@ -1,4 +1,4 @@
-export const KLUS_REGELS_STATIC_VERSION = 1;
+export const KLUS_REGELS_STATIC_VERSION = 4;
 
 export interface MaterialRuleMeta {
   source: 'static_file';
@@ -11,6 +11,53 @@ export interface MaterialRuleMeta {
 export interface MaterialRuleAttachment {
   rule: Record<string, any> | null;
   rule_meta: MaterialRuleMeta;
+}
+
+function sanitizeFormulaForWasteOrder(formula: string): string {
+  return formula
+    .replace(/\s*\*\s*\(1\s*\+\s*waste\/100\)/g, '')
+    .replace(/\(1\s*\+\s*waste\/100\)\s*\*\s*/g, '')
+    .replace(/\s*\*\s*\(1\s*\+\s*\(user_input_wastePercentage\s*\/\s*100\)\)/g, '')
+    .replace(/\(1\s*\+\s*\(user_input_wastePercentage\s*\/\s*100\)\)\s*\*\s*/g, '')
+    .replace(/\s*\*\s*wastePercentage\b/g, '')
+    .replace(/\bwastePercentage\s*\*\s*/g, '')
+    .replace(/\s*\*\s*waste_multiplier\b/g, '')
+    .replace(/\bwaste_multiplier\s*\*\s*/g, '')
+    // Prevent early final rounding before waste.
+    .replace(/\baantal\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'aantal = ($1)')
+    .replace(/\bstuks\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'stuks = ($1)')
+    .replace(/\btotaal\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'totaal = ($1)');
+}
+
+function normalizeRuleObjectForWasteOrder(rule: any): any {
+  if (Array.isArray(rule)) return rule.map((entry) => normalizeRuleObjectForWasteOrder(entry));
+  if (!rule || typeof rule !== 'object') return rule;
+
+  const next: Record<string, any> = {};
+  Object.entries(rule).forEach(([key, value]) => {
+    if ((key === 'formula' || key === 'primary_formula' || key === 'fallback_formula') && typeof value === 'string') {
+      next[key] = sanitizeFormulaForWasteOrder(value);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      next[key] = normalizeRuleObjectForWasteOrder(value);
+      return;
+    }
+    next[key] = value;
+  });
+
+  next.waste_rounding_policy = {
+    order: 'bereken_basis_zonder_tussentijds_afronden -> pas_afval_toe -> rond_eenmalig_naar_boven',
+    final_rounding: 'ceil',
+    no_intermediate_rounding: true,
+    notes: [
+      'Rond nooit aantal/stuks/totaal af voordat afval is toegepast.',
+      'Voorbeeld correct: 120.1 * 1.1 = 132.11 -> ceil = 133.',
+      'Voorbeeld incorrect: ceil(120.1)=121; 121 * 1.1 = 133.1 -> ceil = 134.'
+    ],
+  };
+
+  return next;
 }
 
 function createBoeiboordRuleSet(config: {
@@ -520,6 +567,15 @@ function createEpdmDakRuleSet(): Record<string, Record<string, any>> {
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     },
+    dakrand_balk: {
+      sectionKey: 'dakrand_balk',
+      group: 'dakrand',
+      logic: 'lineair over vrije dakranden (niet over gevel/wall-zijden)',
+      formula: "free_top_mm = (maatwerk_item.edge_top == 'free' ? dak_lengte_mm : 0); free_bottom_mm = (maatwerk_item.edge_bottom == 'free' ? dak_lengte_mm : 0); free_left_mm = (maatwerk_item.edge_left == 'free' ? dak_hoogte_mm : 0); free_right_mm = (maatwerk_item.edge_right == 'free' ? dak_hoogte_mm : 0); lineair_m1 = (free_top_mm + free_bottom_mm + free_left_mm + free_right_mm) / 1000; aantal = ((lineair_m1) / material.lengte_m)",
+      required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'maatwerk_item.edge_top', 'maatwerk_item.edge_bottom', 'maatwerk_item.edge_left', 'maatwerk_item.edge_right', 'material.lengte'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    },
     daktrim: {
       sectionKey: 'daktrim',
       group: 'afwerking_dak',
@@ -532,9 +588,9 @@ function createEpdmDakRuleSet(): Record<string, Record<string, any>> {
     daktrim_hoeken: {
       sectionKey: 'daktrim_hoeken',
       group: 'afwerking_dak',
-      logic: 'hoekstukken alleen op expliciete invoer',
-      formula: 'if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input',
-      required_inputs: ['material.aantal'],
+      logic: 'hoekstukken automatisch op basis van aangrenzende daktrim-zijden',
+      formula: "trim_top = (maatwerk_item.daktrim_top != null ? maatwerk_item.daktrim_top : (maatwerk_item.edge_top == 'free')); trim_right = (maatwerk_item.daktrim_right != null ? maatwerk_item.daktrim_right : (maatwerk_item.edge_right == 'free')); trim_bottom = (maatwerk_item.daktrim_bottom != null ? maatwerk_item.daktrim_bottom : (maatwerk_item.edge_bottom == 'free')); trim_left = (maatwerk_item.daktrim_left != null ? maatwerk_item.daktrim_left : (maatwerk_item.edge_left == 'free')); hoeken_auto = (trim_top && trim_right ? 1 : 0) + (trim_right && trim_bottom ? 1 : 0) + (trim_bottom && trim_left ? 1 : 0) + (trim_left && trim_top ? 1 : 0); if material.aantal exists then aantal = material.aantal; else aantal = hoeken_auto",
+      required_inputs: ['maatwerk_item.daktrim_top|edge_top', 'maatwerk_item.daktrim_right|edge_right', 'maatwerk_item.daktrim_bottom|edge_bottom', 'maatwerk_item.daktrim_left|edge_left'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     },
@@ -1151,7 +1207,7 @@ function createVloerAfwerkingRuleSet(config: {
     },
     ondervloer: {
       sectionKey: 'ondervloer',
-      group: 'Vloer_Voorbereiding',
+      group: 'Vloer_Ondervloer',
       logic: 'oppervlakte gebaseerd met pack-detectie',
       formula: 'if material.dekking_m2 exists then stuks = ceil((vloer_area_m2) / material.dekking_m2); else if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((vloer_area_m2) / element_m2); else if material.aantal exists then stuks = ceil(material.aantal); else requires_manual_input',
       pack_handling: 'if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = ceil(stuks)',
@@ -1183,7 +1239,7 @@ function createVloerAfwerkingRuleSet(config: {
   if (config.variant === 'laminaat_pvc') {
     rules.folie = {
       sectionKey: 'folie',
-      group: 'Vloer_Voorbereiding',
+      group: 'Vloer_Ondervloer',
       logic: 'oppervlakte gebaseerd met overlap via waste',
       formula: 'if material.dekking_m2 exists then aantal = ceil((vloer_area_m2) / material.dekking_m2); else if material.lengte && material.breedte then dekkings_m2 = material.lengte_m * material.breedte_m; aantal = ceil((vloer_area_m2) / dekkings_m2); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input',
       required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.breedte', 'material.dekking_m2 || (material.lengte && material.breedte) || material.aantal'],
@@ -1194,8 +1250,8 @@ function createVloerAfwerkingRuleSet(config: {
       sectionKey: 'profielen_overgang',
       group: 'Vloer_Afwerking',
       logic: 'overgangsprofielen op expliciete aantallen of verbruik-per-overgang',
-      formula: 'if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
-      required_inputs: ['material.aantal || material.verbruik_per_overgang || material.verbruik'],
+      formula: 'if maatwerk_item.profielen_overgang_aantal exists then aantal = ceil(maatwerk_item.profielen_overgang_aantal); else if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.profielen_overgang_aantal || material.aantal || material.verbruik_per_overgang || material.verbruik'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     };
@@ -1203,17 +1259,17 @@ function createVloerAfwerkingRuleSet(config: {
       sectionKey: 'profielen_eind',
       group: 'Vloer_Afwerking',
       logic: 'eindprofielen op expliciete aantallen of verbruik-per-overgang',
-      formula: 'if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
-      required_inputs: ['material.aantal || material.verbruik_per_overgang || material.verbruik'],
+      formula: 'if maatwerk_item.profielen_eind_aantal exists then aantal = ceil(maatwerk_item.profielen_eind_aantal); else if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.profielen_eind_aantal || material.aantal || material.verbruik_per_overgang || material.verbruik'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     };
-    rules.kruipluik = {
-      sectionKey: 'kruipluik',
+    rules.stofdorpel = {
+      sectionKey: 'stofdorpel',
       group: 'Vloer_Afwerking',
-      logic: 'kruipluikprofiel op expliciet aantal of verbruik',
-      formula: 'if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik || material.verbruik_per_stuk exists then totaal = (material.verbruik_per_stuk ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
-      required_inputs: ['material.aantal || material.verbruik || material.verbruik_per_stuk'],
+      logic: 'stofdorpel op expliciete aantallen of verbruik-per-overgang',
+      formula: 'if maatwerk_item.stofdorpel_aantal exists then aantal = ceil(maatwerk_item.stofdorpel_aantal); else if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.stofdorpel_aantal || material.aantal || material.verbruik_per_overgang || material.verbruik'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     };
@@ -1244,8 +1300,35 @@ function createVloerAfwerkingRuleSet(config: {
       sectionKey: 'deklatten',
       group: 'Vloer_Afwerking',
       logic: 'lineair over vloeromtrek',
-      formula: 'if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input',
-      required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.breedte', 'material.lengte || material.aantal'],
+      formula: 'if maatwerk_item.deklatten_aantal exists then aantal = ceil(maatwerk_item.deklatten_aantal); else if material.lengte exists then lineair_m1 = vloer_perimeter_m1; aantal = ceil((lineair_m1) / material.lengte_m); else if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.deklatten_aantal || material.lengte || material.aantal'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    };
+    rules.profielen_overgang = {
+      sectionKey: 'profielen_overgang',
+      group: 'Vloer_Afwerking',
+      logic: 'overgangsprofielen op expliciete aantallen of verbruik-per-overgang',
+      formula: 'if maatwerk_item.profielen_overgang_aantal exists then aantal = ceil(maatwerk_item.profielen_overgang_aantal); else if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.profielen_overgang_aantal || material.aantal || material.verbruik_per_overgang || material.verbruik'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    };
+    rules.stofdorpel = {
+      sectionKey: 'stofdorpel',
+      group: 'Vloer_Afwerking',
+      logic: 'stofdorpel op expliciete aantallen of verbruik-per-overgang',
+      formula: 'if maatwerk_item.stofdorpel_aantal exists then aantal = ceil(maatwerk_item.stofdorpel_aantal); else if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.stofdorpel_aantal || material.aantal || material.verbruik_per_overgang || material.verbruik'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    };
+    rules.profielen_eind = {
+      sectionKey: 'profielen_eind',
+      group: 'Vloer_Afwerking',
+      logic: 'eindprofielen op expliciete aantallen of verbruik-per-overgang',
+      formula: 'if maatwerk_item.profielen_eind_aantal exists then aantal = ceil(maatwerk_item.profielen_eind_aantal); else if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.profielen_eind_aantal || material.aantal || material.verbruik_per_overgang || material.verbruik'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     };
@@ -1253,8 +1336,8 @@ function createVloerAfwerkingRuleSet(config: {
       sectionKey: 'dorpels',
       group: 'Vloer_Afwerking',
       logic: 'overgangsprofielen/dorpels op expliciete aantallen of verbruik-per-overgang',
-      formula: 'if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
-      required_inputs: ['material.aantal || material.verbruik_per_overgang || material.verbruik'],
+      formula: 'if maatwerk_item.profielen_overgang_aantal exists then aantal = ceil(maatwerk_item.profielen_overgang_aantal); else if material.aantal exists then aantal = ceil(material.aantal); else if material.verbruik_per_overgang || material.verbruik exists then totaal = (material.verbruik_per_overgang ?? material.verbruik); aantal = ceil(totaal); else requires_manual_input',
+      required_inputs: ['maatwerk_item.profielen_overgang_aantal || material.aantal || material.verbruik_per_overgang || material.verbruik'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     };
@@ -1971,23 +2054,31 @@ const SECTION_KEY_ALIASES_BY_SLUG: Record<string, Record<string, string>> = {
   },
   'laminaat-pvc': {
     egaline: 'egaliseren',
-    reparatiemortel: 'egaliseren',
-    dampfolie: 'folie',
-    ondervloer_folie: 'folie',
+    dampfolie: 'ondervloer',
+    ondervloer_folie: 'ondervloer',
     plinten: 'plinten_muur',
     overgangsprofiel: 'profielen_overgang',
     overgangsprofielen: 'profielen_overgang',
-    drempel: 'profielen_overgang',
+    drempel: 'stofdorpel',
+    drempels: 'stofdorpel',
+    stofdorpel: 'stofdorpel',
+    stofdorpels: 'stofdorpel',
     eindprofiel: 'profielen_eind',
     eindprofielen: 'profielen_eind',
-    matomranding: 'kruipluik',
   },
   'massief-houten-vloer': {
     egaliseren: 'egaline',
     plinten_muur: 'plinten',
-    overgangsprofiel: 'dorpels',
-    overgangsprofielen: 'dorpels',
-    drempel: 'dorpels',
+    overgangsprofiel: 'profielen_overgang',
+    overgangsprofielen: 'profielen_overgang',
+    dorpel: 'profielen_overgang',
+    dorpels: 'profielen_overgang',
+    drempel: 'stofdorpel',
+    drempels: 'stofdorpel',
+    stofdorpel: 'stofdorpel',
+    stofdorpels: 'stofdorpel',
+    eindprofiel: 'profielen_eind',
+    eindprofielen: 'profielen_eind',
     olie: 'vloerolie',
     vloerlak: 'vloerolie',
     lak: 'vloerolie',
@@ -2139,9 +2230,10 @@ export function getMaterialRule(jobSlug: string, sectionKey?: string | null): Ma
     typeof rule.sectionKey === 'string' && rule.sectionKey !== normalizedSectionKey
       ? { ...rule, sectionKey: normalizedSectionKey }
       : { ...rule };
+  const normalizedRuleWithWastePolicy = normalizeRuleObjectForWasteOrder(normalizedRule);
 
   return {
-    rule: normalizedRule,
+    rule: normalizedRuleWithWastePolicy,
     rule_meta: {
       source: 'static_file',
       slug,

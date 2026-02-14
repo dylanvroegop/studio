@@ -400,6 +400,8 @@ type GebruikerInstellingen = {
   standaardWinstMarge?: StandaardWinstMarge | null;
   bouwplaatsKostenPakketten?: BouwplaatsKostenPakket[];
   bouwplaatsKostenStandaardId?: string | null;
+  verzendKostenPakketten?: BouwplaatsKostenPakket[];
+  verzendKostenStandaardId?: string | null;
   collapsedSections?: Record<string, boolean>;
   standaardUurTarief?: number | null;
 };
@@ -418,6 +420,15 @@ function defaultBouwplaatskosten(): BouwplaatsItem[] {
     { id: 'hoogwerker', naam: 'Hoogwerker', prijs: '', per: 'dag', isVast: false },
     { id: 'container', naam: 'Afvalcontainer', prijs: '', per: 'klus', isVast: false },
     { id: 'huurkosten', naam: 'Overige huurkosten', prijs: '', per: 'klus', isVast: false },
+  ];
+}
+
+function defaultVerzendkosten(): BouwplaatsItem[] {
+  return [
+    { id: 'pakketpost', naam: 'Pakketpost', prijs: '', per: 'klus', isVast: false },
+    { id: 'koerier', naam: 'Koeriersdienst', prijs: '', per: 'klus', isVast: false },
+    { id: 'afleverkosten', naam: 'Afleverkosten', prijs: '', per: 'klus', isVast: false },
+    { id: 'verzend_overig', naam: 'Overige verzendkosten', prijs: '', per: 'klus', isVast: false },
   ];
 }
 
@@ -456,11 +467,11 @@ function itemsNaarPakket(items: BouwplaatsItem[]) {
 }
 
 function pakketNaarItems(
-  pakket: BouwplaatsKostenPakket | null | undefined
+  pakket: BouwplaatsKostenPakket | null | undefined,
+  getDefaultItems: () => BouwplaatsItem[] = defaultBouwplaatskosten
 ): BouwplaatsItem[] {
-  if (!pakket) return defaultBouwplaatskosten();
-
-  const basis = defaultBouwplaatskosten();
+  const basis = getDefaultItems();
+  if (!pakket) return basis;
   const basisIds = new Set(basis.map((b) => b.id));
 
   const mapped: BouwplaatsItem[] = (pakket.items ?? []).map((i) => ({
@@ -482,6 +493,31 @@ function pakketNaarItems(
   ];
 
   return merged;
+}
+
+function mapOpslagenKostenNaarItems(
+  opgeslagenItems: unknown,
+  getDefaultItems: () => BouwplaatsItem[]
+): BouwplaatsItem[] {
+  const basis = getDefaultItems();
+  const rawItems: any[] = Array.isArray(opgeslagenItems) ? opgeslagenItems : [];
+  const mapped: BouwplaatsItem[] = rawItems.map((m: any, idx: number) => ({
+    id: String(m.id ?? `bk_saved_${idx}_${Date.now()}`),
+    naam: String(m.naam ?? '').trim(),
+    per: (m.per as BouwplaatsPer) || 'klus',
+    isVast: !!m.isVast,
+    prijs: numberToEuroInputString(typeof m.prijs === 'number' ? m.prijs : null),
+  }));
+
+  const basisIds = new Set(basis.map((b) => b.id));
+  const has = new Set(mapped.map((x) => x.id));
+
+  return [
+    ...basis.map((b) =>
+      has.has(b.id) ? (mapped.find((x) => x.id === b.id) as BouwplaatsItem) : b
+    ),
+    ...mapped.filter((x) => !basisIds.has(x.id)),
+  ];
 }
 
 
@@ -608,12 +644,16 @@ export default function OverzichtPage() {
 
   // Bouwplaatskosten
   const [bouwplaatskosten, setBouwplaatskosten] = useState<BouwplaatsItem[]>([]);
+  const [verzendkosten, setVerzendkosten] = useState<BouwplaatsItem[]>([]);
 
 
   // Packs (user-level)
   const [pakketten, setPakketten] = useState<BouwplaatsKostenPakket[]>([]);
   const [geselecteerdPakketId, setGeselecteerdPakketId] = useState<string>('');
   const [standaardPakketId, setStandaardPakketId] = useState<string>('');
+  const [verzendPakketten, setVerzendPakketten] = useState<BouwplaatsKostenPakket[]>([]);
+  const [geselecteerdVerzendPakketId, setGeselecteerdVerzendPakketId] = useState<string>('');
+  const [standaardVerzendPakketId, setStandaardVerzendPakketId] = useState<string>('');
 
   // Winstmarge
   const [winstMarge, setWinstMarge] = useState<WinstMargeState>({
@@ -638,6 +678,8 @@ export default function OverzichtPage() {
   const [uurTariefInstellingenOpen, setUurTariefInstellingenOpen] = useState(false);
   const [bouwplaatsBeheerOpen, setBouwplaatsBeheerOpen] = useState(false);
   const [bouwplaatsOpslaanOpen, setBouwplaatsOpslaanOpen] = useState(false);
+  const [verzendBeheerOpen, setVerzendBeheerOpen] = useState(false);
+  const [verzendOpslaanOpen, setVerzendOpslaanOpen] = useState(false);
 
   // First-time popup
   const [standaardenPopupOpen, setStandaardenPopupOpen] = useState(false);
@@ -647,10 +689,14 @@ export default function OverzichtPage() {
   // Bouwplaats: opslaan modal state
   const [pakketNaamInput, setPakketNaamInput] = useState('');
   const [overschrijfHuidigPakket, setOverschrijfHuidigPakket] = useState(true);
+  const [verzendPakketNaamInput, setVerzendPakketNaamInput] = useState('');
+  const [overschrijfHuidigVerzendPakket, setOverschrijfHuidigVerzendPakket] = useState(true);
 
   // Bouwplaats beheer
   const [nieuwPakketNaam, setNieuwPakketNaam] = useState('');
+  const [nieuwVerzendPakketNaam, setNieuwVerzendPakketNaam] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSavingVerzendSettings, setIsSavingVerzendSettings] = useState(false);
 
   // Section collapse state (persisted to Firestore)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -756,6 +802,10 @@ export default function OverzichtPage() {
         new FieldPath('instellingen.bouwplaatsKostenPakketten'),
         deleteField(),
         new FieldPath('instellingen.bouwplaatsKostenStandaardId'),
+        deleteField(),
+        new FieldPath('instellingen.verzendKostenPakketten'),
+        deleteField(),
+        new FieldPath('instellingen.verzendKostenStandaardId'),
         deleteField()
       );
     } catch {
@@ -822,6 +872,15 @@ export default function OverzichtPage() {
         setStandaardPakketId(stdPackId || '');
         setGeselecteerdPakketId(stdPackId || '');
 
+        const verzendPacks = Array.isArray(instellingen.verzendKostenPakketten)
+          ? (instellingen.verzendKostenPakketten as BouwplaatsKostenPakket[])
+          : [];
+        setVerzendPakketten(verzendPacks);
+
+        const stdVerzendPackId = (instellingen.verzendKostenStandaardId ?? '') as string;
+        setStandaardVerzendPakketId(stdVerzendPackId || '');
+        setGeselecteerdVerzendPakketId(stdVerzendPackId || '');
+
         // Quote extras
         const extras: any = (data as any)?.extras ?? null;
 
@@ -832,11 +891,13 @@ export default function OverzichtPage() {
         setTunnelkosten('');
         setUurTarief(numberToEuroInputString(data.instellingen?.uurTariefExclBtw ?? instellingen.standaardUurTarief ?? 50)); // Fallback 50 if missing
         setBouwplaatskosten([]);
+        setVerzendkosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
 
         const heeftTransportInQuote = !!extras?.transport;
         const heeftWinstInQuote = !!extras?.winstMarge;
         const heeftBouwplaatsInQuote = Array.isArray(extras?.materieel) && extras.materieel.length > 0;
+        const heeftVerzendInQuote = Array.isArray(extras?.verzendkosten) && extras.verzendkosten.length > 0;
 
         // Transport: quote extras, anders user standaard
         const applyTransport = (t: any) => {
@@ -882,34 +943,19 @@ export default function OverzichtPage() {
 
         // Bouwplaatskosten: quote extras, anders standaard pakket
         if (heeftBouwplaatsInQuote) {
-          const mArr: any[] = Array.isArray(extras.materieel) ? extras.materieel : [];
-
-          // Map saved items
-          const mapped: BouwplaatsItem[] = mArr.map((m: any, idx: number) => ({
-            id: String(m.id ?? `bk_saved_${idx}_${Date.now()}`),
-            naam: String(m.naam ?? '').trim(),
-            per: (m.per as BouwplaatsPer) || 'klus',
-            isVast: !!m.isVast,
-            prijs: numberToEuroInputString(typeof m.prijs === 'number' ? m.prijs : null),
-          }));
-
-          const basis = defaultBouwplaatskosten();
-          const basisIds = new Set(basis.map(b => b.id)); // ✅ Smart set of default IDs
-          const has = new Set(mapped.map((x) => x.id));
-
-          const merged = [
-            // 1. Start with defaults (fill with saved data if available)
-            ...basis.map((b) =>
-              has.has(b.id) ? (mapped.find((x) => x.id === b.id) as BouwplaatsItem) : b
-            ),
-            // 2. Add any custom items that aren't defaults
-            ...mapped.filter((x) => !basisIds.has(x.id)),
-          ];
-          setBouwplaatskosten(merged);
+          setBouwplaatskosten(mapOpslagenKostenNaarItems(extras.materieel, defaultBouwplaatskosten));
         } else {
           const gekozen = packs.find((p) => p.id === stdPackId) ?? null;
           // If no packet selected, load defaults
-          setBouwplaatskosten(pakketNaarItems(gekozen));
+          setBouwplaatskosten(pakketNaarItems(gekozen, defaultBouwplaatskosten));
+        }
+
+        // Verzendkosten: quote extras, anders standaard pakket
+        if (heeftVerzendInQuote) {
+          setVerzendkosten(mapOpslagenKostenNaarItems(extras.verzendkosten, defaultVerzendkosten));
+        } else {
+          const gekozen = verzendPacks.find((p) => p.id === stdVerzendPackId) ?? null;
+          setVerzendkosten(pakketNaarItems(gekozen, defaultVerzendkosten));
         }
 
         isHydratingRef.current = false;
@@ -1055,6 +1101,19 @@ export default function OverzichtPage() {
     });
   }, [bouwplaatskosten]);
 
+  const verzendCollapsedLabels = useMemo(() => {
+    const items = (buildVerzendSparse() ?? []) as Array<{
+      naam: string;
+      prijs: number;
+      per: BouwplaatsPer;
+    }>;
+
+    return items.map((item) => {
+      const prijsLabel = numberToEuroInputString(item.prijs) || '0';
+      return `${item.naam} € ${prijsLabel}/${item.per}`;
+    });
+  }, [verzendkosten]);
+
   const transportCollapsedLabel = useMemo(() => {
     if (transportMode === 'none') return 'Ingesteld: Geen';
     if (!transportIsValid) return null;
@@ -1121,8 +1180,8 @@ export default function OverzichtPage() {
     return { mode: 'fixed', fixedAmount: f };
   }
 
-  function buildBouwplaatsSparse() {
-    const items = bouwplaatskosten
+  function buildKostenSparse(items: BouwplaatsItem[], fallbackNaam: string) {
+    const mappedItems = items
       .map((m) => {
         const naam = (m.naam ?? '').trim();
         const prijs = euroNLToNumberOrNull(m.prijs);
@@ -1135,7 +1194,7 @@ export default function OverzichtPage() {
 
         return {
           id: m.id,
-          naam: naamOk ? naam : 'Bouwplaatskosten',
+          naam: naamOk ? naam : fallbackNaam,
           per: m.per,
           prijs,
           isVast: m.isVast,
@@ -1143,7 +1202,15 @@ export default function OverzichtPage() {
       })
       .filter(Boolean) as any[];
 
-    return items.length > 0 ? items : null;
+    return mappedItems.length > 0 ? mappedItems : null;
+  }
+
+  function buildBouwplaatsSparse() {
+    return buildKostenSparse(bouwplaatskosten, 'Bouwplaatskosten');
+  }
+
+  function buildVerzendSparse() {
+    return buildKostenSparse(verzendkosten, 'Verzendkosten');
   }
 
   /* ---------------------------------------------
@@ -1157,12 +1224,13 @@ export default function OverzichtPage() {
     const transport = buildTransportSparse();
     const winstMargeSparse = buildWinstSparse();
     const bouwplaatsSparse = buildBouwplaatsSparse();
+    const verzendSparse = buildVerzendSparse();
 
     const updates: any = {
       updatedAt: serverTimestamp(),
     };
 
-    const hasAny = !!transport || !!winstMargeSparse || !!bouwplaatsSparse;
+    const hasAny = !!transport || !!winstMargeSparse || !!bouwplaatsSparse || !!verzendSparse;
 
     if (!hasAny) {
       updates.extras = deleteField();
@@ -1170,12 +1238,14 @@ export default function OverzichtPage() {
       updates['extras.transport'] = transport ? transport : deleteField();
       updates['extras.winstMarge'] = winstMargeSparse ? winstMargeSparse : deleteField();
       updates['extras.materieel'] = bouwplaatsSparse ? bouwplaatsSparse : deleteField();
+      updates['extras.verzendkosten'] = verzendSparse ? verzendSparse : deleteField();
     }
 
     const stateForCompare = JSON.stringify({
       transport: transport ?? undefined,
       winstMarge: winstMargeSparse ?? undefined,
       bouwplaats: bouwplaatsSparse ?? undefined,
+      verzend: verzendSparse ?? undefined,
       hasAny,
     });
 
@@ -1213,6 +1283,7 @@ export default function OverzichtPage() {
     vasteTransportkosten,
     tunnelkosten,
     JSON.stringify(bouwplaatskosten),
+    JSON.stringify(verzendkosten),
     winstMarge.mode,
     winstMarge.percentage,
     winstMarge.fixedAmount,
@@ -1272,7 +1343,32 @@ export default function OverzichtPage() {
   const handleSelectPakket = (pakketId: string) => {
     setGeselecteerdPakketId(pakketId);
     const gekozen = pakketten.find((p) => p.id === pakketId) ?? null;
-    setBouwplaatskosten(pakketNaarItems(gekozen));
+    setBouwplaatskosten(pakketNaarItems(gekozen, defaultBouwplaatskosten));
+  };
+
+  const handleVerzendChange = (
+    id: string,
+    field: keyof Pick<BouwplaatsItem, 'naam' | 'prijs' | 'per'>,
+    value: string
+  ) => {
+    setVerzendkosten((prev) => prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
+  };
+
+  const handleAddExtraVerzend = () => {
+    setVerzendkosten((prev) => [
+      ...prev,
+      { id: maakBouwplaatsId(), naam: '', prijs: '', per: 'klus', isVast: false },
+    ]);
+  };
+
+  const handleRemoveVerzend = (id: string) => {
+    setVerzendkosten((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const handleSelectVerzendPakket = (pakketId: string) => {
+    setGeselecteerdVerzendPakketId(pakketId);
+    const gekozen = verzendPakketten.find((p) => p.id === pakketId) ?? null;
+    setVerzendkosten(pakketNaarItems(gekozen, defaultVerzendkosten));
   };
 
   /* ---------------------------------------------
@@ -1520,12 +1616,169 @@ export default function OverzichtPage() {
       const nextSelected = nextStd || '';
       setGeselecteerdPakketId(nextSelected);
       const gekozen = next.find((p) => p.id === nextSelected) ?? null;
-      setBouwplaatskosten(pakketNaarItems(gekozen));
+      setBouwplaatskosten(pakketNaarItems(gekozen, defaultBouwplaatskosten));
     }
 
     await schrijfGebruikerInstellingen({
       bouwplaatsKostenPakketten: next,
       bouwplaatsKostenStandaardId: nextStd || null,
+    });
+
+    toast({ title: 'Verwijderd', description: 'Pakket is verwijderd.' });
+  }
+
+  /* ---------------------------------------------
+   Verzendkosten: pakket opslaan (nieuw / overschrijven)
+  --------------------------------------------- */
+
+  function openVerzendOpslaan() {
+    const huidig = verzendPakketten.find((p) => p.id === geselecteerdVerzendPakketId) ?? null;
+
+    setOverschrijfHuidigVerzendPakket(!!huidig);
+    setVerzendPakketNaamInput(huidig?.naam ?? '');
+    setVerzendOpslaanOpen(true);
+  }
+
+  async function opslaanVerzendAlsNieuw(naamFromUi?: string) {
+    const naam = (naamFromUi ?? verzendPakketNaamInput ?? '').trim();
+    if (!naam) {
+      toast({ variant: 'destructive', title: 'Naam ontbreekt', description: 'Geef het pakket een naam.' });
+      return;
+    }
+
+    const items = itemsNaarPakket(verzendkosten);
+    if (items.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Geen items',
+        description: 'Vul minimaal 1 verzendkosten regel met prijs in.',
+      });
+      return;
+    }
+
+    const nieuw: BouwplaatsKostenPakket = {
+      id: maakPakketId(),
+      naam,
+      items,
+    };
+
+    const next = [nieuw, ...(verzendPakketten ?? [])];
+    setVerzendPakketten(next);
+    setGeselecteerdVerzendPakketId(nieuw.id);
+
+    await schrijfGebruikerInstellingen({
+      verzendKostenPakketten: next,
+    });
+
+    toast({ title: 'Opgeslagen', description: `Pakket "${naam}" is toegevoegd.` });
+    setVerzendOpslaanOpen(false);
+  }
+
+  async function overschrijfHuidigVerzendPakketNu() {
+    const huidig = verzendPakketten.find((p) => p.id === geselecteerdVerzendPakketId) ?? null;
+    if (!huidig) {
+      toast({ variant: 'destructive', title: 'Geen pakket geselecteerd', description: 'Kies eerst een pakket om te overschrijven.' });
+      return;
+    }
+
+    const items = itemsNaarPakket(verzendkosten);
+    if (items.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Geen items',
+        description: 'Vul minimaal 1 verzendkosten regel met prijs in.',
+      });
+      return;
+    }
+
+    const naam = (verzendPakketNaamInput ?? huidig.naam ?? '').trim();
+    if (!naam) {
+      toast({ variant: 'destructive', title: 'Naam ontbreekt', description: 'Geef het pakket een naam.' });
+      return;
+    }
+
+    const updated: BouwplaatsKostenPakket = {
+      ...huidig,
+      naam,
+      items,
+    };
+
+    const next = (verzendPakketten ?? []).map((p) => (p.id === huidig.id ? updated : p));
+    setVerzendPakketten(next);
+
+    await schrijfGebruikerInstellingen({
+      verzendKostenPakketten: next,
+    });
+
+    toast({ title: 'Opgeslagen', description: `Pakket "${naam}" is bijgewerkt.` });
+    setVerzendOpslaanOpen(false);
+  }
+
+  /* ---------------------------------------------
+   Verzendkosten: pakket beheer (standaard / verwijderen / nieuw)
+  --------------------------------------------- */
+
+  async function saveVerzendPakketAlsNieuwVanBeheer() {
+    const naam = (nieuwVerzendPakketNaam ?? '').trim();
+    if (!naam) {
+      toast({ variant: 'destructive', title: 'Naam ontbreekt', description: 'Geef het pakket een naam.' });
+      return;
+    }
+
+    const items = itemsNaarPakket(verzendkosten);
+    if (items.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Geen items',
+        description: 'Vul minimaal 1 verzendkosten regel met prijs in.',
+      });
+      return;
+    }
+
+    const nieuw: BouwplaatsKostenPakket = {
+      id: maakPakketId(),
+      naam,
+      items,
+    };
+
+    const next = [nieuw, ...(verzendPakketten ?? [])];
+    setVerzendPakketten(next);
+    setNieuwVerzendPakketNaam('');
+    setGeselecteerdVerzendPakketId(nieuw.id);
+
+    await schrijfGebruikerInstellingen({
+      verzendKostenPakketten: next,
+    });
+
+    toast({ title: 'Opgeslagen', description: `Pakket "${naam}" is toegevoegd.` });
+  }
+
+  async function maakVerzendPakketStandaard(id: string) {
+    setStandaardVerzendPakketId(id);
+    await schrijfGebruikerInstellingen({ verzendKostenStandaardId: id });
+    toast({ title: 'Standaard ingesteld', description: 'Dit pakket wordt standaard gebruikt.' });
+  }
+
+  async function verwijderVerzendPakket(id: string) {
+    const next = (verzendPakketten ?? []).filter((p) => p.id !== id);
+    setVerzendPakketten(next);
+
+    let nextStd = standaardVerzendPakketId;
+    if (standaardVerzendPakketId === id) {
+      nextStd = '';
+      setStandaardVerzendPakketId('');
+    }
+
+    if (geselecteerdVerzendPakketId === id) {
+      const nextSelected = nextStd || '';
+      setGeselecteerdVerzendPakketId(nextSelected);
+      const gekozen = next.find((p) => p.id === nextSelected) ?? null;
+      setVerzendkosten(pakketNaarItems(gekozen, defaultVerzendkosten));
+    }
+
+    await schrijfGebruikerInstellingen({
+      verzendKostenPakketten: next,
+      verzendKostenStandaardId: nextStd || null,
     });
 
     toast({ title: 'Verwijderd', description: 'Pakket is verwijderd.' });
@@ -1646,11 +1899,13 @@ export default function OverzichtPage() {
       const transport = buildTransportSparse();
       const winstMargeSparse = buildWinstSparse();
       const bouwplaatsSparse = buildBouwplaatsSparse();
+      const verzendSparse = buildVerzendSparse();
 
       const extras: any = {};
       if (transport) extras.transport = transport;
       if (winstMargeSparse) extras.winstMarge = winstMargeSparse;
       if (bouwplaatsSparse) extras.materieel = bouwplaatsSparse;
+      if (verzendSparse) extras.verzendkosten = verzendSparse;
 
       const idToken =
         typeof (user as any)?.getIdToken === 'function'
@@ -2277,6 +2532,195 @@ export default function OverzichtPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Verzendkosten: Opslaan als pakket (nieuw/overschrijven) */}
+      <AlertDialog open={verzendOpslaanOpen} onOpenChange={setVerzendOpslaanOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verzendkosten opslaan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sla de huidige verzendkosten op als pakket.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-xs">Pakketnaam</Label>
+              <Input
+                value={verzendPakketNaamInput}
+                onChange={(e) => setVerzendPakketNaamInput(e.target.value)}
+                placeholder="Bijv. Landelijke levering"
+              />
+            </div>
+
+            <div className="rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">Overschrijven</div>
+                  <div className="text-xs text-muted-foreground">
+                    {geselecteerdVerzendPakketId
+                      ? 'Werk het geselecteerde pakket bij.'
+                      : 'Geen pakket geselecteerd.'}
+                  </div>
+                </div>
+
+                <label className={cn('flex items-center gap-2 text-sm select-none', !geselecteerdVerzendPakketId && 'opacity-50')}>
+                  <input
+                    type="checkbox"
+                    disabled={!geselecteerdVerzendPakketId}
+                    checked={!!geselecteerdVerzendPakketId && overschrijfHuidigVerzendPakket}
+                    onChange={(e) => setOverschrijfHuidigVerzendPakket(e.target.checked)}
+                  />
+                  Ja
+                </label>
+              </div>
+            </div>
+          </div>
+
+
+          <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+            <AlertDialogCancel asChild>
+              <Button variant="secondary">Sluiten</Button>
+            </AlertDialogCancel>
+
+            <AlertDialogAction asChild>
+              <Button
+                variant="success"
+                onClick={(e) => {
+                  e.preventDefault();
+                  opslaanVerzendAlsNieuw().catch(() => { });
+                }}
+              >
+                Opslaan als nieuw
+              </Button>
+            </AlertDialogAction>
+
+            <AlertDialogAction asChild>
+              <Button
+                variant="outline"
+                disabled={!geselecteerdVerzendPakketId || !overschrijfHuidigVerzendPakket}
+                onClick={(e) => {
+                  e.preventDefault();
+                  overschrijfHuidigVerzendPakketNu().catch(() => { });
+                }}
+              >
+                Overschrijven
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Verzendkosten: Beheer pakketten */}
+      <AlertDialog open={verzendBeheerOpen} onOpenChange={setVerzendBeheerOpen}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verzendkosten pakketten</AlertDialogTitle>
+            <AlertDialogDescription>
+              Maak standaard, verwijder of voeg een nieuw pakket toe.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-6">
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="font-medium text-sm">Nieuw pakket maken (van huidige verzendkosten)</div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                <div className="sm:col-span-8">
+                  <Input
+                    value={nieuwVerzendPakketNaam}
+                    onChange={(e) => setNieuwVerzendPakketNaam(e.target.value)}
+                    placeholder="Naam, bijv. Landelijke levering"
+                  />
+                </div>
+                <div className="sm:col-span-4 flex gap-2">
+                  <Button
+                    type="button"
+                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={async () => {
+                      if (isSavingVerzendSettings) return;
+                      setIsSavingVerzendSettings(true);
+                      try {
+                        await saveVerzendPakketAlsNieuwVanBeheer();
+                      } finally {
+                        setIsSavingVerzendSettings(false);
+                      }
+                    }}
+                    disabled={isSavingVerzendSettings}
+                  >
+                    Opslaan als nieuw
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {verzendPakketten.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  Nog geen pakketten. Maak er één via "Opslaan als nieuw".
+                </p>
+              ) : (
+                verzendPakketten.map((p) => {
+                  const isStd = p.id === standaardVerzendPakketId;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={cn(
+                        'flex items-center justify-between gap-3 rounded-lg border p-3',
+                        isStd && 'border-emerald-500/40 bg-emerald-500/10'
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">{p.naam}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {p.items?.length ?? 0} regels
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className={cn(isStd ? 'text-emerald-400' : 'text-muted-foreground hover:text-foreground')}
+                          onClick={() => maakVerzendPakketStandaard(p.id)}
+                        >
+                          <Star className="mr-2 h-4 w-4" />
+                          Maak standaard
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-400 hover:text-red-300"
+                          onClick={() => verwijderVerzendPakket(p.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Verwijderen
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="secondary">
+                Sluiten
+              </Button>
+            </AlertDialogCancel>
+
+            <AlertDialogAction asChild>
+              <Button variant="success">Oké</Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* HEADER with PersonalNotes */}
       <WizardHeader
         title="Overzicht & extra's"
@@ -2551,7 +2995,7 @@ export default function OverzichtPage() {
                     size="icon"
                     className="h-10 w-10 shrink-0 mt-5 text-muted-foreground hover:text-emerald-500"
                     title="Opslaan als werkpakket"
-                    onClick={() => setBouwplaatsOpslaanOpen(true)}
+                    onClick={openBouwplaatsOpslaan}
                   >
                     <Save className="h-4 w-4" />
                   </Button>
@@ -2624,6 +3068,148 @@ export default function OverzichtPage() {
                 <button
                   type="button"
                   onClick={handleAddExtraBouwplaats}
+                  className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Toevoegen</span>
+                </button>
+              </div>
+            </OverzichtSection>
+          </section>
+
+          {/* Verzendkosten */}
+          <section className="space-y-3">
+            <OverzichtSection
+              title="Verzendkosten"
+              isCollapsed={!!collapsedSections['verzend']}
+              onToggle={() => toggleSection('verzend')}
+              onSettings={() => setVerzendBeheerOpen(true)}
+              collapsedSummary={
+                verzendCollapsedLabels.length > 0 ? (
+                  <>
+                    {verzendCollapsedLabels.slice(0, 2).map((label, idx) => (
+                      <CollapsedInfoChip key={`${label}-${idx}`}>{label}</CollapsedInfoChip>
+                    ))}
+                    {verzendCollapsedLabels.length > 2 && (
+                      <CollapsedInfoChip>{`+${verzendCollapsedLabels.length - 2}`}</CollapsedInfoChip>
+                    )}
+                  </>
+                ) : null
+              }
+            >
+              <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
+                {/* Werkpakket Selector */}
+                <div className="flex items-center gap-1.5 px-3 py-3 border-b border-white/5 bg-white/5">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-0.5">
+                      Werkpakket
+                    </Label>
+                    <Select
+                      value={geselecteerdVerzendPakketId || 'LEEG'}
+                      onValueChange={(v) => {
+                        if (!v || v === 'LEEG') {
+                          setGeselecteerdVerzendPakketId('');
+                          setVerzendkosten(defaultVerzendkosten());
+                          return;
+                        }
+                        handleSelectVerzendPakket(v);
+                      }}
+                    >
+                      <SelectTrigger className="h-10 bg-black/40 border-emerald-500/20 focus:ring-emerald-500/20 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Box className="w-4 h-4 text-emerald-500" />
+                          <SelectValue placeholder="Nieuw" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LEEG">Nieuw</SelectItem>
+                        {verzendPakketten.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.naam}
+                            {p.id === standaardVerzendPakketId ? ' (standaard)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 mt-5 text-muted-foreground hover:text-emerald-500"
+                    title="Opslaan als werkpakket"
+                    onClick={openVerzendOpslaan}
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Items List */}
+                <div className="divide-y divide-white/5">
+                  {verzendkosten.map((item) => (
+                    <div key={item.id} className="group flex items-center gap-2 py-3 px-4 hover:bg-white/5 transition-colors">
+                      {/* Name */}
+                      <div className="flex-1 min-w-0">
+                        {item.isVast ? (
+                          <span className="text-sm text-foreground">{item.naam}</span>
+                        ) : (
+                          <Input
+                            value={item.naam}
+                            onChange={(e) => handleVerzendChange(item.id, 'naam', e.target.value)}
+                            placeholder="Bijv. Pakketpost / Koeriersdienst"
+                            className="bg-transparent border-0 px-0 h-7 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                          />
+                        )}
+                      </div>
+
+                      {/* Price */}
+                      <div className="w-24 shrink-0">
+                        <EuroInput
+                          value={item.prijs}
+                          onChange={(v) => handleVerzendChange(item.id, 'prijs', v)}
+                          inputClassName="bg-black/20 border-white/5 rounded-lg h-8 text-sm"
+                          placeholder="0,00"
+                        />
+                      </div>
+
+                      {/* Per */}
+                      <div className="w-20 shrink-0">
+                        <Select value={item.per} onValueChange={(v) => handleVerzendChange(item.id, 'per', v)}>
+                          <SelectTrigger className="bg-black/20 border-white/5 rounded-lg h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="dag">dag</SelectItem>
+                            <SelectItem value="week">week</SelectItem>
+                            <SelectItem value="klus">klus</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Delete - aligned with unit dropdown */}
+                      <div className="w-8 shrink-0 flex justify-center">
+                        {!item.isVast ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
+                            onClick={() => handleRemoveVerzend(item.id)}
+                            aria-label="Verwijderen"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <div className="w-7 h-7" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Button */}
+                <button
+                  type="button"
+                  onClick={handleAddExtraVerzend}
                   className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
                 >
                   <Plus className="h-4 w-4" />

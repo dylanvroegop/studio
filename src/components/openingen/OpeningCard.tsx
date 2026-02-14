@@ -93,6 +93,7 @@ export function OpeningCard({
     isCeilingCategory,
     categorySlug,
 }: OpeningCardProps) {
+    const isFloorCategory = categorySlug === 'vloeren' || categorySlug.startsWith('vloer-');
 
     const openingDagkant = dagkanten.find(d => d.openingId === opening.id);
     const openingVensterbank = vensterbanken.find(v => v.openingId === opening.id);
@@ -155,7 +156,7 @@ export function OpeningCard({
                                     <SelectItem value="nis">Nis</SelectItem>
                                     <SelectItem value="other">Overig</SelectItem>
                                 </>
-                            ) : isCeilingCategory || categorySlug === 'vloeren' ? (
+                            ) : isCeilingCategory || isFloorCategory ? (
                                 <>
                                     <SelectItem value="opening">Sparing</SelectItem>
                                     <SelectItem value="vlizotrap">Vlizotrap</SelectItem>

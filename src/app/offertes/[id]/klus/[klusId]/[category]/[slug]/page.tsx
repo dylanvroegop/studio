@@ -433,6 +433,95 @@ export default function GenericMeasurementPage() {
       ['voegenmiddel', 'finish pasta']
     );
   }, [materialenLijstSnapshot]);
+  const hasOvergangsprofielMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['profielen_overgang'],
+      ['overgangsprofiel', 'overgangsprofielen']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasEindprofielMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['profielen_eind'],
+      ['eindprofiel', 'eindprofielen']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasStofdorpelMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['stofdorpel'],
+      ['stofdorpel', 'drempel', 'dorpel']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasDeklattenMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['deklatten'],
+      ['deklat', 'deklatten']
+    );
+  }, [materialenLijstSnapshot]);
+  const floorProfileCountFields = useMemo(() => {
+    if (jobSlug === 'massief-houten-vloer') {
+      return [
+        {
+          fieldKey: 'deklatten_aantal',
+          label: 'Deklatten',
+          summaryLabel: 'deklatten',
+          enabled: hasDeklattenMaterialFromPreviousPage,
+        },
+        {
+          fieldKey: 'profielen_overgang_aantal',
+          label: 'Overgangsprofielen',
+          summaryLabel: 'overgang',
+          enabled: hasOvergangsprofielMaterialFromPreviousPage,
+        },
+        {
+          fieldKey: 'stofdorpel_aantal',
+          label: 'Stofdorpel',
+          summaryLabel: 'stofdorpel',
+          enabled: hasStofdorpelMaterialFromPreviousPage,
+        },
+        {
+          fieldKey: 'profielen_eind_aantal',
+          label: 'Eindprofielen',
+          summaryLabel: 'eind',
+          enabled: hasEindprofielMaterialFromPreviousPage,
+        },
+      ];
+    }
+
+    if (jobSlug === 'laminaat-pvc') {
+      return [
+        {
+          fieldKey: 'profielen_overgang_aantal',
+          label: 'Overgangsprofielen',
+          summaryLabel: 'overgang',
+          enabled: hasOvergangsprofielMaterialFromPreviousPage,
+        },
+        {
+          fieldKey: 'stofdorpel_aantal',
+          label: 'Stofdorpel',
+          summaryLabel: 'stofdorpel',
+          enabled: hasStofdorpelMaterialFromPreviousPage,
+        },
+        {
+          fieldKey: 'profielen_eind_aantal',
+          label: 'Eindprofielen',
+          summaryLabel: 'eind',
+          enabled: hasEindprofielMaterialFromPreviousPage,
+        },
+      ];
+    }
+
+    return [];
+  }, [
+    jobSlug,
+    hasDeklattenMaterialFromPreviousPage,
+    hasOvergangsprofielMaterialFromPreviousPage,
+    hasEindprofielMaterialFromPreviousPage,
+    hasStofdorpelMaterialFromPreviousPage,
+  ]);
 
   const epdmSideRows: Array<{
     side: 'top' | 'right' | 'bottom' | 'left';
@@ -601,6 +690,24 @@ export default function GenericMeasurementPage() {
     const intVal = Math.floor(parsed);
     if (intVal < 0) return null;
     return intVal;
+  };
+
+  const sanitizeOptionalCountFields = (
+    item: Record<string, any>,
+    fieldsWithAvailability: Array<{ fieldKey: string; enabled: boolean }>
+  ) => {
+    fieldsWithAvailability.forEach(({ fieldKey, enabled }) => {
+      if (!enabled) {
+        delete item[fieldKey];
+        return;
+      }
+      const parsed = toNonNegativeIntOrNull(item[fieldKey]);
+      if (parsed === null) {
+        delete item[fieldKey];
+      } else {
+        item[fieldKey] = parsed;
+      }
+    });
   };
 
   const parsePriceValue = (value: any): number | null => {
@@ -1572,6 +1679,41 @@ export default function GenericMeasurementPage() {
             ['hwa_uitloop'],
             ['stadsuitloop', 'uitloop']
           );
+          const hasOvergangsprofielMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['profielen_overgang'],
+            ['overgangsprofiel', 'overgangsprofielen']
+          );
+          const hasEindprofielMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['profielen_eind'],
+            ['eindprofiel', 'eindprofielen']
+          );
+          const hasStofdorpelMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['stofdorpel'],
+            ['stofdorpel', 'drempel', 'dorpel']
+          );
+          const hasDeklattenMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['deklatten'],
+            ['deklat', 'deklatten']
+          );
+          const floorProfileCountFieldsInContainer: Array<{ fieldKey: string; enabled: boolean }> = [];
+          if (jobSlug === 'massief-houten-vloer') {
+            floorProfileCountFieldsInContainer.push(
+              { fieldKey: 'deklatten_aantal', enabled: hasDeklattenMaterialInContainer },
+              { fieldKey: 'profielen_overgang_aantal', enabled: hasOvergangsprofielMaterialInContainer },
+              { fieldKey: 'profielen_eind_aantal', enabled: hasEindprofielMaterialInContainer },
+              { fieldKey: 'stofdorpel_aantal', enabled: hasStofdorpelMaterialInContainer },
+            );
+          } else if (jobSlug === 'laminaat-pvc') {
+            floorProfileCountFieldsInContainer.push(
+              { fieldKey: 'profielen_overgang_aantal', enabled: hasOvergangsprofielMaterialInContainer },
+              { fieldKey: 'profielen_eind_aantal', enabled: hasEindprofielMaterialInContainer },
+              { fieldKey: 'stofdorpel_aantal', enabled: hasStofdorpelMaterialInContainer },
+            );
+          }
           const maatwerk = container.maatwerk;
           const vlizotrapMaterial = findVlizotrapMaterial(container);
           const kozijnhoutMaterial = isMaatwerkKozijn ? findKozijnhoutMaterial(container) : null;
@@ -1618,6 +1760,10 @@ export default function GenericMeasurementPage() {
                 if (hasHwaUitloopMaterialInContainer && isEmptyValue(normalizedItem.hwa_uitloop_aantal)) {
                   normalizedItem.hwa_uitloop_aantal = 1;
                 }
+              }
+
+              if (floorProfileCountFieldsInContainer.length > 0) {
+                sanitizeOptionalCountFields(normalizedItem, floorProfileCountFieldsInContainer);
               }
 
               if (isGolfplaatDak) {
@@ -2581,6 +2727,70 @@ export default function GenericMeasurementPage() {
             } else {
               delete processed.hwa_uitloop_aantal;
             }
+
+            const parseMm = (value: any): number => {
+              const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
+              return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+            };
+            const lengteMm = parseMm(processed.lengte);
+            const hoogteMm = parseMm(processed.hoogte);
+            const sideLengthMm: Record<'top' | 'right' | 'bottom' | 'left', number> = {
+              top: lengteMm,
+              right: hoogteMm,
+              bottom: lengteMm,
+              left: hoogteMm,
+            };
+            const sideDirection: Record<'top' | 'right' | 'bottom' | 'left', string> = {
+              top: 'noord',
+              right: 'oost',
+              bottom: 'zuid',
+              left: 'west',
+            };
+            const sideLabel: Record<'top' | 'right' | 'bottom' | 'left', string> = {
+              top: 'boven',
+              right: 'rechts',
+              bottom: 'onder',
+              left: 'links',
+            };
+
+            const randen = allSides.map((side) => {
+              const lengthMm = sideLengthMm[side];
+              const lengthM1 = Number((lengthMm / 1000).toFixed(3));
+              return {
+                side,
+                richting: sideDirection[side],
+                positie: sideLabel[side],
+                type: edgeBySide[side],
+                lengte_mm: lengthMm,
+                lengte_m1: lengthM1,
+                lood: Boolean(processed[`lood_${side}`]),
+                daktrim: Boolean(processed[`daktrim_${side}`]),
+                dakgoot: Boolean(processed[`dakgoot_${side}`]),
+              };
+            });
+            const vrijeRanden = randen.filter((r) => r.type === 'free');
+            const gevelRanden = randen.filter((r) => r.type === 'wall');
+            const daktrimRanden = randen.filter((r) => r.daktrim);
+            const loodRanden = randen.filter((r) => r.lood);
+            const dakgootRanden = randen.filter((r) => r.dakgoot);
+
+            const daktrimHoekenAuto =
+              (Boolean(processed.daktrim_top) && Boolean(processed.daktrim_right) ? 1 : 0)
+              + (Boolean(processed.daktrim_right) && Boolean(processed.daktrim_bottom) ? 1 : 0)
+              + (Boolean(processed.daktrim_bottom) && Boolean(processed.daktrim_left) ? 1 : 0)
+              + (Boolean(processed.daktrim_left) && Boolean(processed.daktrim_top) ? 1 : 0);
+
+            processed.epdm_randen = randen;
+            processed.epdm_randen_summary = {
+              vrije_randen_m1: Number(vrijeRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+              gevel_randen_m1: Number(gevelRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+              daktrim_randen_m1: Number(daktrimRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+              lood_randen_m1: Number(loodRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+              dakgoot_randen_m1: Number(dakgootRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+              daktrim_hoeken_auto: daktrimHoekenAuto,
+              vrije_randen_detail: vrijeRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
+              gevel_randen_detail: gevelRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
+            };
           }
 
           if (isGolfplaatDak) {
@@ -2600,6 +2810,10 @@ export default function GenericMeasurementPage() {
             const gordingLengte = buildGolfplaatGordingLengte(processed);
             if (gordingLengte) processed.gording_lengte = gordingLengte;
             else delete processed.gording_lengte;
+          }
+
+          if (jobSlug === 'laminaat-pvc' || jobSlug === 'massief-houten-vloer') {
+            sanitizeOptionalCountFields(processed, floorProfileCountFields);
           }
 
           if (processed.openings && Array.isArray(processed.openings)) {
@@ -3038,7 +3252,7 @@ export default function GenericMeasurementPage() {
                         const showHoogte = shape === 'rectangle' && !!fHoogte;
                         const showBreedte = shape === 'rectangle' && !!fBreedte;
 
-                        const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak) && showLengte && showHoogte;
+                        const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak || isGevelbekleding) && showLengte && showHoogte;
                         const useSideBySideLengteBreedteGolfplaat = (isGolfplaatDak || isEpdmDak) && showLengte && showHoogte;
                         const useInlineLengteBreedte = !useSideBySideLengteHoogte && !useSideBySideLengteBreedteGolfplaat && showLengte && showBreedte;
                         const showSwapDimensions = !useSideBySideLengteHoogte && !useSideBySideLengteBreedteGolfplaat && showLengte && (showHoogte || showBreedte);
@@ -3141,6 +3355,7 @@ export default function GenericMeasurementPage() {
                                   onChange={v => updateItem(index, showBreedte ? 'breedte' : 'hoogte', v)}
                                   onKeyDown={handleKeyDown}
                                   disabled={disabledAll}
+                                  labelOverride={!showBreedte && isGevelbekleding ? 'Breedte' : undefined}
                                 />
                               </div>
                             ) : useInlineLengteBreedte ? (
@@ -3717,7 +3932,12 @@ export default function GenericMeasurementPage() {
                     {isEpdmDak && hasLoodMaterialFromPreviousPage && (
                       <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                         {(() => {
-                          const enabledCount = epdmSideRows.filter((row) => Boolean(item[`lood_${row.side}`])).length;
+                          const enabledSummary = epdmSideRows
+                            .filter((row) => {
+                              const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
+                              return edgeType === 'wall' && Boolean(item[`lood_${row.side}`]);
+                            })
+                            .map((row) => `1x gevel ${row.directionLabel.toLowerCase()}`);
                           return (
                             <>
                               <div
@@ -3728,7 +3948,7 @@ export default function GenericMeasurementPage() {
                                   <span className="text-sm font-medium text-zinc-200">Lood</span>
                                   {collapsedSections[`lood-${index}`] !== false && (
                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                      {`${enabledCount}x aan`}
+                                      {enabledSummary.length > 0 ? enabledSummary.join(' • ') : '0x gevel'}
                                     </span>
                                   )}
                                 </div>
@@ -3770,7 +3990,12 @@ export default function GenericMeasurementPage() {
                     {isEpdmDak && hasDaktrimMaterialFromPreviousPage && (
                       <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                         {(() => {
-                          const enabledCount = epdmSideRows.filter((row) => Boolean(item[`daktrim_${row.side}`])).length;
+                          const enabledSummary = epdmSideRows
+                            .filter((row) => {
+                              const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
+                              return edgeType === 'free' && Boolean(item[`daktrim_${row.side}`]);
+                            })
+                            .map((row) => `1x vrijstaand ${row.directionLabel.toLowerCase()}`);
                           return (
                             <>
                               <div
@@ -3781,7 +4006,7 @@ export default function GenericMeasurementPage() {
                                   <span className="text-sm font-medium text-zinc-200">Daktrim</span>
                                   {collapsedSections[`daktrim-${index}`] !== false && (
                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                      {`${enabledCount}x aan`}
+                                      {enabledSummary.length > 0 ? enabledSummary.join(' • ') : '0x vrijstaand'}
                                     </span>
                                   )}
                                 </div>
@@ -3820,40 +4045,39 @@ export default function GenericMeasurementPage() {
                       </div>
                     )}
 
-                    {isEpdmDak && (hasDakgootMaterialFromPreviousPage || hasHwaMaterialFromPreviousPage || hasHwaUitloopMaterialFromPreviousPage) && (
+                    {isEpdmDak && hasDakgootMaterialFromPreviousPage && (
                       <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                         {(() => {
-                          const dakgootEnabledCount = epdmSideRows.filter((row) => Boolean(item[`dakgoot_${row.side}`])).length;
-                          const hwaCount = toNonNegativeIntOrNull(item.hwa_aantal) ?? 0;
-                          const hwaUitloopCount = toNonNegativeIntOrNull(item.hwa_uitloop_aantal) ?? 0;
-                          const summary: string[] = [];
-                          if (hasDakgootMaterialFromPreviousPage) summary.push(`${dakgootEnabledCount}x dakgoot`);
-                          if (hasHwaMaterialFromPreviousPage) summary.push(`${hwaCount}x hwa`);
-                          if (hasHwaUitloopMaterialFromPreviousPage) summary.push(`${hwaUitloopCount}x stadsuitloop`);
+                          const dakgootSummary = epdmSideRows
+                            .filter((row) => {
+                              const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
+                              return edgeType === 'free' && Boolean(item[`dakgoot_${row.side}`]);
+                            })
+                            .map((row) => `1x vrijstaand ${row.directionLabel.toLowerCase()}`);
 
                           return (
                             <>
                               <div
                                 className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                                onClick={() => toggleCollapsed(`dakgoot-hwa-${index}`)}
+                                onClick={() => toggleCollapsed(`dakgoot-${index}`)}
                               >
                                 <div className="flex items-center gap-3">
-                                  <span className="text-sm font-medium text-zinc-200">Dakgoot & HWA</span>
-                                  {collapsedSections[`dakgoot-hwa-${index}`] !== false && summary.length > 0 && (
+                                  <span className="text-sm font-medium text-zinc-200">Dakgoot</span>
+                                  {collapsedSections[`dakgoot-${index}`] !== false && (
                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                      {summary.join(' • ')}
+                                      {dakgootSummary.length > 0 ? dakgootSummary.join(' • ') : '0x vrijstaand'}
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-zinc-500">
-                                  {collapsedSections[`dakgoot-hwa-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  {collapsedSections[`dakgoot-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </div>
                               </div>
 
-                              {collapsedSections[`dakgoot-hwa-${index}`] === false && (
+                              {collapsedSections[`dakgoot-${index}`] === false && (
                                 <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
                                   <div className="pt-2 border-t border-white/5 space-y-3">
-                                    {hasDakgootMaterialFromPreviousPage && epdmSideRows.map((row) => {
+                                    {epdmSideRows.map((row) => {
                                       const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
                                       const isVrijstaandSide = edgeType === 'free';
                                       const checked = isVrijstaandSide ? Boolean(item[`dakgoot_${row.side}`]) : false;
@@ -3871,7 +4095,46 @@ export default function GenericMeasurementPage() {
                                         </div>
                                       );
                                     })}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
 
+                    {isEpdmDak && (hasHwaMaterialFromPreviousPage || hasHwaUitloopMaterialFromPreviousPage) && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        {(() => {
+                          const hwaCount = toNonNegativeIntOrNull(item.hwa_aantal) ?? 0;
+                          const hwaUitloopCount = toNonNegativeIntOrNull(item.hwa_uitloop_aantal) ?? 0;
+                          const summary: string[] = [];
+                          if (hasHwaMaterialFromPreviousPage) summary.push(`${hwaCount}x hwa`);
+                          if (hasHwaUitloopMaterialFromPreviousPage) summary.push(`${hwaUitloopCount}x stadsuitloop`);
+
+                          return (
+                            <>
+                              <div
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                onClick={() => toggleCollapsed(`hwa-stadsuitloop-${index}`)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-medium text-zinc-200">HWA & stadsuitloop</span>
+                                  {collapsedSections[`hwa-stadsuitloop-${index}`] !== false && summary.length > 0 && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                      {summary.join(' • ')}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-zinc-500">
+                                  {collapsedSections[`hwa-stadsuitloop-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </div>
+                              </div>
+
+                              {collapsedSections[`hwa-stadsuitloop-${index}`] === false && (
+                                <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                  <div className="pt-2 border-t border-white/5 space-y-3">
                                     {hasHwaMaterialFromPreviousPage && (
                                       <div className="space-y-2">
                                         <Label htmlFor={`hwa-aantal-${index}`} className="text-xs">HWA aantal</Label>
@@ -4721,6 +4984,69 @@ export default function GenericMeasurementPage() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Vloer Profielen Aantallen Card */}
+                    {(jobSlug === 'laminaat-pvc' || jobSlug === 'massief-houten-vloer') && floorProfileCountFields.some((f) => f.enabled) && (
+                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                        {(() => {
+                          const vloerProfielenCollapseKey = `vloer-profielen-${index}`;
+                          const isVloerProfielenCollapsed = collapsedSections[vloerProfielenCollapseKey] ?? false;
+                          const floorCardTitle = jobSlug === 'massief-houten-vloer' ? 'Afwerking' : 'Afwerkprofielen';
+                          const summary = floorProfileCountFields
+                            .filter((f) => f.enabled)
+                            .map((f) => {
+                              const count = toNonNegativeIntOrNull(item[f.fieldKey]);
+                              return count === null ? null : `${count}x ${f.summaryLabel}`;
+                            })
+                            .filter(Boolean) as string[];
+
+                          return (
+                            <>
+                              <div
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                                onClick={() => toggleCollapsed(vloerProfielenCollapseKey, false)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-medium text-zinc-200">{floorCardTitle}</span>
+                                  {isVloerProfielenCollapsed && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                      {summary.length > 0 ? summary.join(' • ') : 'Niet ingevuld'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-zinc-500">
+                                  {isVloerProfielenCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </div>
+                              </div>
+
+                              {!isVloerProfielenCollapsed && (
+                                <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                                  <div className="pt-2 border-t border-white/5 space-y-3">
+                                    {floorProfileCountFields.filter((f) => f.enabled).map((f) => (
+                                      <div key={`${f.fieldKey}-${index}`} className="space-y-2">
+                                        <Label htmlFor={`${f.fieldKey}-${index}`} className="text-xs">{`${f.label} aantal`}</Label>
+                                        <Input
+                                          id={`${f.fieldKey}-${index}`}
+                                          type="number"
+                                          min={0}
+                                          step={1}
+                                          className="bg-black/20 border-white/10 h-9 text-sm"
+                                          placeholder="Bijv. 1"
+                                          value={item[f.fieldKey] ?? ''}
+                                          onChange={(e) => updateItem(index, f.fieldKey, e.target.value)}
+                                          onKeyDown={handleKeyDown}
+                                          disabled={disabledAll}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
 

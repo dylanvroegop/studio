@@ -3,6 +3,7 @@ import admin from 'firebase-admin';
 import { parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { JOB_REGISTRY } from '@/lib/job-registry';
+import { getMaterialRule } from '@/lib/klus-regels-static';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -306,6 +307,7 @@ export async function POST(req: Request) {
     // Set status to in_behandeling while n8n is processing
     await db.collection('quotes').doc(quoteId).update({
       status: 'in_behandeling',
+      calculationStartedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -495,8 +497,90 @@ export async function POST(req: Request) {
         });
       };
 
-      // Strip waste multipliers from embedded rule formulas so legacy quotes
-      // follow the same "base quantity first, waste afterwards" strategy.
+      const enrichEpdmBasisItems = (items: any[]): any[] => {
+        if (!Array.isArray(items)) return [];
+        const allSides: Array<'top' | 'right' | 'bottom' | 'left'> = ['top', 'right', 'bottom', 'left'];
+        const sideDirection: Record<'top' | 'right' | 'bottom' | 'left', string> = {
+          top: 'noord',
+          right: 'oost',
+          bottom: 'zuid',
+          left: 'west',
+        };
+        const sideLabel: Record<'top' | 'right' | 'bottom' | 'left', string> = {
+          top: 'boven',
+          right: 'rechts',
+          bottom: 'onder',
+          left: 'links',
+        };
+        const parseMm = (value: any): number => {
+          const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
+          return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        };
+        const normalizeEdge = (value: any, fallback: 'free' | 'wall'): 'free' | 'wall' => {
+          const normalized = String(value ?? '').trim().toLowerCase();
+          if (normalized === 'free') return 'free';
+          if (normalized === 'wall') return 'wall';
+          return fallback;
+        };
+
+        return items.map((rawItem) => {
+          if (!rawItem || typeof rawItem !== 'object') return rawItem;
+          const item = { ...rawItem } as Record<string, any>;
+          const lengteMm = parseMm(item.lengte);
+          const hoogteMm = parseMm(item.hoogte);
+          const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall'> = {
+            top: normalizeEdge(item.edge_top, 'wall'),
+            right: normalizeEdge(item.edge_right, 'free'),
+            bottom: normalizeEdge(item.edge_bottom, 'free'),
+            left: normalizeEdge(item.edge_left, 'free'),
+          };
+          const sideLengthMm: Record<'top' | 'right' | 'bottom' | 'left', number> = {
+            top: lengteMm,
+            right: hoogteMm,
+            bottom: lengteMm,
+            left: hoogteMm,
+          };
+
+          const randen = allSides.map((side) => ({
+            side,
+            richting: sideDirection[side],
+            positie: sideLabel[side],
+            type: edgeBySide[side],
+            lengte_mm: sideLengthMm[side],
+            lengte_m1: Number((sideLengthMm[side] / 1000).toFixed(3)),
+            lood: Boolean(item[`lood_${side}`]),
+            daktrim: Boolean(item[`daktrim_${side}`]),
+            dakgoot: Boolean(item[`dakgoot_${side}`]),
+          }));
+          const vrijeRanden = randen.filter((row) => row.type === 'free');
+          const gevelRanden = randen.filter((row) => row.type === 'wall');
+          const daktrimRanden = randen.filter((row) => row.daktrim);
+          const loodRanden = randen.filter((row) => row.lood);
+          const dakgootRanden = randen.filter((row) => row.dakgoot);
+          const daktrimHoekenAuto =
+            (Boolean(item.daktrim_top) && Boolean(item.daktrim_right) ? 1 : 0)
+            + (Boolean(item.daktrim_right) && Boolean(item.daktrim_bottom) ? 1 : 0)
+            + (Boolean(item.daktrim_bottom) && Boolean(item.daktrim_left) ? 1 : 0)
+            + (Boolean(item.daktrim_left) && Boolean(item.daktrim_top) ? 1 : 0);
+
+          item.epdm_randen = randen;
+          item.epdm_randen_summary = {
+            vrije_randen_m1: Number(vrijeRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+            gevel_randen_m1: Number(gevelRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+            daktrim_randen_m1: Number(daktrimRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+            lood_randen_m1: Number(loodRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+            dakgoot_randen_m1: Number(dakgootRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+            daktrim_hoeken_auto: daktrimHoekenAuto,
+            vrije_randen_detail: vrijeRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
+            gevel_randen_detail: gevelRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
+          };
+
+          return item;
+        });
+      };
+
+      // Strip waste multipliers and premature final ceil() from embedded rule formulas
+      // so all calculations follow: basis (decimaal) -> afval -> 1x afronden op eindresultaat.
       const stripWasteFromFormula = (formula: string): string => (
         formula
           .replace(/\s*\*\s*\(1\s*\+\s*waste\/100\)/g, '')
@@ -507,6 +591,10 @@ export async function POST(req: Request) {
           .replace(/\bwastePercentage\s*\*\s*/g, '')
           .replace(/\s*\*\s*waste_multiplier\b/g, '')
           .replace(/\bwaste_multiplier\s*\*\s*/g, '')
+          // Prevent early rounding of final material quantities.
+          .replace(/\baantal\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'aantal = ($1)')
+          .replace(/\bstuks\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'stuks = ($1)')
+          .replace(/\btotaal\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'totaal = ($1)')
       );
 
       const sanitizeRuleObject = (rule: any): any => {
@@ -528,11 +616,29 @@ export async function POST(req: Request) {
         return next;
       };
 
+      const appendWasteRoundingPolicy = (rule: any): any => {
+        if (!rule || typeof rule !== 'object') return rule;
+        return {
+          ...rule,
+          waste_rounding_policy: {
+            order: 'bereken_basis_zonder_tussentijds_afronden -> pas_afval_toe -> rond_eenmalig_naar_boven',
+            final_rounding: 'ceil',
+            no_intermediate_rounding: true,
+            notes: [
+              'Rond nooit aantal/stuks/totaal af voordat afval is toegepast.',
+              'Voorbeeld correct: 120.1 * 1.1 = 132.11 -> ceil = 133.',
+              'Voorbeeld incorrect: ceil(120.1)=121; 121 * 1.1 = 133.1 -> ceil = 134.'
+            ],
+          },
+        };
+      };
+
       const sanitizeEntryRule = (entry: any) => {
         if (!entry || typeof entry !== 'object' || !entry.rule || typeof entry.rule !== 'object') return entry;
+        const sanitizedRule = sanitizeRuleObject(entry.rule);
         return {
           ...entry,
-          rule: sanitizeRuleObject(entry.rule),
+          rule: appendWasteRoundingPolicy(sanitizedRule),
         };
       };
 
@@ -561,6 +667,48 @@ export async function POST(req: Request) {
           formula: GOLFPLAAT_OVERLAP_FORMULA,
         };
         return next;
+      };
+
+      const normalizeEpdmDaktrimSectionKey = (
+        jobSlug: string,
+        sectionKey: string | null,
+        material: any
+      ): string | null => {
+        if (String(jobSlug || '').toLowerCase() !== 'epdm-dakbedekking') return sectionKey;
+        const materialName = String(material?.materiaalnaam || '').toLowerCase();
+        if (!materialName.includes('daktrim')) return sectionKey;
+
+        const hasCornerHint =
+          materialName.includes('hoekstuk')
+          || materialName.includes('hoekstukken')
+          || /\bhoek\b/.test(materialName)
+          || /\bhoeken\b/.test(materialName);
+
+        if (sectionKey === 'daktrim' && hasCornerHint) return 'daktrim_hoeken';
+        if (sectionKey === 'daktrim_hoeken' && !hasCornerHint) return 'daktrim';
+        if (!sectionKey) return hasCornerHint ? 'daktrim_hoeken' : 'daktrim';
+        return sectionKey;
+      };
+
+      const refreshStaticRuleForSection = (
+        entry: Record<string, any>,
+        jobSlug: string,
+        sectionKey: string | null
+      ): Record<string, any> => {
+        if (!entry || typeof entry !== 'object' || !sectionKey) return entry;
+        const attachment = getMaterialRule(jobSlug, sectionKey);
+        if (!attachment) return entry;
+        const strippedRule = attachment.rule && typeof attachment.rule === 'object'
+          ? (() => {
+            const { required_inputs, missing_input_behavior, ...rest } = attachment.rule as Record<string, any>;
+            return rest;
+          })()
+          : null;
+        return {
+          ...entry,
+          rule: strippedRule,
+          rule_meta: attachment.rule_meta,
+        };
       };
 
       // ─── Helper: Enrich a single material entry with Supabase data ───
@@ -618,7 +766,9 @@ export async function POST(req: Request) {
             ).toLowerCase();
             const normalizedBasis = jobSlug.includes('golfplaat-dak')
               ? normalizeGolfplaatBasisItems(convertedBasis)
-              : convertedBasis;
+              : (jobSlug.includes('epdm-dakbedekking')
+                ? enrichEpdmBasisItems(convertedBasis)
+                : convertedBasis);
 
             // A2. Toevoegingen (components → pure geometry with semantic keys)
             const rawComponents = (maatwerkObj as any)?.toevoegingen || [];
@@ -668,12 +818,13 @@ export async function POST(req: Request) {
             // B1. Materials from materialen_lijst (primary source)
             const materialenLijst = enrichedJob.materialen?.materialen_lijst || {};
             Object.entries(materialenLijst).forEach(([slotKey, entry]: [string, any]) => {
-              let enriched = sanitizeEntryRule(enrichMaterial(entry));
+              let enriched = enrichMaterial(entry);
               if (!enriched?.material) return;
               const isComponentEntry = slotKey.startsWith('comp_') || enriched.type === 'component_material';
               const rawSectionKey = typeof enriched.sectionKey === 'string' ? enriched.sectionKey : null;
               const fallbackSectionKey = typeof entry?.sectionKey === 'string' ? entry.sectionKey : null;
               let normalizedSectionKey = rawSectionKey || fallbackSectionKey;
+              normalizedSectionKey = normalizeEpdmDaktrimSectionKey(jobSlug, normalizedSectionKey, enriched.material);
 
               // Filter invalid base section keys for this job (prevents polluted keys from old presets/data).
               if (!isComponentEntry && normalizedSectionKey && allowedSectionKeys.size > 0 && !allowedSectionKeys.has(normalizedSectionKey)) {
@@ -691,9 +842,17 @@ export async function POST(req: Request) {
 
               const finalSectionKey = normalizedSectionKey || slotKey;
               enriched = normalizeGolfplaatRuleEntry(enriched, jobSlug, finalSectionKey);
+              enriched = refreshStaticRuleForSection(enriched, jobSlug, finalSectionKey);
+              enriched = sanitizeEntryRule(enriched);
+              const normalizedSlotKey =
+                jobSlug === 'epdm-dakbedekking'
+                && (slotKey === 'daktrim' || slotKey === 'daktrim_hoeken')
+                && typeof finalSectionKey === 'string'
+                  ? finalSectionKey
+                  : slotKey;
 
               const qty = enriched.quantity ?? enriched.aantal ?? null;
-              normalizedMaterialenLijst[slotKey] = {
+              normalizedMaterialenLijst[normalizedSlotKey] = {
                 ...enriched,
                 sectionKey: finalSectionKey,
                 quantity: qty,

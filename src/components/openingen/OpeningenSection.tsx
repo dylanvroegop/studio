@@ -39,6 +39,7 @@ export function OpeningenSection({
     isCeilingCategory,
     categorySlug,
 }: OpeningenSectionProps) {
+    const isFloorCategory = categorySlug === 'vloeren' || categorySlug.startsWith('vloer-');
 
     const handleUpdate = (index: number, updatedOpening: OpeningData) => {
         const newOpenings = [...openings];
@@ -72,7 +73,7 @@ export function OpeningenSection({
     };
 
     const handleAdd = () => {
-        const enableRaveelwerk = isCeilingCategory || categorySlug === 'vloeren';
+        const enableRaveelwerk = isCeilingCategory || isFloorCategory;
         const newOpening: OpeningData = {
             id: crypto.randomUUID(),
             type: isWallCategory ? 'window' : 'opening',

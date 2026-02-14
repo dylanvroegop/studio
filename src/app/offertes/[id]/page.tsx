@@ -13,16 +13,18 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Button } from "@/components/ui/button";
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from "next/link";
 import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
@@ -53,6 +55,119 @@ interface GrootCompareQuoteColumn {
 interface GrootCompareRow {
     product: string;
     values: Array<{ aantal: number; totaal: number; detail: string }>;
+}
+
+type MaterialPresetItem = {
+    product: string;
+    aantal: number;
+    prijs_per_stuk: number;
+    eenheid?: string;
+};
+
+type QuoteMaterialPreset = {
+    grootmaterialen: MaterialPresetItem[];
+    verbruiksartikelen: MaterialPresetItem[];
+};
+
+type QuoteMaterialPackage = QuoteMaterialPreset & {
+    id: string;
+    naam: string;
+    updatedAt?: string;
+};
+
+function toPresetItems(items: MaterialItem[]): MaterialPresetItem[] {
+    const mapped: Array<MaterialPresetItem | null> = items.map((item) => {
+        const product = String(item.product || '').trim();
+        if (!product) return null;
+
+        const parsedAantal = Number(item.aantal);
+        const parsedPrijs = Number(item.prijs_per_stuk);
+        const aantal = Number.isFinite(parsedAantal) && parsedAantal > 0 ? parsedAantal : 1;
+        const prijs = Number.isFinite(parsedPrijs) && parsedPrijs >= 0 ? parsedPrijs : 0;
+        const rawEenheid = typeof (item as any).eenheid === 'string' ? (item as any).eenheid : '';
+
+        const base: MaterialPresetItem = {
+            product,
+            aantal,
+            prijs_per_stuk: prijs,
+        };
+
+        if (rawEenheid.trim()) {
+            base.eenheid = rawEenheid.trim();
+        }
+
+        return base;
+    });
+
+    return mapped.filter((item): item is MaterialPresetItem => item !== null);
+}
+
+function toMaterialItems(items: MaterialPresetItem[]): MaterialItem[] {
+    return items.map((item) => ({
+        product: item.product,
+        aantal: item.aantal,
+        prijs_per_stuk: item.prijs_per_stuk,
+        ...(item.eenheid ? { eenheid: item.eenheid } : {}),
+    }));
+}
+
+function sanitizeStoredPresetItems(value: unknown): MaterialPresetItem[] {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .map((rawItem) => {
+            if (!rawItem || typeof rawItem !== 'object') return null;
+            const row = rawItem as Record<string, unknown>;
+            const product = String(row.product ?? '').trim();
+            if (!product) return null;
+
+            const parsedAantal = Number(row.aantal);
+            const parsedPrijs = Number(row.prijs_per_stuk ?? row.prijs_excl_btw ?? row.prijs);
+            const aantal = Number.isFinite(parsedAantal) && parsedAantal > 0 ? parsedAantal : 1;
+            const prijs = Number.isFinite(parsedPrijs) && parsedPrijs >= 0 ? parsedPrijs : 0;
+            const eenheid = typeof row.eenheid === 'string' ? row.eenheid.trim() : '';
+
+            return {
+                product,
+                aantal,
+                prijs_per_stuk: prijs,
+                ...(eenheid ? { eenheid } : {}),
+            } as MaterialPresetItem;
+        })
+        .filter((item): item is MaterialPresetItem => item !== null);
+}
+
+function normalizeStoredMaterialPackages(value: unknown): QuoteMaterialPackage[] {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .map((rawPackage, index) => {
+            if (!rawPackage || typeof rawPackage !== 'object') return null;
+            const row = rawPackage as Record<string, unknown>;
+
+            const naam = String(row.naam ?? '').trim();
+            if (!naam) return null;
+
+            const idRaw = typeof row.id === 'string' ? row.id.trim() : '';
+            const id = idRaw || `pakket_${index + 1}_${Date.now()}`;
+            const updatedAt = typeof row.updatedAt === 'string' ? row.updatedAt : undefined;
+
+            return {
+                id,
+                naam,
+                updatedAt,
+                grootmaterialen: sanitizeStoredPresetItems(row.grootmaterialen),
+                verbruiksartikelen: sanitizeStoredPresetItems(row.verbruiksartikelen),
+            } as QuoteMaterialPackage;
+        })
+        .filter((item): item is QuoteMaterialPackage => item !== null);
+}
+
+function createMaterialPackageId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `pakket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
 const CALCULATION_ESTIMATE_SECONDS = 180;
@@ -100,6 +215,9 @@ export default function QuotePage() {
     // Ref to track if we're currently updating materials to prevent race conditions
     const isUpdatingRef = useRef(false);
     const lastSmallSaveToastAtRef = useRef<number>(0);
+    const hasEditedMaterialsRef = useRef(false);
+    const materialPresetSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastSavedMaterialPresetRef = useRef<string>('');
 
     // Refresh captured drawings when entering the PDF tab or when data changes
     useEffect(() => {
@@ -112,6 +230,11 @@ export default function QuotePage() {
     const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
     const [activeCategory, setActiveCategory] = useState<'groot' | 'verbruik' | null>(null);
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+    const [materialPackages, setMaterialPackages] = useState<QuoteMaterialPackage[]>([]);
+    const [selectedMaterialPackageId, setSelectedMaterialPackageId] = useState<string>('NIEUW');
+    const [isSaveMaterialPackageOpen, setIsSaveMaterialPackageOpen] = useState(false);
+    const [materialPackageName, setMaterialPackageName] = useState('');
+    const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(false);
@@ -179,6 +302,28 @@ export default function QuotePage() {
                     if (userSnap.exists()) {
                         const data = userSnap.data();
                         setUserProfile(data);
+                        const instellingen =
+                            data?.instellingen && typeof data.instellingen === 'object'
+                                ? (data.instellingen as Record<string, unknown>)
+                                : {};
+                        const settings =
+                            data?.settings && typeof data.settings === 'object'
+                                ? (data.settings as Record<string, unknown>)
+                                : {};
+                        const rawPackages = instellingen.offerteMateriaalPakketten ?? settings.offerteMateriaalPakketten;
+                        const parsedPackages = normalizeStoredMaterialPackages(rawPackages);
+                        setMaterialPackages(parsedPackages);
+
+                        const selectedPackageRaw =
+                            typeof instellingen.offerteMateriaalPakketId === 'string'
+                                ? instellingen.offerteMateriaalPakketId
+                                : typeof settings.offerteMateriaalPakketId === 'string'
+                                    ? settings.offerteMateriaalPakketId
+                                    : '';
+                        if (selectedPackageRaw.trim()) {
+                            setSelectedMaterialPackageId(selectedPackageRaw.trim());
+                        }
+
                         if (data.defaultPdfSettings) {
                             setPdfSettings(data.defaultPdfSettings);
                         }
@@ -197,6 +342,20 @@ export default function QuotePage() {
         };
         fetchUserData();
     }, [user, firestore]);
+
+    useEffect(() => {
+        hasEditedMaterialsRef.current = false;
+        lastSavedMaterialPresetRef.current = '';
+        setSelectedMaterialPackageId('NIEUW');
+    }, [id]);
+
+    useEffect(() => {
+        if (selectedMaterialPackageId === 'NIEUW') return;
+        const exists = materialPackages.some((pkg) => pkg.id === selectedMaterialPackageId);
+        if (!exists) {
+            setSelectedMaterialPackageId('NIEUW');
+        }
+    }, [materialPackages, selectedMaterialPackageId]);
 
     // Init & sync facturatie instellingen (voorschot) vanuit quote
     useEffect(() => {
@@ -559,6 +718,8 @@ export default function QuotePage() {
     // Handler for updating grootmaterialen items
     const handleUpdateGrootItem = async (index: number, updates: Partial<MaterialItem>) => {
         console.log('🚀 [HANDLER] handleUpdateGrootItem called:', { index, updates, hasCalc: !!calculation });
+        hasEditedMaterialsRef.current = true;
+        setSelectedMaterialPackageId('NIEUW');
         isUpdatingRef.current = true;
 
         try {
@@ -618,6 +779,8 @@ export default function QuotePage() {
 
     // Handler for updating verbruiksartikelen items
     const handleUpdateVerbruiksItem = async (index: number, updates: Partial<MaterialItem>) => {
+        hasEditedMaterialsRef.current = true;
+        setSelectedMaterialPackageId('NIEUW');
         isUpdatingRef.current = true;
 
         try {
@@ -699,6 +862,8 @@ export default function QuotePage() {
     };
 
     const handleAddItem = async (category: 'groot' | 'verbruik', item: MaterialItem) => {
+        hasEditedMaterialsRef.current = true;
+        setSelectedMaterialPackageId('NIEUW');
         isUpdatingRef.current = true;
 
         try {
@@ -721,6 +886,8 @@ export default function QuotePage() {
     };
 
     const handleRemoveItem = async (category: 'groot' | 'verbruik', index: number) => {
+        hasEditedMaterialsRef.current = true;
+        setSelectedMaterialPackageId('NIEUW');
         isUpdatingRef.current = true;
 
         try {
@@ -762,6 +929,223 @@ export default function QuotePage() {
         handleAddItem(activeCategory, newItem);
         setActiveCategory(null);
     };
+
+    const persistMaterialPackages = async (
+        nextPackages: QuoteMaterialPackage[],
+        activePreset?: QuoteMaterialPreset,
+        activePackageId?: string
+    ) => {
+        if (!firestore || !user) return;
+
+        const userRef = doc(firestore, 'users', user.uid);
+        const updates: Record<string, any> = {
+            'instellingen.offerteMateriaalPakketten': nextPackages,
+            'settings.offerteMateriaalPakketten': nextPackages,
+            updatedAt: serverTimestamp(),
+        };
+
+        if (activePreset) {
+            updates['instellingen.offerteMateriaalPreset'] = activePreset;
+            updates['settings.offerteMateriaalPreset'] = activePreset;
+        }
+
+        if (activePackageId) {
+            updates['instellingen.offerteMateriaalPakketId'] = activePackageId;
+            updates['settings.offerteMateriaalPakketId'] = activePackageId;
+        }
+
+        try {
+            await updateDoc(userRef, updates);
+        } catch (error) {
+            console.warn('Pakket updateDoc faalde, fallback naar setDoc:', error);
+            const instellingenPayload: Record<string, unknown> = {
+                offerteMateriaalPakketten: nextPackages,
+            };
+            const settingsPayload: Record<string, unknown> = {
+                offerteMateriaalPakketten: nextPackages,
+            };
+
+            if (activePreset) {
+                instellingenPayload.offerteMateriaalPreset = activePreset;
+                settingsPayload.offerteMateriaalPreset = activePreset;
+            }
+            if (activePackageId) {
+                instellingenPayload.offerteMateriaalPakketId = activePackageId;
+                settingsPayload.offerteMateriaalPakketId = activePackageId;
+            }
+
+            await setDoc(
+                userRef,
+                {
+                    instellingen: instellingenPayload,
+                    settings: settingsPayload,
+                    updatedAt: serverTimestamp(),
+                },
+                { merge: true }
+            );
+        }
+    };
+
+    const handleApplyMaterialPackage = async (packageId: string) => {
+        const selectedPackage = materialPackages.find((pkg) => pkg.id === packageId);
+        if (!selectedPackage) return;
+
+        const nextGroot = toMaterialItems(selectedPackage.grootmaterialen);
+        const nextVerbruik = toMaterialItems(selectedPackage.verbruiksartikelen);
+        const nextPreset: QuoteMaterialPreset = {
+            grootmaterialen: selectedPackage.grootmaterialen,
+            verbruiksartikelen: selectedPackage.verbruiksartikelen,
+        };
+
+        hasEditedMaterialsRef.current = true;
+        setSelectedMaterialPackageId(packageId);
+        setMaterials({
+            groot: nextGroot,
+            verbruik: nextVerbruik,
+        });
+
+        isUpdatingRef.current = true;
+        try {
+            if (calculation) {
+                const root = unwrapRoot(calculation.data_json);
+                await updateDataJson({
+                    ...root,
+                    grootmaterialen: nextGroot,
+                    verbruiksartikelen: nextVerbruik,
+                });
+            }
+
+            await persistMaterialPackages(materialPackages, nextPreset, packageId);
+            setLastSyncedAt(new Date());
+
+            toast({
+                title: 'Werkpakket toegepast',
+                description: `"${selectedPackage.naam}" is geladen in deze offerte.`,
+            });
+        } catch (error) {
+            console.error('Kon werkpakket niet toepassen:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Toepassen mislukt',
+                description: 'Kon het werkpakket niet laden in deze offerte.',
+            });
+        } finally {
+            isUpdatingRef.current = false;
+        }
+    };
+
+    const handleSaveCurrentAsMaterialPackage = async () => {
+        if (!firestore || !user) return;
+
+        const naam = materialPackageName.trim();
+        if (!naam) {
+            toast({
+                variant: 'destructive',
+                title: 'Naam ontbreekt',
+                description: 'Vul eerst een naam in voor dit werkpakket.',
+            });
+            return;
+        }
+
+        setIsSavingMaterialPackage(true);
+        try {
+            const preset: QuoteMaterialPreset = {
+                grootmaterialen: toPresetItems(materials.groot),
+                verbruiksartikelen: toPresetItems(materials.verbruik),
+            };
+
+            const existingByName = materialPackages.find(
+                (pkg) => pkg.naam.trim().toLowerCase() === naam.toLowerCase()
+            );
+            const packageId = existingByName?.id ?? createMaterialPackageId();
+            const nowIso = new Date().toISOString();
+
+            const nextPackage: QuoteMaterialPackage = {
+                id: packageId,
+                naam,
+                updatedAt: nowIso,
+                ...preset,
+            };
+
+            const nextPackages: QuoteMaterialPackage[] = [
+                nextPackage,
+                ...materialPackages.filter((pkg) => pkg.id !== packageId),
+            ];
+
+            await persistMaterialPackages(nextPackages, preset, packageId);
+            setMaterialPackages(nextPackages);
+            setSelectedMaterialPackageId(packageId);
+            setIsSaveMaterialPackageOpen(false);
+            setMaterialPackageName('');
+
+            toast({
+                title: existingByName ? 'Werkpakket bijgewerkt' : 'Werkpakket opgeslagen',
+                description: `"${naam}" is opgeslagen.`,
+            });
+        } catch (error) {
+            console.error('Kon werkpakket niet opslaan:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Opslaan mislukt',
+                description: 'Kon dit werkpakket niet opslaan.',
+            });
+        } finally {
+            setIsSavingMaterialPackage(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!firestore || !user || !quote?.id) return;
+        if (!hasEditedMaterialsRef.current) return;
+
+        if (materialPresetSaveTimerRef.current) {
+            clearTimeout(materialPresetSaveTimerRef.current);
+        }
+
+        materialPresetSaveTimerRef.current = setTimeout(async () => {
+            const preset: QuoteMaterialPreset = {
+                grootmaterialen: toPresetItems(materials.groot),
+                verbruiksartikelen: toPresetItems(materials.verbruik),
+            };
+
+            const nextPresetJson = JSON.stringify(preset);
+            if (nextPresetJson === lastSavedMaterialPresetRef.current) return;
+
+            const userRef = doc(firestore, 'users', user.uid);
+            const updates: Record<string, any> = {
+                'instellingen.offerteMateriaalPreset': preset,
+                'settings.offerteMateriaalPreset': preset,
+                updatedAt: serverTimestamp(),
+            };
+
+            try {
+                await updateDoc(userRef, updates);
+                lastSavedMaterialPresetRef.current = nextPresetJson;
+            } catch (error) {
+                console.warn('Preset updateDoc faalde, fallback naar setDoc:', error);
+                try {
+                    await setDoc(
+                        userRef,
+                        {
+                            instellingen: { offerteMateriaalPreset: preset },
+                            settings: { offerteMateriaalPreset: preset },
+                            updatedAt: serverTimestamp(),
+                        },
+                        { merge: true }
+                    );
+                    lastSavedMaterialPresetRef.current = nextPresetJson;
+                } catch (fallbackError) {
+                    console.error('Kon materiaal preset niet opslaan:', fallbackError);
+                }
+            }
+        }, 700);
+
+        return () => {
+            if (materialPresetSaveTimerRef.current) {
+                clearTimeout(materialPresetSaveTimerRef.current);
+            }
+        };
+    }, [materials.groot, materials.verbruik, firestore, user, quote?.id]);
 
     const handleCompareLastThreeGrootPrices = async () => {
         if (!user || !firestore || isComparingGrootPrices) return;
@@ -985,6 +1369,8 @@ export default function QuotePage() {
         (sum, item) => sum + (item.prijs_per_stuk || 0) * item.aantal,
         0
     );
+    const selectedMaterialPackage =
+        materialPackages.find((pkg) => pkg.id === selectedMaterialPackageId) || null;
 
     // Count materials without prices
     const materialsWithoutPrice = [
@@ -1353,17 +1739,66 @@ export default function QuotePage() {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
+    const getTimestampMillis = (value: unknown): number | null => {
+        if (!value) return null;
+
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+
+        if (value instanceof Date) {
+            const ms = value.getTime();
+            return Number.isFinite(ms) ? ms : null;
+        }
+
+        if (typeof value === 'string') {
+            const ms = Date.parse(value);
+            return Number.isNaN(ms) ? null : ms;
+        }
+
+        if (typeof value === 'object' && value !== null) {
+            const timestampLike = value as { toMillis?: () => number; seconds?: number; nanoseconds?: number };
+
+            if (typeof timestampLike.toMillis === 'function') {
+                const ms = timestampLike.toMillis();
+                return Number.isFinite(ms) ? ms : null;
+            }
+
+            if (typeof timestampLike.seconds === 'number') {
+                const nanos = typeof timestampLike.nanoseconds === 'number' ? timestampLike.nanoseconds : 0;
+                return timestampLike.seconds * 1000 + Math.floor(nanos / 1_000_000);
+            }
+        }
+
+        return null;
+    };
+
     const calculationInProgress = quote?.status === 'in_behandeling' && !calculation?.data_json;
+    const calculationTimerStorageKey = `offerte_calculation_started_at_${id}`;
 
     useEffect(() => {
         if (!calculationInProgress) {
             calculationTimerStartedAtRef.current = null;
             setCalculationElapsedSeconds(0);
+            window.localStorage.removeItem(calculationTimerStorageKey);
             return;
         }
 
         if (calculationTimerStartedAtRef.current === null) {
-            calculationTimerStartedAtRef.current = Date.now();
+            const quoteStartMs =
+                getTimestampMillis(quote?.calculationStartedAt)
+                ?? getTimestampMillis(quote?.updatedAt);
+
+            const localStartRaw = window.localStorage.getItem(calculationTimerStorageKey);
+            const localStartMs = localStartRaw ? Number(localStartRaw) : Number.NaN;
+
+            const resolvedStartMs =
+                quoteStartMs
+                ?? (Number.isFinite(localStartMs) && localStartMs > 0 ? localStartMs : null)
+                ?? Date.now();
+
+            calculationTimerStartedAtRef.current = resolvedStartMs;
+            window.localStorage.setItem(calculationTimerStorageKey, String(resolvedStartMs));
         }
 
         const updateElapsed = () => {
@@ -1375,7 +1810,7 @@ export default function QuotePage() {
         updateElapsed();
         const intervalId = window.setInterval(updateElapsed, 1000);
         return () => window.clearInterval(intervalId);
-    }, [calculationInProgress]);
+    }, [calculationInProgress, calculationTimerStorageKey, quote?.calculationStartedAt, quote?.updatedAt]);
 
     const loading = calculationLoading || calculationInProgress || firebaseLoading || isUserLoading;
     const error = calculationError || firebaseError;
@@ -1762,6 +2197,51 @@ export default function QuotePage() {
                                             </span>
                                         </div>
                                     )}
+
+                                    <div className="mb-8 rounded-xl border border-border bg-card/40 p-4">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                                            <div className="flex-1 space-y-2">
+                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                    Werkpakket
+                                                </Label>
+                                                <Select
+                                                    value={selectedMaterialPackageId}
+                                                    onValueChange={(value) => {
+                                                        if (value === 'NIEUW') {
+                                                            setSelectedMaterialPackageId('NIEUW');
+                                                            return;
+                                                        }
+                                                        void handleApplyMaterialPackage(value);
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-10">
+                                                        <SelectValue placeholder="Nieuw / aangepast" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="NIEUW">Nieuw / aangepast</SelectItem>
+                                                        {materialPackages.map((pkg) => (
+                                                            <SelectItem key={pkg.id} value={pkg.id}>
+                                                                {pkg.naam}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="md:mb-0.5"
+                                                onClick={() => {
+                                                    setMaterialPackageName(selectedMaterialPackage?.naam || '');
+                                                    setIsSaveMaterialPackageOpen(true);
+                                                }}
+                                            >
+                                                <Save className="mr-2 h-4 w-4" />
+                                                Opslaan als werkpakket
+                                            </Button>
+                                        </div>
+                                    </div>
 
                                     {/* Total materials summary */}
                                     <div className="bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm mb-8">
@@ -2165,6 +2645,51 @@ export default function QuotePage() {
                 onMaterialAdded={handleSelectMaterial} // Handle custom created materials same way
                 defaultCategory="all"
             />
+
+            <Dialog open={isSaveMaterialPackageOpen} onOpenChange={setIsSaveMaterialPackageOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Werkpakket opslaan</DialogTitle>
+                        <DialogDescription>
+                            Maak een preset van de huidige materialen in deze offerte.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="werkpakket-naam">Naam</Label>
+                            <Input
+                                id="werkpakket-naam"
+                                value={materialPackageName}
+                                onChange={(event) => setMaterialPackageName(event.target.value)}
+                                placeholder="Bijv. Dak renovatie basis"
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        void handleSaveCurrentAsMaterialPackage();
+                                    }
+                                }}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsSaveMaterialPackageOpen(false)}
+                                disabled={isSavingMaterialPackage}
+                            >
+                                Annuleren
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={() => void handleSaveCurrentAsMaterialPackage()}
+                                disabled={isSavingMaterialPackage}
+                            >
+                                {isSavingMaterialPackage ? 'Opslaan...' : 'Opslaan'}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Hidden Drawing Generator - render when on PDF tab OR during download */}
             {

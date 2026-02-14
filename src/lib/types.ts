@@ -28,6 +28,7 @@ export type Quote = {
   status: "concept" | "in_behandeling" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  calculationStartedAt?: Timestamp | Date | string;
 
   // Offerte meta
   werkomschrijving: string;
@@ -88,6 +89,7 @@ export type Quote = {
       fixedAmount?: number;
     };
     materieel?: Record<string, unknown>[]; // Bouwplaatskosten
+    verzendkosten?: Record<string, unknown>[]; // Verzendkosten
   };
 };
 

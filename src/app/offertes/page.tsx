@@ -310,6 +310,7 @@ export default function OffertesPage() {
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [deletingConcepts, setDeletingConcepts] = useState(false);
+  const [deletingCalculatedQuotes, setDeletingCalculatedQuotes] = useState(false);
   const isSyncingTotalsRef = useRef(false);
 
   const isDev = process.env.NODE_ENV !== 'production';
@@ -486,6 +487,25 @@ export default function OffertesPage() {
       .slice(0, 40);
   }, [clientSearch, clients]);
 
+  async function ensureManualQuoteData(quoteId: string): Promise<void> {
+    if (!user) return;
+
+    const token = await user.getIdToken();
+    const response = await fetch('/api/quotes/ensure-data-json', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quoteId }),
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.ok !== true) {
+      throw new Error(payload?.message || 'Kon lege offerte-data niet initialiseren.');
+    }
+  }
+
   async function handleCreateEmptyQuote(options?: { withSelectedClient?: boolean }): Promise<void> {
     if (!user || !firestore || creatingQuoteRef.current) return;
     const withSelectedClient = !!options?.withSelectedClient;
@@ -493,7 +513,6 @@ export default function OffertesPage() {
     setCreatingQuote(true);
     try {
       const quoteId = await createEmptyQuote(firestore, user.uid);
-      let nextPath = `/offertes/${quoteId}/klant`;
 
       if (withSelectedClient && selectedClientId) {
         const selectedClient = clients.find((client) => client.id === selectedClientId);
@@ -502,14 +521,15 @@ export default function OffertesPage() {
             klantinformatie: toQuoteKlantinformatie(selectedClient),
             updatedAt: serverTimestamp(),
           } as any);
-          nextPath = `/offertes/${quoteId}/klus/nieuw`;
         }
       }
+
+      await ensureManualQuoteData(quoteId);
 
       setCreateOpen(false);
       setSelectedClientId(null);
       setClientSearch('');
-      router.push(nextPath);
+      router.push(`/offertes/${quoteId}`);
     } catch (e: any) {
       console.error(e);
       setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon geen offerte aanmaken.'}`);
@@ -588,7 +608,7 @@ export default function OffertesPage() {
   }
 
   async function handleDeleteAllConceptQuotes(): Promise<void> {
-    if (!user || !firestore || deletingConcepts || !isDev) return;
+    if (!user || !firestore || deletingConcepts || deletingCalculatedQuotes || !isDev) return;
 
     const conceptQuotes = quotes.filter((q) => q.status === 'concept');
     if (!conceptQuotes.length) return;
@@ -613,6 +633,37 @@ export default function OffertesPage() {
       setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon concept offertes niet verwijderen.'}`);
     } finally {
       setDeletingConcepts(false);
+    }
+  }
+
+  async function handleDeleteAllCalculatedQuotes(): Promise<void> {
+    if (!user || !firestore || deletingCalculatedQuotes || deletingConcepts || !isDev) return;
+
+    const calculatedQuotes = quotes.filter(
+      (q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0)
+    );
+    if (!calculatedQuotes.length) return;
+
+    const akkoord = window.confirm(
+      `Weet je zeker dat je ${calculatedQuotes.length} berekende offertes definitief wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`
+    );
+    if (!akkoord) return;
+
+    setDeletingCalculatedQuotes(true);
+    try {
+      for (let i = 0; i < calculatedQuotes.length; i += 450) {
+        const chunk = calculatedQuotes.slice(i, i + 450);
+        const batch = writeBatch(firestore);
+        chunk.forEach((quote) => {
+          batch.delete(doc(firestore, 'quotes', quote.id));
+        });
+        await batch.commit();
+      }
+    } catch (e: any) {
+      console.error(e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon berekende offertes niet verwijderen.'}`);
+    } finally {
+      setDeletingCalculatedQuotes(false);
     }
   }
 
@@ -789,16 +840,36 @@ export default function OffertesPage() {
                       Verzonden
                     </Button>
                     {isDev ? (
-                      <Button
-                        type="button"
-                        variant="destructiveSoft"
-                        className="h-10"
-                        onClick={handleDeleteAllConceptQuotes}
-                        disabled={deletingConcepts || !quotes.some((q) => q.status === 'concept')}
-                      >
-                        {deletingConcepts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                        Verwijder alle concepten
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          type="button"
+                          variant="destructiveSoft"
+                          className="h-10"
+                          onClick={handleDeleteAllConceptQuotes}
+                          disabled={deletingConcepts || deletingCalculatedQuotes || !quotes.some((q) => q.status === 'concept')}
+                        >
+                          {deletingConcepts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                          Verwijder alle concepten
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructiveSoft"
+                          className="h-10"
+                          onClick={handleDeleteAllCalculatedQuotes}
+                          disabled={
+                            deletingCalculatedQuotes
+                            || deletingConcepts
+                            || !quotes.some((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
+                          }
+                        >
+                          {deletingCalculatedQuotes ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 mr-2" />
+                          )}
+                          Verwijder alle berekende
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
                 </div>

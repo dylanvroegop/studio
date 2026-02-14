@@ -11,6 +11,20 @@ type EPDMDrawingProps = Omit<RoofDrawingProps, 'edgeLeft' | 'edgeRight' | 'onEdg
     edgeBottom?: 'free' | 'wall';
     edgeLeft?: 'free' | 'wall';
     edgeRight?: 'free' | 'wall';
+    lood_top?: boolean;
+    lood_right?: boolean;
+    lood_bottom?: boolean;
+    lood_left?: boolean;
+    daktrim_top?: boolean;
+    daktrim_right?: boolean;
+    daktrim_bottom?: boolean;
+    daktrim_left?: boolean;
+    dakgoot_top?: boolean;
+    dakgoot_right?: boolean;
+    dakgoot_bottom?: boolean;
+    dakgoot_left?: boolean;
+    hwa_aantal?: number | string | null;
+    hwa_uitloop_aantal?: number | string | null;
     onEdgeChange?: (side: 'top' | 'bottom' | 'left' | 'right', value: 'free' | 'wall') => void;
 };
 
@@ -33,6 +47,20 @@ export function EPDMDrawing({
     edgeBottom = 'free',
     edgeLeft = 'free',
     edgeRight = 'free',
+    lood_top = false,
+    lood_right = false,
+    lood_bottom = false,
+    lood_left = false,
+    daktrim_top = false,
+    daktrim_right = false,
+    daktrim_bottom = false,
+    daktrim_left = false,
+    dakgoot_top = false,
+    dakgoot_right = false,
+    dakgoot_bottom = false,
+    dakgoot_left = false,
+    hwa_aantal = null,
+    hwa_uitloop_aantal = null,
     openings = [],
     title = 'Dak Vlak',
     className,
@@ -115,6 +143,35 @@ export function EPDMDrawing({
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
     const dakrandNum = typeof dakrandWidth === 'number' ? dakrandWidth : parseFloat(String(dakrandWidth)) || 0;
+    const toNonNegativeInt = (value: number | string | null | undefined): number => {
+        if (value === null || value === undefined || value === '') return 0;
+        const parsed = Number(String(value).replace(',', '.'));
+        if (!Number.isFinite(parsed)) return 0;
+        return Math.max(0, Math.floor(parsed));
+    };
+    const hwaAantal = toNonNegativeInt(hwa_aantal);
+    const hwaUitloopAantal = toNonNegativeInt(hwa_uitloop_aantal);
+    const drainageSummary: string[] = [];
+    if (hwaAantal > 0) drainageSummary.push(`HWA ${hwaAantal}x`);
+    if (hwaUitloopAantal > 0) drainageSummary.push(`STADSUITLOOP ${hwaUitloopAantal}x`);
+    const loodBySide: Record<'top' | 'right' | 'bottom' | 'left', boolean> = {
+        top: Boolean(lood_top),
+        right: Boolean(lood_right),
+        bottom: Boolean(lood_bottom),
+        left: Boolean(lood_left),
+    };
+    const daktrimBySide: Record<'top' | 'right' | 'bottom' | 'left', boolean> = {
+        top: Boolean(daktrim_top),
+        right: Boolean(daktrim_right),
+        bottom: Boolean(daktrim_bottom),
+        left: Boolean(daktrim_left),
+    };
+    const dakgootBySide: Record<'top' | 'right' | 'bottom' | 'left', boolean> = {
+        top: Boolean(dakgoot_top),
+        right: Boolean(dakgoot_right),
+        bottom: Boolean(dakgoot_bottom),
+        left: Boolean(dakgoot_left),
+    };
 
     // Resolve heights based on shape
     let hLeft = heightNum;
@@ -320,6 +377,21 @@ export function EPDMDrawing({
                     isWall: boolean,
                     side: 'top' | 'bottom' | 'left' | 'right'
                 ) => {
+                    const directionBySide: Record<'top' | 'right' | 'bottom' | 'left', string> = {
+                        top: 'NOORD',
+                        right: 'OOST',
+                        bottom: 'ZUID',
+                        left: 'WEST',
+                    };
+                    const edgeDirection = directionBySide[side];
+                    const edgeTypeLabel = isWall ? 'GEVEL' : 'VRIJSTAAND';
+                    const edgeLabel = `${edgeTypeLabel} ${edgeDirection}`;
+                    const edgeMaterials: Array<{ label: 'LOOD' | 'DAKTRIM' | 'DAKGOOT'; color: string }> = [];
+                    if (loodBySide[side]) edgeMaterials.push({ label: 'LOOD', color: 'rgb(251, 146, 60)' });
+                    if (daktrimBySide[side]) edgeMaterials.push({ label: 'DAKTRIM', color: 'rgb(56, 189, 248)' });
+                    if (dakgootBySide[side]) edgeMaterials.push({ label: 'DAKGOOT', color: 'rgb(52, 211, 153)' });
+                    const headerDy = edgeMaterials.length > 0 ? `${-(0.55 * edgeMaterials.length)}em` : '0';
+
                     // Math
                     const dx = p2.x - p1.x;
                     const dy = p2.y - p1.y;
@@ -341,12 +413,19 @@ export function EPDMDrawing({
                     const textDist = 25;
                     const labelX = midX + (nx * textDist);
                     const labelY = midY + (ny * textDist);
+                    const outsideTextDist = 18;
+                    const outsideLabelX = midX - (nx * outsideTextDist);
+                    const outsideLabelY = midY - (ny * outsideTextDist);
 
                     // Normalize Angle for Readability (Keep between 0 and 180, preferring 90)
                     // This aligns verticals to read Down (90) per user request
                     // Normalize Angle for Readability (Keep between -90 and 90)
                     while (angleDeg > 90) angleDeg -= 180;
                     while (angleDeg <= -90) angleDeg += 180;
+                    // Keep vertical edge labels aligned with the vertical measurement text orientation.
+                    if (side === 'left' || side === 'right') {
+                        angleDeg = -90;
+                    }
 
                     // Toggle Handler
                     const toggle = (e: React.MouseEvent) => {
@@ -356,7 +435,8 @@ export function EPDMDrawing({
                     };
 
                     // Beam Visualization
-                    const showBeam = !isWall && dakrandNum > 0;
+                    const sideHasDakgoot = dakgootBySide[side];
+                    const showBeam = !isWall && dakrandNum > 0 && !sideHasDakgoot;
                     const trimStartRaw =
                         side === 'right' ? (edgeTop === 'free' ? thickness : 0)
                             : side === 'left' ? (edgeBottom === 'free' ? thickness : 0)
@@ -406,14 +486,40 @@ export function EPDMDrawing({
 
                             {/* Label */}
                             <text
-                                x={labelX} y={labelY}
-                                transform={`rotate(${angleDeg}, ${labelX}, ${labelY})`}
+                                x={outsideLabelX}
+                                y={outsideLabelY}
+                                transform={`rotate(${angleDeg}, ${outsideLabelX}, ${outsideLabelY})`}
                                 textAnchor="middle"
-                                dy="0.3em"
+                                dominantBaseline="middle"
                                 fill="rgb(100, 116, 139)"
                                 style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace', userSelect: 'none' }}
                             >
-                                {isWall ? "GEVEL" : "VRIJSTAAND"}
+                                {edgeLabel}
+                            </text>
+
+                            <text
+                                x={labelX} y={labelY}
+                                transform={`rotate(${angleDeg}, ${labelX}, ${labelY})`}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fill="rgb(100, 116, 139)"
+                                style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace', userSelect: 'none' }}
+                            >
+                                {edgeMaterials.length > 0 && (
+                                    <>
+                                        {edgeMaterials.map((material, materialIdx) => (
+                                            <tspan
+                                                key={`${side}-${material.label}`}
+                                                x={labelX}
+                                                dy={materialIdx === 0 ? headerDy : '1.15em'}
+                                                fill={material.color}
+                                                style={{ fontSize: 10, fontWeight: 600, opacity: 1 }}
+                                            >
+                                                {material.label}
+                                            </tspan>
+                                        ))}
+                                    </>
+                                )}
                             </text>
                         </g>
                     );
@@ -535,6 +641,19 @@ export function EPDMDrawing({
                         >
                             Tip: Klik op de randen om type te wijzigen
                         </text>
+                        {drainageSummary.length > 0 && (
+                            <text
+                                x={10}
+                                y={30}
+                                textAnchor="start"
+                                fill="rgb(94, 234, 212)"
+                                fontSize="10"
+                                pointerEvents="none"
+                                style={{ fontFamily: 'monospace', userSelect: 'none' }}
+                            >
+                                {drainageSummary.join(' • ')}
+                            </text>
+                        )}
 
                         {/* Custom Title Placement */}
                         <text

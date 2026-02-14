@@ -49,6 +49,7 @@ export const MATERIAL_CATEGORY_INFO = {
   Dagkant: { title: 'Dagkanten', order: 8 },
   Vensterbank: { title: 'Vensterbanken', order: 8 },
   Schuifdeuren: { title: 'Schuifdeuren', order: 8 },
+  Schuifdeurpanelen: { title: 'Schuifdeurpanelen', order: 9 },
   Toegang: { title: 'Toegang & Vlizotrap', order: 14 },
   vensterset: { title: 'vensterset', order: 14 },
   // --- GLAS & ISOLATIE ---
@@ -72,10 +73,11 @@ export const MATERIAL_CATEGORY_INFO = {
   //#region --- VLOEREN ---
   Vlonder_Constructie: { title: 'Constructie (Onderbouw)', order: 2 },
   Vloer_Voorbereiding: { title: 'Voorbereiding', order: 2 },
+  Vloer_Ondervloer: { title: 'Ondervloer', order: 3 },
   Vloer_Hout: { title: 'Parket', order: 3 },
-  Vloer_Laminaat: { title: 'Vloerdelen', order: 3 },
+  Vloer_Laminaat: { title: 'Vloerdelen', order: 4 },
   Vlonder_Dek: { title: 'Vlonder & Afwerking', order: 3 },
-  Vloer_Afwerking: { title: 'Afwerking', order: 4 },
+  Vloer_Afwerking: { title: 'Afwerking', order: 5 },
 
   // --- HOUTROTREPARATIE ---
   reparatie: { title: 'Reparatie & Herstel', order: 1 },
@@ -92,6 +94,7 @@ export const MATERIAL_CATEGORY_INFO = {
   beveiliging: { title: 'Beveiliging', order: 1 },
   exterieur_details: { title: 'Exterieur Details', order: 1 },
   boeiboord: { title: 'Boeidelen', order: 15 },
+  dakrand: { title: 'Dakrand', order: 16 },
   daktrim: { title: 'Daktrim', order: 99 },
   dakgoot_hwa: { title: 'Dakgoot & HWA', order: 100 },
   lood: { title: 'Lood', order: 101 },
@@ -124,9 +127,10 @@ export const FLOOR_CONFIG = {
   ...MATERIAL_CATEGORY_INFO,
   Constructievloer: { ...MATERIAL_CATEGORY_INFO.Constructievloer, order: 1 },
   Vloer_Voorbereiding: { ...MATERIAL_CATEGORY_INFO.Vloer_Voorbereiding, order: 2 },
-  Vloer_Hout: { ...MATERIAL_CATEGORY_INFO.Vloer_Hout, order: 3 },
-  Vloer_Laminaat: { ...MATERIAL_CATEGORY_INFO.Vloer_Laminaat, order: 3 },
-  Vloer_Afwerking: { ...MATERIAL_CATEGORY_INFO.Vloer_Afwerking, order: 4 },
+  Vloer_Ondervloer: { ...MATERIAL_CATEGORY_INFO.Vloer_Ondervloer, order: 3 },
+  Vloer_Hout: { ...MATERIAL_CATEGORY_INFO.Vloer_Hout, order: 4 },
+  Vloer_Laminaat: { ...MATERIAL_CATEGORY_INFO.Vloer_Laminaat, order: 4 },
+  Vloer_Afwerking: { ...MATERIAL_CATEGORY_INFO.Vloer_Afwerking, order: 5 },
 };
 
 export const GARDEN_CONFIG = {
@@ -157,6 +161,7 @@ export interface MaterialSection {
   category?: MaterialCategoryKey;
   category_ultra_filter?: string;
   multiEntry?: boolean;
+  syncToJobAantal?: boolean;
 }
 
 export interface JobSubItem {
@@ -666,13 +671,13 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
 
   // 8. SCHUIFWANDEN (Replaces Standard Doors)
   { label: 'Schuifdeurrails', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_rails', category_ultra_filter: '' },
-  { label: 'Schuifdeurpanelen', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Schuifdeuren', key: 'schuifdeur_paneel', category_ultra_filter: '' },
+  { label: 'Schuifdeurpanelen', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Schuifdeurpanelen', key: 'schuifdeur_paneel', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
   { label: 'Komgrepen', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_greep', category_ultra_filter: '' },
 ];
 
 const DEUR_SCHUIF_MATS: MaterialSection[] = [
   { label: 'Schuifdeurrails', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_rails', category_ultra_filter: '' },
-  { label: 'Schuifdeurpanelen', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Schuifdeuren', key: 'schuifdeur_paneel', category_ultra_filter: '' },
+  { label: 'Schuifdeurpanelen', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Schuifdeurpanelen', key: 'schuifdeur_paneel', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
   { label: 'Komgrepen', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_greep', category_ultra_filter: '' },
   { label: 'Geleiders', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_geleiders', category_ultra_filter: '' },
   { label: 'Stoppers', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_stoppers', category_ultra_filter: '' },
@@ -754,9 +759,8 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - VLOEREN XXX==========================================
 
 const MASSIEF_HOUTEN_VLOER_FINISH_MATS: MaterialSection[] = [
-  // 1. VOORBEREIDING & ONDERVLOER
-  { label: 'Primer', categoryFilter: 'Overig', category: 'Vloer_Voorbereiding', key: 'primer', category_ultra_filter: '' },
-  { label: 'Ondervloer', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'Vloer_Voorbereiding', key: 'ondervloer', category_ultra_filter: '' },
+  // 1. VOORBEREIDING
+  { label: 'Voorstrijk', categoryFilter: 'Overig', category: 'Vloer_Voorbereiding', key: 'primer', category_ultra_filter: '' },
   { label: 'Egaline', categoryFilter: 'Overig', category: 'Vloer_Voorbereiding', key: 'egaline', category_ultra_filter: '' },
 
   // 2. VLOERDELEN & PLAATSING
@@ -764,28 +768,30 @@ const MASSIEF_HOUTEN_VLOER_FINISH_MATS: MaterialSection[] = [
   { label: 'Parketlijm', categoryFilter: 'Overig', category: 'Vloer_Hout', key: 'parketlijm', category_ultra_filter: '' },
 
   // 3. AFWERKING & BEHANDELING
-  { label: 'Plinten', categoryFilter: 'Afwerking', category: 'Vloer_Afwerking', key: 'plinten', category_ultra_filter: '' },
+  { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'Vloer_Afwerking', key: 'plinten', category_ultra_filter: '' },
   { label: 'Deklatten', categoryFilter: 'Afwerking', category: 'Vloer_Afwerking', key: 'deklatten', category_ultra_filter: '' },
-  { label: 'Overgangsprofielen / Dorpels', categoryFilter: 'Hardhout geschaafd, Overig', category: 'Vloer_Afwerking', key: 'dorpels', category_ultra_filter: '' },
+  { label: 'Overgangsprofielen', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'profielen_overgang', category_ultra_filter: '' },
+  { label: 'Stofdorpel', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'stofdorpel', category_ultra_filter: '' },
+  { label: 'Eindprofielen', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'profielen_eind', category_ultra_filter: '' },
   { label: 'Vloerolie / Lak', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'vloerolie', category_ultra_filter: '' },
 ];
 
 const VLOER_AFWERK_MATS: MaterialSection[] = [
   // 1. VOORBEREIDING
+  { label: 'Voorstrijk', categoryFilter: 'Overig', category: 'Vloer_Voorbereiding', key: 'primer', category_ultra_filter: '' },
   { label: 'Egaline', categoryFilter: 'Overig', category: 'Vloer_Voorbereiding', key: 'egaliseren', category_ultra_filter: '' },
-  { label: 'Reparatiemortel', categoryFilter: 'Overig', category: 'Vloer_Voorbereiding', key: 'egaliseren', category_ultra_filter: '' },
-  { label: 'Dampremmende Folie', categoryFilter: 'Folieën', category: 'Vloer_Voorbereiding', key: 'folie', category_ultra_filter: '' },
-  { label: 'Ondervloer', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'Vloer_Voorbereiding', key: 'ondervloer', category_ultra_filter: '' },
 
-  // 2. VLOERDELEN (LAMINAAT / PVC)
-  { label: 'Laminaat / PVC Panelen', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'Vloer_Laminaat', key: 'vloerdelen', category_ultra_filter: '' },
+  // 2. ONDERVLOER
+  { label: 'Ondervloer', categoryFilter: 'Overig', category: 'Vloer_Ondervloer', key: 'ondervloer', category_ultra_filter: '' },
 
-  // 3. AFWERKING & PROFIELEN
+  // 3. VLOERDELEN (LAMINAAT / PVC)
+  { label: 'Laminaat / PVC / Klik-Vinyl', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'Vloer_Laminaat', key: 'vloerdelen', category_ultra_filter: '' },
+
+  // 4. AFWERKING & PROFIELEN
   { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'Vloer_Afwerking', key: 'plinten_muur', category_ultra_filter: '' },
-
-  { label: 'Overgangsprofielen / Drempels', categoryFilter: 'Hardhout geschaafd, Overig', category: 'Vloer_Afwerking', key: 'profielen_overgang', category_ultra_filter: '' },
+  { label: 'Overgangsprofielen', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'profielen_overgang', category_ultra_filter: '' },
+  { label: 'Stofdorpel', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'stofdorpel', category_ultra_filter: '' },
   { label: 'Eindprofielen', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'profielen_eind', category_ultra_filter: '' },
-  { label: 'Kruipluik Profiel / Matomranding', categoryFilter: 'Overig', category: 'Vloer_Afwerking', key: 'kruipluik', category_ultra_filter: '' },
 ];
 
 const VLONDER_MATS: MaterialSection[] = [
@@ -850,8 +856,11 @@ const VLIERING_MATS: MaterialSection[] = [
   // --- E. BEPLATING (Plafond) ---
 
 
-  // --- F. AFWERKING ---
-  { label: 'vloer plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
+  // --- F. BEVESTIGING ---
+  { label: 'Chemische anker', categoryFilter: 'Overig', category: 'bevestiging', key: 'chemische_anker', category_ultra_filter: '' },
+
+  // --- G. AFWERKING ---
+  { label: 'Vloer plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
   { label: 'Voegenmiddel', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
   { label: 'Finish Pasta', categoryFilter: 'Gipsplaten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
 ];
@@ -899,16 +908,13 @@ const VENSTERBANK_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - DEUREN XXX==========================================
 
 const DEUR_BINNEN_MATS: MaterialSection[] = [
-  { label: 'Binnendeur', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '' },
+  { label: 'Binnendeur', categoryFilter: 'Binnendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
 
-  { label: 'Deurbeslag set', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_set', category_ultra_filter: '' },
-  { label: 'Scharnieren / Paumelles', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '' },
-  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
-  { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
-
-  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
-  { label: 'Glaslatten', categoryFilter: 'Afwerking', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
+  { label: 'Deurbeslag set', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_set', category_ultra_filter: '', multiEntry: true },
+  { label: 'Scharnieren / Paumelles', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '', multiEntry: true },
+  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '', multiEntry: true },
+  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '', multiEntry: true },
+  { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '', multiEntry: true },
 
   { label: 'Tochtvaldorp', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'valdorp', category_ultra_filter: '' },
   { label: 'Tochtstrips', categoryFilter: 'Deurbeslag', category: 'tochtstrips', key: 'tochtstrips', category_ultra_filter: '' },
@@ -917,13 +923,13 @@ const DEUR_BINNEN_MATS: MaterialSection[] = [
 ];
 
 const DEUR_BUITEN_MATS: MaterialSection[] = [
-  { label: 'Buitendeur', categoryFilter: 'Buitendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '' },
+  { label: 'Buitendeur', categoryFilter: 'Buitendeuren', category: 'Deuren', key: 'deurblad', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
 
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '' },
-  { label: 'Meerpuntsluiting', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'meerpuntsluiting', category_ultra_filter: '' },
-  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '' },
-  { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'scharnieren', category_ultra_filter: '', multiEntry: true },
+  { label: 'Sloten', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'slotmechanisme', category_ultra_filter: '', multiEntry: true },
+  { label: 'Meerpuntsluiting', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'meerpuntsluiting', category_ultra_filter: '', multiEntry: true },
+  { label: 'Deurbeslag (Schild & Kruk)', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'deurbeslag_kruk', category_ultra_filter: '', multiEntry: true },
+  { label: 'Cilinder', categoryFilter: 'Deurbeslag', category: 'deurbeslag', key: 'cilinder', category_ultra_filter: '', multiEntry: true },
 
   { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas', category_ultra_filter: '' },
   { label: 'Glaslatten', categoryFilter: 'Afwerking', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
@@ -974,6 +980,7 @@ const DAK_EPDM_MATS: MaterialSection[] = [
   // 2. DAKBEDEKKING (EPDM)
   { label: 'EPDM', categoryFilter: 'Epdm', category: 'dak', key: 'epdm_folie', category_ultra_filter: '' },
   { label: 'Lijm & Contactlijm', categoryFilter: 'Epdm', category: 'dak', key: 'epdm_lijm', category_ultra_filter: '' },
+  { label: 'Dakrand balk', categoryFilter: 'Vuren hout', category: 'dakrand', key: 'dakrand_balk', category_ultra_filter: '' },
 
   // 3. AFWERKING & DETAILS
   { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
@@ -1694,6 +1701,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           isolatie: { title: 'Isolatie & Folies', order: 3 },
           Toegang: { title: 'Toegang & Vlizotrap', order: 4 },
           Koof: { title: 'Koof', order: 7 },
+          bevestiging: { title: 'Bevestiging', order: 11 },
           afwerking: { title: 'Afwerken', order: 12 },
         }
       },
@@ -1740,8 +1748,9 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         materialSections: VLOER_AFWERK_MATS,
         categoryConfig: {
           Vloer_Voorbereiding: { title: 'Voorbereiding', order: 1 },
-          Vloer_Laminaat: { title: 'Vloerdelen', order: 2 },
-          Vloer_Afwerking: { title: 'Afwerking', order: 3 }
+          Vloer_Ondervloer: { title: 'Ondervloer', order: 2 },
+          Vloer_Laminaat: { title: 'Vloerdelen', order: 3 },
+          Vloer_Afwerking: { title: 'Afwerking', order: 4 }
         }
       },
 
@@ -1919,9 +1928,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         categoryConfig: {
           Deuren: { title: 'Binnendeur', order: 1 },
           deurbeslag: { title: 'Deurbeslag', order: 2 },
-          glas: { title: 'Glas', order: 3 },
-          tochtstrips: { title: 'Tochtwering', order: 4 },
-          ventilatie: { title: 'Ventilatie', order: 5 },
+          tochtstrips: { title: 'Tochtwering', order: 3 },
+          ventilatie: { title: 'Ventilatie', order: 4 },
         }
       },
       {
@@ -1949,6 +1957,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         categoryConfig: {
           Schuifdeur: { title: 'Schuifdeur', order: 1 },
           Schuifdeuren: { title: 'Schuifdeur Beslag', order: 1 },
+          Schuifdeurpanelen: { title: 'Schuifdeurpanelen', order: 2 },
         }
       },
     ],
@@ -1995,6 +2004,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           beplating: { title: 'Beplating', order: 2 },
           isolatie: { title: 'Isolatie & Folies', order: 3 },
           dak: { title: 'EPDM', order: 4 },
+          dakrand: { title: 'Dakrand', order: 5 },
           daktrim: { title: 'Daktrim', order: 6 },
           dakgoot_hwa: { title: 'Dakgoot & HWA', order: 7 },
           lood: { title: 'Lood', order: 8 },

@@ -34,6 +34,7 @@ import {
   Box,
   AlertTriangle,
   PlusCircle,
+  Minus,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -355,6 +356,11 @@ const ZERO_WASTE_PATTERNS = [
 
 function getDefaultWastePercentage(sectionKey: string | null, label?: string, context?: string): number {
   const haystack = `${sectionKey || ''} ${label || ''} ${context || ''}`.toLowerCase();
+  const sectionAndLabel = `${sectionKey || ''} ${label || ''}`.toLowerCase();
+  const isEpdmDaktrimHoeken =
+    (sectionKey === 'daktrim_hoeken' || /daktrim[\s_-]*hoek/.test(sectionAndLabel))
+    && /epdm/.test(haystack);
+  if (isEpdmDaktrimHoeken) return 0;
   if (ZERO_WASTE_PATTERNS.some((pattern) => pattern.test(haystack))) return 0;
   return DEFAULT_WASTE_PERCENTAGE;
 }
@@ -387,6 +393,27 @@ function cleanMaterialData(v: any) {
   const matId = v.id || v.row_id || source.id || source.row_id;
   if (matId) clean.material_ref_id = matId;
   return Object.keys(clean).length > 0 ? clean : null;
+}
+
+function normalizeEpdmDaktrimSectionKeyForSave(
+  jobSlug: string,
+  sectionKey: string | null | undefined,
+  material: any
+): string | null {
+  if (String(jobSlug || '').toLowerCase() !== 'epdm-dakbedekking') return sectionKey ?? null;
+  const materialName = String(material?.materiaalnaam || '').toLowerCase();
+  if (!materialName.includes('daktrim')) return sectionKey ?? null;
+
+  const hasCornerHint =
+    materialName.includes('hoekstuk')
+    || materialName.includes('hoekstukken')
+    || /\bhoek\b/.test(materialName)
+    || /\bhoeken\b/.test(materialName);
+
+  if (sectionKey === 'daktrim' && hasCornerHint) return 'daktrim_hoeken';
+  if (sectionKey === 'daktrim_hoeken' && !hasCornerHint) return 'daktrim';
+  if (!sectionKey) return hasCornerHint ? 'daktrim_hoeken' : 'daktrim';
+  return sectionKey;
 }
 
 function EuroInput({ id, value, onChange, placeholder = '0,00', disabled }: any) {
@@ -734,6 +761,66 @@ function MultiEntryMaterialSlot({
 }) {
   const entries = slotData?.entries || [];
   const [deleteConfId, setDeleteConfId] = useState<string | null>(null);
+  const [aantalDrafts, setAantalDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const validIds = new Set(entries.map((entry) => entry.id));
+    setAantalDrafts((prev) => {
+      let changed = false;
+      const next: Record<string, string> = {};
+      Object.entries(prev).forEach(([entryId, draft]) => {
+        if (validIds.has(entryId)) {
+          next[entryId] = draft;
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [entries]);
+
+  const handleAantalDraftChange = useCallback((entryId: string, rawValue: string) => {
+    if (!/^\d*$/.test(rawValue)) return;
+    setAantalDrafts((prev) => ({ ...prev, [entryId]: rawValue }));
+  }, []);
+
+  const commitAantalDraft = useCallback((entryId: string) => {
+    setAantalDrafts((prev) => {
+      const draft = prev[entryId];
+      if (draft === undefined) return prev;
+
+      const parsed = draft.trim() === '' ? 0 : parseInt(draft, 10);
+      const safeAantal = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+      onUpdateAantal(entryId, safeAantal);
+
+      const { [entryId]: _removed, ...rest } = prev;
+      return rest;
+    });
+  }, [onUpdateAantal]);
+
+  const getAantalValueForEntry = useCallback((entryId: string, fallbackAantal: number) => {
+    const draft = aantalDrafts[entryId];
+    if (draft === undefined) return fallbackAantal;
+    const parsed = draft.trim() === '' ? 0 : parseInt(draft, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallbackAantal;
+  }, [aantalDrafts]);
+
+  const applyAantalValue = useCallback((entryId: string, nextAantal: number) => {
+    const safeAantal = Number.isFinite(nextAantal) && nextAantal >= 0
+      ? Math.max(0, Math.round(nextAantal))
+      : 0;
+    setAantalDrafts((prev) => {
+      if (prev[entryId] === undefined) return prev;
+      const { [entryId]: _removed, ...rest } = prev;
+      return rest;
+    });
+    onUpdateAantal(entryId, safeAantal);
+  }, [onUpdateAantal]);
+
+  const adjustAantal = useCallback((entryId: string, fallbackAantal: number, delta: number) => {
+    const currentValue = getAantalValueForEntry(entryId, fallbackAantal);
+    applyAantalValue(entryId, currentValue + delta);
+  }, [applyAantalValue, getAantalValueForEntry]);
 
   if (entries.length === 0) {
     return (
@@ -765,13 +852,49 @@ function MultiEntryMaterialSlot({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 sm:h-8 sm:w-8 shrink-0 border-emerald-500/30 bg-background/70 hover:bg-emerald-500/10 touch-manipulation"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    adjustAantal(entry.id, typeof entry.aantal === 'number' ? entry.aantal : 0, -1);
+                  }}
+                  aria-label="Aantal verlagen"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
                 <Input
-                  type="number"
-                  min={1}
-                  value={entry.aantal}
-                  onChange={(e) => onUpdateAantal(entry.id, Math.max(1, parseInt(e.target.value) || 1))}
-                  className="h-7 w-16 text-xs text-center"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={aantalDrafts[entry.id] ?? String(typeof entry.aantal === 'number' ? entry.aantal : 0)}
+                  onChange={(e) => handleAantalDraftChange(entry.id, e.target.value)}
+                  onBlur={() => commitAantalDraft(entry.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLInputElement).blur();
+                    }
+                  }}
+                  className="h-9 sm:h-8 w-16 text-sm text-center"
                 />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 sm:h-8 sm:w-8 shrink-0 border-emerald-500/30 bg-background/70 hover:bg-emerald-500/10 touch-manipulation"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    adjustAantal(entry.id, typeof entry.aantal === 'number' ? entry.aantal : 0, 1);
+                  }}
+                  aria-label="Aantal verhogen"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
                 <span className="text-xs text-muted-foreground">stuks</span>
               </div>
               <Button
@@ -1060,11 +1183,15 @@ export default function GenericMaterialsPageRedesigned() {
   // Group sections by category
   const groupedSections = useMemo(() => {
     const groups: Record<string, any[]> = {};
+    const seenByCategory: Record<string, Set<string>> = {};
 
     materialSections.forEach(section => {
       const cat = section.category || 'extra';
+      if (!seenByCategory[cat]) seenByCategory[cat] = new Set<string>();
+      if (seenByCategory[cat].has(section.key)) return;
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(section);
+      seenByCategory[cat].add(section.key);
     });
 
     return groups;
@@ -1126,6 +1253,11 @@ export default function GenericMaterialsPageRedesigned() {
     const isVoorzetwand = currentJobType === 'hsb-voorzetwand' || currentJobType === 'metalstud-voorzetwand';
     const isTussenwand = currentJobType === 'hsb-tussenwand';
     const isVlieringMaken = currentJobType === 'vliering-maken';
+    const multiEntrySectionKeys = new Set(
+      (materialSections || [])
+        .filter((section) => section.multiEntry)
+        .map((section) => section.key)
+    );
 
     if (isTussenwand) {
       if (next.constructieplaat && !next.constructieplaat_1) next.constructieplaat_1 = next.constructieplaat;
@@ -1163,8 +1295,35 @@ export default function GenericMaterialsPageRedesigned() {
       delete next.muurplaat;
     }
 
+    // Backward compatibility: when a section switched to multi-entry,
+    // convert existing single-value selections into one entry row.
+    multiEntrySectionKeys.forEach((sectionKey) => {
+      const value = next[sectionKey];
+      if (!value || isMultiEntrySlot(value)) return;
+      if (typeof value !== 'object' || Array.isArray(value)) return;
+
+      const rawAantal = Number((value as any).aantal);
+      const legacyAantal = Number.isFinite(rawAantal) && rawAantal > 0 ? Math.max(1, Math.round(rawAantal)) : 1;
+      const fallbackId = `${sectionKey}__legacy`;
+      const generatedId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : fallbackId;
+
+      next[sectionKey] = {
+        _multiEntry: true,
+        entries: [
+          {
+            id: generatedId,
+            material: value,
+            aantal: legacyAantal,
+          }
+        ],
+      } as MultiEntrySlotData;
+    });
+
     return next;
-  }, []);
+  }, [materialSections]);
 
   // Calculate which component types are active for this job configuration
 
@@ -3482,6 +3641,7 @@ export default function GenericMaterialsPageRedesigned() {
         jobSlug.includes('dakrenovatie-pannen') ||
         (jobConfig?.title || '').toLowerCase().includes('hellend dak');
       const isGolfplaatDakJob = jobSlug.includes('golfplaat-dak');
+      const isEpdmDakJob = jobSlug.includes('epdm-dakbedekking');
 
       const isMirrorEnabled = (value: any): boolean => {
         if (value === true || value === 1) return true;
@@ -3774,7 +3934,9 @@ export default function GenericMaterialsPageRedesigned() {
           v.entries.forEach((entry, idx) => {
             const cleaned = ensurePriceSnapshot(cleanMaterialData(entry.material));
             if (cleaned) {
-              const sectionMultiplier = getSectionMultiplier(k);
+              const normalizedSectionKey =
+                normalizeEpdmDaktrimSectionKeyForSave(jobSlug, k, cleaned) || k;
+              const sectionMultiplier = getSectionMultiplier(normalizedSectionKey);
               const parsedAantal = Number(entry.aantal);
               const finalAantal = Number.isFinite(parsedAantal)
                 ? parsedAantal * sectionMultiplier
@@ -3782,7 +3944,7 @@ export default function GenericMaterialsPageRedesigned() {
               const cleanedWithMultiplier = applySectionMultiplierToMaterial(cleaned, sectionMultiplier);
               const indexedKey = `${k}__${idx}`;
               materialenLijst[indexedKey] = withRuleAttachment({
-                sectionKey: k,
+                sectionKey: normalizedSectionKey,
                 material: cleanedWithMultiplier,
                 aantal: finalAantal,
                 ...(isHellendDakJob ? { hellend_dak_multiplier: sectionMultiplier } : {}),
@@ -3790,8 +3952,8 @@ export default function GenericMaterialsPageRedesigned() {
                 type: 'multi_entry',
                 wastePercentage: typeof wasteByEntryKey[indexedKey] === 'number'
                   ? wasteByEntryKey[indexedKey]
-                  : getDefaultWastePercentage(k, sectionLabelByKey[k], JOB_TITEL)
-              }, k);
+                  : getDefaultWastePercentage(normalizedSectionKey, sectionLabelByKey[k], JOB_TITEL)
+              }, normalizedSectionKey);
             }
           });
           return;
@@ -3799,18 +3961,26 @@ export default function GenericMaterialsPageRedesigned() {
 
         const cleaned = ensurePriceSnapshot(cleanMaterialData(v));
         if (cleaned) {
-          const sectionMultiplier = getSectionMultiplier(k);
+          const normalizedSectionKey =
+            normalizeEpdmDaktrimSectionKeyForSave(jobSlug, k, cleaned) || k;
+          const sectionMultiplier = getSectionMultiplier(normalizedSectionKey);
           const cleanedWithMultiplier = applySectionMultiplierToMaterial(cleaned, sectionMultiplier);
+          const storageKey =
+            isEpdmDakJob
+            && (k === 'daktrim' || k === 'daktrim_hoeken')
+            && normalizedSectionKey
+              ? normalizedSectionKey
+              : k;
 
-          materialenLijst[k] = withRuleAttachment({
-            sectionKey: k,
+          materialenLijst[storageKey] = withRuleAttachment({
+            sectionKey: normalizedSectionKey,
             material: cleanedWithMultiplier,
             ...(isHellendDakJob ? { hellend_dak_multiplier: sectionMultiplier } : {}),
             context: JOB_TITEL,
             wastePercentage: typeof wasteByEntryKey[k] === 'number'
               ? wasteByEntryKey[k]
-              : getDefaultWastePercentage(k, sectionLabelByKey[k], JOB_TITEL)
-          }, k);
+              : getDefaultWastePercentage(normalizedSectionKey, sectionLabelByKey[k], JOB_TITEL)
+          }, normalizedSectionKey);
         }
       });
 
@@ -3861,11 +4031,22 @@ export default function GenericMaterialsPageRedesigned() {
         return { ...c, materials: componentMaterials };
       });
 
-      // Auto-sync maatwerk.aantal with sum of multi-entry quantities
+      // Auto-sync maatwerk.aantal with sum of multi-entry quantities.
+      // If the job config marks explicit sync drivers, only those sections count.
       let syncedBaseItems = normalizedBaseItems;
-      const multiEntryTotalAantal = Object.values(gekozenMaterialen).reduce((sum, v) => {
-        if (isMultiEntrySlot(v)) {
-          return sum + v.entries.reduce((s: number, e: MultiEntryEntry) => s + (e.aantal || 0), 0);
+      const syncToJobAantalSectionKeys = new Set(
+        (materialSections || [])
+          .filter((section: any) => section.multiEntry && section.syncToJobAantal)
+          .map((section: any) => section.key)
+      );
+      const hasExplicitSyncDrivers = syncToJobAantalSectionKeys.size > 0;
+
+      const multiEntryTotalAantal = Object.entries(gekozenMaterialen).reduce((sum, [sectionKey, value]) => {
+        if (hasExplicitSyncDrivers && !syncToJobAantalSectionKeys.has(sectionKey)) {
+          return sum;
+        }
+        if (isMultiEntrySlot(value)) {
+          return sum + value.entries.reduce((s: number, e: MultiEntryEntry) => s + (e.aantal || 0), 0);
         }
         return sum;
       }, 0);
