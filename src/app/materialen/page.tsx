@@ -858,7 +858,10 @@ export default function MaterialenPage() {
           </div>
 
 
-          <div>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" className="h-10 px-4">
+              <Link href="/prijs-import-aanvragen">Prijs import aanvragen</Link>
+            </Button>
             <Button
               onClick={openCustomDialog}
               variant="success"

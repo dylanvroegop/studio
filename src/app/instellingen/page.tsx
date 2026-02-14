@@ -17,7 +17,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users } from 'lucide-react';
-import { UserSettings, DEFAULT_USER_SETTINGS, BouwplaatsItem } from '@/lib/types-settings';
+import {
+    UserSettings,
+    DEFAULT_USER_SETTINGS,
+    BouwplaatsItem,
+    LeverancierContact,
+    normalizeLeverancierContactList,
+    pickDefaultLeverancierId,
+} from '@/lib/types-settings';
 import { useEmployees } from '@/hooks/useEmployees';
 import { EMPLOYEE_COLORS } from '@/lib/types-planning';
 import { LogoUpload } from '@/components/settings/LogoUpload';
@@ -163,6 +170,11 @@ export default function InstellingenPage() {
                     ...userSettings
                 };
 
+                const normalizedLeveranciers = normalizeLeverancierContactList((merged as any).leveranciers);
+                const defaultLeverancierId = pickDefaultLeverancierId((merged as any).defaultLeverancierId, normalizedLeveranciers);
+                merged.leveranciers = normalizedLeveranciers;
+                merged.defaultLeverancierId = defaultLeverancierId;
+
                 if (!merged.huisnummer && merged.adres) {
                     const split = splitAddress(merged.adres);
                     merged.adres = split.straat;
@@ -226,6 +238,57 @@ export default function InstellingenPage() {
                 ...(prev[parent] as any),
                 [key]: value
             }
+        }));
+    };
+
+    const addLeverancier = () => {
+        const newId = crypto.randomUUID();
+        setSettings((prev) => {
+            const leveranciers = [...(prev.leveranciers || []), {
+                id: newId,
+                naam: '',
+                contactNaam: '',
+                email: '',
+            }];
+            const defaultLeverancierId = prev.defaultLeverancierId || newId;
+            return {
+                ...prev,
+                leveranciers,
+                defaultLeverancierId,
+            };
+        });
+    };
+
+    const updateLeverancier = (id: string, field: keyof LeverancierContact, value: string) => {
+        setSettings((prev) => ({
+            ...prev,
+            leveranciers: (prev.leveranciers || []).map((leverancier) =>
+                leverancier.id === id
+                    ? { ...leverancier, [field]: value }
+                    : leverancier
+            ),
+        }));
+    };
+
+    const removeLeverancier = (id: string) => {
+        setSettings((prev) => {
+            const leveranciers = (prev.leveranciers || []).filter((leverancier) => leverancier.id !== id);
+            const defaultLeverancierId =
+                prev.defaultLeverancierId === id
+                    ? (leveranciers[0]?.id || '')
+                    : prev.defaultLeverancierId;
+            return {
+                ...prev,
+                leveranciers,
+                defaultLeverancierId,
+            };
+        });
+    };
+
+    const setDefaultLeverancier = (id: string) => {
+        setSettings((prev) => ({
+            ...prev,
+            defaultLeverancierId: id,
         }));
     };
 
@@ -335,10 +398,14 @@ export default function InstellingenPage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto p-1">
+                    <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto p-1">
                         <TabsTrigger value="bedrijf" className="py-2.5">
                             <Building2 className="mr-2 h-4 w-4" />
                             Bedrijfsgegevens
+                        </TabsTrigger>
+                        <TabsTrigger value="leveranciers" className="py-2.5">
+                            <Users className="mr-2 h-4 w-4" />
+                            Leveranciers
                         </TabsTrigger>
                         <TabsTrigger value="financieel" className="py-2.5">
                             <Coins className="mr-2 h-4 w-4" />
@@ -493,6 +560,103 @@ export default function InstellingenPage() {
                                     <Label>BIC / Swift</Label>
                                     <Input value={settings.bic} onChange={e => update('bic', e.target.value)} />
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                    </TabsContent>
+
+                    {/* --- LEVERANCIERS --- */}
+                    <TabsContent value="leveranciers" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Leveranciers voor materiaallijst</CardTitle>
+                                <CardDescription>
+                                    Voeg meerdere leveranciers toe en kies per export naar wie je de materiaallijst mailt.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {(settings.leveranciers || []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground">
+                                        Nog geen leveranciers ingesteld.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {(settings.leveranciers || []).map((leverancier) => {
+                                            const isDefault = settings.defaultLeverancierId === leverancier.id;
+                                            const hasMissingFields =
+                                                !String(leverancier.naam || '').trim()
+                                                || !String(leverancier.email || '').trim();
+
+                                            return (
+                                                <div key={leverancier.id} className="rounded-lg border border-border p-3 space-y-3">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="text-sm font-semibold truncate">
+                                                            {leverancier.naam || 'Nieuwe leverancier'}
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant={isDefault ? 'secondary' : 'outline'}
+                                                                onClick={() => setDefaultLeverancier(leverancier.id)}
+                                                            >
+                                                                {isDefault ? 'Standaard' : 'Maak standaard'}
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => removeLeverancier(leverancier.id)}
+                                                                className="text-destructive hover:text-destructive"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid gap-3 md:grid-cols-3">
+                                                        <div className="space-y-2">
+                                                            <Label>Naam leverancier</Label>
+                                                            <Input
+                                                                value={leverancier.naam}
+                                                                onChange={(event) => updateLeverancier(leverancier.id, 'naam', event.target.value)}
+                                                                placeholder="Bijv. Bouwmaat Amsterdam"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label>Contactpersoon</Label>
+                                                            <Input
+                                                                value={leverancier.contactNaam}
+                                                                onChange={(event) => updateLeverancier(leverancier.id, 'contactNaam', event.target.value)}
+                                                                placeholder="Bijv. J. Jansen"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label>E-mailadres</Label>
+                                                            <Input
+                                                                type="email"
+                                                                value={leverancier.email}
+                                                                onChange={(event) => updateLeverancier(leverancier.id, 'email', event.target.value)}
+                                                                placeholder="inkoop@leverancier.nl"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {hasMissingFields && (
+                                                        <p className="text-xs text-amber-600">
+                                                            Vul minimaal naam leverancier en e-mailadres in om deze te gebruiken in materiaallijst-mail.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                <Button type="button" variant="outline" className="gap-2" onClick={addLeverancier}>
+                                    <Plus className="h-4 w-4" />
+                                    Leverancier toevoegen
+                                </Button>
                             </CardContent>
                         </Card>
                     </TabsContent>

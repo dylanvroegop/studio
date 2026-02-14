@@ -28,6 +28,13 @@ export interface PlanningSettings {
     pauzeMinuten?: number;
 }
 
+export interface LeverancierContact {
+    id: string;
+    naam: string;
+    contactNaam: string;
+    email: string;
+}
+
 export interface UserSettings {
     // 1. Bedrijfsgegevens
     bedrijfsnaam: string;
@@ -82,6 +89,10 @@ export interface UserSettings {
 
     // 5. Planning Instellingen
     planningSettings: PlanningSettings;
+
+    // 6. Leveranciers voor materiaallijst-export
+    leveranciers: LeverancierContact[];
+    defaultLeverancierId: string;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -123,5 +134,53 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
         defaultStartTime: '08:00',
         defaultEndTime: '17:00',
         workDays: [1, 2, 3, 4, 5]
-    }
+    },
+    leveranciers: [],
+    defaultLeverancierId: ''
 };
+
+const safeString = (value: unknown): string => String(value ?? '').trim();
+
+const createFallbackLeverancierId = (index: number): string =>
+    `supplier-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+
+export function normalizeLeverancierContactList(raw: unknown): LeverancierContact[] {
+    if (!Array.isArray(raw)) return [];
+
+    const usedIds = new Set<string>();
+    const normalized: LeverancierContact[] = [];
+
+    raw.forEach((entry, index) => {
+        if (!entry || typeof entry !== 'object') return;
+        const row = entry as Record<string, unknown>;
+
+        const naam = safeString(row.naam);
+        const contactNaam = safeString(row.contactNaam ?? row.contactnaam);
+        const email = safeString(row.email);
+
+        if (!naam && !contactNaam && !email) return;
+
+        let id = safeString(row.id);
+        if (!id || usedIds.has(id)) {
+            id = createFallbackLeverancierId(index);
+        }
+        usedIds.add(id);
+
+        normalized.push({
+            id,
+            naam,
+            contactNaam,
+            email,
+        });
+    });
+
+    return normalized;
+}
+
+export function pickDefaultLeverancierId(rawDefaultId: unknown, leveranciers: LeverancierContact[]): string {
+    const preferredId = safeString(rawDefaultId);
+    if (preferredId && leveranciers.some((leverancier) => leverancier.id === preferredId)) {
+        return preferredId;
+    }
+    return leveranciers[0]?.id || '';
+}

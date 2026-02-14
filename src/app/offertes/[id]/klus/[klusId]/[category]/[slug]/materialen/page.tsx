@@ -12,6 +12,7 @@ import { PersonalNotes } from '@/components/PersonalNotes';
 import { WizardHeader } from '@/components/WizardHeader';
 import { Textarea } from '@/components/ui/textarea';
 import { JobComponentsManager } from '@/components/JobComponentsManager';
+import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { JobComponent, JobComponentType, Job } from '@/lib/types';
 
 import {
@@ -36,6 +37,7 @@ import {
   PlusCircle,
   Minus,
   Search,
+  Share2,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -101,6 +103,9 @@ import {
 } from '@/lib/job-registry';
 import { COMPONENT_REGISTRY } from '@/lib/component-registry';
 import { getJobConfig, getPresetCompatibleJobTypes, getPresetGroup, getPresetKey } from '@/config/jobTypes/index';
+import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
+import type { LeverancierContact } from '@/lib/types-settings';
+import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
 
 // ==================================
 // CONSTANTS
@@ -426,6 +431,37 @@ function cleanMaterialData(v: any) {
   return Object.keys(clean).length > 0 ? clean : null;
 }
 
+function normalizeMaterialId(value: any): string | null {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getMaterialIdCandidates(material: any): string[] {
+  const source = material?._raw || {};
+  const ids = new Set<string>();
+
+  [
+    material?.id,
+    material?.row_id,
+    material?.material_ref_id,
+    source?.id,
+    source?.row_id,
+    source?.material_ref_id,
+  ].forEach((candidate) => {
+    const normalized = normalizeMaterialId(candidate);
+    if (normalized) ids.add(normalized);
+  });
+
+  return Array.from(ids);
+}
+
+function normalizeMaterialName(value: any): string | null {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
 function normalizeEpdmDaktrimSectionKeyForSave(
   jobSlug: string,
   sectionKey: string | null | undefined,
@@ -530,7 +566,11 @@ function getPositivePriceFromMaterial(material: any): number | null {
 function bouwCustomGroupsUitFirestore(custommateriaal: any, alleMaterialen: any[]): any[] {
   if (!custommateriaal || typeof custommateriaal !== 'object') return [];
   const index = new Map<string, any>();
-  for (const m of alleMaterialen || []) index.set(String(m.id), m);
+  for (const m of alleMaterialen || []) {
+    getMaterialIdCandidates(m).forEach((id) => {
+      if (!index.has(id)) index.set(id, m);
+    });
+  }
   return Object.entries(custommateriaal)
     .sort(([, itemA]: any, [, itemB]: any) => (itemA.order ?? 9999) - (itemB.order ?? 9999))
     .map(([groupId, item]: any) => {
@@ -1450,6 +1490,13 @@ export default function GenericMaterialsPageRedesigned() {
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [addExtraMaterialOpen, setAddExtraMaterialOpen] = useState(false);
   const [newExtraMaterialTitle, setNewExtraMaterialTitle] = useState('');
+  const [isMaterialExportOpen, setIsMaterialExportOpen] = useState(false);
+  const [materialExportMeta, setMaterialExportMeta] = useState<MaterialListExportMeta>({
+    offerteNummer: '',
+    klantNaam: '',
+  });
+  const [materialSuppliers, setMaterialSuppliers] = useState<LeverancierContact[]>([]);
+  const [defaultMaterialSupplierId, setDefaultMaterialSupplierId] = useState('');
 
   // Missing price dialog
   const [missingPriceItems, setMissingPriceItems] = useState<any[]>([]);
@@ -1462,6 +1509,37 @@ export default function GenericMaterialsPageRedesigned() {
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [pendingSafetyItems, setPendingSafetyItems] = useState<PendingSafetyItem[]>([]);
   const [components, setComponents] = useState<JobComponent[]>([]);
+
+  const materialByAnyId = useMemo(() => {
+    const map = new Map<string, any>();
+    (alleMaterialen || []).forEach((materiaal: any) => {
+      getMaterialIdCandidates(materiaal).forEach((id) => {
+        if (!map.has(id)) map.set(id, materiaal);
+      });
+    });
+    return map;
+  }, [alleMaterialen]);
+
+  const findMaterialByAnyId = useCallback((id: any) => {
+    const normalized = normalizeMaterialId(id);
+    if (!normalized) return null;
+    return materialByAnyId.get(normalized) || null;
+  }, [materialByAnyId]);
+
+  const materialByName = useMemo(() => {
+    const map = new Map<string, any>();
+    (alleMaterialen || []).forEach((materiaal: any) => {
+      const nameCandidates = [
+        normalizeMaterialName(materiaal?.materiaalnaam),
+        normalizeMaterialName(materiaal?._raw?.materiaalnaam),
+      ].filter(Boolean) as string[];
+
+      nameCandidates.forEach((name) => {
+        if (!map.has(name)) map.set(name, materiaal);
+      });
+    });
+    return map;
+  }, [alleMaterialen]);
 
   // Multi-entry material slots state
   // When set, the modal adds/replaces a specific entry in a multiEntry slot
@@ -1480,6 +1558,7 @@ export default function GenericMaterialsPageRedesigned() {
   const hasSavedConfigRef = useRef(false);
   const autoApplyDefaultPresetRef = useRef(false);
   const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
+  const hasAttemptedPresetSlotRepairRef = useRef(false);
 
   const defaultPresetCandidate = useMemo(() => (
     presets.find((p) => p.isDefault) || presets.find((p) => (p.name || '').toLowerCase().includes('standaard')) || null
@@ -1638,6 +1717,75 @@ export default function GenericMaterialsPageRedesigned() {
     });
     return map;
   }, [materialSections]);
+
+  const materialExportItems = useMemo<MaterialListExportItem[]>(() => {
+    const out: MaterialListExportItem[] = [];
+
+    const pushExportItem = (material: any, bron: string, aantal = 1) => {
+      const merged = mergeMaterialForPriceCheck(material);
+      if (!merged) return;
+
+      const naam = String(merged.materiaalnaam || merged._raw?.materiaalnaam || '').trim();
+      if (!naam) return;
+
+      const eenheid = String(merged.eenheid || merged._raw?.eenheid || 'stuk').trim() || 'stuk';
+      const prijsExcl = getPositivePriceFromMaterial(merged);
+      const safeAantal = Number.isFinite(aantal) && aantal > 0 ? Math.round(aantal) : 1;
+      const materialId = merged.row_id || merged.material_ref_id || merged.id || naam;
+
+      out.push({
+        key: `${materialId}-${out.length}`,
+        naam,
+        bron,
+        eenheid,
+        aantal: safeAantal,
+        prijsExclBtw: typeof prijsExcl === 'number' ? Number(prijsExcl.toFixed(2)) : null,
+      });
+    };
+
+    Object.entries(gekozenMaterialen || {}).forEach(([sectionKey, value]: [string, any]) => {
+      if (!value) return;
+      const sectionLabel = sectionLabelByKey[sectionKey] || sectionKey;
+      if (isMultiEntrySlot(value)) {
+        value.entries.forEach((entry: MultiEntryEntry) => {
+          pushExportItem(entry.material, sectionLabel, entry.aantal);
+        });
+        return;
+      }
+      pushExportItem(value, sectionLabel, 1);
+    });
+
+    customGroups.forEach((group: any) => {
+      const material = group?.materials?.[0];
+      if (!material) return;
+      const groupLabel = String(group?.title || 'Extra materiaal').trim() || 'Extra materiaal';
+      pushExportItem(material, `Extra - ${groupLabel}`, 1);
+    });
+
+    components.forEach((component) => {
+      const registrySections = COMPONENT_REGISTRY[component.type as JobComponentType]?.defaultMaterials || [];
+      const componentLabel = String(
+        component.label
+          || COMPONENT_REGISTRY[component.type as JobComponentType]?.title
+          || component.type
+          || 'Onderdeel',
+      ).trim();
+
+      (component.materials || []).forEach((entry: any) => {
+        const sectionKey = String(entry?.sectionKey || '');
+        const registrySection = registrySections.find((section: any) => section.key === sectionKey);
+        const sectionLabel = registrySection?.label || sectionLabelByKey[sectionKey] || sectionKey || 'Materiaal';
+        pushExportItem(entry?.material || entry, `${componentLabel} - ${sectionLabel}`, 1);
+      });
+    });
+
+    return out;
+  }, [gekozenMaterialen, customGroups, components, sectionLabelByKey]);
+
+  const materialExportContext = useMemo<MaterialListExportMeta>(() => ({
+    ...materialExportMeta,
+    klusTitel: JOB_TITEL,
+  }), [materialExportMeta, JOB_TITEL]);
 
   const orphanedComponents = components.filter((c) => {
     const normalizedType = normalizeComponentType(c.type);
@@ -2073,7 +2221,7 @@ export default function GenericMaterialsPageRedesigned() {
       for (const section of config.defaultMaterials) {
         const matId = mappedSlots[section.key];
         if (matId) {
-          const found = alleMaterialen.find((m: any) => m.id === matId);
+          const found = findMaterialByAnyId(matId);
           if (found) materials.push({ sectionKey: section.key, material: found });
         }
       }
@@ -2081,7 +2229,7 @@ export default function GenericMaterialsPageRedesigned() {
     }
 
     return [];
-  }, [presets, gekozenPresetId, alleMaterialen, JOB_KEY, mapPresetSlotsForJob, normalizeSelectedMaterialsForJob]);
+  }, [presets, gekozenPresetId, alleMaterialen, JOB_KEY, mapPresetSlotsForJob, normalizeSelectedMaterialsForJob, findMaterialByAnyId]);
 
   const getVariantItemsForType = useCallback((type: JobComponentType | null): any[] => {
     if (!type) return [];
@@ -2305,6 +2453,200 @@ export default function GenericMaterialsPageRedesigned() {
     fetchPresets();
   }, [user, firestore, JOB_KEY, isPresetCompatible]);
 
+  // One-time repair for presets with stale slot IDs after catalog re-sync.
+  useEffect(() => {
+    if (hasAttemptedPresetSlotRepairRef.current) return;
+    if (!user || !firestore) return;
+    if (isPresetsLaden || isMaterialenLaden) return;
+    if (!presets.length || !alleMaterialen.length) return;
+
+    const brokenPresets = presets.filter((preset: any) => {
+      const slots = preset?.slots && typeof preset.slots === 'object' ? preset.slots : {};
+      return Object.values(slots).some((slotId: any) => {
+        const normalized = normalizeMaterialId(slotId);
+        return normalized && !findMaterialByAnyId(normalized);
+      });
+    });
+
+    hasAttemptedPresetSlotRepairRef.current = true;
+    if (!brokenPresets.length) return;
+
+    let cancelled = false;
+
+    const toMillis = (value: any): number => {
+      if (value && typeof value.toMillis === 'function') return Number(value.toMillis());
+      const parsed = Date.parse(String(value ?? ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const repairPresetSlots = async () => {
+      try {
+        const candidatePresetIds = new Set<string>(brokenPresets.map((preset: any) => String(preset.id)));
+        const quoteQuery = query(collection(firestore, 'quotes'), where('userId', '==', user.uid));
+        const quoteSnapshot = await getDocs(quoteQuery);
+
+        type SlotCandidate = {
+          materialName: string;
+          materialId: string | null;
+          updatedAtMs: number;
+        };
+
+        const candidatesByPresetAndSection = new Map<string, Map<string, SlotCandidate[]>>();
+        const candidatesByOldMaterialId = new Map<string, SlotCandidate[]>();
+
+        quoteSnapshot.docs.forEach((quoteDoc) => {
+          const quoteData = quoteDoc.data() as any;
+          const quoteUpdatedAtMs = Math.max(
+            toMillis(quoteData?.updatedAt),
+            toMillis(quoteData?.createdAt)
+          );
+          const klussen = quoteData?.klussen;
+          if (!klussen || typeof klussen !== 'object') return;
+
+          Object.values(klussen).forEach((klusRaw: any) => {
+            const klus = klusRaw as any;
+            const workMethodId = String(klus?.werkwijze?.workMethodId || '').trim();
+            const isRelevantPreset = !!workMethodId && candidatePresetIds.has(workMethodId);
+
+            const materialenLijst = klus?.materialen?.materialen_lijst;
+            if (!materialenLijst || typeof materialenLijst !== 'object') return;
+
+            Object.values(materialenLijst).forEach((entryRaw: any) => {
+              const entry = entryRaw as any;
+              const sectionKey = String(entry?.sectionKey || '').trim();
+              if (!sectionKey) return;
+
+              const material = entry?.material && typeof entry.material === 'object'
+                ? entry.material
+                : entry;
+              const materialName = normalizeMaterialName(material?.materiaalnaam);
+              if (!materialName) return;
+
+              const materialId = normalizeMaterialId(
+                material?.material_ref_id || material?.row_id || material?.id
+              );
+
+              const candidate: SlotCandidate = {
+                materialName,
+                materialId,
+                updatedAtMs: quoteUpdatedAtMs,
+              };
+
+              if (isRelevantPreset) {
+                if (!candidatesByPresetAndSection.has(workMethodId)) {
+                  candidatesByPresetAndSection.set(workMethodId, new Map<string, SlotCandidate[]>());
+                }
+                const sectionMap = candidatesByPresetAndSection.get(workMethodId)!;
+                if (!sectionMap.has(sectionKey)) {
+                  sectionMap.set(sectionKey, []);
+                }
+                sectionMap.get(sectionKey)!.push(candidate);
+              }
+
+              if (materialId) {
+                if (!candidatesByOldMaterialId.has(materialId)) {
+                  candidatesByOldMaterialId.set(materialId, []);
+                }
+                candidatesByOldMaterialId.get(materialId)!.push(candidate);
+              }
+            });
+          });
+        });
+
+        const updates: Array<{ id: string; slots: Record<string, string> }> = [];
+
+        brokenPresets.forEach((preset: any) => {
+          const presetId = String(preset.id);
+          const slots = preset?.slots && typeof preset.slots === 'object'
+            ? { ...(preset.slots as Record<string, any>) }
+            : {};
+          let changed = false;
+          const sectionCandidates = candidatesByPresetAndSection.get(presetId);
+
+          Object.entries(slots).forEach(([sectionKey, slotIdRaw]) => {
+            const slotId = normalizeMaterialId(slotIdRaw);
+            if (!slotId || findMaterialByAnyId(slotId)) return;
+
+            const candidates = sectionCandidates?.get(sectionKey) || [];
+            const exactOldId = candidates.find((candidate) => candidate.materialId === slotId);
+            const bySectionCandidate = exactOldId || [...candidates].sort((a, b) => b.updatedAtMs - a.updatedAtMs)[0];
+            const byOldIdCandidate = [...(candidatesByOldMaterialId.get(slotId) || [])]
+              .sort((a, b) => b.updatedAtMs - a.updatedAtMs)[0];
+            const bestCandidate = bySectionCandidate || byOldIdCandidate;
+            if (!bestCandidate) return;
+
+            const matchedMaterial = materialByName.get(bestCandidate.materialName);
+            const nextSlotId = normalizeMaterialId(
+              matchedMaterial?.id || matchedMaterial?.row_id || matchedMaterial?.material_ref_id
+            );
+            if (!nextSlotId) return;
+
+            slots[sectionKey] = nextSlotId;
+            changed = true;
+          });
+
+          if (changed) {
+            updates.push({
+              id: presetId,
+              slots: slots as Record<string, string>,
+            });
+          }
+        });
+
+        if (!updates.length || cancelled) return;
+
+        await Promise.all(
+          updates.map((update) =>
+            setDoc(
+              doc(firestore, 'presets', update.id),
+              {
+                slots: update.slots,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            )
+          )
+        );
+
+        if (cancelled) return;
+
+        const updatedSlotsByPresetId = new Map<string, Record<string, string>>(
+          updates.map((update) => [update.id, update.slots])
+        );
+        setPresets((prev) =>
+          prev.map((preset) =>
+            updatedSlotsByPresetId.has(String(preset.id))
+              ? { ...preset, slots: updatedSlotsByPresetId.get(String(preset.id)) }
+              : preset
+          )
+        );
+
+        toast({
+          title: 'Werkpakketten hersteld',
+          description: `${updates.length} werkpakket(ten) opnieuw gekoppeld aan actuele materialen.`,
+        });
+      } catch (error) {
+        console.error('Kon werkpakket-ID migratie niet uitvoeren:', error);
+      }
+    };
+
+    void repairPresetSlots();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user,
+    firestore,
+    isPresetsLaden,
+    isMaterialenLaden,
+    presets,
+    alleMaterialen,
+    findMaterialByAnyId,
+    materialByName,
+    toast,
+  ]);
+
   // Fetch per-component werkpakket presets
   useEffect(() => {
     if (!user || !firestore) return;
@@ -2424,6 +2766,33 @@ export default function GenericMaterialsPageRedesigned() {
         }
         const klusNode = data?.klussen?.[klusId];
 
+        const klantInfo = data?.klantinformatie && typeof data.klantinformatie === 'object'
+          ? data.klantinformatie
+          : {};
+        const klantNaam = [
+          String(klantInfo?.voornaam || '').trim(),
+          String(klantInfo?.achternaam || '').trim(),
+        ].filter(Boolean).join(' ').trim()
+          || String(klantInfo?.bedrijfsnaam || '').trim();
+        const offerteNummer = String(data?.offerteNummer || '').trim();
+        setMaterialExportMeta({
+          offerteNummer,
+          klantNaam,
+        });
+
+        if (user) {
+          const userSettingsSnap = await getDoc(doc(firestore, 'users', user.uid));
+          const rawSettings = userSettingsSnap.exists()
+            ? (userSettingsSnap.data()?.settings || {})
+            : {};
+          const leveranciers = normalizeLeverancierContactList(rawSettings?.leveranciers);
+          const defaultLeverancierId = pickDefaultLeverancierId(rawSettings?.defaultLeverancierId, leveranciers);
+          setMaterialSuppliers(leveranciers);
+          setDefaultMaterialSupplierId(defaultLeverancierId);
+        } else {
+          setMaterialSuppliers([]);
+          setDefaultMaterialSupplierId('');
+        }
 
         if (klusNode) setKlus(klusNode as unknown as Job);
 
@@ -2821,7 +3190,7 @@ export default function GenericMaterialsPageRedesigned() {
       finally { setPaginaLaden(false); }
     };
     hydrate();
-  }, [firestore, quoteId, klusId, jobSlug, normalizeSelectedMaterialsForJob]);
+  }, [firestore, quoteId, klusId, jobSlug, user, normalizeSelectedMaterialsForJob]);
 
   // Full Object Mapping
   useEffect(() => {
@@ -2838,8 +3207,8 @@ export default function GenericMaterialsPageRedesigned() {
         }
         // Only try to link back if we have an ID.
         // If we don't have an ID (new clean format), we just use the preserved values.
-        if (val && val.id && !val.materiaalnaam) {
-          const found = alleMaterialen.find(m => m.id === val.id);
+        if (val && (val.id || val.row_id || val.material_ref_id) && !val.materiaalnaam) {
+          const found = findMaterialByAnyId(val.id || val.row_id || val.material_ref_id);
           if (found) { next[k] = found; changed = true; }
           else next[k] = val;
         } else {
@@ -2848,7 +3217,7 @@ export default function GenericMaterialsPageRedesigned() {
       });
       return changed ? next : prev;
     });
-  }, [alleMaterialen]);
+  }, [alleMaterialen, findMaterialByAnyId]);
 
   // Build Custom Groups
   useEffect(() => {
@@ -2927,7 +3296,7 @@ export default function GenericMaterialsPageRedesigned() {
         if (mappedSlots) {
           Object.keys(mappedSlots).forEach(key => {
             const matId = mappedSlots[key];
-            const found = alleMaterialen.find(m => m.id === matId);
+            const found = findMaterialByAnyId(matId);
             if (found) newSels[key] = found;
           });
         }
@@ -3000,7 +3369,7 @@ export default function GenericMaterialsPageRedesigned() {
     return () => clearTimeout(timer);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gekozenPresetId, presets, alleMaterialen, isMaterialenLaden]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
+  }, [gekozenPresetId, presets, alleMaterialen, isMaterialenLaden, findMaterialByAnyId]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
 
   // Watchdog: never leave preset-apply lock active indefinitely
   useEffect(() => {
@@ -5390,9 +5759,19 @@ export default function GenericMaterialsPageRedesigned() {
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap sm:flex-nowrap justify-between items-center gap-2">
           <Button variant="outline" disabled={isOpslaan || isPresetNotReadyForSave} onClick={handleBack}>
             Terug
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setIsMaterialExportOpen(true)}
+            disabled={materialExportItems.length === 0}
+            className="gap-2"
+          >
+            <Share2 className="h-4 w-4" />
+            Materiaallijst delen
           </Button>
 
           <Button
@@ -5481,6 +5860,15 @@ export default function GenericMaterialsPageRedesigned() {
         onAdd={(title: string) => {
           setCustomGroups((prev) => [...prev, { id: maakId(), title, materials: [] }]);
         }}
+      />
+
+      <MaterialListExportDialog
+        isOpen={isMaterialExportOpen}
+        onClose={() => setIsMaterialExportOpen(false)}
+        items={materialExportItems}
+        meta={materialExportContext}
+        suppliers={materialSuppliers}
+        defaultSupplierId={defaultMaterialSupplierId}
       />
 
       <Dialog open={presetPickerOpen} onOpenChange={setPresetPickerOpen}>
