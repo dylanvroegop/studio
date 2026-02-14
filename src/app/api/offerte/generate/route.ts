@@ -47,7 +47,11 @@ function mapSettingsForTotals(input: any): QuoteCalculationSettings {
   };
 }
 
-async function syncQuoteTotalsFromSupabase(db: FirebaseFirestore.Firestore, quoteId: string): Promise<boolean> {
+async function syncQuoteTotalsFromSupabase(
+  db: FirebaseFirestore.Firestore,
+  quoteId: string,
+  uid: string
+): Promise<boolean> {
   try {
     const { supabaseAdmin } = await import('@/lib/supabase-admin');
 
@@ -57,6 +61,7 @@ async function syncQuoteTotalsFromSupabase(db: FirebaseFirestore.Firestore, quot
         .from('quotes_collection')
         .select('data_json, created_at')
         .eq('quoteid', quoteId)
+        .eq('gebruikerid', uid)
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -101,8 +106,8 @@ async function leesBodyVeilig(req: Request) {
  * UID bepalen
  */
 async function bepaalUid(req: Request): Promise<string> {
-  const devBypass = process.env.NODE_ENV !== 'production';
-  if (devBypass) return 'dev-user';
+  const devBypassUid = process.env.OFFERTE_GENERATE_DEV_BYPASS_UID?.trim();
+  if (process.env.NODE_ENV !== 'production' && devBypassUid) return devBypassUid;
 
   const authHeader = req.headers.get('authorization') || '';
   const match = authHeader.match(/^Bearer (.+)$/i);
@@ -234,8 +239,14 @@ async function postN8nMetTestFallback(payload: unknown, secret: string): Promise
   const productieUrl = process.env.N8N_WEBHOOK_URL?.trim();
   if (!productieUrl) throw new Error('ENV ontbreekt: N8N_WEBHOOK_URL');
 
-  const explicieteTestUrl = process.env.N8N_WEBHOOK_TEST_URL?.trim();
-  const testUrl = explicieteTestUrl || bepaalTestWebhookUrl(productieUrl);
+  // Never send production traffic to webhook-test endpoints.
+  const allowTestFallback =
+    process.env.NODE_ENV !== 'production'
+    && process.env.N8N_WEBHOOK_ALLOW_TEST_FALLBACK !== 'false';
+  const explicieteTestUrl = allowTestFallback ? process.env.N8N_WEBHOOK_TEST_URL?.trim() : null;
+  const testUrl = allowTestFallback
+    ? (explicieteTestUrl || bepaalTestWebhookUrl(productieUrl))
+    : null;
 
   const headers = {
     'content-type': 'application/json',
@@ -245,11 +256,14 @@ async function postN8nMetTestFallback(payload: unknown, secret: string): Promise
   const body = JSON.stringify(payload);
 
   const post = async (url: string) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     const res = await fetch(url, {
       method: 'POST',
       headers,
       body,
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
 
     const text = await res.text();
     return { ok: res.ok, status: res.status, text };
@@ -285,6 +299,8 @@ async function postN8nMetTestFallback(payload: unknown, secret: string): Promise
  * POST
  */
 export async function POST(req: Request) {
+  let db: FirebaseFirestore.Firestore | null = null;
+  let quoteIdForError: string | null = null;
   try {
     const body = await leesBodyVeilig(req);
     if (!body) {
@@ -295,14 +311,18 @@ export async function POST(req: Request) {
     if (!quoteId || typeof quoteId !== 'string') {
       return NextResponse.json({ ok: false, message: 'quoteId ontbreekt' }, { status: 400 });
     }
+    quoteIdForError = quoteId;
 
     if (!process.env.N8N_WEBHOOK_URL) throw new Error('ENV ontbreekt: N8N_WEBHOOK_URL');
     if (!process.env.N8N_HEADER_SECRET) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
 
     const uid = await bepaalUid(req);
-    const db = krijgFirestore();
+    db = krijgFirestore();
 
     const quote = await haalQuoteOp(db, quoteId) as any;
+    if (!quote?.userId || quote.userId !== uid) {
+      return NextResponse.json({ ok: false, message: 'Geen toegang tot deze offerte' }, { status: 403 });
+    }
 
     // Set status to in_behandeling while n8n is processing
     await db.collection('quotes').doc(quoteId).update({
@@ -341,18 +361,15 @@ export async function POST(req: Request) {
 
       // ─── 2. Fetch full material details from Supabase ───
       let materialMap = new Map<string, any>();
-      if (materialIdsToBeFetched.size > 0 && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      if (materialIdsToBeFetched.size > 0) {
         try {
-          const { createClient } = require('@supabase/supabase-js');
-          const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-          );
+          const { supabaseAdmin } = await import('@/lib/supabase-admin');
 
-          const { data: materials, error } = await supabase
+          const { data: materials, error } = await supabaseAdmin
             .from('main_material_list')
             .select('*')
-            .in('row_id', Array.from(materialIdsToBeFetched));
+            .in('row_id', Array.from(materialIdsToBeFetched))
+            .or(`gebruikerid.eq.${uid},gebruikerid.is.null`);
 
           if (!error && materials) {
             materials.forEach((m: any) => {
@@ -974,10 +991,22 @@ export async function POST(req: Request) {
     await postN8nMetTestFallback(payload, process.env.N8N_HEADER_SECRET);
 
     // Best effort: sync totaal direct to Firestore so quotes list stays up-to-date.
-    await syncQuoteTotalsFromSupabase(db, quoteId);
+    await syncQuoteTotalsFromSupabase(db, quoteId, uid);
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    if (db && quoteIdForError) {
+      try {
+        await db.collection('quotes').doc(quoteIdForError).update({
+          status: 'fout',
+          calculationError: String(e?.message || e).slice(0, 1000),
+          calculationFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (statusErr) {
+        console.error('Kon foutstatus niet opslaan op quote:', statusErr);
+      }
+    }
     return NextResponse.json({ ok: false, message: e?.message || String(e) }, { status: 500 });
   }
 }

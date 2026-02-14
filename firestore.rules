@@ -14,11 +14,13 @@ service cloud.firestore {
     
     // Rules for the 'quotes' collection
     match /quotes/{quoteId} {
-      allow read, get: if isSignedIn() && (resource.data.userId == request.auth.uid || !('userId' in resource.data));
+      allow read, get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow list: if isSignedIn() && (request.query.where.userId == request.auth.uid);
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || !('userId' in request.resource.data));
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || !('userId' in resource.data));
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || !('userId' in resource.data));
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 
       // Subcollection: Quote Notes
       // We check the PARENT quote's ownership to allow access to these notes.
@@ -75,7 +77,11 @@ service cloud.firestore {
 
     // Rules for the 'counters' collection (Quote Numbers)
     match /counters/{counterId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+                            && resource.data.userId == request.auth.uid
+                            && request.resource.data.userId == request.auth.uid;
     }
     
     // Rules for the 'clients' collection (Client directory)

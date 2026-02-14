@@ -5,6 +5,7 @@
 /* ✅ Zet font in dezelfde @layer base als de rest (netter + consistent) */
 @layer base {
   :root {
+    --font-inter: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     /* More grey/neutral background */
     --background: 220 10% 95%;
     --foreground: 222 47% 11%;

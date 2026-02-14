@@ -1,12 +1,9 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
-import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
-
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
   title: 'OfferteHulp',
@@ -20,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="nl" className="dark">
-      <body className={`${inter.variable} font-body antialiased`}>
+      <body className="font-body antialiased">
         <FirebaseClientProvider>
           <MeasurementUnitProvider>
             {children}

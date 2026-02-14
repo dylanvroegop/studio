@@ -12,6 +12,7 @@
 
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,11 +69,20 @@ function bepaalN8nUrlVoorMaterialenDelete(): string {
     if (direct && direct.trim()) return direct.trim();
   
     // HARD FAIL -> geen fallback naar webhook-test
-    throw new Error(
-      'ENV ontbreekt: N8N_MATERIALEN_DELETE_URL (geen fallback toegestaan). ' +
-      `N8N_WEBHOOK_URL=${process.env.N8N_WEBHOOK_URL || '(leeg)'}`
-    );
+    throw new Error('ENV ontbreekt: N8N_MATERIALEN_DELETE_URL (geen fallback toegestaan).');
   }  
+
+async function hasOwnedMaterialRow(rowId: string, uid: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('main_material_list')
+    .select('row_id')
+    .eq('row_id', rowId)
+    .eq('gebruikerid', uid)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message || 'Kon materiaal niet valideren voor verwijderen.');
+  return Boolean(data?.row_id);
+}
 
 export async function POST(req: Request) {
   try {
@@ -107,9 +117,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // 2.5) Enforce owner check server-side before calling n8n.
+    const ownsRow = await hasOwnedMaterialRow(row_id, uid);
+    if (!ownsRow) {
+      return NextResponse.json(
+        { ok: false, message: 'Materiaal niet gevonden of geen toegang.' },
+        { status: 404 }
+      );
+    }
+
     // 3) Call n8n
     const payload = { uid, row_id };
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(n8nUrl, {
       method: 'POST',
       headers: {
@@ -117,7 +138,8 @@ export async function POST(req: Request) {
         'x-offertehulp-secret': secret.trim(),
       },
       body: JSON.stringify(payload),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
 
     const txt = await res.text();
 

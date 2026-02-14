@@ -118,10 +118,14 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                                     />
                                 </div>
                             ) : (
-                                <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors" onClick={startEditingHours}>
+                                <button
+                                    type="button"
+                                    className="p-0 border-0 bg-transparent flex items-center gap-1 hover:text-foreground transition-colors"
+                                    onClick={startEditingHours}
+                                >
                                     {totalUren} uur
                                     <Pencil size={12} className="text-muted-foreground" />
-                                </span>
+                                </button>
                             )}
                             ×
                             {isEditingRate ? (
@@ -141,10 +145,14 @@ export function CostSummaryCard({ totals, settings, totalUren, onUpdateHourlyRat
                                     />
                                 </div>
                             ) : (
-                                <span className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors ml-1" onClick={startEditingRate}>
+                                <button
+                                    type="button"
+                                    className="p-0 border-0 bg-transparent flex items-center gap-1 hover:text-foreground transition-colors ml-1"
+                                    onClick={startEditingRate}
+                                >
                                     {formatCurrency(settings.uurTariefExclBtw)}
                                     <Pencil size={12} className="text-muted-foreground" />
-                                </span>
+                                </button>
                             )}
                             <span className="text-xs text-muted-foreground ml-1">excl. btw</span>)
                         </span>

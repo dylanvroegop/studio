@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { TimelineView, PlanningEntry } from '@/lib/types-planning';
-import { addMinutes, roundToNearestMinutes, differenceInMinutes, startOfDay, addDays } from 'date-fns';
+import { addMinutes } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 
 interface DragState {
@@ -33,12 +33,17 @@ export function useDragResize({
     const [suppressClick, setSuppressClick] = useState(false);
     const gridRef = useRef<HTMLDivElement>(null);
     const hasMovedRef = useRef(false);
+    const suppressClickTimerRef = useRef<number | null>(null);
 
     const handlePointerDown = (e: React.PointerEvent, entryId: string, type: 'move' | 'resize-start' | 'resize-end') => {
         const entry = entries.find(ent => ent.id === entryId);
         if (!entry) return;
 
         hasMovedRef.current = false;
+        if (suppressClickTimerRef.current !== null) {
+            window.clearTimeout(suppressClickTimerRef.current);
+            suppressClickTimerRef.current = null;
+        }
 
         const startDate = entry.startDate instanceof Timestamp
             ? entry.startDate.toDate()
@@ -84,7 +89,7 @@ export function useDragResize({
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
 
-        const { entryId, type, initialX, initialY, initialStart, initialEnd } = dragState;
+        const { entryId, type, initialX, initialStart, initialEnd } = dragState;
 
         if (view === 'day') {
             // Day View Logic: Horizontal modification on timeline
@@ -173,8 +178,6 @@ export function useDragResize({
                         const targetDate = new Date(targetDateStr);
 
                         // When moving in week view, we usually preserve the time-of-day of the original entry, just change the date.
-                        const duration = differenceInMinutes(initialEnd, initialStart);
-
                         const newStart = new Date(targetDate);
                         newStart.setHours(initialStart.getHours(), initialStart.getMinutes());
 
@@ -186,9 +189,12 @@ export function useDragResize({
 
         setDragState(null);
         if (hasMovedRef.current) {
-            setTimeout(() => setSuppressClick(false), 150);
+            suppressClickTimerRef.current = window.setTimeout(() => {
+                setSuppressClick(false);
+                suppressClickTimerRef.current = null;
+            }, 150);
         }
-    }, [dragState, view, hours, onEntryDrop, onEntryResize]);
+    }, [dragState, view, hours, onEntryDrop, onEntryResize, entries]);
 
     useEffect(() => {
         if (dragState) {
@@ -200,6 +206,16 @@ export function useDragResize({
             window.removeEventListener('pointerup', handlePointerUp);
         };
     }, [dragState, handlePointerMove, handlePointerUp]);
+
+    useEffect(() => {
+        return () => {
+            if (suppressClickTimerRef.current !== null) {
+                window.clearTimeout(suppressClickTimerRef.current);
+            }
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+        };
+    }, []);
 
     const isDragging = !!dragState && hasMovedRef.current;
 

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, Download, Sparkles, Loader2 } from "lucide-react";
 import { KlantInformatie, generateWorkSummary } from "@/lib/quote-calculations";
 import { toast } from "@/hooks/use-toast";
+import { useUser } from '@/firebase';
 
 interface SendQuoteModalProps {
     isOpen: boolean;
@@ -22,7 +23,7 @@ interface SendQuoteModalProps {
     klantInfo: KlantInformatie | null;
     offerteNummer: string;
     werkbeschrijving: any;
-    onDownloadPDF: () => void;
+    onDownloadPDF: () => Promise<void> | void;
     totaalInclBtw: number;
     geldigTot: string;
     bedrijfsnaam: string;
@@ -45,10 +46,12 @@ export function SendQuoteModal({
     korteTitel,
     korteBeschrijving
 }: SendQuoteModalProps) {
+    const { user } = useUser();
     const [email, setEmail] = useState('');
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSending, setIsSending] = useState(false);
 
     useEffect(() => {
         if (isOpen && klantInfo) {
@@ -64,13 +67,23 @@ export function SendQuoteModal({
 
     const handleGenerateEmail = async () => {
         if (!klantInfo) return;
+        if (!user) {
+            toast({
+                title: "Niet ingelogd",
+                description: "Log opnieuw in en probeer daarna nogmaals.",
+                variant: "destructive",
+            });
+            return;
+        }
 
         setIsGenerating(true);
         try {
+            const token = await user.getIdToken();
             const response = await fetch('/api/generate-email', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     klantNaam: `${klantInfo.voornaam} ${klantInfo.achternaam}`,
@@ -114,20 +127,40 @@ export function SendQuoteModal({
         }
     };
 
-    const handleDownloadAndOpenEmail = () => {
-        // 1. Trigger PDF download
-        onDownloadPDF();
+    const handleDownloadAndOpenEmail = async () => {
+        if (isSending) return;
+        const trimmedEmail = email.trim();
+        const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
 
-        // 2. Wait 500ms
-        setTimeout(() => {
-            // 3. Open mailto link
+        if (!emailIsValid) {
+            toast({
+                title: "E-mailadres ongeldig",
+                description: "Vul een geldig e-mailadres in voordat je verstuurt.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setIsSending(true);
+        try {
+            try {
+                await Promise.resolve(onDownloadPDF());
+            } catch (error) {
+                console.error('Error downloading PDF before mailto:', error);
+                toast({
+                    title: "PDF downloaden mislukt",
+                    description: "De e-mail is niet geopend. Probeer het opnieuw.",
+                    variant: "destructive",
+                });
+                return;
+            }
+
             const encodedSubject = encodeURIComponent(subject);
             const encodedBody = encodeURIComponent(body);
-            const mailto = `mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`;
+            const mailto = `mailto:${encodeURIComponent(trimmedEmail)}?subject=${encodedSubject}&body=${encodedBody}`;
 
             window.location.href = mailto;
 
-            // 4. Show toast
             toast({
                 title: "E-mail geopend",
                 description: "Vergeet niet de gedownloade PDF als bijlage toe te voegen.",
@@ -135,7 +168,9 @@ export function SendQuoteModal({
             });
 
             onClose();
-        }, 500);
+        } finally {
+            setIsSending(false);
+        }
     };
 
     return (
@@ -177,7 +212,7 @@ export function SendQuoteModal({
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleGenerateEmail}
-                                disabled={isGenerating}
+                                disabled={isGenerating || isSending}
                                 className="h-7 text-xs gap-1 text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors"
                             >
                                 {isGenerating ? (
@@ -188,7 +223,7 @@ export function SendQuoteModal({
                                 ) : (
                                     <>
                                         <Sparkles className="w-3 h-3" />
-                                        ✨ Genereer tekst
+                                        Genereer tekst
                                     </>
                                 )}
                             </Button>
@@ -207,12 +242,13 @@ export function SendQuoteModal({
                     <Button
                         type="button"
                         onClick={handleDownloadAndOpenEmail}
+                        disabled={isSending || isGenerating}
                         className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-6 rounded-xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2"
                     >
-                        <Download className="w-5 h-5" />
+                        {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                         <div className="flex flex-col items-start leading-tight">
-                            <span>Download PDF & Open Email</span>
-                            <span className="text-[10px] opacity-80 font-normal">Handmatig bijlage toevoegen in mail app</span>
+                            <span>{isSending ? 'PDF downloaden...' : 'Download PDF en open e-mail'}</span>
+                            <span className="text-[10px] opacity-80 font-normal">Voeg de PDF handmatig toe in je mail-app</span>
                         </div>
                     </Button>
                 </DialogFooter>

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { Suspense, useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -38,7 +38,7 @@ interface Quote {
     offerteNummer?: number;
 }
 
-export default function PlanningPage() {
+function PlanningPageContent() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const router = useRouter();
@@ -55,6 +55,8 @@ export default function PlanningPage() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<PlanningEntry | null>(null);
+    const [modalPreselectedDate, setModalPreselectedDate] = useState<Date | undefined>(undefined);
+    const [modalPreselectedEmployee, setModalPreselectedEmployee] = useState<string | undefined>(undefined);
     const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [draftPlanningSettings, setDraftPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [isPlanningSettingsOpen, setIsPlanningSettingsOpen] = useState(false);
@@ -230,6 +232,8 @@ export default function PlanningPage() {
 
     const handleEntryClick = (entry: PlanningEntry) => {
         setSelectedEntry(entry);
+        setModalPreselectedDate(undefined);
+        setModalPreselectedEmployee(undefined);
         setIsScheduleModalOpen(true);
     };
 
@@ -333,6 +337,8 @@ export default function PlanningPage() {
             }
         } else {
             setSelectedEntry(null);
+            setModalPreselectedDate(date);
+            setModalPreselectedEmployee(employeeId || undefined);
             setIsScheduleModalOpen(true);
         }
     };
@@ -507,6 +513,8 @@ export default function PlanningPage() {
                             className="gap-2"
                             onClick={() => {
                                 setSelectedEntry(null);
+                                setModalPreselectedDate(undefined);
+                                setModalPreselectedEmployee(undefined);
                                 setIsScheduleModalOpen(true);
                             }}
                         >
@@ -548,11 +556,15 @@ export default function PlanningPage() {
                 onClose={() => {
                     setIsScheduleModalOpen(false);
                     setSelectedEntry(null);
+                    setModalPreselectedDate(undefined);
+                    setModalPreselectedEmployee(undefined);
                 }}
                 employees={employees}
                 planningSettings={planningSettings}
                 view={view}
                 existingEntry={selectedEntry}
+                preselectedDate={modalPreselectedDate}
+                preselectedEmployee={modalPreselectedEmployee}
             />
 
             <Dialog open={isPlanningSettingsOpen} onOpenChange={setIsPlanningSettingsOpen}>
@@ -671,5 +683,21 @@ export default function PlanningPage() {
             </Dialog>
 
         </div>
+    );
+}
+
+function PlanningPageFallback() {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-background">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+    );
+}
+
+export default function PlanningPage() {
+    return (
+        <Suspense fallback={<PlanningPageFallback />}>
+            <PlanningPageContent />
+        </Suspense>
     );
 }

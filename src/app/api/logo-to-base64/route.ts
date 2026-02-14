@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const ALLOWED_HOSTS = new Set([
+    'firebasestorage.googleapis.com',
+    'storage.googleapis.com',
+]);
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const FETCH_TIMEOUT_MS = 8000;
+
+function isAllowedHost(hostname: string): boolean {
+    return ALLOWED_HOSTS.has(hostname) || hostname.endsWith('.firebasestorage.app');
+}
+
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -12,8 +26,23 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Fetch the image from Firebase Storage (server-side, no CORS issues)
-        const response = await fetch(logoUrl);
+        let parsedUrl: URL;
+        try {
+            parsedUrl = new URL(logoUrl);
+        } catch {
+            return NextResponse.json({ error: 'Invalid logo URL' }, { status: 400 });
+        }
+
+        if (!isAllowedHost(parsedUrl.hostname)) {
+            return NextResponse.json({ error: 'Host not allowed' }, { status: 400 });
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+        // Fetch the image from allowed storage host.
+        const response = await fetch(parsedUrl.toString(), { signal: controller.signal })
+            .finally(() => clearTimeout(timeout));
 
         if (!response.ok) {
             return NextResponse.json(
@@ -22,15 +51,26 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.startsWith('image/')) {
+            return NextResponse.json({ error: 'URL does not point to an image' }, { status: 400 });
+        }
+
+        const contentLengthHeader = response.headers.get('content-length');
+        const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
+        if (contentLength !== null && Number.isFinite(contentLength) && contentLength > MAX_BYTES) {
+            return NextResponse.json({ error: 'Image is too large' }, { status: 413 });
+        }
+
         // Convert to buffer
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        if (buffer.length > MAX_BYTES) {
+            return NextResponse.json({ error: 'Image is too large' }, { status: 413 });
+        }
 
         // Convert to base64
         const base64 = buffer.toString('base64');
-
-        // Determine content type from response headers or URL
-        const contentType = response.headers.get('content-type') || 'image/png';
 
         // Create data URL
         const dataUrl = `data:${contentType};base64,${base64}`;

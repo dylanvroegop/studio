@@ -18,19 +18,6 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
     const [isLoading, setIsLoading] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const getMaatwerkItems = (job: Job) => {
-        if (Array.isArray(job.maatwerk)) return job.maatwerk;
-
-        const maatwerk = job.maatwerk as any;
-        if (maatwerk?.items && Array.isArray(maatwerk.items)) {
-            return maatwerk.items;
-        }
-        if (maatwerk?.basis && Array.isArray(maatwerk.basis)) {
-            return maatwerk.basis;
-        }
-        return [];
-    };
-
     // 1. Fetch/Extract Jobs (Identical logic to DrawingsTab)
     useEffect(() => {
         const loadJobs = async () => {
@@ -79,9 +66,7 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
 
     // 2. Filter for Valid Drawing Jobs
     const drawingJobs = useMemo(() => {
-        console.log("[HiddenPDFDrawings] Filtering jobs:", jobs.length, jobs);
-
-        const filtered = jobs.filter(job => {
+        return jobs.filter(job => {
             const maatwerk = job.maatwerk as any;
             const hasMaatwerk = maatwerk && (
                 (Array.isArray(maatwerk) && maatwerk.length > 0) ||
@@ -98,21 +83,8 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
             const maatwerkMeta = (job.maatwerk as any)?.meta || {};
             const slug = topMeta.slug || maatwerkMeta.slug;
 
-            console.log("[HiddenPDFDrawings] Job filter check:", {
-                jobId: job.id,
-                hasMaatwerk,
-                hasVisualUrl,
-                topMeta,
-                maatwerkMeta,
-                slug,
-                passes: !!(hasMaatwerk && slug)
-            });
-
             return hasMaatwerk && slug;
         });
-
-        console.log("[HiddenPDFDrawings] Filtered drawingJobs:", filtered.length);
-        return filtered;
     }, [jobs]);
 
     const urlToBase64 = async (url: string): Promise<string | null> => {
@@ -128,6 +100,11 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
     };
 
     const onReadyCalledRef = useRef(false);
+    const onReadyRef = useRef(onReady);
+
+    useEffect(() => {
+        onReadyRef.current = onReady;
+    }, [onReady]);
 
     // Reset the ref when quote changes
     useEffect(() => {
@@ -144,18 +121,21 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
         // If no jobs, return empty list immediately
         if (drawingJobs.length === 0) {
             onReadyCalledRef.current = true;
-            onReady([]);
+            onReadyRef.current([]);
             return;
         }
 
-        // Collect images - convert visualisatieUrl to base64 for PDF compatibility
-        const captureTimeout = setTimeout(async () => {
-            if (onReadyCalledRef.current) return; // Double-check before async work
+        let cancelled = false;
+        const captureImages = async () => {
+            // Wait two frames so offscreen drawings are painted before capture.
+            await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+            if (cancelled || onReadyCalledRef.current) return;
 
             const capturedImages: string[] = [];
             const renderJobs = drawingJobs.filter(job => !(job as any).visualisatieUrl);
 
             for (let i = 0; i < drawingJobs.length; i++) {
+                if (cancelled) return;
                 const job = drawingJobs[i];
                 const visualisatieUrl = (job as any).visualisatieUrl;
 
@@ -202,12 +182,17 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
                 }
             }
 
-            onReadyCalledRef.current = true;
-            onReady(capturedImages);
-        }, 500);
+            if (!cancelled) {
+                onReadyCalledRef.current = true;
+                onReadyRef.current(capturedImages);
+            }
+        };
 
-        return () => clearTimeout(captureTimeout);
-    }, [isLoading, drawingJobs]); // Removed onReady from dependencies
+        void captureImages();
+        return () => {
+            cancelled = true;
+        };
+    }, [isLoading, drawingJobs]);
 
 
     // If loading, render nothing but keep the hook logic running
@@ -229,7 +214,7 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
         >
             {renderJobs.map((job, i) => (
                 <div key={job.id || i} className="pdf-drawing-wrapper p-4 bg-white mb-8 border border-gray-200">
-                    <JobDrawingSection job={job} quote={quote} index={i} />
+                    <JobDrawingSection job={job} index={i} />
                 </div>
             ))}
         </div>
@@ -237,7 +222,7 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
 }
 
 // Minimal Version of JobDrawingSection optimized for PDF capture (White background, black text)
-function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; index: number }) {
+function JobDrawingSection({ job, index }: { job: Job; index: number }) {
     // Try multiple sources for meta: top-level (klussen map) or inside maatwerk (legacy/subcollection)
     const topMeta = (job as any).meta || {};
     const maatwerkMeta = (job.maatwerk as any)?.meta || {};
@@ -246,19 +231,6 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
     const categorySlug = meta.type || '';
     const jobSlug = meta.slug || '';
     const visualisatieUrl = (job as any).visualisatieUrl;
-
-    // DEBUG: Log the job data to understand structure
-    console.log("[HiddenPDFDrawings] JobDrawingSection - job data:", {
-        jobId: job.id,
-        topMeta,
-        maatwerkMeta,
-        usedMeta: meta,
-        categorySlug,
-        jobSlug,
-        hasMaatwerk: !!job.maatwerk,
-        maatwerk: job.maatwerk,
-        visualisatieUrl
-    });
 
     const items = useMemo(() => {
         // Check multiple possible structures for maatwerk items
@@ -273,15 +245,6 @@ function JobDrawingSection({ job, quote, index }: { job: Job; quote: Quote; inde
         }
         return [];
     }, [job.maatwerk]);
-
-    console.log("[HiddenPDFDrawings] items extracted:", items.length, items.map((it: any) => ({
-        id: it.id,
-        breedte: it.breedte,
-        hoogte: it.hoogte,
-        vakken: it.vakken,
-        tussenstijlen: it.tussenstijlen,
-        hasVakken: Array.isArray(it.vakken) && it.vakken.length > 0
-    })));
 
     const hasItems = items.length > 0;
     const categoryConfig = JOB_REGISTRY[categorySlug];

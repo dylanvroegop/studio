@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Download, Mail } from 'lucide-react';
+import { Download, Loader2, Mail } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface SendInvoiceModalProps {
@@ -19,7 +19,7 @@ interface SendInvoiceModalProps {
   totaalInclBtw: number;
   bedrijfsnaam: string;
   iban?: string;
-  onDownloadPDF: () => void;
+  onDownloadPDF: () => Promise<void> | void;
 }
 
 export function SendInvoiceModal({
@@ -37,6 +37,7 @@ export function SendInvoiceModal({
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -57,13 +58,37 @@ export function SendInvoiceModal({
     );
   }, [isOpen, klantEmail, klantAanhef, factuurNummer, vervaldatum, totaalInclBtw, bedrijfsnaam, iban]);
 
-  const handleDownloadAndOpenEmail = () => {
-    onDownloadPDF();
+  const handleDownloadAndOpenEmail = async () => {
+    if (isSending) return;
+    const trimmedEmail = email.trim();
+    const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
 
-    setTimeout(() => {
+    if (!emailIsValid) {
+      toast({
+        title: 'E-mailadres ongeldig',
+        description: 'Vul een geldig e-mailadres in voordat je verstuurt.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      try {
+        await Promise.resolve(onDownloadPDF());
+      } catch (error) {
+        console.error('Error downloading PDF before mailto:', error);
+        toast({
+          title: 'PDF downloaden mislukt',
+          description: 'De e-mail is niet geopend. Probeer het opnieuw.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const encodedSubject = encodeURIComponent(subject);
       const encodedBody = encodeURIComponent(body);
-      window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodedSubject}&body=${encodedBody}`;
+      window.location.href = `mailto:${encodeURIComponent(trimmedEmail)}?subject=${encodedSubject}&body=${encodedBody}`;
 
       toast({
         title: 'E-mail geopend',
@@ -72,7 +97,9 @@ export function SendInvoiceModal({
       });
 
       onClose();
-    }, 500);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -123,12 +150,13 @@ export function SendInvoiceModal({
           <Button
             type="button"
             onClick={handleDownloadAndOpenEmail}
+            disabled={isSending}
             className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-6 rounded-xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2"
           >
-            <Download className="w-5 h-5" />
+            {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
             <div className="flex flex-col items-start leading-tight">
-              <span>Download PDF & Open Email</span>
-              <span className="text-[10px] opacity-80 font-normal">Handmatig bijlage toevoegen in mail app</span>
+              <span>{isSending ? 'PDF downloaden...' : 'Download PDF en open e-mail'}</span>
+              <span className="text-[10px] opacity-80 font-normal">Voeg de PDF handmatig toe in je mail-app</span>
             </div>
           </Button>
         </DialogFooter>
@@ -136,4 +164,3 @@ export function SendInvoiceModal({
     </Dialog>
   );
 }
-

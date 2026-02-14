@@ -445,8 +445,9 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
                     filteredClients.map((client) => {
                       const isZakelijk = client.klanttype === 'Zakelijk';
                       return (
-                        <div
+                        <button
                           key={client.id}
+                          type="button"
                           onClick={() => selectClient(client)}
                           className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50 cursor-pointer transition-colors group"
                         >
@@ -475,7 +476,7 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
                             </div>
                           </div>
                           <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
+                        </button>
                       );
                     })
                   )}

@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { supabase } from '@/lib/supabase';
 import { normalizeDataJson } from '@/lib/quote-calculations';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -163,7 +163,7 @@ export function ScheduleModal({
             // Set employee from preselection or auto-select if only one
             if (preselectedEmployee) {
                 setSelectedEmployeeId(preselectedEmployee);
-            } else if ((!selectedEmployeeId || employees.length === 1) && employees.length > 0) {
+            } else if (!selectedEmployeeId && employees.length === 1) {
                 setSelectedEmployeeId(employees[0].id);
             }
 
@@ -183,7 +183,7 @@ export function ScheduleModal({
                 setUseAutoSplit(planningSettings.allowAutoSplit);
             }
         }
-    }, [isOpen, existingEntry, preselectedQuote, preselectedHours, preselectedDate, preselectedEmployee, employees, planningSettings, selectedQuoteId, selectedEmployeeId, startDate, totalHours]);
+    }, [isOpen, existingEntry, preselectedQuote, preselectedHours, preselectedDate, preselectedEmployee, employees, planningSettings, selectedQuoteId, selectedEmployeeId, startDate, startTime, endTime, totalHours]);
 
     const syncHoursFromTimes = (nextStart: string, nextEnd: string, baseDate: string) => {
         if (view !== 'day') return;
@@ -195,34 +195,6 @@ export function ScheduleModal({
             setTotalHours(diff);
         }
     };
-
-    // Ensure employee is selected if list updates and we have exactly 1
-    useEffect(() => {
-        if (employees.length === 1 && selectedEmployeeId !== employees[0].id) {
-            setSelectedEmployeeId(employees[0].id);
-        }
-
-        // Retry save if pending
-        if (pendingSave) {
-            if (employees.length > 0) {
-                // Happy path: data arrived
-                performSave();
-                setPendingSave(false);
-            } else {
-                // Fallback: if taking too long (>2s), force save with current user UID
-                const timer = setTimeout(() => {
-                    if (user?.uid) {
-                        performSave(user.uid); // Force save with user ID
-                    } else {
-                        setIsSaving(false);
-                        setPendingSave(false);
-                        toast({ variant: 'destructive', title: 'Kan profiel niet laden', description: 'Ververs de pagina en probeer opnieuw' });
-                    }
-                }, 2000);
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [employees, selectedEmployeeId, pendingSave, user]);
 
     // Fetch hours when quote changes
     useEffect(() => {
@@ -263,11 +235,6 @@ export function ScheduleModal({
         fetchQuoteHours();
     }, [selectedQuoteId, firestore, existingEntry]);
 
-    const selectedQuote = useMemo(() =>
-        quotes.find(q => q.id === selectedQuoteId),
-        [quotes, selectedQuoteId]
-    );
-
     const getQuoteLabel = (quote: Quote) => {
         const parts: string[] = [];
         if (quote.offerteNummer) parts.push(`#${quote.offerteNummer}`);
@@ -304,25 +271,39 @@ export function ScheduleModal({
         return autoSplitJob(totalHours, new Date(startDate), planningSettings);
     }, [useAutoSplit, totalHours, startDate, planningSettings]);
 
-    const performSave = async (overrideEmployeeId?: string) => {
+    const performSave = useCallback(async (overrideEmployeeId?: string) => {
         // Validation for single user mode
         if (!selectedQuoteId) {
+            setIsSaving(false);
+            setPendingSave(false);
             toast({ variant: 'destructive', title: 'Selecteer een offerte' });
             return;
         }
 
         if (!totalHours) {
+            setIsSaving(false);
+            setPendingSave(false);
             toast({ variant: 'destructive', title: 'Vul aantal uren in' });
             return;
         }
 
-        // Auto-assign logic: override OR selected OR first in list
-        const finalEmployeeId = overrideEmployeeId || selectedEmployeeId || (employees.length > 0 ? employees[0].id : '');
+        // Auto-assign only in single-employee setups.
+        const finalEmployeeId = overrideEmployeeId || selectedEmployeeId || (employees.length === 1 ? employees[0].id : '');
 
         if (!finalEmployeeId) {
-            // If data is still loading, enter pending state and wait
-            setPendingSave(true);
-            setIsSaving(true);
+            if (employees.length === 0) {
+                // Employee list is still loading; retry once data arrives.
+                setPendingSave(true);
+                setIsSaving(true);
+            } else {
+                setIsSaving(false);
+                setPendingSave(false);
+                toast({
+                    variant: 'destructive',
+                    title: 'Selecteer een uitvoerder',
+                    description: 'Kies eerst een uitvoerder voordat je de planning opslaat.',
+                });
+            }
             return;
         }
 
@@ -363,7 +344,7 @@ export function ScheduleModal({
                 toast({ title: 'Planning bijgewerkt' });
             } else if (splitEntries) {
                 // Create multiple split entries
-                const entries = splitEntries.map((split, idx) => ({
+                const entries = splitEntries.map((split) => ({
                     quoteId: selectedQuoteId,
                     employeeId: finalEmployeeId,
                     startDate: split.startDate,
@@ -406,9 +387,83 @@ export function ScheduleModal({
         } finally {
             setIsSaving(false);
         }
-    };
+    }, [
+        selectedQuoteId,
+        toast,
+        totalHours,
+        selectedEmployeeId,
+        employees,
+        quotes,
+        preselectedQuote,
+        existingEntry,
+        startDate,
+        startTime,
+        planningSettings.defaultStartTime,
+        planningSettings.defaultEndTime,
+        endTime,
+        updateEntry,
+        splitEntries,
+        addMultipleEntries,
+        addEntry,
+        onClose,
+    ]);
 
-    const handleSaveClick = () => performSave();
+    // Ensure employee is selected if list updates and we have exactly 1
+    useEffect(() => {
+        if (employees.length === 1 && selectedEmployeeId !== employees[0].id) {
+            setSelectedEmployeeId(employees[0].id);
+        }
+
+        if (!pendingSave) {
+            return;
+        }
+
+        if (employees.length === 1 && !selectedEmployeeId) {
+            void performSave(employees[0].id);
+            setPendingSave(false);
+            return;
+        }
+
+        if (employees.length > 1 && !selectedEmployeeId) {
+            setIsSaving(false);
+            setPendingSave(false);
+            toast({
+                variant: 'destructive',
+                title: 'Kies een uitvoerder',
+                description: 'Selecteer een uitvoerder en probeer opnieuw.',
+            });
+            return;
+        }
+
+        if (employees.length > 0) {
+            void performSave();
+            setPendingSave(false);
+            return;
+        }
+
+        // Fallback: if employee loading takes too long, try current user uid.
+        const timer = window.setTimeout(() => {
+            if (user?.uid) {
+                void performSave(user.uid);
+                setPendingSave(false);
+                return;
+            }
+
+            setIsSaving(false);
+            setPendingSave(false);
+            toast({
+                variant: 'destructive',
+                title: 'Kan profiel niet laden',
+                description: 'Ververs de pagina en probeer opnieuw.',
+            });
+        }, 2000);
+
+        return () => window.clearTimeout(timer);
+    }, [employees, selectedEmployeeId, pendingSave, user, performSave, toast]);
+
+    const handleSaveClick = useCallback(() => {
+        void performSave();
+    }, [performSave]);
 
     const handleDelete = async () => {
         if (!existingEntry) return;
@@ -472,6 +527,30 @@ export function ScheduleModal({
                                 </SelectContent>
                             </Select>
                         )}
+                    </div>
+
+                    {/* Employee Selection */}
+                    <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            Uitvoerder
+                        </Label>
+                        <Select
+                            value={selectedEmployeeId}
+                            onValueChange={setSelectedEmployeeId}
+                            disabled={isSaving || employees.length === 0}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder={employees.length === 0 ? 'Geen uitvoerder beschikbaar' : 'Selecteer een uitvoerder'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {employees.map((employee) => (
+                                    <SelectItem key={employee.id} value={employee.id}>
+                                        {employee.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
 
@@ -606,7 +685,7 @@ export function ScheduleModal({
                     <Button
                         variant="success"
                         onClick={handleSaveClick}
-                        disabled={isSaving || !selectedQuoteId || !totalHours}
+                        disabled={isSaving || !selectedQuoteId || !totalHours || (employees.length > 1 && !selectedEmployeeId)}
                     >
                         {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         {existingEntry ? 'Bijwerken' : 'Inplannen'}

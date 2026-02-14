@@ -288,7 +288,7 @@ export default function NewJobPage() {
       // Navigate to selection page for multi-item categories
       router.push(`/offertes/${quoteId}/klus/nieuw/${category.slug}`);
     }
-  }, [quoteId, firestore, router, startTransition]);
+  }, [quoteId, firestore, router, startTransition, quote?.userId, toast, user?.uid]);
 
   if (!isMounted) return null;
 

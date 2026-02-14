@@ -195,14 +195,6 @@ export default function QuotePage() {
     // Normalize calculation data
     const normalizedData = calculation?.data_json ? normalizeDataJson(calculation.data_json) : null;
 
-    // Debug: Log calculation and normalized data
-    console.log('🔄 [RENDER] Component rendering:', {
-        has_calculation: !!calculation,
-        raw_totaal: (calculation?.data_json as any)?.totaal_uren,
-        normalized_totaal: normalizedData?.totaal_uren,
-        data_is_array: Array.isArray(calculation?.data_json)
-    });
-
     // Firebase hooks
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -258,7 +250,20 @@ export default function QuotePage() {
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [capturedDrawings, setCapturedDrawings] = useState<string[]>([]);
     const [isDrawingsReady, setIsDrawingsReady] = useState(false);
-    const [pendingPDFAction, setPendingPDFAction] = useState<((images: string[]) => void) | null>(null);
+    const [pendingPDFAction, setPendingPDFAction] = useState<((images: string[]) => Promise<void>) | null>(null);
+    const pendingPDFPromiseRef = useRef<{
+        resolve: () => void;
+        reject: (error: Error) => void;
+    } | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (pendingPDFPromiseRef.current) {
+                pendingPDFPromiseRef.current.reject(new Error('PDF generatie afgebroken.'));
+                pendingPDFPromiseRef.current = null;
+            }
+        };
+    }, []);
 
 
     const [userProfile, setUserProfile] = useState<any>(null);
@@ -302,7 +307,7 @@ export default function QuotePage() {
         return () => {
             cancelled = true;
         };
-    }, [user?.uid]);
+    }, [user]);
 
     // Fetch user profile and business details
     useEffect(() => {
@@ -386,7 +391,7 @@ export default function QuotePage() {
                 setVoorschotPercentage(f.voorschotPercentage);
             }
         }
-    }, [quote?.id]);
+    }, [quote]);
 
     // Zoek bestaande voorschotfactuur id (voor link in UI)
     useEffect(() => {
@@ -457,13 +462,25 @@ export default function QuotePage() {
                         };
                     });
                     setAlleMaterialen(materialenData);
+                } else {
+                    const message = json?.message || json?.error || 'Kon materialen niet laden.';
+                    toast({
+                        variant: 'destructive',
+                        title: 'Fout bij laden materialen',
+                        description: message,
+                    });
                 }
             } catch (err) {
                 console.error("Error fetching materials:", err);
+                toast({
+                    variant: 'destructive',
+                    title: 'Fout bij laden materialen',
+                    description: 'Netwerkfout tijdens ophalen van materialen.',
+                });
             }
         };
         fetchMaterials();
-    }, [user, materialRefreshTrigger]);
+    }, [user, materialRefreshTrigger, toast]);
 
     // Initialize state from calculation data (Supabase)
     useEffect(() => {
@@ -637,7 +654,6 @@ export default function QuotePage() {
     const updateMasterPrice = async (materiaalnaam: string, priceExclBtw: number, priceInclBtw: number, rowId?: string) => {
         if (!user) return;
         try {
-            console.log('📡 [API] Calling update-price:', { materiaalnaam, priceExclBtw, priceInclBtw, rowId });
             const token = await user.getIdToken();
             const response = await fetch('/api/materialen/update-price', {
                 method: 'POST',
@@ -653,29 +669,16 @@ export default function QuotePage() {
             });
 
             const result = await response.json();
-            console.log('📡 [API] update-price response:', {
-                ok: result.ok,
-                status: response.status,
-                rowsUpdated: result.data?.length,
-                message: result.message
-            });
-
             if (result.data && result.data[0]) {
-                console.log('✅ [DATABASE] Material updated successfully:', {
-                    materiaalnaam: result.data[0].materiaalnaam,
-                    prijs_incl_btw: result.data[0].prijs_incl_btw,
-                    eenheid: result.data[0].eenheid,
-                    row_id: result.data[0].row_id
-                });
                 // Trigger material list refetch to show updated price
                 setMaterialRefreshTrigger(prev => prev + 1);
             }
 
             if (!result.ok) {
-                console.error('❌ [API] update-price failed:', result.message);
+                console.error('update-price failed:', result.message);
             }
         } catch (err) {
-            console.error("❌ [API] Failed to update master price:", err);
+            console.error("Failed to update master price:", err);
         }
     };
 
@@ -736,7 +739,6 @@ export default function QuotePage() {
 
     // Handler for updating grootmaterialen items
     const handleUpdateGrootItem = async (index: number, updates: Partial<MaterialItem>) => {
-        console.log('🚀 [HANDLER] handleUpdateGrootItem called:', { index, updates, hasCalc: !!calculation });
         hasEditedMaterialsRef.current = true;
         setSelectedMaterialPackageId('NIEUW');
         isUpdatingRef.current = true;
@@ -746,49 +748,31 @@ export default function QuotePage() {
             const oldItem = updated[index];
             updated[index] = { ...updated[index], ...updates };
             setMaterials(prev => ({ ...prev, groot: updated }));
-            console.log('✅ [HANDLER] Local state updated');
 
             if (calculation) {
-                console.log('📤 [HANDLER] Has calculation, calling updateDataJson...');
                 const root = unwrapRoot(calculation.data_json);
                 await updateDataJson({
                     ...root,
                     grootmaterialen: updated,
                     verbruiksartikelen: materials.verbruik,
                 });
-                console.log('✅ [HANDLER] updateDataJson completed');
             } else {
-                console.error('❌ [HANDLER] NO CALCULATION - cannot save!');
+                console.error('No calculation available, cannot save material update.');
             }
 
             // Update master material price if changed
             if (updates.prijs_per_stuk !== undefined && updated[index].product && quoteSettings?.btwTarief) {
-                console.log('💰 [MASTER] Updating master price:', {
-                    product: updated[index].product,
-                    prijs_excl: updates.prijs_per_stuk,
-                    btw: quoteSettings.btwTarief,
-                    row_id: updated[index].row_id
-                });
                 const priceExcl = updates.prijs_per_stuk;
                 const priceIncl = priceExcl * (1 + (quoteSettings.btwTarief / 100));
                 await updateMasterPrice(updated[index].product!, priceExcl, priceIncl, updated[index].row_id);
                 setLastSyncedAt(new Date());
-                console.log('✅ [MASTER] Price update complete');
             }
 
             // Update master material name if changed
             if (updates.product !== undefined && oldItem.product && updates.product !== oldItem.product) {
-                console.log('📝 [MASTER] Updating master name:', {
-                    oldName: oldItem.product,
-                    newName: updates.product,
-                    row_id: oldItem.row_id
-                });
                 const success = await updateMasterName(oldItem.product, updates.product, oldItem.row_id);
                 if (success) {
                     setLastSyncedAt(new Date());
-                    console.log('✅ [MASTER] Name updated');
-                } else {
-                    console.log('❌ [MASTER] Name update failed');
                 }
             }
         } finally {
@@ -847,32 +831,17 @@ export default function QuotePage() {
 
             // Update master material price if changed
             if (updates.prijs_per_stuk !== undefined && updated[index].product && quoteSettings?.btwTarief) {
-                console.log('💰 [MASTER] Updating master price:', {
-                    product: updated[index].product,
-                    prijs_excl: updates.prijs_per_stuk,
-                    btw: quoteSettings.btwTarief,
-                    row_id: updated[index].row_id
-                });
                 const priceExcl = updates.prijs_per_stuk;
                 const priceIncl = priceExcl * (1 + (quoteSettings.btwTarief / 100));
                 await updateMasterPrice(updated[index].product!, priceExcl, priceIncl, updated[index].row_id);
                 setLastSyncedAt(new Date());
-                console.log('✅ [MASTER] Price update complete');
             }
 
             // Update master material name if changed
             if (updates.product !== undefined && oldItem.product && updates.product !== oldItem.product) {
-                console.log('📝 [MASTER] Updating master name:', {
-                    oldName: oldItem.product,
-                    newName: updates.product,
-                    row_id: oldItem.row_id
-                });
                 const success = await updateMasterName(oldItem.product, updates.product, oldItem.row_id);
                 if (success) {
                     setLastSyncedAt(new Date());
-                    console.log('✅ [MASTER] Name updated');
-                } else {
-                    console.log('❌ [MASTER] Name update failed');
                 }
             }
         } finally {
@@ -1596,33 +1565,56 @@ export default function QuotePage() {
     };
 
     // Updated PDF Download Handler
-    const handleDownloadPDF = async () => {
+    const handleDownloadPDF = async (): Promise<void> => {
+        if (isGeneratingPDF) return;
+
         setCapturedDrawings([]);
         setIsDrawingsReady(false);
         setIsGeneratingPDF(true);
-        // The actual generation is triggered by the onReady callback of HiddenPDFDrawings
-        setPendingPDFAction(() => async (images: string[]) => {
-            const data = preparePDFData();
-            // Inject captured images
-            (data as any).drawingImages = images;
 
-            try {
-                const pdfBlob = await generateQuotePDF(data);
-                const url = window.URL.createObjectURL(pdfBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `Offerte-${data.offerteNummer}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-            } catch (err) {
-                console.error("Error generating PDF:", err);
-                alert("Er ging iets mis bij het genereren van de PDF.");
-            } finally {
-                setIsGeneratingPDF(false);
-                setPendingPDFAction(null);
-            }
+        await new Promise<void>((resolve, reject) => {
+            pendingPDFPromiseRef.current = {
+                resolve: () => {
+                    pendingPDFPromiseRef.current = null;
+                    resolve();
+                },
+                reject: (error: Error) => {
+                    pendingPDFPromiseRef.current = null;
+                    reject(error);
+                }
+            };
+
+            // The actual generation is triggered by the onReady callback of HiddenPDFDrawings
+            setPendingPDFAction(() => async (images: string[]) => {
+                const data = preparePDFData();
+                // Inject captured images
+                (data as any).drawingImages = images;
+
+                try {
+                    const pdfBlob = await generateQuotePDF(data);
+                    const url = window.URL.createObjectURL(pdfBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Offerte-${data.offerteNummer}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    pendingPDFPromiseRef.current?.resolve();
+                } catch (err) {
+                    console.error("Error generating PDF:", err);
+                    const error = err instanceof Error ? err : new Error('Kon PDF niet genereren');
+                    toast({
+                        title: 'PDF genereren mislukt',
+                        description: error.message,
+                        variant: 'destructive',
+                    });
+                    pendingPDFPromiseRef.current?.reject(error);
+                } finally {
+                    setIsGeneratingPDF(false);
+                    setPendingPDFAction(null);
+                }
+            });
         });
     };
 
@@ -1633,7 +1625,7 @@ export default function QuotePage() {
         setIsDrawingsReady(true);
 
         if (pendingPDFAction) {
-            pendingPDFAction(images);
+            void pendingPDFAction(images);
         } else {
             setIsGeneratingPDF(false);
         }
@@ -1953,9 +1945,11 @@ export default function QuotePage() {
                     </div>
                     <div className="flex gap-3 w-full sm:w-auto">
                         <button
-                            onClick={handleDownloadPDF}
+                            onClick={() => {
+                                void handleDownloadPDF();
+                            }}
                             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={!totals || loading}
+                            disabled={!totals || loading || isGeneratingPDF}
                         >
                             {isGeneratingPDF ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -2618,17 +2612,14 @@ export default function QuotePage() {
                                         handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
                                     }}
                                     onUpdateTotalHours={async (newHours) => {
-                                        console.log('⏰ [TOTAL UREN] Updating total hours:', { newHours });
                                         if (!calculation) return;
                                         const root = unwrapRoot(calculation.data_json);
                                         await updateDataJson({
                                             ...root,
                                             totaal_uren: newHours,
                                         });
-                                        console.log('✅ [TOTAL UREN] Update complete');
                                     }}
                                     onUpdateItem={async (index, newHours) => {
-                                        console.log('⏰ [UREN] Updating hours:', { index, newHours });
                                         if (!calculation || !normalizedData) return;
                                         const updatedItems = [...(normalizedData.uren_specificatie || [])];
                                         if (updatedItems[index]) {
@@ -2637,14 +2628,12 @@ export default function QuotePage() {
                                             // Recalculate total hours based on the new item value
                                             const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
 
-                                            console.log('📤 [UREN] Saving to Supabase...', { newTotal, items: updatedItems.length });
                                             const root = unwrapRoot(calculation.data_json);
                                             await updateDataJson({
                                                 ...root,
                                                 uren_specificatie: updatedItems,
                                                 totaal_uren: newTotal
                                             });
-                                            console.log('✅ [UREN] Saved successfully');
                                         }
                                     }}
                                 />
@@ -2662,7 +2651,6 @@ export default function QuotePage() {
                             ) : (
                                 <PDFPreview
                                     pdfData={buildPDFData()}
-                                    onDownload={handleDownloadPDF}
                                 />
                             )}
                         </TabsContent>

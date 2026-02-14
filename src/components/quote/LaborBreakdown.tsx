@@ -130,10 +130,14 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                                 />
                             </div>
                         ) : (
-                            <span className="text-foreground/90 flex items-center gap-2 cursor-pointer" onClick={startEditingRate}>
+                            <button
+                                type="button"
+                                className="p-0 border-0 bg-transparent text-foreground/90 flex items-center gap-2 hover:text-foreground transition-colors"
+                                onClick={startEditingRate}
+                            >
                                 {formatCurrency(uurTarief)}
                                 <Pencil size={12} className="text-muted-foreground" />
-                            </span>
+                            </button>
                         )}
                         <span className="text-xs text-muted-foreground">excl. btw</span>
                     </span>
@@ -155,10 +159,14 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                                 />
                             </div>
                         ) : (
-                            <span className="flex items-center gap-2 cursor-pointer text-emerald-400" onClick={startEditingHours}>
+                            <button
+                                type="button"
+                                className="p-0 border-0 bg-transparent flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors"
+                                onClick={startEditingHours}
+                            >
                                 {formatNumber(totaalUren)} uur
                                 <Pencil size={12} className="text-emerald-600" />
-                            </span>
+                            </button>
                         )}
                     </span>
                 </div>
@@ -201,10 +209,14 @@ export function LaborBreakdown({ urenSpecificatie, totaalUren, uurTarief, onUpda
                                             }}
                                         />
                                     ) : (
-                                        <div className="flex items-center gap-2 cursor-pointer text-foreground/80 hover:text-foreground transition-colors" onClick={() => startEditingRow(index, item.uren)}>
+                                        <button
+                                            type="button"
+                                            className="p-0 border-0 bg-transparent flex items-center gap-2 text-foreground/80 hover:text-foreground transition-colors"
+                                            onClick={() => startEditingRow(index, item.uren)}
+                                        >
                                             {formatNumber(item.uren)}
                                             <Pencil size={12} className="text-muted-foreground" />
-                                        </div>
+                                        </button>
                                     )}
                                 </td>
                                 <td className="px-4 py-3 text-foreground/80">

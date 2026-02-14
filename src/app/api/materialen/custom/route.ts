@@ -114,11 +114,11 @@ export async function POST(req: Request) {
     if (prijsNum < 0) return jsonError('Prijs mag niet negatief zijn.', 400);
 
     // 5) Supabase service role client
-    const url = process.env.SUPABASE_URL;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!url || !serviceKey) {
-      return jsonError('Server mist SUPABASE_URL of SUPABASE_SERVICE_ROLE_KEY.', 500);
+      return jsonError('Server mist NEXT_PUBLIC_SUPABASE_URL of SUPABASE_SERVICE_ROLE_KEY.', 500);
     }
 
     const supabaseAdmin = createClient(url, serviceKey, {

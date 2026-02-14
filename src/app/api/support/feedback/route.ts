@@ -91,9 +91,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const webhookUrl =
-      process.env.N8N_FEEDBACK_WEBHOOK_URL?.trim() ||
-      'https://n8n.dylan8n.org/webhook/feedback-telegram';
+    const webhookUrl = getRequiredEnvVar('N8N_FEEDBACK_WEBHOOK_URL');
     const webhookSecret = getRequiredEnvVar('N8N_HEADER_SECRET');
 
     const firestore = admin.firestore(krijgFirebaseAdminApp());
@@ -153,15 +151,37 @@ export async function POST(req: Request) {
       verstuurdOp: new Date().toISOString(),
     };
 
-    const webhookResponse = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-offertehulp-secret': webhookSecret,
-      },
-      body: JSON.stringify(webhookPayload),
-    });
-    const webhookBody = await webhookResponse.text();
+    let webhookResponse: Response;
+    let webhookBody = '';
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-offertehulp-secret': webhookSecret,
+        },
+        body: JSON.stringify(webhookPayload),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
+      webhookBody = await webhookResponse.text();
+    } catch (webhookError) {
+      await feedbackRef.update({
+        n8nStatus: 'failed',
+        n8nResponse: String(webhookError).slice(0, 1200),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          feedbackId: feedbackRef.id,
+          message: 'Feedback opgeslagen, maar Telegram melding via n8n mislukte.',
+        },
+        { status: 502 }
+      );
+    }
 
     if (!webhookResponse.ok) {
       await feedbackRef.update({

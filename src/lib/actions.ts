@@ -318,10 +318,18 @@ export async function submitQuoteAction(quoteId: string) {
     const fullQuoteData = await getFullQuoteDetails(quoteId);
     if (!fullQuoteData) throw new Error('Offerte niet gevonden.');
 
-    const webhookUrl = 'https://n8n.dylan8n.org/webhook-test/offerte-test';
+    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    const webhookSecret = process.env.N8N_HEADER_SECRET;
+    if (!webhookUrl || !webhookSecret) {
+      throw new Error('N8N_WEBHOOK_URL of N8N_HEADER_SECRET ontbreekt.');
+    }
+
     const response = await fetch(webhookUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-offertehulp-secret': webhookSecret,
+      },
       body: JSON.stringify(fullQuoteData),
     });
 
@@ -497,7 +505,7 @@ export async function checkCalculationStatusAction(quoteId: string, userId: stri
 
   try {
     const { data, error } = await supabaseAdmin
-      .from('quotes collection')
+      .from('quotes_collection')
       .select('status, data_json')
       .eq('quoteid', quoteId)
       .eq('gebruikerid', userId)

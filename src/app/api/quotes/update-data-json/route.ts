@@ -8,21 +8,25 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
     try {
         // 1. Auth Check
-        const authHeader = req.headers.get('authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
+        const authHeader = req.headers.get('authorization') || '';
+        const match = authHeader.match(/^Bearer\s+(.+)$/i);
+        if (!match) {
             return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
         }
-        const token = authHeader.split('Bearer ')[1];
+        const token = match[1].trim();
 
         // Initialize Firebase Admin
         const { auth } = initFirebaseAdmin();
 
         // Verify token
-        let decodedToken;
+        let decodedToken: { uid: string };
         try {
             decodedToken = await auth.verifyIdToken(token);
         } catch (e) {
             console.error("Token verification failed:", e);
+            return NextResponse.json({ ok: false, message: 'Invalid token' }, { status: 401 });
+        }
+        if (!decodedToken.uid) {
             return NextResponse.json({ ok: false, message: 'Invalid token' }, { status: 401 });
         }
 
@@ -38,6 +42,7 @@ export async function POST(req: Request) {
             .from('quotes_collection')
             .update({ data_json })
             .eq('id', calculation_id)
+            .eq('gebruikerid', decodedToken.uid)
             .select();
 
         if (error) {

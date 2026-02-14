@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
@@ -34,44 +34,48 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
     const firestore = useFirestore();
     const [quotes, setQuotes] = useState<QuoteItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [open, setOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    useEffect(() => {
+    const fetchQuotes = useCallback(async () => {
         if (!user || !firestore) return;
 
-        const fetchQuotes = async () => {
-            setLoading(true);
-            try {
-                // Query without orderBy to avoid composite index requirement
-                const q = query(
-                    collection(firestore, 'quotes'),
-                    where('userId', '==', user.uid)
-                );
+        setLoading(true);
+        setError(null);
+        try {
+            // Query without orderBy to avoid composite index requirement
+            const q = query(
+                collection(firestore, 'quotes'),
+                where('userId', '==', user.uid)
+            );
 
-                const snap = await getDocs(q);
-                const items: QuoteItem[] = [];
-                snap.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() } as QuoteItem);
-                });
+            const snap = await getDocs(q);
+            const items: QuoteItem[] = [];
+            snap.forEach(doc => {
+                items.push({ id: doc.id, ...doc.data() } as QuoteItem);
+            });
 
-                // Sort client-side by createdAt (most recent first)
-                items.sort((a, b) => {
-                    const aTime = a.createdAt?.toMillis?.() || 0;
-                    const bTime = b.createdAt?.toMillis?.() || 0;
-                    return bTime - aTime;
-                });
+            // Sort client-side by createdAt (most recent first)
+            items.sort((a, b) => {
+                const aTime = a.createdAt?.toMillis?.() || 0;
+                const bTime = b.createdAt?.toMillis?.() || 0;
+                return bTime - aTime;
+            });
 
-                setQuotes(items);
-            } catch (err) {
-                console.error('Error fetching quotes:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchQuotes();
+            setQuotes(items);
+        } catch (err) {
+            console.error('Error fetching quotes:', err);
+            setError('Offertes konden niet geladen worden.');
+        } finally {
+            setLoading(false);
+        }
     }, [user, firestore]);
+
+    useEffect(() => {
+        if (!user || !firestore) return;
+        void fetchQuotes();
+    }, [user, firestore, fetchQuotes]);
 
     // Force close popover when navigating to prevent focus-scope loops
     useEffect(() => {
@@ -90,10 +94,7 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
         setOpen(false);
 
         if (quoteId !== currentQuoteId) {
-            // Small delay to let popover close cleanly
-            setTimeout(() => {
-                router.push(`/offertes/${quoteId}`);
-            }, 50);
+            router.push(`/offertes/${quoteId}`);
         }
     };
 
@@ -161,6 +162,13 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
                     <div className="max-h-[400px] overflow-y-auto">
                         {loading ? (
                             <div className="p-4 text-center text-muted-foreground text-sm">Laden...</div>
+                        ) : error ? (
+                            <div className="p-4 text-center text-muted-foreground text-sm space-y-2">
+                                <div>{error}</div>
+                                <Button type="button" variant="outline" size="sm" onClick={() => void fetchQuotes()}>
+                                    Opnieuw proberen
+                                </Button>
+                            </div>
                         ) : filteredQuotes.length === 0 ? (
                             <div className="p-4 text-center text-muted-foreground text-sm">
                                 {searchQuery ? 'Geen offertes gevonden' : 'Geen offertes beschikbaar'}
@@ -174,10 +182,12 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
                                 const totalAmount = quote.totaalbedrag || quote.amount || 0;
 
                                 return (
-                                    <button
+                                    <Button
                                         key={quote.id}
+                                        type="button"
+                                        variant="ghost"
                                         onClick={() => handleSelect(quote.id)}
-                                        className={`w-full p-3 text-left hover:bg-accent transition-colors flex items-center justify-between gap-2 border-b border-border/50 last:border-0 ${isActive ? 'bg-accent/50' : ''
+                                        className={`w-full h-auto rounded-none p-3 text-left hover:bg-accent transition-colors flex items-center justify-between gap-2 border-b border-border/50 last:border-0 ${isActive ? 'bg-accent/50' : ''
                                             }`}
                                     >
                                         <div className="flex-1 min-w-0">
@@ -195,7 +205,7 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
                                         <div className="text-sm font-medium text-muted-foreground shrink-0">
                                             {formatCurrency(totalAmount)}
                                         </div>
-                                    </button>
+                                    </Button>
                                 );
                             })
                         )}

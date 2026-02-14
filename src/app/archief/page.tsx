@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { collection, deleteField, doc, onSnapshot, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
@@ -52,7 +52,7 @@ type QuoteRow = Quote & {
   archivedAtDate: Date | null;
 };
 
-export default function ArchiefPage() {
+function ArchiefPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = (searchParams?.get('tab') === 'offertes' || searchParams?.get('tab') === 'facturen')
@@ -467,5 +467,21 @@ export default function ArchiefPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function ArchiefPageFallback() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="animate-spin text-primary w-8 h-8" />
+    </div>
+  );
+}
+
+export default function ArchiefPage() {
+  return (
+    <Suspense fallback={<ArchiefPageFallback />}>
+      <ArchiefPageContent />
+    </Suspense>
   );
 }

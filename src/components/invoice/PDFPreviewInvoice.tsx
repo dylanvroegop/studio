@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PDFInvoiceData } from '@/lib/generate-invoice-pdf';
 import { generateInvoicePDF } from '@/lib/generate-invoice-pdf';
 import { FileText } from 'lucide-react';
@@ -19,8 +19,7 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
   const generationIdRef = useRef(0);
   const dataSignature = useMemo(() => (pdfData ? JSON.stringify(pdfData) : null), [pdfData]);
 
-  const generatePreview = async (signature: string) => {
-    if (!pdfData) return;
+  const generatePreview = useCallback(async (signature: string, data: PDFInvoiceData) => {
     const generationId = ++generationIdRef.current;
 
     setLoading(true);
@@ -28,7 +27,7 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
     inFlightSignatureRef.current = signature;
 
     try {
-      const blob = await generateInvoicePDF(pdfData);
+      const blob = await generateInvoicePDF(data);
       const url = URL.createObjectURL(blob);
 
       if (generationId !== generationIdRef.current) {
@@ -51,22 +50,24 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
       }
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (pdfData && dataSignature) {
       if (inFlightSignatureRef.current === dataSignature) return;
       if (lastCompletedSignatureRef.current === dataSignature) return;
-      generatePreview(dataSignature);
+      void generatePreview(dataSignature, pdfData);
     }
+  }, [dataSignature, generatePreview, pdfData]);
 
+  useEffect(() => {
     return () => {
       if (latestObjectUrlRef.current) {
         URL.revokeObjectURL(latestObjectUrlRef.current);
         latestObjectUrlRef.current = null;
       }
     };
-  }, [dataSignature]);
+  }, []);
 
   if (!pdfData) {
     return (
@@ -112,4 +113,3 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
     </div>
   );
 }
-

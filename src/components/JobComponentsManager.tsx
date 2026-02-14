@@ -224,9 +224,13 @@ export function JobComponentsManager({
                     so we don't need a placeholder here. 
                 */}
             {renderList && !limitToType && components.filter(c => !limitToType || c.type === limitToType).length === 0 && (
-                <div className="text-center py-8 border border-dashed rounded-xl bg-muted/20 text-muted-foreground text-sm cursor-pointer hover:bg-muted/30 transition-colors" onClick={handleOpen}>
+                <button
+                    type="button"
+                    className="w-full text-center py-8 border border-dashed rounded-xl bg-muted/20 text-muted-foreground text-sm hover:bg-muted/30 transition-colors"
+                    onClick={handleOpen}
+                >
                     Nog geen onderdelen toegevoegd.
-                </div>
+                </button>
             )}
 
             <Dialog open={isOpen} onOpenChange={setOpen}>
@@ -302,9 +306,10 @@ export function JobComponentsManager({
                                     { title: 'Schuifdeuren', desc: 'Schuifdeuren systeem' },
                                     { title: 'Overig Deuren', desc: 'Afwijkend deurwerk' }
                                 ]).map((variant, i) => (
-                                    <div
+                                    <button
+                                        type="button"
                                         key={i}
-                                        className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
+                                        className="w-full text-left flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
                                         onClick={() => {
                                             // Select logic
                                             setTempMeasurements(prev => ({ ...prev, _variantMode: true, subtitle: variant.title }));
@@ -318,7 +323,7 @@ export function JobComponentsManager({
                                         <div className="h-6 w-6 rounded-full border flex items-center justify-center group-hover:border-emerald-500 group-hover:text-emerald-500">
                                             <Plus className="h-3 w-3" />
                                         </div>
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
                         )}

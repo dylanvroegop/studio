@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
-import { FileText, Download, RefreshCw } from 'lucide-react';
+import { FileText } from 'lucide-react';
 
 interface PDFPreviewProps {
     pdfData: PDFQuoteData | null;
-    onDownload: () => void;
 }
 
-export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
+export function PDFPreview({ pdfData }: PDFPreviewProps) {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -19,8 +18,7 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
     const generationIdRef = useRef(0);
     const dataSignature = useMemo(() => (pdfData ? JSON.stringify(pdfData) : null), [pdfData]);
 
-    const generatePreview = async (signature: string) => {
-        if (!pdfData) return;
+    const generatePreview = useCallback(async (signature: string, data: PDFQuoteData) => {
         const generationId = ++generationIdRef.current;
 
         setLoading(true);
@@ -28,7 +26,7 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
         inFlightSignatureRef.current = signature;
 
         try {
-            const blob = await generateQuotePDF(pdfData);
+            const blob = await generateQuotePDF(data);
             const url = URL.createObjectURL(blob);
 
             // Ignore stale runs if a newer generation started
@@ -53,24 +51,26 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
             }
             setLoading(false);
         }
-    };
+    }, []);
 
     // Generate preview when data changes
     useEffect(() => {
         if (pdfData && dataSignature) {
             if (inFlightSignatureRef.current === dataSignature) return;
             if (lastCompletedSignatureRef.current === dataSignature) return;
-            generatePreview(dataSignature);
+            void generatePreview(dataSignature, pdfData);
         }
+    }, [dataSignature, generatePreview, pdfData]);
 
-        // Cleanup on unmount
+    // Cleanup object URL only on unmount.
+    useEffect(() => {
         return () => {
             if (latestObjectUrlRef.current) {
                 URL.revokeObjectURL(latestObjectUrlRef.current);
                 latestObjectUrlRef.current = null;
             }
         };
-    }, [dataSignature]);
+    }, []);
 
     if (!pdfData) {
         return (
@@ -78,7 +78,7 @@ export function PDFPreview({ pdfData, onDownload }: PDFPreviewProps) {
                 <FileText size={48} className="mx-auto text-zinc-600 mb-4" />
                 <h3 className="text-lg font-medium text-zinc-300 mb-2">Geen PDF preview</h3>
                 <p className="text-zinc-500">
-                    Vul eerst de materiaalprizen in om een PDF te kunnen genereren.
+                    Vul eerst de materiaalprijzen in om een PDF te kunnen genereren.
                 </p>
             </div>
         );

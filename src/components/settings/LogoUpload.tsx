@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Trash2, Loader2, ImageIcon } from 'lucide-react';
@@ -31,7 +31,7 @@ export function LogoUpload({
   onLogoChange,
   itemLabel = 'Logo',
   storageKey = 'logo',
-  recommendedText = 'Recommended: 400x150px or similar aspect ratio',
+  recommendedText = 'Aanbevolen: 400x150px of een vergelijkbare verhouding',
 }: LogoUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentLogoUrl || null);
@@ -42,13 +42,13 @@ export function LogoUpload({
   const validateFile = (file: File): string | null => {
     // Check file type
     if (!file.type.startsWith('image/')) {
-      return 'Please select an image file (PNG, JPG, or similar)';
+      return 'Selecteer een afbeeldingsbestand (PNG, JPG of vergelijkbaar).';
     }
 
     // Check file size (2MB limit)
     const maxSize = 2 * 1024 * 1024; // 2MB in bytes
     if (file.size > maxSize) {
-      return 'File size must be under 2MB';
+      return 'Bestandsgrootte moet onder 2MB blijven.';
     }
 
     return null;
@@ -62,7 +62,7 @@ export function LogoUpload({
     const error = validateFile(file);
     if (error) {
       toast({
-        title: 'Invalid file',
+        title: 'Ongeldig bestand',
         description: error,
         variant: 'destructive',
       });
@@ -89,16 +89,16 @@ export function LogoUpload({
       onLogoChange(downloadURL);
 
       toast({
-        title: 'Success',
-        description: `${itemLabel} uploaded successfully`,
+        title: 'Opgeslagen',
+        description: `${itemLabel} is succesvol geüpload.`,
       });
     } catch (error) {
       console.error('Error uploading logo:', error);
       // Revert preview
       setPreviewUrl(currentLogoUrl || null);
       toast({
-        title: 'Upload failed',
-        description: 'Failed to upload logo. Please try again.',
+        title: 'Upload mislukt',
+        description: `Kon ${itemLabel.toLowerCase()} niet uploaden. Probeer het opnieuw.`,
         variant: 'destructive',
       });
     } finally {
@@ -123,14 +123,14 @@ export function LogoUpload({
       onLogoChange(null);
 
       toast({
-        title: 'Success',
-        description: `${itemLabel} removed successfully`,
+        title: 'Verwijderd',
+        description: `${itemLabel} is verwijderd.`,
       });
     } catch (error) {
       console.error('Error removing logo:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to remove logo. Please try again.',
+        title: 'Verwijderen mislukt',
+        description: `Kon ${itemLabel.toLowerCase()} niet verwijderen. Probeer het opnieuw.`,
         variant: 'destructive',
       });
     } finally {
@@ -156,7 +156,7 @@ export function LogoUpload({
             <div className="w-[200px] h-[80px] border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center bg-gray-50">
               <div className="text-center">
                 <ImageIcon className="mx-auto h-8 w-8 text-gray-400" />
-                <p className="mt-1 text-xs text-gray-500">No {itemLabel.toLowerCase()}</p>
+                <p className="mt-1 text-xs text-gray-500">Geen {itemLabel.toLowerCase()}</p>
               </div>
             </div>
           )}
@@ -175,12 +175,12 @@ export function LogoUpload({
               {isUploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Uploading...
+                  Uploaden...
                 </>
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  {previewUrl ? `Change ${itemLabel}` : `Upload ${itemLabel}`}
+                  {previewUrl ? `${itemLabel} wijzigen` : `${itemLabel} uploaden`}
                 </>
               )}
             </Button>
@@ -194,14 +194,14 @@ export function LogoUpload({
                 disabled={isUploading}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Remove
+                Verwijderen
               </Button>
             )}
           </div>
 
           <div className="text-xs text-gray-500 space-y-1">
             <p>{recommendedText}</p>
-            <p>Max file size: 2MB • Formats: PNG, JPG, GIF</p>
+            <p>Max. bestandsgrootte: 2MB • Formaten: PNG, JPG, GIF</p>
           </div>
         </div>
       </div>
@@ -219,15 +219,15 @@ export function LogoUpload({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {itemLabel.toLowerCase()}?</AlertDialogTitle>
+            <AlertDialogTitle>{itemLabel} verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove this {itemLabel.toLowerCase()}? It will be removed from future PDF documents.
+              Weet je zeker dat je deze {itemLabel.toLowerCase()} wilt verwijderen? Deze wordt niet meer gebruikt in nieuwe PDF-documenten.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Remove
+              Verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

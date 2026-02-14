@@ -918,7 +918,11 @@ export default function OffertesPage() {
                         statusMeta.sideBorderClass
                       )}
                     >
-                      <Link href={`/offertes/${q.id}`} className="absolute inset-0 z-0" />
+                      <Link
+                        href={`/offertes/${q.id}`}
+                        aria-label={nrLabel ? `${nrLabel} openen voor ${klant}` : `Offerte openen voor ${klant}`}
+                        className="absolute inset-0 z-0"
+                      />
 
                       <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
                         <div className="flex items-center gap-3 min-w-0">

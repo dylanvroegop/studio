@@ -23,12 +23,9 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
         const loadJobs = async () => {
             setIsLoading(true);
 
-            console.log("DrawingsTab loading for quote:", quote.id);
-
             // Strategy A: Check 'klussen' map (Active Wizard / Modern Structure)
             const klussenMap = (quote as any).klussen;
             if (klussenMap && typeof klussenMap === 'object' && Object.keys(klussenMap).length > 0) {
-                console.log("Strategy A: Found klussen map", Object.keys(klussenMap));
                 const jobsFromMap = Object.entries(klussenMap).map(([key, data]: [string, any]) => ({
                     id: key,
                     ...data
@@ -40,7 +37,6 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
 
             // Strategy B: Check 'jobs' array (if already populated on quote object)
             if ((quote as any).jobs && Array.isArray((quote as any).jobs) && (quote as any).jobs.length > 0) {
-                console.log("Strategy B: Found jobs array", (quote as any).jobs.length);
                 setJobs((quote as any).jobs);
                 setIsLoading(false);
                 return;
@@ -48,11 +44,9 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
 
             // Strategy C: Fetch from Firestore subcollection (Legacy Structure)
             if (firestore && quote.id) {
-                console.log("Strategy C: Fetching subcollection...");
                 try {
                     const jobsRef = collection(firestore, `quotes/${quote.id}/jobs`);
                     const snap = await getDocs(jobsRef);
-                    console.log("Strategy C: Fetched docs:", snap.size);
                     const fetchedJobs = snap.docs.map(d => ({
                         id: d.id,
                         ...d.data()
@@ -73,7 +67,6 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
 
     // 2. Filter for Valid Drawing Jobs
     const drawingJobs = useMemo(() => {
-        console.log("Filtering jobs:", jobs.length);
         return jobs.filter(job => {
             // Check for parametric data (Modern) - check multiple structures
             const maatwerk = job.maatwerk as any;
@@ -90,9 +83,6 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
             const topMeta = (job as any).meta || {};
             const maatwerkMeta = (job.maatwerk as any)?.meta || {};
             const slug = topMeta.slug || maatwerkMeta.slug;
-
-            // DEBUG LOG
-            console.log(`Job [${job.id?.substring(0, 6)}...]: Maatwerk=${hasMaatwerk}, VisualUrl=${hasVisualUrl}, TopMeta=${JSON.stringify(topMeta)}, MaatwerkMeta=${JSON.stringify(maatwerkMeta)}, Slug=${slug}`);
 
             // Relaxed Filter: Allow Visual URL even if slug is missing
             if (hasVisualUrl) return true;

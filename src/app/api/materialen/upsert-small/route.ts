@@ -38,6 +38,9 @@ export async function POST(req: Request) {
     const { auth } = initFirebaseAdmin();
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded?.uid || null;
+    if (!uid) {
+      return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = (await req.json()) as Body;
     const naam = normalizeName(body.naam);
@@ -62,12 +65,19 @@ export async function POST(req: Request) {
         .from('main_small_material_list')
         .select('*')
         .in(schema.nameColumn, candidateNames)
+        .eq('gebruikerid', uid)
         .limit(5);
 
       if (!error) {
         activeSchema = schema;
         existingRows = data || [];
         break;
+      }
+      if (error.message?.includes('gebruikerid')) {
+        return NextResponse.json(
+          { ok: false, message: 'main_small_material_list mist eigenaar-kolom gebruikerid.' },
+          { status: 500 }
+        );
       }
       lastErrorMessage = error.message || lastErrorMessage;
     }
@@ -90,10 +100,7 @@ export async function POST(req: Request) {
       prijs_excl_btw: Number(prijsExclBtw).toFixed(2),
     };
 
-    // Optional user ownership column in some schemas.
-    if (uid) {
-      basePayload.gebruikerid = uid;
-    }
+    basePayload.gebruikerid = uid;
 
     if (existingRow?.id !== undefined && existingRow?.id !== null) {
       // Update by primary id when available.
@@ -101,19 +108,9 @@ export async function POST(req: Request) {
         .from('main_small_material_list')
         .update(basePayload)
         .eq('id', existingRow.id)
+        .eq('gebruikerid', uid)
         .select('*')
         .single();
-
-      // Fallback when schema has no gebruikerid column.
-      if (updateAttempt.error && updateAttempt.error.message?.includes('gebruikerid')) {
-        const { gebruikerid, ...payloadWithoutUser } = basePayload;
-        updateAttempt = await supabaseAdmin
-          .from('main_small_material_list')
-          .update(payloadWithoutUser)
-          .eq('id', existingRow.id)
-          .select('*')
-          .single();
-      }
 
       if (updateAttempt.error) {
         return NextResponse.json({ ok: false, message: updateAttempt.error.message }, { status: 500 });
@@ -132,17 +129,6 @@ export async function POST(req: Request) {
       .insert(insertPayload)
       .select('*')
       .single();
-
-    // Fallback when optional columns do not exist.
-    if (insertAttempt.error && insertAttempt.error.message?.includes('gebruikerid')) {
-      const { gebruikerid, ...payloadWithoutUser } = insertPayload;
-      insertPayload = payloadWithoutUser;
-      insertAttempt = await supabaseAdmin
-        .from('main_small_material_list')
-        .insert(insertPayload)
-        .select('*')
-        .single();
-    }
 
     if (insertAttempt.error && insertAttempt.error.message?.includes('eenheid')) {
       const { eenheid, ...payloadWithoutUnit } = insertPayload;

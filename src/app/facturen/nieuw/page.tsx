@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
@@ -26,7 +26,7 @@ function clampPct(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
-export default function NieuweFactuurPage() {
+function NieuweFactuurPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams?.get('quoteId') || '';
@@ -341,5 +341,21 @@ export default function NieuweFactuurPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+function NieuweFactuurPageFallback() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="animate-spin text-primary w-8 h-8" />
+    </div>
+  );
+}
+
+export default function NieuweFactuurPage() {
+  return (
+    <Suspense fallback={<NieuweFactuurPageFallback />}>
+      <NieuweFactuurPageContent />
+    </Suspense>
   );
 }
