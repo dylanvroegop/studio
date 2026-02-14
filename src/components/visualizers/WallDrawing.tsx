@@ -666,7 +666,8 @@ export function WallDrawing({
                                         const uitL = (Number(opVensterbank.uitstekLinks) || 0) * pxPerMm;
                                         const uitR = (Number(opVensterbank.uitstekRechts) || 0) * pxPerMm;
                                         const vbDiepte = (Number(opVensterbank.diepte) || 20) * pxPerMm;
-                                        const vbH = 4 * pxPerMm; // Visual thickness of the sill board
+                                        const vbH = 8 * pxPerMm; // Visual thickness of the sill board (2x)
+                                        const vensterbankColor = "#f97316";
 
                                         const vbX = drawX - uitL;
                                         const vbY = drawY + hPx;
@@ -679,13 +680,13 @@ export function WallDrawing({
                                                     y={vbY}
                                                     width={vbW}
                                                     height={vbH}
-                                                    fill="#10b981"
+                                                    fill={vensterbankColor}
                                                     fillOpacity="0.2"
-                                                    stroke="#10b981"
-                                                    strokeWidth="0.5"
+                                                    stroke={vensterbankColor}
+                                                    strokeWidth="1"
                                                 />
                                                 {/* Optional front face / detail */}
-                                                <rect x={vbX} y={vbY} width={vbW} height={1} fill="#10b981" fillOpacity="0.8" />
+                                                <rect x={vbX} y={vbY} width={vbW} height={2} fill={vensterbankColor} fillOpacity="0.8" />
                                             </g>
                                         );
                                     })()}

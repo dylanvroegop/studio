@@ -400,9 +400,12 @@ export default function GenericMeasurementPage() {
       if (!entry || typeof entry !== 'object') return false;
       const sectionKey = String(entry.sectionKey || entry.material?.sectionKey || '').trim().toLowerCase();
       const sectionLabel = String(entry.sectionLabel || entry.label || entry.title || '').trim().toLowerCase();
+      const contextLabel = String(entry.context || '').trim().toLowerCase();
       const materialName = String(entry.material?.materiaalnaam || '').trim().toLowerCase();
       const keyMatch = sectionKey.length > 0 && normalizedKeys.has(sectionKey);
-      const hintMatch = normalizedHints.some((hint) => sectionLabel.includes(hint) || materialName.includes(hint));
+      const hintMatch = normalizedHints.some((hint) =>
+        sectionLabel.includes(hint) || materialName.includes(hint) || contextLabel.includes(hint)
+      );
       if (!keyMatch && !hintMatch) return false;
       return hasFilledMaterialInSnapshotEntry(entry);
     });
@@ -461,6 +464,37 @@ export default function GenericMeasurementPage() {
       ['deklat', 'deklatten']
     );
   }, [materialenLijstSnapshot]);
+  const hasGevelKoofMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['koof_regelwerk', 'koof_constructieplaat', 'koof_beplating', 'koof_afwerkplaat', 'koof_isolatie'],
+      ['koof']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasGevelVensterbankMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['vensterbanken', 'vensterbank'],
+      ['vensterbank']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasGevelDagkantMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['dagkanten', 'dagkantafwerking', 'dagkant_binnen', 'dagkant'],
+      ['dagkant']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasGevelTengelMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['tengelwerk_basis', 'tengelwerk', 'tengels'],
+      ['tengel', 'ventilatielat']
+    );
+  }, [materialenLijstSnapshot]);
+  const showKoofSectionInUI = showKoofSection && (!isGevelbekleding || hasGevelKoofMaterialFromPreviousPage);
+  const showVensterbankSectionInUI = showVensterbankSection && (!isGevelbekleding || hasGevelVensterbankMaterialFromPreviousPage);
+  const showDagkantSectionInUI = showDagkantSection && (!isGevelbekleding || hasGevelDagkantMaterialFromPreviousPage);
   const floorProfileCountFields = useMemo(() => {
     if (jobSlug === 'massief-houten-vloer') {
       return [
@@ -1563,6 +1597,29 @@ export default function GenericMeasurementPage() {
     return item;
   };
 
+  const applyGevelConstructieDefaults = (item: any, hasTengelMaterial: boolean) => {
+    if (!isGevelbekleding) return item;
+    const next = { ...item };
+    if (isEmptyValue(next.startLattenFromBottom)) {
+      next.startLattenFromBottom = true;
+    }
+    if (isEmptyValue(next.latten_orientation)) {
+      next.latten_orientation = hasTengelMaterial ? 'horizontal' : 'vertical';
+    }
+    if (hasTengelMaterial) {
+      if (isEmptyValue(next.tengelafstand)) {
+        next.tengelafstand = 700;
+      }
+      if (isEmptyValue(next.tengel_orientation)) {
+        next.tengel_orientation = 'vertical';
+      }
+      if (isEmptyValue(next.startTengelFromBottom)) {
+        next.startTengelFromBottom = true;
+      }
+    }
+    return next;
+  };
+
 
 
   const syncVlizotrapOpening = (item: any, material: any) => {
@@ -1698,6 +1755,11 @@ export default function GenericMeasurementPage() {
             materialenLijstInContainer,
             ['deklatten'],
             ['deklat', 'deklatten']
+          );
+          const hasGevelTengelMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['tengelwerk_basis', 'tengelwerk', 'tengels'],
+            ['tengel', 'ventilatielat']
           );
           const floorProfileCountFieldsInContainer: Array<{ fieldKey: string; enabled: boolean }> = [];
           if (jobSlug === 'massief-houten-vloer') {
@@ -1904,7 +1966,10 @@ export default function GenericMeasurementPage() {
             const withBalkafstandDefaults = withVlizotrap.map((item: any) =>
               applyVoorzetwandBalkafstandDefault(applyCeilingBalkafstandDefault(item, !!balklaagMaterial))
             );
-            const withDakpanDefaults = withBalkafstandDefaults.map((item: any) =>
+            const withGevelDefaults = withBalkafstandDefaults.map((item: any) =>
+              applyGevelConstructieDefaults(item, hasGevelTengelMaterialInContainer)
+            );
+            const withDakpanDefaults = withGevelDefaults.map((item: any) =>
               applyHellendDakDefaultsFromDakpan(item, dakpanMaten)
             );
             const withGolfplaatAuto = withDakpanDefaults.map((item: any) =>
@@ -1927,7 +1992,11 @@ export default function GenericMeasurementPage() {
             const withBalkafstandDefaults = applyVoorzetwandBalkafstandDefault(
               applyCeilingBalkafstandDefault(withVlizotrap, !!balklaagMaterial)
             );
-            const withDakpanDefaults = applyHellendDakDefaultsFromDakpan(withBalkafstandDefaults, dakpanMaten);
+            const withGevelDefaults = applyGevelConstructieDefaults(
+              withBalkafstandDefaults,
+              hasGevelTengelMaterialInContainer
+            );
+            const withDakpanDefaults = applyHellendDakDefaultsFromDakpan(withGevelDefaults, dakpanMaten);
             const withGolfplaatAuto = applyGolfplaatDakverdelingAuto(withDakpanDefaults);
             setItems([withGolfplaatAuto]);
           }
@@ -2016,7 +2085,11 @@ export default function GenericMeasurementPage() {
   };
 
   const addItem = () => {
-    const newItem = applyHellendDakDefaultsFromDakpan(createEmptyItem(), dakpanWerkendeMaten);
+    const withGevelDefaults = applyGevelConstructieDefaults(
+      createEmptyItem(),
+      hasGevelTengelMaterialFromPreviousPage
+    );
+    const newItem = applyHellendDakDefaultsFromDakpan(withGevelDefaults, dakpanWerkendeMaten);
     setItems(prev => [...prev, newItem]);
   };
 
@@ -4363,7 +4436,7 @@ export default function GenericMeasurementPage() {
                         )}
 
                         {/* Balken Configuration */}
-                        {fields.find(f => f.key === 'balkafstand') && (
+                        {!isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (
                           <BalkenSection
                             balkafstand={item.balkafstand}
                             startFromRight={item.startFromRight}
@@ -4478,7 +4551,12 @@ export default function GenericMeasurementPage() {
 
                     {!isCeilingCategory && (
                       (() => {
-                        const tengelSection = isGevelbekleding && fields.find(f => f.key === 'tengelafstand') && (
+                        const defaultStartFromBottom = isGevelbekleding ? true : false;
+                        const defaultLattenOrientation = isGevelbekleding
+                          ? (hasGevelTengelMaterialFromPreviousPage ? 'horizontal' : 'vertical')
+                          : 'horizontal';
+                        const shouldShowGevelTengelSection = isGevelbekleding && hasGevelTengelMaterialFromPreviousPage;
+                        const tengelSection = shouldShowGevelTengelSection && fields.find(f => f.key === 'tengelafstand') && (
                           <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                             <div
                               className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
@@ -4505,10 +4583,10 @@ export default function GenericMeasurementPage() {
                                   <div className="space-y-3">
                                     <Label className="text-xs">Startpositie</Label>
                                     <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                      <button type="button" onClick={() => updateItem(index, 'startTengelFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startTengelFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                      <button type="button" onClick={() => updateItem(index, 'startTengelFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !(item.startTengelFromBottom ?? defaultStartFromBottom) ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
                                         Boven
                                       </button>
-                                      <button type="button" onClick={() => updateItem(index, 'startTengelFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startTengelFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                      <button type="button" onClick={() => updateItem(index, 'startTengelFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", (item.startTengelFromBottom ?? defaultStartFromBottom) ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
                                         Onder
                                       </button>
                                     </div>
@@ -4522,7 +4600,7 @@ export default function GenericMeasurementPage() {
                                         onClick={() => updateItem(index, 'tengel_orientation', 'vertical')}
                                         className={cn(
                                           "flex-1 text-xs py-1.5 rounded transition-colors",
-                                          item.tengel_orientation === 'vertical'
+                                          item.tengel_orientation !== 'horizontal'
                                             ? "bg-emerald-500/20 text-emerald-400"
                                             : "text-zinc-500 hover:text-zinc-300"
                                         )}
@@ -4534,7 +4612,7 @@ export default function GenericMeasurementPage() {
                                         onClick={() => updateItem(index, 'tengel_orientation', 'horizontal')}
                                         className={cn(
                                           "flex-1 text-xs py-1.5 rounded transition-colors",
-                                          (item.tengel_orientation === 'horizontal' || !item.tengel_orientation)
+                                          item.tengel_orientation === 'horizontal'
                                             ? "bg-emerald-500/20 text-emerald-400"
                                             : "text-zinc-500 hover:text-zinc-300"
                                         )}
@@ -4593,10 +4671,10 @@ export default function GenericMeasurementPage() {
                                   <div className="space-y-3">
                                     <Label className="text-xs">Startpositie</Label>
                                     <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', false)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", !(item.startLattenFromBottom ?? defaultStartFromBottom) ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
                                         {isHellendDak ? 'Boven' : (isRoofCategory ? 'Links' : 'Boven')}
                                       </button>
-                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", item.startLattenFromBottom ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
+                                      <button type="button" onClick={() => updateItem(index, 'startLattenFromBottom', true)} className={cn("flex-1 text-xs py-1.5 rounded transition-colors", (item.startLattenFromBottom ?? defaultStartFromBottom) ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300")}>
                                         {isHellendDak ? 'Onder' : (isRoofCategory ? 'Rechts' : 'Onder')}
                                       </button>
                                     </div>
@@ -4611,7 +4689,7 @@ export default function GenericMeasurementPage() {
                                           onClick={() => updateItem(index, 'latten_orientation', 'vertical')}
                                           className={cn(
                                             "flex-1 text-xs py-1.5 rounded transition-colors",
-                                            item.latten_orientation === 'vertical'
+                                            (item.latten_orientation ?? defaultLattenOrientation) === 'vertical'
                                               ? "bg-emerald-500/20 text-emerald-400"
                                               : "text-zinc-500 hover:text-zinc-300"
                                           )}
@@ -4623,7 +4701,7 @@ export default function GenericMeasurementPage() {
                                           onClick={() => updateItem(index, 'latten_orientation', 'horizontal')}
                                           className={cn(
                                             "flex-1 text-xs py-1.5 rounded transition-colors",
-                                            (item.latten_orientation === 'horizontal' || !item.latten_orientation)
+                                            (item.latten_orientation ?? defaultLattenOrientation) === 'horizontal'
                                               ? "bg-emerald-500/20 text-emerald-400"
                                               : "text-zinc-500 hover:text-zinc-300"
                                           )}
@@ -4661,7 +4739,7 @@ export default function GenericMeasurementPage() {
                           </div>
                         );
 
-                        const balkenSection = fields.find(f => f.key === 'balkafstand') && (
+                        const balkenSection = !isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (
                           <BalkenSection
                             balkafstand={item.balkafstand}
                             startFromRight={item.startFromRight}
@@ -4754,7 +4832,7 @@ export default function GenericMeasurementPage() {
                     )}
 
                     {/* Koof Section */}
-                    {showKoofSection && (
+                    {showKoofSectionInUI && (
                       <KoofSection
                         koven={item.koven || []}
                         onAdd={() => onAddKoof(index)}
@@ -4768,7 +4846,7 @@ export default function GenericMeasurementPage() {
                     )}
 
                     {/* Vensterbank Section */}
-                    {showVensterbankSection && (
+                    {showVensterbankSectionInUI && (
                       <VensterbankSection
                         vensterbanken={item.vensterbanken || []}
                         onAdd={() => onAddVensterbank(index)}
@@ -4776,13 +4854,13 @@ export default function GenericMeasurementPage() {
                         onUpdate={(id, updates) => onUpdateVensterbank(index, id, updates)}
                         isCollapsed={collapsedSections[`vensterbank-${index}`] === true}
                         onToggleCollapsed={() => toggleCollapsed(`vensterbank-${index}`, false)}
-                        customTitle={isGevelbekleding ? 'Waterslagen' : 'Vensterbanken'}
-                        customItemLabel={isGevelbekleding ? 'Waterslag' : 'Vensterbank'}
+                        customTitle="Vensterbanken"
+                        customItemLabel="Vensterbank"
                       />
                     )}
 
                     {/* Dagkant Section */}
-                    {showDagkantSection && (
+                    {showDagkantSectionInUI && (
                       <DagkantSection
                         dagkanten={item.dagkanten || []}
                         onAdd={() => onAddDagkant(index)}
@@ -4898,26 +4976,6 @@ export default function GenericMeasurementPage() {
                           </div>
                         )}
                       </div>
-                    )}
-
-                    {/* Balken Section (non-ceiling, moved lower - ONLY for Gevelbekleding) */}
-                    {!isCeilingCategory && isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (
-                      <BalkenSection
-                        balkafstand={item.balkafstand}
-                        startFromRight={item.startFromRight}
-                        doubleEndBeams={item.doubleEndBeams}
-                        doubleTopPlate={item.doubleTopPlate}
-                        doubleBottomPlate={item.doubleBottomPlate}
-                        surroundingBeams={item.surroundingBeams}
-                        includeTopBottomGording={item.includeTopBottomGording}
-                        optionsConfig={specificJobConfig.balkenConfig.options}
-                        onUpdate={(key, val) => updateItem(index, key, val)}
-                        isWallCategory={isWallCategory}
-                        jobSlug={jobSlug}
-                        // Collapse default: true (collapsed)
-                        isCollapsed={collapsedSections[`balken-${index}`] === true}
-                        onToggleCollapsed={() => toggleCollapsed(`balken-${index}`)}
-                      />
                     )}
 
                     {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}

@@ -632,6 +632,7 @@ export default function OverzichtPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingJob, setIsDeletingJob] = useState(false);
+  const [isDeletingIncompleteJobs, setIsDeletingIncompleteJobs] = useState(false);
 
   // Transport
   const [transportMode, setTransportMode] = useState<TransportMode>('perKm');
@@ -1052,6 +1053,18 @@ export default function OverzichtPage() {
     if (!stats.winstMargeIsValid) return 'error';
     return 'success';
   }, [stats]);
+
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+
+  const incompleteJobs = useMemo(() => {
+    return jobs.filter((job: any) => !jobIsComplete(job));
+  }, [jobs]);
+
+  const incompleteJobIds = useMemo(() => {
+    return incompleteJobs
+      .map((job: any) => String(job?.id ?? ''))
+      .filter((id) => id.length > 0);
+  }, [incompleteJobs]);
 
   // Keep overview fresh while background materiaal-upserts are still running.
   useEffect(() => {
@@ -1859,6 +1872,51 @@ export default function OverzichtPage() {
       });
     } finally {
       setIsDeletingJob(false);
+    }
+  };
+
+  const deleteAllIncompleteJobs = async () => {
+    if (!isDevelopment) return;
+    if (!firestore || !user || !quoteId) return;
+    if (isDeletingIncompleteJobs) return;
+    if (incompleteJobIds.length === 0) return;
+
+    const count = incompleteJobIds.length;
+    const confirmed = window.confirm(
+      `Weet je zeker dat je ${count} onvolledige klus${count === 1 ? '' : 'sen'} wilt verwijderen?`
+    );
+    if (!confirmed) return;
+
+    setIsDeletingIncompleteJobs(true);
+
+    try {
+      const ref = doc(firestore, 'quotes', quoteId);
+      const updatePayload: Record<string, any> = {
+        updatedAt: serverTimestamp(),
+      };
+
+      incompleteJobIds.forEach((id) => {
+        updatePayload[`klussen.${id}`] = deleteField();
+      });
+
+      await updateDoc(ref, updatePayload as any);
+
+      const removedIds = new Set(incompleteJobIds);
+      setJobs((prev) => prev.filter((job: any) => !removedIds.has(String(job?.id ?? ''))));
+
+      toast({
+        title: 'Onvolledige klussen verwijderd',
+        description: `${count} klus${count === 1 ? '' : 'sen'} zijn verwijderd.`,
+      });
+    } catch (err: any) {
+      console.error('Bulk delete incomplete jobs error:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Verwijderen mislukt',
+        description: err?.message || 'Kon onvolledige klussen niet verwijderen.',
+      });
+    } finally {
+      setIsDeletingIncompleteJobs(false);
     }
   };
 
@@ -2743,7 +2801,26 @@ export default function OverzichtPage() {
           {/* Klussen */}
           <TooltipProvider>
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground px-1">Huidige Klussen</h2>
+              <div className="flex items-center justify-between gap-3 px-1">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">Huidige Klussen</h2>
+                {isDevelopment && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={deleteAllIncompleteJobs}
+                    disabled={isDeletingIncompleteJobs || incompleteJobIds.length === 0}
+                    className="h-8 border-red-500/30 bg-red-500/5 text-red-300 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40"
+                  >
+                    {isDeletingIncompleteJobs ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    DEV: Verwijder onvolledig
+                  </Button>
+                )}
+              </div>
 
             <div className="space-y-3">
               {jobs.length === 0 && (

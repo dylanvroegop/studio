@@ -46,6 +46,8 @@ Gipsplaten
 
 Brandwerende platen
 
+Keralit
+
 Rockpanel
 
 Trespa

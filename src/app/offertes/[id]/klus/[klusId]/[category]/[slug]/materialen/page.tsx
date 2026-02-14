@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   PlusCircle,
   Minus,
+  Search,
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -354,6 +355,35 @@ const ZERO_WASTE_PATTERNS = [
   /(hwa|afvoer|afval)/i,
 ];
 
+function isTrespaHplGevelplaatSection(
+  sectionKey: string | null,
+  label?: string,
+  context?: string,
+  materialName?: string
+): boolean {
+  if (String(sectionKey || '').toLowerCase() !== 'gevelplaat') return false;
+  const haystack = `${label || ''} ${context || ''} ${materialName || ''}`.toLowerCase();
+  return /\b(trespa|hpl|volkern)\b/.test(haystack);
+}
+
+function normalizeSavedWastePercentage(
+  wastePercentage: number,
+  sectionKey: string | null,
+  label?: string,
+  context?: string,
+  materialName?: string
+): number {
+  // Legacy quotes often saved the old default (10%) for Trespa/HPL gevelplaten.
+  // This section now uses layout-based plate nesting, so default should be 0%.
+  if (
+    wastePercentage === DEFAULT_WASTE_PERCENTAGE
+    && isTrespaHplGevelplaatSection(sectionKey, label, context, materialName)
+  ) {
+    return 0;
+  }
+  return wastePercentage;
+}
+
 function getDefaultWastePercentage(sectionKey: string | null, label?: string, context?: string): number {
   const haystack = `${sectionKey || ''} ${label || ''} ${context || ''}`.toLowerCase();
   const sectionAndLabel = `${sectionKey || ''} ${label || ''}`.toLowerCase();
@@ -361,6 +391,7 @@ function getDefaultWastePercentage(sectionKey: string | null, label?: string, co
     (sectionKey === 'daktrim_hoeken' || /daktrim[\s_-]*hoek/.test(sectionAndLabel))
     && /epdm/.test(haystack);
   if (isEpdmDaktrimHoeken) return 0;
+  if (isTrespaHplGevelplaatSection(sectionKey, label, context)) return 0;
   if (ZERO_WASTE_PATTERNS.some((pattern) => pattern.test(haystack))) return 0;
   return DEFAULT_WASTE_PERCENTAGE;
 }
@@ -1391,11 +1422,14 @@ export default function GenericMaterialsPageRedesigned() {
 
   const [presets, setPresets] = useState<any[]>([]);
   const [gekozenPresetId, setGekozenPresetId] = useState<string>('default');
+  const [presetPickerOpen, setPresetPickerOpen] = useState(false);
+  const [presetPickerSearch, setPresetPickerSearch] = useState('');
   const [isPresetsLaden, setPresetsLaden] = useState(false);
   const [hasLoadedPresetsOnce, setHasLoadedPresetsOnce] = useState(false);
 
   const [gekozenMaterialen, setGekozenMaterialen] = useState<Record<string, any | undefined>>({});
   const [wasteByEntryKey, setWasteByEntryKey] = useState<Record<string, number>>({});
+  const [sectionCategoryOverrides, setSectionCategoryOverrides] = useState<Record<string, string | string[]>>({});
   // extraMaterials state removed - unified into customGroups
   const [customGroups, setCustomGroups] = useState<any[]>([]);
   const [firestoreCustommateriaal, setFirestoreCustommateriaal] = useState<any | null>(null);
@@ -1433,7 +1467,7 @@ export default function GenericMaterialsPageRedesigned() {
   // When set, the modal adds/replaces a specific entry in a multiEntry slot
   const [activeMultiEntryKey, setActiveMultiEntryKey] = useState<string | null>(null); // section.key
   const [activeMultiEntryId, setActiveMultiEntryId] = useState<string | null>(null); // entry id (null = adding new)
-  const [activeSectionMeta, setActiveSectionMeta] = useState<{ key: string; label?: string; categoryFilter?: string | string[] } | null>(null);
+  const [activeSectionMeta, setActiveSectionMeta] = useState<{ key: string; label?: string; categoryFilter?: string | string[]; categoryUltraFilter?: string } | null>(null);
 
   // Per-component werkpakket presets
   const [componentPresets, setComponentPresets] = useState<Record<string, any[]>>({});
@@ -1494,8 +1528,14 @@ export default function GenericMaterialsPageRedesigned() {
     return raw;
   };
 
+  const activeSectionCategoryOverride = useMemo(() => {
+    if (!actieveSectie) return undefined;
+    return sectionCategoryOverrides[actieveSectie];
+  }, [actieveSectie, sectionCategoryOverrides]);
+
   const memoizedDefaultCategory = useMemo(() => {
     if (!actieveSectie) return undefined;
+    if (activeSectionCategoryOverride) return normalizeCategoryFilter(activeSectionCategoryOverride);
 
     // 1) Primary: exact key match in current job-registry sections
     const byKey = materialSections.find((s) => s.key === actieveSectie)?.categoryFilter;
@@ -1512,7 +1552,26 @@ export default function GenericMaterialsPageRedesigned() {
 
     // 3) Fallback to the component section's own categoryFilter
     return normalizeCategoryFilter(activeSectionMeta?.categoryFilter);
-  }, [actieveSectie, materialSections, activeSectionMeta]);
+  }, [actieveSectie, materialSections, activeSectionMeta, activeSectionCategoryOverride]);
+
+  const handleModalCategoryFilterChange = useCallback((nextCategoryFilter: string | string[]) => {
+    if (!actieveSectie) return;
+    setSectionCategoryOverrides((prev) => {
+      const next = { ...prev };
+      const shouldReset =
+        nextCategoryFilter === 'all'
+        || (Array.isArray(nextCategoryFilter) && nextCategoryFilter.length === 0);
+
+      if (shouldReset) {
+        if (!(actieveSectie in next)) return prev;
+        delete next[actieveSectie];
+        return next;
+      }
+
+      next[actieveSectie] = nextCategoryFilter;
+      return next;
+    });
+  }, [actieveSectie]);
 
   const normalizeComponentType = (type: string | null | undefined): string | null => {
     if (!type) return null;
@@ -1584,6 +1643,189 @@ export default function GenericMaterialsPageRedesigned() {
     const normalizedType = normalizeComponentType(c.type);
     return !normalizedType || !activeComponentTypes.has(normalizedType);
   });
+
+  const selectedPreset = useMemo(
+    () => presets.find((p) => p.id === gekozenPresetId) || null,
+    [presets, gekozenPresetId]
+  );
+
+  const presetCards = useMemo(() => {
+    const keyToLabel = new Map<string, string>();
+    const sectionOrder = new Map<string, number>();
+    (materialSections || []).forEach((section: any) => {
+      if (section?.key) {
+        keyToLabel.set(section.key, section?.label || section.key);
+        sectionOrder.set(section.key, sectionOrder.size);
+      }
+    });
+
+    const defaultCard = {
+      id: 'default',
+      name: 'Nieuw',
+      isDefault: false,
+      summary: 'Start zonder werkpakket',
+      chips: [] as string[],
+      isBuiltIn: true,
+    };
+
+    const cards = (presets || []).map((preset: any) => {
+      const mappedSlots = mapPresetSlotsForJob(preset?.slots || {}, JOB_KEY) || {};
+      const slotKeys = Object.keys(mappedSlots).sort((a, b) => {
+        const orderA = sectionOrder.has(a) ? sectionOrder.get(a)! : Number.MAX_SAFE_INTEGER;
+        const orderB = sectionOrder.has(b) ? sectionOrder.get(b)! : Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        const labelA = keyToLabel.get(a) || sectionLabelByKey[a] || a;
+        const labelB = keyToLabel.get(b) || sectionLabelByKey[b] || b;
+        return labelA.localeCompare(labelB, 'nl');
+      });
+      const slotLabels = Array.from(new Set(slotKeys.map((key) => keyToLabel.get(key) || sectionLabelByKey[key] || key)));
+      const componentsCount = Array.isArray(preset?.components) ? preset.components.length : 0;
+      const customCount = preset?.custommateriaal && typeof preset.custommateriaal === 'object'
+        ? Object.keys(preset.custommateriaal).length
+        : 0;
+
+      const summaryParts: string[] = [];
+      if (slotKeys.length > 0) summaryParts.push(`${slotKeys.length} materiaal${slotKeys.length === 1 ? '' : 'en'}`);
+      if (componentsCount > 0) summaryParts.push(`${componentsCount} onderdeel${componentsCount === 1 ? '' : 'en'}`);
+      if (customCount > 0) summaryParts.push(`${customCount} extra`);
+
+      return {
+        ...preset,
+        summary: summaryParts.join(' · ') || 'Geen ingevulde keuzes',
+        chips: slotLabels,
+        isBuiltIn: false,
+      };
+    });
+
+    return [defaultCard, ...cards];
+  }, [presets, materialSections, mapPresetSlotsForJob, JOB_KEY, sectionLabelByKey]);
+
+  const filteredPresetCards = useMemo(() => {
+    const q = presetPickerSearch.trim().toLowerCase();
+    if (!q) return presetCards;
+    return presetCards.filter((preset: any) => {
+      const haystack = `${preset.name || ''} ${preset.summary || ''} ${(preset.chips || []).join(' ')}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [presetCards, presetPickerSearch]);
+
+  const isBuiltInPresetCard = useCallback((preset: any) => preset?.id === 'default' || preset?.isBuiltIn, []);
+
+  const builtInPresetCards = useMemo(
+    () => filteredPresetCards.filter((preset: any) => isBuiltInPresetCard(preset)),
+    [filteredPresetCards, isBuiltInPresetCard]
+  );
+
+  const customPresetCards = useMemo(
+    () => filteredPresetCards.filter((preset: any) => !isBuiltInPresetCard(preset)),
+    [filteredPresetCards, isBuiltInPresetCard]
+  );
+
+  const renderPresetPickerCard = (preset: any, hasCustomPresets: boolean) => {
+    const isSelected = gekozenPresetId === preset.id;
+    const isBuiltIn = isBuiltInPresetCard(preset);
+    const presetSummary = String(preset.summary || 'Geen beschrijving').replace(/materiaalen/gi, 'materialen');
+    const selectPreset = () => {
+      onPresetChange(preset.id);
+      setPresetPickerOpen(false);
+    };
+
+    return (
+      <div key={preset.id} className={cn(isBuiltIn ? 'mb-4' : '')}>
+        <div
+          className={cn(
+            "group relative w-full text-left rounded-xl border border-l-4 px-4 transition-all duration-200",
+            isBuiltIn ? "py-2.5" : "py-3",
+            isSelected
+              ? "border-white/20 border-l-white/30 bg-card/60 shadow-[0_10px_24px_-18px_rgba(255,255,255,0.35)]"
+              : "border-white/10 border-l-white/10 bg-card/40 hover:bg-card/60 hover:border-white/20 hover:border-l-white/20"
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <button
+              type="button"
+              onClick={selectPreset}
+              className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 rounded-md"
+            >
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  {isBuiltIn ? (
+                    <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <Box className="h-4 w-4 text-emerald-400 shrink-0" />
+                  )}
+                  <span className={cn(
+                    "truncate text-zinc-100",
+                    isBuiltIn ? "text-sm font-semibold" : "text-base font-bold"
+                  )}>
+                    {preset.name}
+                  </span>
+                  <span className="truncate text-sm text-zinc-400">
+                    {presetSummary}
+                  </span>
+                </div>
+
+                {Array.isArray(preset.chips) && preset.chips.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 overflow-hidden max-h-12">
+                    {preset.chips.map((chip: string) => (
+                      <span
+                        key={`${preset.id}-${chip}`}
+                        className="shrink-0 whitespace-nowrap text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-zinc-400"
+                      >
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </button>
+
+            <div className="flex items-center gap-1 shrink-0">
+              {!isBuiltIn ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-12 w-12 text-muted-foreground/40 hover:text-yellow-400"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePresetSetDefaultWrapper(preset);
+                  }}
+                  disabled={preset.isDefault}
+                  title={preset.isDefault ? 'Al standaard' : 'Maak standaard'}
+                >
+                  <Star className={cn("h-6 w-6", preset.isDefault ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40")} />
+                </Button>
+              ) : null}
+              {!isBuiltIn ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-12 w-12 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePresetDeleteWrapper(preset);
+                  }}
+                  title="Verwijderen"
+                >
+                  <Trash2 className="h-6 w-6" />
+                </Button>
+              ) : null}
+              <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+            </div>
+          </div>
+        </div>
+        {isBuiltIn && hasCustomPresets ? (
+          <div className="mt-3 border-t border-border/70" />
+        ) : null}
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    if (!presetPickerOpen) setPresetPickerSearch('');
+  }, [presetPickerOpen]);
 
   const [variantPickerOpen, setVariantPickerOpen] = useState(false);
   const [variantPickerType, setVariantPickerType] = useState<JobComponentType | null>(null);
@@ -1856,17 +2098,16 @@ export default function GenericMaterialsPageRedesigned() {
   }, []);
 
   const addComponentFromVariant = useCallback((type: JobComponentType, item: any, idx = 0) => {
-    const isGevelWaterslag = type === 'vensterbank' && isGevelbekledingJob;
     const newItem = {
       id: `${type}-${Date.now()}-${idx}`,
       type,
-      label: isGevelWaterslag ? 'Waterslag' : item.title,
+      label: item.title,
       slug: item.slug,
       measurements: {},
       materials: getPresetMaterialsForType(type)
     };
     setComponents(prev => [...prev, newItem]);
-  }, [getPresetMaterialsForType, isGevelbekledingJob]);
+  }, [getPresetMaterialsForType]);
 
   const openVariantPickerOrAdd = useCallback((type: JobComponentType) => {
     const items = getVariantItemsForType(type);
@@ -1925,6 +2166,22 @@ export default function GenericMaterialsPageRedesigned() {
       return changed ? next : prev;
     });
   }, [components, componentPresets, getDefaultComponentPreset, handleApplyComponentPreset]);
+
+  useEffect(() => {
+    if (!isGevelbekledingJob) return;
+    setComponents(prev => {
+      let changed = false;
+      const next = prev.map(comp => {
+        if (comp.type !== 'koof') return comp;
+        const current = (comp.materials || []) as any[];
+        const filtered = current.filter((m: any) => !['constructieplaat', 'koof_constructieplaat', 'koof_beplating'].includes(String(m.sectionKey)));
+        if (filtered.length === current.length) return comp;
+        changed = true;
+        return { ...comp, materials: filtered };
+      });
+      return changed ? next : prev;
+    });
+  }, [isGevelbekledingJob]);
 
   // Load User Preferences (Hidden Categories) - job-type dependent
   useEffect(() => {
@@ -2254,7 +2511,15 @@ export default function GenericMaterialsPageRedesigned() {
 
             Object.entries(newGekozen).forEach(([key, val]: [string, any]) => {
               if (typeof val?.wastePercentage === 'number') {
-                newWasteByEntryKey[key] = val.wastePercentage;
+                const sectionKeyForWaste =
+                  typeof val?.sectionKey === 'string' ? val.sectionKey : key;
+                newWasteByEntryKey[key] = normalizeSavedWastePercentage(
+                  val.wastePercentage,
+                  sectionKeyForWaste,
+                  key,
+                  val?.context,
+                  val?.material?.materiaalnaam
+                );
               }
             });
             Object.entries(newCustomGroupsMap).forEach(([key, val]: [string, any]) => {
@@ -2270,7 +2535,15 @@ export default function GenericMaterialsPageRedesigned() {
             Object.entries(materialenLijst).forEach(([key, val]: [string, any]) => {
               if (key.startsWith('comp_') || val?.type === 'component_material') {
                 if (typeof val?.wastePercentage === 'number') {
-                  newWasteByEntryKey[key] = val.wastePercentage;
+                  const sectionKeyForWaste =
+                    typeof val?.sectionKey === 'string' ? val.sectionKey : null;
+                  newWasteByEntryKey[key] = normalizeSavedWastePercentage(
+                    val.wastePercentage,
+                    sectionKeyForWaste,
+                    val?.sectionKey,
+                    val?.context,
+                    val?.material?.materiaalnaam
+                  );
                 }
                 return;
               }
@@ -2279,7 +2552,15 @@ export default function GenericMaterialsPageRedesigned() {
                 ? val.wastePercentage
                 : (typeof val?.material?.wastePercentage === 'number' ? val.material.wastePercentage : null);
               if (legacyWaste != null) {
-                newWasteByEntryKey[key] = legacyWaste;
+                const sectionKeyForWaste =
+                  typeof val?.sectionKey === 'string' ? val.sectionKey : key;
+                newWasteByEntryKey[key] = normalizeSavedWastePercentage(
+                  legacyWaste,
+                  sectionKeyForWaste,
+                  key,
+                  val?.context ?? JOB_TITEL,
+                  val?.material?.materiaalnaam
+                );
               }
 
               // Detect multi-entry items by type flag or __N suffix pattern
@@ -2793,6 +3074,27 @@ export default function GenericMaterialsPageRedesigned() {
     setPendingPresetId(null);
   };
 
+  const resetToNieuwWithoutWarning = () => {
+    // Direct reset path requested by user: no confirmation prompt.
+    setPresetConfirmOpen(false);
+    setPendingPresetId(null);
+    setPresetPickerOpen(false);
+    setGekozenPresetId('default');
+    setGekozenMaterialen({});
+    setWasteByEntryKey({});
+    setCollapsedSections({});
+    setHiddenCategories({});
+    setCustomGroups([]);
+    setFirestoreCustommateriaal(null);
+    setSectionCategoryOverrides({});
+    setKleinMateriaalConfig({ mode: 'inschatting', percentage: null, fixedAmount: null });
+    setComponents([]);
+    userHeeftPresetGewijzigdRef.current = false;
+    autoApplyDefaultPresetRef.current = false;
+    setIsApplyingPreset(false);
+    hasSavedConfigRef.current = true;
+  };
+
   const toggleSection = (key: string) => {
     setCollapsedSections(prev => {
       const nextCollapsed = !prev[key];
@@ -2859,7 +3161,7 @@ export default function GenericMaterialsPageRedesigned() {
   const openMateriaalKiezer = (
     sectieKey: string,
     groupId: string | null = null,
-    sectionMeta?: { key: string; label?: string; categoryFilter?: string | string[] }
+    sectionMeta?: { key: string; label?: string; categoryFilter?: string | string[]; categoryUltraFilter?: string }
   ) => {
     setActieveSectie(sectieKey);
     setActiveGroupId(groupId);
@@ -2916,7 +3218,16 @@ export default function GenericMaterialsPageRedesigned() {
     setActiveMultiEntryId(entryId);
     setActieveSectie(sectionKey);
     const section = materialSections.find((s) => s.key === sectionKey);
-    setActiveSectionMeta(section ? { key: section.key, label: section.label, categoryFilter: section.categoryFilter } : null);
+    setActiveSectionMeta(
+      section
+        ? {
+          key: section.key,
+          label: section.label,
+          categoryFilter: section.categoryFilter,
+          categoryUltraFilter: section.category_ultra_filter,
+        }
+        : null
+    );
     setIsExtraModalOpen(true);
   };
 
@@ -4373,15 +4684,48 @@ export default function GenericMaterialsPageRedesigned() {
           {/* Preset Selector - Compact */}
           <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
             <Label className="text-base font-semibold text-foreground/90">Kies Een Werkpakket</Label>
-            <div className="flex items-center gap-2">
-              <Select onValueChange={onPresetChange} value={gekozenPresetId}>
-                <SelectTrigger className="hover:bg-muted/40 h-10"><SelectValue placeholder="Kies..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem className={SELECT_ITEM_GREEN} value="default">Nieuw</SelectItem>
-                  {presets.map(p => (<SelectItem className={SELECT_ITEM_GREEN} key={p.id} value={p.id}>{p.name} {p.isDefault ? '(standaard)' : ''}</SelectItem>))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="icon" onClick={() => setManagePresetsModalOpen(true)} disabled={presets.length === 0} className="h-10 w-10 rounded-xl shrink-0"><Settings className="h-4 w-4" /></Button>
+            <div
+              className="grid w-full items-stretch"
+              style={{ gridTemplateColumns: '84% 15%', columnGap: '1%' }}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border justify-between px-3"
+                onClick={() => setPresetPickerOpen(true)}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Box className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0 text-left flex items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground truncate">
+                      {gekozenPresetId === 'default' ? 'Nieuw' : (selectedPreset?.name || 'Werkpakket')}
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      •
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {gekozenPresetId === 'default'
+                        ? 'Start zonder werkpakket'
+                        : selectedPreset?.isDefault
+                          ? 'Standaard werkpakket'
+                          : 'Klik om werkpakket te kiezen'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
+                onClick={resetToNieuwWithoutWarning}
+              >
+                <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
+                Nieuw
+              </Button>
             </div>
           </div>
 
@@ -4510,8 +4854,6 @@ export default function GenericMaterialsPageRedesigned() {
                 if (sections.length === 0 && !targetComponentType) return null;
 
                 const isHidden = hiddenCategories[categoryKey];
-                const isWaterslagSection = targetComponentType === 'vensterbank'
-                  && String(categoryInfo?.title || '').toLowerCase().includes('water');
                 const addActionLabel = targetComponentType === 'kozijn'
                   ? 'Kozijn'
                   : (targetComponentType === 'deur'
@@ -4525,7 +4867,7 @@ export default function GenericMaterialsPageRedesigned() {
                           : (targetComponentType === 'dagkant'
                             ? 'Dagkant'
                             : (targetComponentType === 'vensterbank'
-                              ? (isWaterslagSection ? 'Waterslag' : 'Vensterbank')
+                              ? 'Vensterbank'
                               : (targetComponentType === 'gips'
                                 ? 'Naden & Stucwerk'
                                 : (targetComponentType === 'isolatie'
@@ -4580,6 +4922,15 @@ export default function GenericMaterialsPageRedesigned() {
                               materials: getPresetMaterialsForType('koof')
                             };
                             setComponents(prev => [...prev, newKoof]);
+                          } else if (targetComponentType === 'isolatie') {
+                            const newIsolatie = {
+                              id: `isolatie-${Date.now()}`,
+                              type: 'isolatie' as const,
+                              label: 'Isolatie & Folies',
+                              measurements: {},
+                              materials: getPresetMaterialsForType('isolatie')
+                            };
+                            setComponents(prev => [...prev, newIsolatie]);
                           } else {
                             // If only one variant exists, add directly; otherwise open picker.
                             openVariantPickerOrAdd(targetComponentType);
@@ -4660,23 +5011,6 @@ export default function GenericMaterialsPageRedesigned() {
 
                                 let compSections = variantItem?.materialSections || COMPONENT_REGISTRY[comp.type]?.defaultMaterials || [];
 
-                                if (isGevelbekledingJob && targetComponentType === 'koof') {
-                                  compSections = [
-                                    { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
-                                    { label: 'Constructieplaat', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-                                    { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
-                                    { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
-                                  ];
-                                } else if (isGevelbekledingJob && targetComponentType === 'dagkant') {
-                                  compSections = [
-                                    { label: 'Dagkanten', categoryFilter: 'Interieur Platen, Constructieplaten, Hardhout geschaafd, Merantie', category: 'Dagkant', key: 'dagkanten', category_ultra_filter: '' },
-                                  ];
-                                } else if (isGevelbekledingJob && targetComponentType === 'vensterbank') {
-                                  compSections = [
-                                    { label: 'Waterslagen', categoryFilter: 'Lood, Loodvervanger, Overig', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
-                                  ];
-                                }
-
                                 // Custom Filtering based on opening type for Kozijnen
                                 if (targetComponentType === 'kozijn' && comp.meta?.openingType) {
                                   const type = comp.meta.openingType;
@@ -4693,6 +5027,25 @@ export default function GenericMaterialsPageRedesigned() {
                                     // Maybe hide 'raam' section if it exists (which implies opening window parts)
                                     compSections = compSections.filter((s: any) => s.key !== 'raam');
                                   }
+                                }
+
+                                // Gevelbekleding-specific component overrides
+                                if (isGevelbekledingJob && targetComponentType === 'koof') {
+                                  compSections = compSections
+                                    .filter((s: any) => !['constructieplaat', 'koof_constructieplaat', 'koof_beplating'].includes(String(s.key)))
+                                    .map((s: any) =>
+                                      ['afwerkplaat', 'koof_afwerkplaat'].includes(String(s.key))
+                                        ? { ...s, categoryFilter: 'Exterieur platen' }
+                                        : s
+                                    );
+                                }
+
+                                if (isGevelbekledingJob && targetComponentType === 'dagkant') {
+                                  compSections = compSections.map((s: any) =>
+                                    ['dagkant', 'dagkanten'].includes(String(s.key))
+                                      ? { ...s, label: 'Afwerkplaat', categoryFilter: 'Exterieur platen' }
+                                      : s
+                                  );
                                 }
 
                                 // ALL COMPONENTS: Simplified rendering (Vlizotrap Style)
@@ -4763,9 +5116,19 @@ export default function GenericMaterialsPageRedesigned() {
                                           if (m.sectionKey === section.key) return true;
                                           if (
                                             isGevelbekledingJob
+                                            && targetComponentType === 'dagkant'
+                                            && (
+                                              (section.key === 'dagkant' && m.sectionKey === 'dagkanten')
+                                              || (section.key === 'dagkanten' && m.sectionKey === 'dagkant')
+                                            )
+                                          ) {
+                                            return true;
+                                          }
+                                          if (
+                                            isGevelbekledingJob
                                             && targetComponentType === 'vensterbank'
-                                            && section.key === 'waterslag'
-                                            && m.sectionKey === 'vensterbanken'
+                                            && section.key === 'vensterbank'
+                                            && m.sectionKey === 'waterslag'
                                           ) {
                                             return true;
                                           }
@@ -4783,16 +5146,24 @@ export default function GenericMaterialsPageRedesigned() {
                                                   key: section.key,
                                                   label: section.label,
                                                   categoryFilter: section.categoryFilter,
+                                                  categoryUltraFilter: section.category_ultra_filter,
                                                 });
                                               }}
                                               onRemove={() => {
                                                 handleComponentMaterialRemove(comp.id, section.key);
                                                 if (
                                                   isGevelbekledingJob
-                                                  && targetComponentType === 'vensterbank'
-                                                  && section.key === 'waterslag'
+                                                  && targetComponentType === 'dagkant'
+                                                  && section.key === 'dagkant'
                                                 ) {
-                                                  handleComponentMaterialRemove(comp.id, 'vensterbanken');
+                                                  handleComponentMaterialRemove(comp.id, 'dagkanten');
+                                                }
+                                                if (
+                                                  isGevelbekledingJob
+                                                  && targetComponentType === 'vensterbank'
+                                                  && section.key === 'vensterbank'
+                                                ) {
+                                                  handleComponentMaterialRemove(comp.id, 'waterslag');
                                                 }
                                               }}
                                             />
@@ -4845,6 +5216,7 @@ export default function GenericMaterialsPageRedesigned() {
                                           key: section.key,
                                           label: section.label,
                                           categoryFilter: section.categoryFilter,
+                                          categoryUltraFilter: section.category_ultra_filter,
                                         })}
                                         onRemove={() => handleMateriaalVerwijderen(section.key)}
                                       />
@@ -4962,6 +5334,7 @@ export default function GenericMaterialsPageRedesigned() {
                         key: section.key,
                         label: section.label,
                         categoryFilter: section.categoryFilter,
+                        categoryUltraFilter: section.category_ultra_filter,
                       })}
                       onRemove={() => handleMateriaalVerwijderen(section.key)}
                     />
@@ -5110,6 +5483,44 @@ export default function GenericMaterialsPageRedesigned() {
         }}
       />
 
+      <Dialog open={presetPickerOpen} onOpenChange={setPresetPickerOpen}>
+        <DialogContent className={cn('w-[95vw] max-w-[1200px] h-[88vh] overflow-hidden flex flex-col', DIALOG_CLOSE_TAP)}>
+          <DialogHeader className="space-y-2">
+            <DialogTitle>Kies een werkpakket</DialogTitle>
+            <DialogDescription>
+              Selecteer een werkpakket of beheer het direct vanuit deze lijst.
+            </DialogDescription>
+          </DialogHeader>
+
+          {builtInPresetCards.length > 0 ? (
+            <div className="space-y-2 py-1">
+              {builtInPresetCards.map((preset: any) => renderPresetPickerCard(preset, customPresetCards.length > 0))}
+            </div>
+          ) : null}
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Zoek werkpakket..."
+              value={presetPickerSearch}
+              onChange={(e) => setPresetPickerSearch(e.target.value)}
+              className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/40"
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2 py-1">
+            {customPresetCards.map((preset: any) => renderPresetPickerCard(preset, customPresetCards.length > 0))}
+            {builtInPresetCards.length === 0 && customPresetCards.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-10">Geen werkpakketten gevonden.</div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2 justify-start sm:justify-start">
+            <Button variant="ghost" onClick={() => setPresetPickerOpen(false)}>Sluiten</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={presetConfirmOpen} onOpenChange={setPresetConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -5205,7 +5616,9 @@ export default function GenericMaterialsPageRedesigned() {
         existingMaterials={enrichedMaterials}
         showFavorites={actieveSectie !== 'extra' && !activeGroupId}
         defaultCategory={memoizedDefaultCategory}
+        nameContainsFilter={activeSectionMeta?.categoryUltraFilter}
         selectedMaterialId={currentlyPickedMaterialId}
+        onCategoryFilterChange={handleModalCategoryFilterChange}
 
         // New Props
         categoryTitle={(() => {
@@ -5925,8 +6338,8 @@ export default function GenericMaterialsPageRedesigned() {
                   ? 'Deur'
                   : (variantPickerType === 'plafond'
                     ? 'Plafond'
-                    : (variantPickerType === 'vensterbank' && isGevelbekledingJob
-                      ? 'Waterslag'
+                    : (variantPickerType === 'vensterbank'
+                      ? 'Vensterbank'
                       : 'Onderdeel')))
             } kiezen</DialogTitle>
             <DialogDescription>

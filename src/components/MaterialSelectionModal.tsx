@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -326,6 +326,8 @@ interface MaterialSelectionModalProps {
   initialWastePercentage?: number;
   onUpdateWaste?: (percentage: number) => void;
   selectedMaterialId?: string;
+  onCategoryFilterChange?: (nextCategoryFilter: string | string[]) => void;
+  nameContainsFilter?: string | string[];
 }
 
 export function MaterialSelectionModal({
@@ -346,7 +348,9 @@ export function MaterialSelectionModal({
   categoryTitle,
   initialWastePercentage = 0,
   onUpdateWaste,
-  selectedMaterialId
+  selectedMaterialId,
+  onCategoryFilterChange,
+  nameContainsFilter
 }: MaterialSelectionModalProps) {
 
   const [step, setStep] = useState<'search' | 'choice' | 'form'>('search');
@@ -363,9 +367,12 @@ export function MaterialSelectionModal({
   const [subCategoryFilter, setSubCategoryFilter] = useState<string | string[]>('all');
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [quickCategoryPickerOpen, setQuickCategoryPickerOpen] = useState(false);
+  const [quickCategorySearchTerm, setQuickCategorySearchTerm] = useState('');
   const [favoriteSubCategories, setFavoriteSubCategories] = useState<string[]>([]);
   const [shouldApplyFavoriteOnOpen, setShouldApplyFavoriteOnOpen] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
+  const quickCategoryPickerRef = useRef<HTMLDivElement | null>(null);
 
   // Edit State
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
@@ -422,6 +429,8 @@ export function MaterialSelectionModal({
       setSubCategoryFilter([]);
       setCategorySearchTerm('');
       setCategoryPickerOpen(false);
+      setQuickCategorySearchTerm('');
+      setQuickCategoryPickerOpen(false);
       setFavoriteSubCategories(savedFavorites);
       setShouldApplyFavoriteOnOpen(true);
       setDisplayLimit(50);
@@ -524,6 +533,28 @@ export function MaterialSelectionModal({
     return categoryFilter;
   }, [categoryFilter]);
 
+  const quickFilteredCategories = useMemo(() => {
+    const query = quickCategorySearchTerm.trim().toLowerCase();
+    const base = !query
+      ? uniqueCategories
+      : uniqueCategories.filter((cat) => cat.toLowerCase().includes(query));
+
+    const selected = Array.isArray(categoryFilter)
+      ? categoryFilter[0]
+      : categoryFilter;
+
+    if (
+      selected &&
+      selected !== 'all' &&
+      !base.includes(selected) &&
+      (!query || selected.toLowerCase().includes(query))
+    ) {
+      return [selected, ...base];
+    }
+
+    return base;
+  }, [uniqueCategories, quickCategorySearchTerm, categoryFilter]);
+
   const formCategoryOptions = useMemo(() => {
     const options = new Set<string>(uniqueCategories);
     if (selectedCategoryForNewMaterial) {
@@ -531,6 +562,18 @@ export function MaterialSelectionModal({
     }
     return Array.from(options).sort((a, b) => a.localeCompare(b, 'nl'));
   }, [uniqueCategories, selectedCategoryForNewMaterial]);
+
+  const normalizedNameContainsFilters = useMemo(() => {
+    const rawValues = Array.isArray(nameContainsFilter)
+      ? nameContainsFilter
+      : typeof nameContainsFilter === 'string'
+        ? nameContainsFilter.split(',')
+        : [];
+
+    return rawValues
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+  }, [nameContainsFilter]);
 
   const isSubCategorySelected = (subCategory: string): boolean => {
     if (subCategoryFilter === 'all') return false;
@@ -607,6 +650,33 @@ export function MaterialSelectionModal({
     return uniqueLeveranciers.filter(lev => lev.toLowerCase().includes(lower));
   }, [uniqueLeveranciers, customLeverancier]);
 
+  const applyCategoryFilter = useCallback((
+    nextCategoryFilter: string | string[],
+    options?: { persist?: boolean; closeQuickPicker?: boolean }
+  ) => {
+    setCategoryFilter(nextCategoryFilter);
+    setSubCategoryFilter('all');
+    if (options?.persist) {
+      onCategoryFilterChange?.(nextCategoryFilter);
+    }
+    if (options?.closeQuickPicker) {
+      setQuickCategorySearchTerm('');
+      setQuickCategoryPickerOpen(false);
+    }
+  }, [onCategoryFilterChange]);
+
+  useEffect(() => {
+    if (!quickCategoryPickerOpen) return;
+    const onMouseDown = (event: MouseEvent) => {
+      if (!quickCategoryPickerRef.current) return;
+      if (!quickCategoryPickerRef.current.contains(event.target as Node)) {
+        setQuickCategoryPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [quickCategoryPickerOpen]);
+
   // Pre-process: Deduplicate materials by name, prioritizing those with prices
   const uniqueMaterials = useMemo(() => {
     const map = new Map<string, ExistingMaterial>();
@@ -652,34 +722,42 @@ export function MaterialSelectionModal({
   const materialsAfterCategoryFilter = useMemo(() => {
     let result = uniqueMaterials;
 
-    if (categoryFilter === 'all') return result;
+    if (categoryFilter !== 'all') {
+      if (Array.isArray(categoryFilter)) {
+        const lowerFilters = categoryFilter.map(normalizeFilterValue).filter(Boolean);
+        result = result.filter(m => {
+          const sub = normalizeFilterValue(m.subsectie);
+          const cat = normalizeFilterValue((m as any).categorie);
 
-    if (Array.isArray(categoryFilter)) {
-      const lowerFilters = categoryFilter.map(normalizeFilterValue).filter(Boolean);
-      result = result.filter(m => {
-        const sub = normalizeFilterValue(m.subsectie);
-        const cat = normalizeFilterValue((m as any).categorie);
+          return lowerFilters.some(filterItem => {
+            const matchesSub = sub.includes(filterItem) || filterItem.includes(sub);
+            const matchesCat = cat.includes(filterItem) || filterItem.includes(cat);
+            return matchesSub || matchesCat;
+          });
+        });
+      } else {
+        const lowerFilter = normalizeFilterValue(categoryFilter);
+        result = result.filter(m => {
+          const sub = normalizeFilterValue(m.subsectie);
+          const cat = normalizeFilterValue((m as any).categorie);
 
-        return lowerFilters.some(filterItem => {
-          const matchesSub = sub.includes(filterItem) || filterItem.includes(sub);
-          const matchesCat = cat.includes(filterItem) || filterItem.includes(cat);
+          const matchesSub = sub.includes(lowerFilter) || lowerFilter.includes(sub);
+          const matchesCat = cat.includes(lowerFilter) || lowerFilter.includes(cat);
           return matchesSub || matchesCat;
         });
-      });
-      return result;
+      }
     }
 
-    const lowerFilter = normalizeFilterValue(categoryFilter);
-    result = result.filter(m => {
-      const sub = normalizeFilterValue(m.subsectie);
-      const cat = normalizeFilterValue((m as any).categorie);
+    if (normalizedNameContainsFilters.length > 0) {
+      result = result.filter((m) => {
+        const materialName = (m.materiaalnaam || '').toLowerCase();
+        if (!materialName) return false;
+        return normalizedNameContainsFilters.some((needle) => materialName.includes(needle));
+      });
+    }
 
-      const matchesSub = sub.includes(lowerFilter) || lowerFilter.includes(sub);
-      const matchesCat = cat.includes(lowerFilter) || lowerFilter.includes(cat);
-      return matchesSub || matchesCat;
-    });
     return result;
-  }, [uniqueMaterials, categoryFilter]);
+  }, [uniqueMaterials, categoryFilter, normalizedNameContainsFilters]);
 
   const availableSubCategories = useMemo(() => {
     const unique = new Set<string>();
@@ -1176,8 +1254,7 @@ export function MaterialSelectionModal({
                         <button
                           type="button"
                           onClick={() => {
-                            setCategoryFilter('all');
-                            setSubCategoryFilter('all');
+                            applyCategoryFilter('all');
                             setCategorySearchTerm('');
                             setCategoryPickerOpen(false);
                           }}
@@ -1199,8 +1276,7 @@ export function MaterialSelectionModal({
                               key={cat}
                               type="button"
                               onClick={() => {
-                                setCategoryFilter(cat);
-                                setSubCategoryFilter('all');
+                                applyCategoryFilter(cat);
                                 setCategorySearchTerm('');
                                 setCategoryPickerOpen(false);
                               }}
@@ -1294,7 +1370,7 @@ export function MaterialSelectionModal({
 
               <div className="flex flex-col min-h-0">
                 <div className="p-6 pb-3 border-b border-border/60 shrink-0">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-start justify-between mb-4 gap-3">
                     <div className="flex flex-col gap-0.5">
                       <DialogTitle className="text-xl font-semibold">
                         {categoryTitle || 'Kies materiaal'}
@@ -1304,16 +1380,89 @@ export function MaterialSelectionModal({
                       </p>
                     </div>
 
-                    {/* Waste Percentage Inline Edit */}
-                    <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-md border border-border/50">
+                    <div className="flex items-center gap-2">
+                      <div className="relative hidden lg:block" ref={quickCategoryPickerRef}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setQuickCategoryPickerOpen((prev) => !prev);
+                          }}
+                          className="h-8 px-2.5 gap-2 border-emerald-500/45 bg-emerald-500/12 text-emerald-100 hover:bg-emerald-500/20 hover:border-emerald-400"
+                          title="Standaard categorie aanpassen voor dit onderdeel"
+                        >
+                          <Filter className="h-3.5 w-3.5" />
+                          <span className="text-[11px] font-semibold uppercase tracking-wide">Categorie</span>
+                          <span className="max-w-[160px] truncate text-xs">{selectedCategoryLabel}</span>
+                          <Pencil className="h-3 w-3 opacity-70" />
+                        </Button>
+
+                        {quickCategoryPickerOpen && (
+                          <div className="absolute right-0 top-full mt-2 z-50 w-[300px] rounded-lg border border-emerald-500/30 bg-background/95 shadow-2xl backdrop-blur p-2 space-y-2">
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold px-1">
+                              Kies standaard categorie
+                            </div>
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
+                              <Input
+                                value={quickCategorySearchTerm}
+                                onChange={(e) => setQuickCategorySearchTerm(e.target.value)}
+                                placeholder="Zoek categorie..."
+                                className="h-8 pl-8 text-xs border-muted-foreground/20"
+                              />
+                            </div>
+                            <div className="max-h-[220px] overflow-y-auto space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => applyCategoryFilter('all', { persist: true, closeQuickPicker: true })}
+                                className={cn(
+                                  "w-full rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
+                                  categoryFilter === 'all'
+                                    ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                    : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                                )}
+                              >
+                                Toon alles
+                              </button>
+                              {quickFilteredCategories.map((cat) => {
+                                const selected = Array.isArray(categoryFilter)
+                                  ? categoryFilter.includes(cat)
+                                  : categoryFilter === cat;
+                                return (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => applyCategoryFilter(cat, { persist: true, closeQuickPicker: true })}
+                                    className={cn(
+                                      "w-full rounded-md border px-2.5 py-1.5 text-xs text-left leading-5 transition-colors",
+                                      selected
+                                        ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                        : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                                    )}
+                                  >
+                                    {cat}
+                                  </button>
+                                );
+                              })}
+                              {quickFilteredCategories.length === 0 && (
+                                <div className="px-2.5 py-1.5 text-xs text-muted-foreground">
+                                  Geen categorie gevonden.
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {isEditingWaste ? (
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-medium text-muted-foreground pl-1">Afval:</span>
+                        <div className="flex items-center gap-1 rounded-md border border-sky-400/50 bg-sky-500/15 px-2 py-1">
+                          <span className="text-xs font-semibold text-sky-100 uppercase tracking-wide">Afval</span>
                           <Input
                             type="number"
                             min={0}
                             max={100}
-                            className="h-6 w-14 text-xs px-1 py-0 bg-transparent border-emerald-500/50 focus-visible:ring-0 text-right font-medium"
+                            className="h-6 w-14 text-xs px-1 py-0 bg-background/30 border-sky-300/50 focus-visible:ring-0 text-right font-medium"
                             value={wastePercentage.toString()}
                             onChange={(e) => {
                               const val = parseFloat(e.target.value);
@@ -1331,17 +1480,18 @@ export function MaterialSelectionModal({
                               }
                             }}
                           />
-                          <span className="text-xs text-muted-foreground pr-1">%</span>
+                          <span className="text-xs text-sky-100 pr-1">%</span>
                         </div>
                       ) : (
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => setIsEditingWaste(true)}
-                          className="h-6 px-2 text-xs font-medium text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 gap-1.5"
+                          className="h-8 px-2.5 text-xs gap-2 border border-sky-400/45 bg-sky-500/12 text-sky-100 hover:bg-sky-500/20"
                         >
-                          <span>Afval: {wastePercentage}%</span>
-                          <Pencil className="h-3 w-3 opacity-50" />
+                          <Pencil className="h-3.5 w-3.5 opacity-80" />
+                          <span className="font-semibold uppercase tracking-wide">Afval</span>
+                          <span className="font-bold">{wastePercentage}%</span>
                         </Button>
                       )}
                     </div>
@@ -1366,8 +1516,7 @@ export function MaterialSelectionModal({
                       <Select
                         value={Array.isArray(categoryFilter) ? 'custom_filter' : categoryFilter}
                         onValueChange={(value) => {
-                          setCategoryFilter(value);
-                          setSubCategoryFilter('all');
+                          applyCategoryFilter(value);
                         }}
                       >
                         <SelectTrigger className="w-full h-10 text-xs border-muted-foreground/20 bg-transparent">

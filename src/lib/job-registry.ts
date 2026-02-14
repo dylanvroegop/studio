@@ -876,7 +876,7 @@ const VLIERING_MATS: MaterialSection[] = [
 const DAGKANT_MATS: MaterialSection[] = [
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '' },
   { label: 'Afwerk Hout', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'dagkant', category_ultra_filter: '', multiEntry: true },
-  { label: 'Hoek- of Stopcontactprofielen', categoryFilter: 'Gipsplaten, Overig', category: 'afwerking', key: 'hoekprofiel', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten, Overig', category: 'afwerking', key: 'hoekprofiel', category_ultra_filter: '' },
 ];
 
 const PLINTEN_MATS: MaterialSection[] = [
@@ -1109,16 +1109,16 @@ const BOEIBOORD_KERALIT_MATS: MaterialSection[] = [
 
 const GEVEL_BEKLEDING_BASE_MATS: MaterialSection[] = [
   // 1. BASIS (SKELETON)
-  { label: 'Tengelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'tengelwerk_basis', category_ultra_filter: '' },
-  { label: 'Rachelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachelwerk_basis', category_ultra_filter: '' },
+  { label: 'Ventilatielat', categoryFilter: 'Vuren hout', category: 'hout', key: 'tengelwerk_basis', category_ultra_filter: '' },
+  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachelwerk_basis', category_ultra_filter: '' },
   { label: 'Folie', categoryFilter: 'Folieën, Dpc', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_gevel', category_ultra_filter: '' },
 ];
 
 const GEVEL_BEKLEDING_AFWERKING_MATS: MaterialSection[] = [
   // AFWERKING
-  { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'ventilatieprofiel', category_ultra_filter: '' },
-  { label: 'Waterslagen', categoryFilter: 'Lood, Loodvervanger, Overig', category: 'bevestiging', key: 'waterslag', category_ultra_filter: '' },
+  { label: 'Ventilatieprofiel', categoryFilter: 'Overig', category: 'bevestiging', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Waterslagen', categoryFilter: 'Overig', category: 'bevestiging', key: 'waterslag', category_ultra_filter: '' },
 ];
 
 const GEVEL_BEKLEDING_HOUT_MATS: MaterialSection[] = [
@@ -1130,11 +1130,15 @@ const GEVEL_BEKLEDING_HOUT_MATS: MaterialSection[] = [
 
 const GEVEL_BEKLEDING_KERALIT_MATS: MaterialSection[] = [
   ...GEVEL_BEKLEDING_BASE_MATS,
-  { label: 'Kunststof Panelen', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: '' },
-  { label: 'Keralit Startprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_startprofiel', category_ultra_filter: '' },
-  { label: 'Keralit Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_eindprofiel', category_ultra_filter: '' },
-  { label: 'Keralit Hoekprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_hoekprofiel', category_ultra_filter: '' },
-  ...GEVEL_BEKLEDING_AFWERKING_MATS,
+  { label: 'Kunststof Panelen', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: 'keralit' },
+  { label: 'Keralit Startprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_startprofiel', category_ultra_filter: 'keralit' },
+  { label: 'Keralit Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_eindprofiel', category_ultra_filter: 'keralit' },
+  { label: 'Keralit Hoekprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_hoekprofiel', category_ultra_filter: 'keralit' },
+  ...GEVEL_BEKLEDING_AFWERKING_MATS.map((section) =>
+    section.key === 'ventilatieprofiel'
+      ? { ...section, category_ultra_filter: 'keralit' }
+      : section
+  ),
 ];
 
 const GEVEL_BEKLEDING_TRESPA_MATS: MaterialSection[] = [
@@ -1155,54 +1159,54 @@ const GEVEL_BEKLEDING_ROCKPANEL_MATS: MaterialSection[] = [
 
 // 1. BINNEN KOZIJNEN (HOUT)
 const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
-  { label: 'Kozijn (Complete Set)', categoryFilter: 'Montage kozijnen', category: 'hout', key: 'kozijn_compleet', category_ultra_filter: '' },
-  { label: 'Kozijnhout (Zelfbouw)', categoryFilter: 'Hardhout geschaafd', category: 'hout', key: 'kozijnhout', category_ultra_filter: '' },
-  { label: 'Binnendorpel', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'binnendorpel', category_ultra_filter: '' },
+  { label: 'Kozijn (Complete Set)', categoryFilter: 'Montage kozijnen', category: 'hout', key: 'kozijn_compleet', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
+  { label: 'Kozijnhout (Zelfbouw)', categoryFilter: 'Hardhout geschaafd', category: 'hout', key: 'kozijnhout', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
+  { label: 'Binnendorpel', categoryFilter: 'Hardhout geschaafd, Merantie', category: 'hout', key: 'binnendorpel', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Sluitplaat', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluitplaat', category_ultra_filter: '' },
+  { label: 'Scharnieren', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '', multiEntry: true },
+  { label: 'Sluitplaat', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluitplaat', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
-  { label: 'Glaslatten', categoryFilter: 'Afwerking', category: 'glas', key: 'glaslatten', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '', multiEntry: true },
+  { label: 'Glaslatten', categoryFilter: 'Afwerking', category: 'glas', key: 'glaslatten', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'koplatten', category_ultra_filter: '' },
-  { label: 'Neuten', categoryFilter: 'Hardhout geschaafd, Afwerking', category: 'afwerking', key: 'neuten', category_ultra_filter: '' },
+  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'koplatten', category_ultra_filter: '', multiEntry: true },
+  { label: 'Neuten', categoryFilter: 'Hardhout geschaafd, Afwerking', category: 'afwerking', key: 'neuten', category_ultra_filter: '', multiEntry: true },
 ];
 
 // 2. BINNEN KOZIJNEN (STAAL)
 const KOZIJN_BINNEN_STAAL_MATS: MaterialSection[] = [
-  { label: 'Stalen Kozijn', categoryFilter: 'Kozijnhout, Overig', category: 'Stalen kozijn', key: 'stalen_kozijn', category_ultra_filter: '' },
+  { label: 'Stalen Kozijn', categoryFilter: 'Kozijnhout, Overig', category: 'Stalen kozijn', key: 'stalen_kozijn', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
 
-  { label: 'Paumelles', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'paumelles_staal', category_ultra_filter: '' },
-  { label: 'Aanslagrubber', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'aanslagrubber', category_ultra_filter: '' },
+  { label: 'Paumelles', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'paumelles_staal', category_ultra_filter: '', multiEntry: true },
+  { label: 'Aanslagrubber', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'aanslagrubber', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '' },
-  { label: 'Glaslatten', categoryFilter: 'Deurbeslag, Kozijnhout', category: 'glas', key: 'glaslatten_klik', category_ultra_filter: '' },
+  { label: 'Glas', categoryFilter: 'Overig', category: 'glas', key: 'glas_bovenlicht', category_ultra_filter: '', multiEntry: true },
+  { label: 'Glaslatten', categoryFilter: 'Deurbeslag, Kozijnhout', category: 'glas', key: 'glaslatten_klik', category_ultra_filter: '', multiEntry: true },
 ];
 
 // 3. BUITEN KOZIJNEN - HOUT (PREFAB / FABRIEK)
 const KOZIJN_BUITEN_HOUT_MATS: MaterialSection[] = [
-  { label: 'Kozijnelement', categoryFilter: 'Kozijnhout', category: 'element', key: 'prefab_kozijnelement', category_ultra_filter: '' },
-  { label: 'Stelkozijnen', categoryFilter: 'Vuren hout', category: 'element', key: 'stelkozijnen', category_ultra_filter: '' },
+  { label: 'Kozijnelement', categoryFilter: 'Kozijnhout', category: 'element', key: 'prefab_kozijnelement', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
+  { label: 'Stelkozijnen', categoryFilter: 'Vuren hout', category: 'element', key: 'stelkozijnen', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Raamdorpelstenen', categoryFilter: 'Overig', category: 'afwerking_buiten', key: 'raamdorpel_steen', category_ultra_filter: '' },
-  { label: 'Lood / DPC', categoryFilter: 'Lood, Loodvervanger, Dpc', category: 'afwerking_buiten', key: 'lood_dpc', category_ultra_filter: '' },
+  { label: 'Raamdorpelstenen', categoryFilter: 'Overig', category: 'afwerking_buiten', key: 'raamdorpel_steen', category_ultra_filter: '', multiEntry: true },
+  { label: 'Lood / DPC', categoryFilter: 'Lood, Loodvervanger, Dpc', category: 'afwerking_buiten', key: 'lood_dpc', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Dagkantbetimmering', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'afwerking_binnen', key: 'dagkantafwerking', category_ultra_filter: '' },
-  { label: 'Vensterbank', categoryFilter: 'vensterbanken', category: 'afwerking_binnen', key: 'vensterbank', category_ultra_filter: '' },
-  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking_binnen', key: 'koplatten', category_ultra_filter: '' },
+  { label: 'Dagkantbetimmering', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'afwerking_binnen', key: 'dagkantafwerking', category_ultra_filter: '', multiEntry: true },
+  { label: 'Vensterbank', categoryFilter: 'vensterbanken', category: 'afwerking_binnen', key: 'vensterbank', category_ultra_filter: '', multiEntry: true },
+  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking_binnen', key: 'koplatten', category_ultra_filter: '', multiEntry: true },
 ];
 
 // 4. BUITEN KOZIJNEN - KUNSTSTOF (PREFAB)
 const KOZIJN_BUITEN_KUNSTSTOF_MATS: MaterialSection[] = [
-  { label: 'Kozijnelement', categoryFilter: 'Kozijnhout', category: 'element', key: 'profiel', category_ultra_filter: '' },
-  { label: 'Onderdorpel', categoryFilter: 'Hardhout geschaafd, Overig', category: 'element', key: 'onderdorpel', category_ultra_filter: '' },
+  { label: 'Kozijnelement', categoryFilter: 'Kozijnhout', category: 'element', key: 'profiel', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
+  { label: 'Onderdorpel', categoryFilter: 'Hardhout geschaafd, Overig', category: 'element', key: 'onderdorpel', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Stelkozijn', categoryFilter: 'Vuren hout', category: 'montage', key: 'stelkozijn', category_ultra_filter: '' },
+  { label: 'Stelkozijn', categoryFilter: 'Vuren hout', category: 'montage', key: 'stelkozijn', category_ultra_filter: '', multiEntry: true },
 
-  { label: 'Dagkantafwerking', categoryFilter: 'Interieur Platen, Gipsplaten', category: 'afwerking', key: 'dagkanten', category_ultra_filter: '' },
-  { label: 'Waterslag', categoryFilter: 'Daktoebehoren, Lood, Overig', category: 'afwerking', key: 'waterslag', category_ultra_filter: '' },
-  { label: 'Inzethorren', categoryFilter: 'Overig', category: 'afwerking', key: 'inzethorren', category_ultra_filter: '' },
+  { label: 'Dagkantafwerking', categoryFilter: 'Interieur Platen, Gipsplaten', category: 'afwerking', key: 'dagkanten', category_ultra_filter: '', multiEntry: true },
+  { label: 'Waterslag', categoryFilter: 'Daktoebehoren, Lood, Overig', category: 'afwerking', key: 'waterslag', category_ultra_filter: '', multiEntry: true },
+  { label: 'Inzethorren', categoryFilter: 'Overig', category: 'afwerking', key: 'inzethorren', category_ultra_filter: '', multiEntry: true },
 ];
 // 5. AMBACHTELIJK TIMMERWERK (CUSTOM / RENOVATIE)
 const KOZIJN_TIMMERWERK_RAAM_MATS: MaterialSection[] = [
@@ -2051,7 +2055,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           bevestiging: { title: 'Afwerking', order: 9 },
           Koof: { title: 'Koof', order: 10 },
           Dagkant: { title: 'Dagkanten', order: 11 },
-          Vensterbank: { title: 'Waterslagen', order: 12 },
+          Vensterbank: { title: 'Vensterbanken', order: 12 },
         }
       },
       {
@@ -2068,7 +2072,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           bevestiging: { title: 'Afwerking', order: 9 },
           Koof: { title: 'Koof', order: 10 },
           Dagkant: { title: 'Dagkanten', order: 11 },
-          Vensterbank: { title: 'Waterslagen', order: 12 },
+          Vensterbank: { title: 'Vensterbanken', order: 12 },
         }
       },
       {
@@ -2085,7 +2089,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           bevestiging: { title: 'Afwerking', order: 9 },
           Koof: { title: 'Koof', order: 10 },
           Dagkant: { title: 'Dagkanten', order: 11 },
-          Vensterbank: { title: 'Waterslagen', order: 12 },
+          Vensterbank: { title: 'Vensterbanken', order: 12 },
         }
       },
       {
@@ -2102,7 +2106,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           bevestiging: { title: 'Afwerking', order: 9 },
           Koof: { title: 'Koof', order: 10 },
           Dagkant: { title: 'Dagkanten', order: 11 },
-          Vensterbank: { title: 'Waterslagen', order: 12 },
+          Vensterbank: { title: 'Vensterbanken', order: 12 },
         }
       },
     ],

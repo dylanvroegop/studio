@@ -1,4 +1,4 @@
-export const KLUS_REGELS_STATIC_VERSION = 4;
+export const KLUS_REGELS_STATIC_VERSION = 5;
 
 export interface MaterialRuleMeta {
   source: 'static_file';
@@ -393,6 +393,21 @@ function createGevelbekledingRuleSet(config: {
     },
     ...(config.extraRules || {}),
   };
+}
+
+function createGevelbekledingTrespaHplRuleSet(): Record<string, Record<string, any>> {
+  const rules = createGevelbekledingRuleSet({
+    sectionKeyBekleding: 'gevelplaat',
+  });
+
+  rules.gevelplaat = {
+    ...rules.gevelplaat,
+    logic: 'verticale plaatbanen met doorlopende naden; reststroken komen uit volle plaatlengte (niet m2-gestuurd)',
+    formula: 'if material.werkende_breedte_mm exists then plaat_breedte_mm = material.werkende_breedte_mm; else if material.breedte_mm exists then plaat_breedte_mm = material.breedte_mm; else plaat_breedte_mm = null; if plaat_breedte_mm exists && material.lengte_mm exists then banen = ceil(gevel_lengte_mm / plaat_breedte_mm); volledige_rijen = floor(gevel_hoogte_mm / material.lengte_mm); resthoogte_mm = max(0, gevel_hoogte_mm - (volledige_rijen * material.lengte_mm)); volle_platen = banen * volledige_rijen; if resthoogte_mm > 0 then stroken_per_plaat = max(1, floor(material.lengte_mm / resthoogte_mm)); top_platen = ceil(banen / stroken_per_plaat); stuks = volle_platen + top_platen; else stuks = volle_platen; aantal = ceil(stuks); else requires_manual_input',
+    required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'material.lengte', 'material.werkende_breedte_mm || material.breedte'],
+  };
+
+  return rules;
 }
 
 function createHellendDakRuleSet(): Record<string, Record<string, any>> {
@@ -1828,9 +1843,7 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
   },
   'vliering-maken': createVlieringRuleSet(),
-  'gevelbekleding-trespa-hpl': createGevelbekledingRuleSet({
-    sectionKeyBekleding: 'gevelplaat',
-  }),
+  'gevelbekleding-trespa-hpl': createGevelbekledingTrespaHplRuleSet(),
   'gevelbekleding-rockpanel': createGevelbekledingRuleSet({
     sectionKeyBekleding: 'gevelplaat_rockpanel',
   }),

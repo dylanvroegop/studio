@@ -941,7 +941,8 @@ export function GevelbekledingDrawing({
                                         const uitL = (Number(opVensterbank.uitstekLinks) || 0) * pxPerMm;
                                         const uitR = (Number(opVensterbank.uitstekRechts) || 0) * pxPerMm;
                                         const vbDiepte = (Number(opVensterbank.diepte) || 20) * pxPerMm;
-                                        const vbH = 4 * pxPerMm; // Visual thickness of the sill board
+                                        const vbH = 8 * pxPerMm; // Visual thickness of the sill board (2x)
+                                        const vensterbankColor = "#f97316";
 
                                         const vbX = drawX - uitL;
                                         const vbY = drawY + hPx;
@@ -954,13 +955,13 @@ export function GevelbekledingDrawing({
                                                     y={vbY}
                                                     width={vbW}
                                                     height={vbH}
-                                                    fill="#10b981"
+                                                    fill={vensterbankColor}
                                                     fillOpacity="0.2"
-                                                    stroke="#10b981"
-                                                    strokeWidth="0.5"
+                                                    stroke={vensterbankColor}
+                                                    strokeWidth="1"
                                                 />
                                                 {/* Optional front face / detail */}
-                                                <rect x={vbX} y={vbY} width={vbW} height={1} fill="#10b981" fillOpacity="0.8" />
+                                                <rect x={vbX} y={vbY} width={vbW} height={2} fill={vensterbankColor} fillOpacity="0.8" />
                                             </g>
                                         );
                                     })()}
@@ -1044,29 +1045,59 @@ export function GevelbekledingDrawing({
                                     >
                                         Koof
                                     </text>
-                                    {/* Beam on opposite side when snapped to wall edge */}
-                                    {koofVanLinks === 0 && orientation === 'side' && (
-                                        <rect
-                                            x={koofX + koofW}
-                                            y={koofY}
-                                            width={STUD_W * pxPerMm}
-                                            height={koofH}
-                                            fill="rgb(70, 75, 85)"
-                                            stroke="rgb(55, 60, 70)"
-                                            strokeWidth="0.5"
-                                        />
-                                    )}
-                                    {lengteNum > 0 && Math.abs(koofVanLinks + rectWMm - lengteNum) < 1 && orientation === 'side' && (
-                                        <rect
-                                            x={koofX - STUD_W * pxPerMm}
-                                            y={koofY}
-                                            width={STUD_W * pxPerMm}
-                                            height={koofH}
-                                            fill="rgb(70, 75, 85)"
-                                            stroke="rgb(55, 60, 70)"
-                                            strokeWidth="0.5"
-                                        />
-                                    )}
+                                    {/* Gevelbekleding: show koof side support as tengellat profile (double dashed line), not a solid stud */}
+                                    {koofVanLinks === 0 && orientation === 'side' && (() => {
+                                        const halfTengelWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
+                                        const centerX = koofX + koofW + halfTengelWidthPx;
+                                        return (
+                                            <>
+                                                <line
+                                                    x1={centerX - halfTengelWidthPx}
+                                                    y1={koofY}
+                                                    x2={centerX - halfTengelWidthPx}
+                                                    y2={koofY + koofH}
+                                                    stroke={lattenColor}
+                                                    strokeWidth={lattenStroke}
+                                                    strokeDasharray="4,4"
+                                                />
+                                                <line
+                                                    x1={centerX + halfTengelWidthPx}
+                                                    y1={koofY}
+                                                    x2={centerX + halfTengelWidthPx}
+                                                    y2={koofY + koofH}
+                                                    stroke={lattenColor}
+                                                    strokeWidth={lattenStroke}
+                                                    strokeDasharray="4,4"
+                                                />
+                                            </>
+                                        );
+                                    })()}
+                                    {lengteNum > 0 && Math.abs(koofVanLinks + rectWMm - lengteNum) < 1 && orientation === 'side' && (() => {
+                                        const halfTengelWidthPx = (LAT_WIDTH_MM * pxPerMm) / 2;
+                                        const centerX = koofX - halfTengelWidthPx;
+                                        return (
+                                            <>
+                                                <line
+                                                    x1={centerX - halfTengelWidthPx}
+                                                    y1={koofY}
+                                                    x2={centerX - halfTengelWidthPx}
+                                                    y2={koofY + koofH}
+                                                    stroke={lattenColor}
+                                                    strokeWidth={lattenStroke}
+                                                    strokeDasharray="4,4"
+                                                />
+                                                <line
+                                                    x1={centerX + halfTengelWidthPx}
+                                                    y1={koofY}
+                                                    x2={centerX + halfTengelWidthPx}
+                                                    y2={koofY + koofH}
+                                                    stroke={lattenColor}
+                                                    strokeWidth={lattenStroke}
+                                                    strokeDasharray="4,4"
+                                                />
+                                            </>
+                                        );
+                                    })()}
                                 </g>
                             );
                         })}

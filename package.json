@@ -12,6 +12,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "sync": "python3 sync.py",
+    "materials:convert": "python3 scripts/convert_easy_scraper_materials.py",
     "set-dev-claim": "ts-node --transpile-only src/scripts/set-dev-claim.ts"
   },
   "dependencies": {

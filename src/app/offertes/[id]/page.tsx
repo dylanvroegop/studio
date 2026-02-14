@@ -13,7 +13,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
@@ -24,7 +24,6 @@ import { nl } from 'date-fns/locale';
 import { Button } from "@/components/ui/button";
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from "next/link";
 import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
@@ -172,6 +171,18 @@ function createMaterialPackageId(): string {
 
 const CALCULATION_ESTIMATE_SECONDS = 180;
 
+function getMaterialPackageSummary(pkg: QuoteMaterialPackage): string {
+    const grootCount = Array.isArray(pkg.grootmaterialen) ? pkg.grootmaterialen.length : 0;
+    const verbruikCount = Array.isArray(pkg.verbruiksartikelen) ? pkg.verbruiksartikelen.length : 0;
+    const totalCount = grootCount + verbruikCount;
+
+    if (totalCount === 0) return 'Geen materialen';
+    if (grootCount > 0 && verbruikCount > 0) {
+        return `${totalCount} materialen (${grootCount} groot, ${verbruikCount} verbruik)`;
+    }
+    return `${totalCount} materialen`;
+}
+
 export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
@@ -232,6 +243,8 @@ export default function QuotePage() {
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
     const [materialPackages, setMaterialPackages] = useState<QuoteMaterialPackage[]>([]);
     const [selectedMaterialPackageId, setSelectedMaterialPackageId] = useState<string>('NIEUW');
+    const [isMaterialPackagePickerOpen, setIsMaterialPackagePickerOpen] = useState(false);
+    const [materialPackagePickerSearch, setMaterialPackagePickerSearch] = useState('');
     const [isSaveMaterialPackageOpen, setIsSaveMaterialPackageOpen] = useState(false);
     const [materialPackageName, setMaterialPackageName] = useState('');
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
@@ -356,6 +369,12 @@ export default function QuotePage() {
             setSelectedMaterialPackageId('NIEUW');
         }
     }, [materialPackages, selectedMaterialPackageId]);
+
+    useEffect(() => {
+        if (!isMaterialPackagePickerOpen) {
+            setMaterialPackagePickerSearch('');
+        }
+    }, [isMaterialPackagePickerOpen]);
 
     // Init & sync facturatie instellingen (voorschot) vanuit quote
     useEffect(() => {
@@ -1034,6 +1053,61 @@ export default function QuotePage() {
         }
     };
 
+    const handleResetMaterialPackageToNieuw = async () => {
+        hasEditedMaterialsRef.current = true;
+        setIsMaterialPackagePickerOpen(false);
+        setSelectedMaterialPackageId('NIEUW');
+        setMaterials({ groot: [], verbruik: [] });
+
+        isUpdatingRef.current = true;
+        try {
+            if (calculation) {
+                const root = unwrapRoot(calculation.data_json);
+                await updateDataJson({
+                    ...root,
+                    grootmaterialen: [],
+                    verbruiksartikelen: [],
+                });
+            }
+
+            await persistMaterialPackages(
+                materialPackages,
+                { grootmaterialen: [], verbruiksartikelen: [] },
+                'NIEUW'
+            );
+            setLastSyncedAt(new Date());
+
+            toast({
+                title: 'Werkpakket gereset',
+                description: 'Je start nu zonder werkpakket.',
+            });
+        } catch (error) {
+            console.error('Kon werkpakket niet resetten:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Reset mislukt',
+                description: 'Kon niet terugzetten naar Nieuw.',
+            });
+        } finally {
+            isUpdatingRef.current = false;
+        }
+    };
+
+    const handleSelectMaterialPackageFromPicker = (packageId: string) => {
+        if (packageId === 'NIEUW') {
+            void handleResetMaterialPackageToNieuw();
+            return;
+        }
+        setIsMaterialPackagePickerOpen(false);
+        if (packageId === selectedMaterialPackageId) return;
+        void handleApplyMaterialPackage(packageId);
+    };
+
+    const openSaveMaterialPackageDialog = () => {
+        setMaterialPackageName(selectedMaterialPackage?.naam || '');
+        setIsSaveMaterialPackageOpen(true);
+    };
+
     const handleSaveCurrentAsMaterialPackage = async () => {
         if (!firestore || !user) return;
 
@@ -1371,6 +1445,10 @@ export default function QuotePage() {
     );
     const selectedMaterialPackage =
         materialPackages.find((pkg) => pkg.id === selectedMaterialPackageId) || null;
+    const materialPackagePickerQuery = materialPackagePickerSearch.trim().toLowerCase();
+    const filteredMaterialPackages = materialPackagePickerQuery
+        ? materialPackages.filter((pkg) => pkg.naam.toLowerCase().includes(materialPackagePickerQuery))
+        : materialPackages;
 
     // Count materials without prices
     const materialsWithoutPrice = [
@@ -2198,47 +2276,49 @@ export default function QuotePage() {
                                         </div>
                                     )}
 
-                                    <div className="mb-8 rounded-xl border border-border bg-card/40 p-4">
-                                        <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                                            <div className="flex-1 space-y-2">
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                    Werkpakket
-                                                </Label>
-                                                <Select
-                                                    value={selectedMaterialPackageId}
-                                                    onValueChange={(value) => {
-                                                        if (value === 'NIEUW') {
-                                                            setSelectedMaterialPackageId('NIEUW');
-                                                            return;
-                                                        }
-                                                        void handleApplyMaterialPackage(value);
-                                                    }}
-                                                >
-                                                    <SelectTrigger className="h-10">
-                                                        <SelectValue placeholder="Nieuw / aangepast" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="NIEUW">Nieuw / aangepast</SelectItem>
-                                                        {materialPackages.map((pkg) => (
-                                                            <SelectItem key={pkg.id} value={pkg.id}>
-                                                                {pkg.naam}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
+                                    <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
+                                        <Label className="text-base font-semibold text-foreground/90">Kies Een Werkpakket</Label>
+                                        <div
+                                            className="grid w-full items-stretch"
+                                            style={{ gridTemplateColumns: '84% 15%', columnGap: '1%' }}
+                                        >
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border justify-between px-3"
+                                                onClick={() => setIsMaterialPackagePickerOpen(true)}
+                                            >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <Box className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                    <div className="min-w-0 text-left flex items-center gap-2">
+                                                        <span className="text-sm font-semibold text-foreground truncate">
+                                                            {selectedMaterialPackageId === 'NIEUW'
+                                                                ? 'Nieuw'
+                                                                : (selectedMaterialPackage?.naam || 'Werkpakket')}
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground truncate">
+                                                            •
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground truncate">
+                                                            {selectedMaterialPackageId === 'NIEUW'
+                                                                ? 'Start zonder werkpakket'
+                                                                : 'Klik om werkpakket te kiezen'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                                </div>
+                                            </Button>
 
                                             <Button
                                                 type="button"
                                                 variant="outline"
-                                                className="md:mb-0.5"
-                                                onClick={() => {
-                                                    setMaterialPackageName(selectedMaterialPackage?.naam || '');
-                                                    setIsSaveMaterialPackageOpen(true);
-                                                }}
+                                                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
+                                                onClick={() => void handleResetMaterialPackageToNieuw()}
                                             >
-                                                <Save className="mr-2 h-4 w-4" />
-                                                Opslaan als werkpakket
+                                                <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
+                                                Nieuw
                                             </Button>
                                         </div>
                                     </div>
@@ -2645,6 +2725,97 @@ export default function QuotePage() {
                 onMaterialAdded={handleSelectMaterial} // Handle custom created materials same way
                 defaultCategory="all"
             />
+
+            <Dialog open={isMaterialPackagePickerOpen} onOpenChange={setIsMaterialPackagePickerOpen}>
+                <DialogContent className="w-[95vw] max-w-[1200px] h-[88vh] overflow-hidden flex flex-col">
+                    <DialogHeader className="space-y-2">
+                        <DialogTitle>Kies een werkpakket</DialogTitle>
+                        <DialogDescription>
+                            Selecteer een werkpakket of start direct zonder preset.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Zoek werkpakket..."
+                            value={materialPackagePickerSearch}
+                            onChange={(event) => setMaterialPackagePickerSearch(event.target.value)}
+                            className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/40"
+                        />
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto space-y-2 py-1">
+                        <button
+                            type="button"
+                            onClick={() => handleSelectMaterialPackageFromPicker('NIEUW')}
+                            className={`group relative w-full text-left rounded-xl border border-l-4 px-4 py-2.5 transition-all duration-200 ${selectedMaterialPackageId === 'NIEUW'
+                                ? 'border-white/20 border-l-white/30 bg-card/60 shadow-[0_10px_24px_-18px_rgba(255,255,255,0.35)]'
+                                : 'border-white/10 border-l-white/10 bg-card/40 hover:bg-card/60 hover:border-white/20 hover:border-l-white/20'
+                                }`}
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1 text-left">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
+                                        <span className="truncate text-sm font-semibold text-zinc-100">Nieuw</span>
+                                        <span className="truncate text-sm text-zinc-400">Start zonder werkpakket</span>
+                                    </div>
+                                </div>
+                                <ChevronRight className="h-4 w-4 text-muted-foreground/60 shrink-0 mt-0.5" />
+                            </div>
+                        </button>
+
+                        {filteredMaterialPackages.map((pkg) => (
+                            <button
+                                key={pkg.id}
+                                type="button"
+                                onClick={() => handleSelectMaterialPackageFromPicker(pkg.id)}
+                                className={`group relative w-full text-left rounded-xl border border-l-4 px-4 py-3 transition-all duration-200 ${selectedMaterialPackageId === pkg.id
+                                    ? 'border-white/20 border-l-white/30 bg-card/60 shadow-[0_10px_24px_-18px_rgba(255,255,255,0.35)]'
+                                    : 'border-white/10 border-l-white/10 bg-card/40 hover:bg-card/60 hover:border-white/20 hover:border-l-white/20'
+                                    }`}
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1 text-left">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <Box className="h-4 w-4 text-emerald-400 shrink-0" />
+                                            <span className="truncate text-base font-bold text-zinc-100">
+                                                {pkg.naam}
+                                            </span>
+                                            <span className="truncate text-sm text-zinc-400">
+                                                {getMaterialPackageSummary(pkg)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground/60 shrink-0 mt-0.5" />
+                                </div>
+                            </button>
+                        ))}
+
+                        {filteredMaterialPackages.length === 0 ? (
+                            <div className="text-sm text-muted-foreground text-center py-10">Geen werkpakketten gevonden.</div>
+                        ) : null}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                                setIsMaterialPackagePickerOpen(false);
+                                openSaveMaterialPackageDialog();
+                            }}
+                        >
+                            <Save className="h-4 w-4 mr-2" />
+                            Opslaan als werkpakket
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => setIsMaterialPackagePickerOpen(false)}>
+                            Sluiten
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={isSaveMaterialPackageOpen} onOpenChange={setIsSaveMaterialPackageOpen}>
                 <DialogContent className="sm:max-w-md">
