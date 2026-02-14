@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/toaster';
-import { SupportSidePanel } from '@/components/SupportSidePanel';
 import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 
@@ -25,7 +24,6 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <MeasurementUnitProvider>
             {children}
-            <SupportSidePanel />
             <Toaster />
           </MeasurementUnitProvider>
         </FirebaseClientProvider>

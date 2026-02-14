@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { DevVersionBadge } from '@/components/DevVersionBadge';
+import { SupportSidePanel } from '@/components/SupportSidePanel';
 
 interface NavigationItem {
     href: string;
@@ -98,7 +98,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
             </nav>
 
             <div className="border-t border-border px-4 py-3">
-                <DevVersionBadge />
+                <SupportSidePanel />
             </div>
         </div>
     );

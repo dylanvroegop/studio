@@ -10,7 +10,6 @@ import { Separator } from '@/components/ui/separator';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { JOB_REGISTRY } from '@/lib/job-registry';
-import { DevVersionBadge } from '@/components/DevVersionBadge';
 
 
 // --- Helpers ---
@@ -333,9 +332,6 @@ export function WizardHeader({
                                         </div>
                                     </div>
                                 </ScrollArea>
-                                <div className="border-t px-4 py-3">
-                                    <DevVersionBadge />
-                                </div>
                             </SheetContent>
                         </Sheet>
                     )}
