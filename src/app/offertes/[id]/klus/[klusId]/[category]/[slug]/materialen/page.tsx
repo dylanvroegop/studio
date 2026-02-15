@@ -385,6 +385,36 @@ function isKeralitEindOfHoekprofielSection(
   return /\bkeralit\b/.test(haystack) && /\b(eindprofiel|hoekprofiel)\b/.test(haystack);
 }
 
+function isSchuttingTuinpoortSection(
+  sectionKey: string | null,
+  label?: string,
+  context?: string,
+  materialName?: string
+): boolean {
+  const normalizedSectionKey = String(sectionKey || '').toLowerCase().trim();
+  if (normalizedSectionKey === 'tuinpoort') return true;
+  const haystack = `${label || ''} ${context || ''} ${materialName || ''}`.toLowerCase();
+  return /\btuinpoort\b/.test(haystack) && /\bschutting\b/.test(haystack);
+}
+
+function isDakraamZeroWasteSection(
+  sectionKey: string | null,
+  label?: string,
+  context?: string,
+  materialName?: string
+): boolean {
+  const normalizedSectionKey = String(sectionKey || '').toLowerCase().trim();
+  if (normalizedSectionKey === 'vensterset_compleet' || normalizedSectionKey === 'venster_los' || normalizedSectionKey === 'gootstuk') {
+    return true;
+  }
+  const haystack = `${label || ''} ${context || ''} ${materialName || ''}`.toLowerCase();
+  return (
+    /\bdakraam\b/.test(haystack)
+    || /\bdakraam set\b/.test(haystack)
+    || /\bgootstukken?\b/.test(haystack)
+  );
+}
+
 function normalizeSavedWastePercentage(
   wastePercentage: number,
   sectionKey: string | null,
@@ -406,6 +436,18 @@ function normalizeSavedWastePercentage(
   ) {
     return 0;
   }
+  if (
+    wastePercentage === DEFAULT_WASTE_PERCENTAGE
+    && isSchuttingTuinpoortSection(sectionKey, label, context, materialName)
+  ) {
+    return 0;
+  }
+  if (
+    wastePercentage === DEFAULT_WASTE_PERCENTAGE
+    && isDakraamZeroWasteSection(sectionKey, label, context, materialName)
+  ) {
+    return 0;
+  }
   return wastePercentage;
 }
 
@@ -418,6 +460,8 @@ function getDefaultWastePercentage(sectionKey: string | null, label?: string, co
   if (isEpdmDaktrimHoeken) return 0;
   if (isTrespaHplGevelplaatSection(sectionKey, label, context)) return 0;
   if (isKeralitEindOfHoekprofielSection(sectionKey, label, context)) return 0;
+  if (isSchuttingTuinpoortSection(sectionKey, label, context)) return 0;
+  if (isDakraamZeroWasteSection(sectionKey, label, context)) return 0;
   if (ZERO_WASTE_PATTERNS.some((pattern) => pattern.test(haystack))) return 0;
   return DEFAULT_WASTE_PERCENTAGE;
 }
@@ -842,6 +886,7 @@ function MultiEntryMaterialSlot({
   sectionLabel,
   sectionKey,
   slotData,
+  maxEntries,
   onAddEntry,
   onEditEntry,
   onRemoveEntry,
@@ -850,12 +895,18 @@ function MultiEntryMaterialSlot({
   sectionLabel: string;
   sectionKey: string;
   slotData: MultiEntrySlotData | null;
+  maxEntries?: number | null;
   onAddEntry: () => void;
   onEditEntry: (entryId: string) => void;
   onRemoveEntry: (entryId: string) => void;
   onUpdateAantal: (entryId: string, aantal: number) => void;
 }) {
   const entries = slotData?.entries || [];
+  const maxAllowedEntries =
+    typeof maxEntries === 'number' && Number.isFinite(maxEntries) && maxEntries > 0
+      ? Math.max(1, Math.floor(maxEntries))
+      : null;
+  const canAddEntry = maxAllowedEntries === null || entries.length < maxAllowedEntries;
   const [deleteConfId, setDeleteConfId] = useState<string | null>(null);
   const [aantalDrafts, setAantalDrafts] = useState<Record<string, string>>({});
 
@@ -921,8 +972,11 @@ function MultiEntryMaterialSlot({
   if (entries.length === 0) {
     return (
       <div
-        onClick={onAddEntry}
-        className="group relative flex items-center justify-between py-1.5 px-4 rounded-lg border border-border hover:bg-accent/40 transition-all cursor-pointer"
+        onClick={canAddEntry ? onAddEntry : undefined}
+        className={cn(
+          "group relative flex items-center justify-between py-1.5 px-4 rounded-lg border border-border transition-all",
+          canAddEntry ? "hover:bg-accent/40 cursor-pointer" : "opacity-70 cursor-not-allowed"
+        )}
       >
         <span className="font-medium text-sm text-muted-foreground">{sectionLabel}</span>
         <div className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-500 font-medium">
@@ -1036,14 +1090,15 @@ function MultiEntryMaterialSlot({
         </React.Fragment>
       ))}
 
-      {/* Green add button */}
-      <div
-        onClick={onAddEntry}
-        className="flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-dashed border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer"
-      >
-        <PlusCircle className="h-4 w-4 text-emerald-500" />
-        <span className="text-xs font-medium text-emerald-500">{sectionLabel} toevoegen</span>
-      </div>
+      {canAddEntry && (
+        <div
+          onClick={onAddEntry}
+          className="flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-dashed border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer"
+        >
+          <PlusCircle className="h-4 w-4 text-emerald-500" />
+          <span className="text-xs font-medium text-emerald-500">{sectionLabel} toevoegen</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1269,13 +1324,18 @@ export default function GenericMaterialsPageRedesigned() {
   const klusId = params.klusId as string;
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
+  const isSchuttingHoutJob = categorySlug === 'schutting' && jobSlug === 'schutting-hout';
   const isGevelbekledingJob = categorySlug === 'gevelbekleding' || jobSlug.includes('gevelbekleding');
   const specificJobConfig = getJobConfig(jobSlug);
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
 
   const categoryConfig = JOB_REGISTRY[categorySlug];
   const jobConfig = categoryConfig?.items.find((item) => item.slug === jobSlug);
-  const materialSections = jobConfig?.materialSections || [];
+  const materialSections = useMemo(() => {
+    const baseSections = jobConfig?.materialSections || [];
+    if (!isSchuttingHoutJob) return baseSections;
+    return baseSections.filter((section: any) => section.key !== 'kozijnbalken');
+  }, [jobConfig, isSchuttingHoutJob]);
 
   // Group sections by category
   const groupedSections = useMemo(() => {
@@ -1367,8 +1427,13 @@ export default function GenericMaterialsPageRedesigned() {
     return next;
   }, []);
 
-  const normalizeSelectedMaterialsForJob = useCallback((selected: Record<string, any>, currentJobType: string) => {
+  const normalizeSelectedMaterialsForJob = useCallback((
+    selected: Record<string, any>,
+    currentJobType: string,
+    options?: { forcePresetAantalOne?: boolean }
+  ) => {
     const next = { ...selected };
+    const forcePresetAantalOne = options?.forcePresetAantalOne === true;
 
     const isVoorzetwand = currentJobType === 'hsb-voorzetwand' || currentJobType === 'metalstud-voorzetwand';
     const isTussenwand = currentJobType === 'hsb-tussenwand';
@@ -1446,7 +1511,9 @@ export default function GenericMaterialsPageRedesigned() {
       if (typeof value !== 'object' || Array.isArray(value)) return;
 
       const rawAantal = Number((value as any).aantal);
-      const legacyAantal = Number.isFinite(rawAantal) && rawAantal > 0 ? Math.max(1, Math.round(rawAantal)) : 1;
+      const legacyAantal = forcePresetAantalOne
+        ? 1
+        : (Number.isFinite(rawAantal) && rawAantal > 0 ? Math.max(1, Math.round(rawAantal)) : 1);
       const fallbackId = `${sectionKey}__legacy`;
       const generatedId =
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -1636,6 +1703,7 @@ export default function GenericMaterialsPageRedesigned() {
   const memoizedDefaultCategory = useMemo(() => {
     if (!actieveSectie) return undefined;
     if (activeSectionCategoryOverride) return normalizeCategoryFilter(activeSectionCategoryOverride);
+    if (isSchuttingHoutJob) return 'Tuinhout';
 
     // 1) Primary: exact key match in current job-registry sections
     const byKey = materialSections.find((s) => s.key === actieveSectie)?.categoryFilter;
@@ -1652,7 +1720,7 @@ export default function GenericMaterialsPageRedesigned() {
 
     // 3) Fallback to the component section's own categoryFilter
     return normalizeCategoryFilter(activeSectionMeta?.categoryFilter);
-  }, [actieveSectie, materialSections, activeSectionMeta, activeSectionCategoryOverride]);
+  }, [actieveSectie, materialSections, activeSectionMeta, activeSectionCategoryOverride, isSchuttingHoutJob]);
 
   const handleModalCategoryFilterChange = useCallback((nextCategoryFilter: string | string[]) => {
     if (!actieveSectie) return;
@@ -2519,6 +2587,16 @@ export default function GenericMaterialsPageRedesigned() {
 
       const materialenData = (json.data || []).map((m: any) => {
         const exclPrice = getExclPriceFromMaterial(m);
+        const rawCategorie = String(m.categorie || '').trim();
+        const rawSubsectie = String(m.subsectie || '').trim();
+        const hasSpecificCategorie = rawCategorie.length > 0 && rawCategorie.toLowerCase() !== 'overig';
+        const hasSpecificSubsectie = rawSubsectie.length > 0 && rawSubsectie.toLowerCase() !== 'overig';
+        const effectiveSubsectie = hasSpecificSubsectie
+          ? rawSubsectie
+          : hasSpecificCategorie
+            ? rawCategorie
+            : (rawSubsectie || rawCategorie || 'Overig');
+        const effectiveCategorie = rawCategorie || rawSubsectie || 'Overig';
         return {
           ...m, // Keep all raw fields
           _raw: m, // Store exact raw object for pristine saving
@@ -2528,8 +2606,8 @@ export default function GenericMaterialsPageRedesigned() {
           prijs_per_stuk: exclPrice || 0,
           prijs_excl_btw: exclPrice,
           // Map standard keys for UI filtering
-          categorie: m.categorie || m.subsectie || 'Overig',
-          subsectie: m.subsectie || m.categorie || 'Overig',
+          categorie: effectiveCategorie,
+          subsectie: effectiveSubsectie,
           leverancier: m.merk || m.leverancier,
         };
       });
@@ -3427,7 +3505,7 @@ export default function GenericMaterialsPageRedesigned() {
             if (found) newSels[key] = found;
           });
         }
-        const normalizedSels = normalizeSelectedMaterialsForJob(newSels, JOB_KEY);
+        const normalizedSels = normalizeSelectedMaterialsForJob(newSels, JOB_KEY, { forcePresetAantalOne: true });
         setGekozenMaterialen(normalizedSels);
         if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
 
@@ -3676,6 +3754,14 @@ export default function GenericMaterialsPageRedesigned() {
     setGekozenMaterialen(prev => {
       const current = prev[sectionKey];
       const entries: MultiEntryEntry[] = isMultiEntrySlot(current) ? [...current.entries] : [];
+      const sectionConfig = materialSections.find((section) => section.key === sectionKey);
+      const maxAllowedEntries =
+        typeof sectionConfig?.maxEntries === 'number' && Number.isFinite(sectionConfig.maxEntries) && sectionConfig.maxEntries > 0
+          ? Math.max(1, Math.floor(sectionConfig.maxEntries))
+          : null;
+      if (maxAllowedEntries !== null && entries.length >= maxAllowedEntries) {
+        return prev;
+      }
       entries.push({ id: crypto.randomUUID(), material: materiaal, aantal: 1 });
       return { ...prev, [sectionKey]: { _multiEntry: true, entries } as MultiEntrySlotData };
     });
@@ -4338,8 +4424,12 @@ export default function GenericMaterialsPageRedesigned() {
     const slots: Record<string, string> = {};
     for (const key of Object.keys(gekozenMaterialen || {})) {
       const materiaal = (gekozenMaterialen as any)[key];
-      const matId = materiaal?.id || materiaal?.row_id || materiaal?.material_ref_id;
-      if (matId) slots[key] = matId;
+      let matId = materiaal?.id || materiaal?.row_id || materiaal?.material_ref_id;
+      if (!matId && isMultiEntrySlot(materiaal)) {
+        const firstEntryMaterial = materiaal.entries?.[0]?.material;
+        matId = firstEntryMaterial?.id || firstEntryMaterial?.row_id || firstEntryMaterial?.material_ref_id;
+      }
+      if (matId) slots[key] = String(matId);
     }
     // NOTE:
     // Component materials are stored in `components` itself.
@@ -5721,6 +5811,7 @@ export default function GenericMaterialsPageRedesigned() {
                                       sectionLabel={section.label}
                                       sectionKey={section.key}
                                       slotData={isMultiEntrySlot(gekozenMaterialen[section.key]) ? gekozenMaterialen[section.key] : null}
+                                      maxEntries={typeof section.maxEntries === 'number' ? section.maxEntries : null}
                                       onAddEntry={() => openMultiEntryModal(section.key, null)}
                                       onEditEntry={(entryId) => openMultiEntryModal(section.key, entryId)}
                                       onRemoveEntry={(entryId) => handleMultiEntryRemove(section.key, entryId)}

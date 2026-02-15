@@ -1618,6 +1618,29 @@ export default function QuotePage() {
         });
     };
 
+    const handleMarkQuoteAsSent = async (): Promise<void> => {
+        if (!firestore || !user || !id) return;
+
+        const currentStatus = quote?.status;
+        if (currentStatus === 'geaccepteerd' || currentStatus === 'afgewezen' || currentStatus === 'verlopen') {
+            return;
+        }
+
+        const quoteRef = doc(firestore, 'quotes', id);
+        await updateDoc(quoteRef, {
+            status: 'verzonden',
+            updatedAt: serverTimestamp(),
+        } as any);
+
+        setQuote((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                status: 'verzonden',
+            };
+        });
+    };
+
     // Callback when drawings are captured
     const handleDrawingsCaptured = (images: string[]) => {
         // Always store the captured drawings for preview
@@ -2687,6 +2710,7 @@ export default function QuotePage() {
                 offerteNummer={(quote as any)?.offerteNummer || 'CONCEPT'}
                 werkbeschrijving={normalizedData?.werkbeschrijving}
                 onDownloadPDF={handleDownloadPDF}
+                onMarkAsSent={handleMarkQuoteAsSent}
                 totaalInclBtw={totals?.totaalInclBtw || 0}
                 geldigTot={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
                     day: 'numeric',

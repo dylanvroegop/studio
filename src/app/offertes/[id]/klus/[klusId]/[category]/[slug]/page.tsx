@@ -474,6 +474,20 @@ export default function GenericMeasurementPage() {
       ['deklat', 'deklatten']
     );
   }, [materialenLijstSnapshot]);
+  const hasOpsluitbandenMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['opsluitbanden'],
+      ['opsluitband']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasSchuttingPoortMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['tuinpoort', 'stalen_frame'],
+      ['tuinpoort', 'poortframe', 'stalen frame']
+    );
+  }, [materialenLijstSnapshot]);
   const hasGevelKoofMaterialFromPreviousPage = useMemo(() => {
     return hasMaterialInSnapshotBySection(
       materialenLijstSnapshot,
@@ -1026,6 +1040,83 @@ export default function GenericMeasurementPage() {
 
     return next;
   };
+
+  useEffect(() => {
+    if (!isSchutting) return;
+    if (hasOpsluitbandenMaterialFromPreviousPage) return;
+
+    setItems((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        const current = item?.betonband_hoogte;
+        if (current === undefined || current === null || String(current).trim() === '') return item;
+        changed = true;
+        const cleaned = { ...item };
+        delete cleaned.betonband_hoogte;
+        return cleaned;
+      });
+      return changed ? next : prev;
+    });
+  }, [isSchutting, hasOpsluitbandenMaterialFromPreviousPage]);
+
+  useEffect(() => {
+    if (!isSchutting) return;
+    if (!showOpeningsSection) return;
+
+    setItems((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (!Array.isArray(item?.openings) || item.openings.length === 0) return item;
+        let itemChanged = false;
+        const normalizedOpenings = item.openings.map((opening: any) => {
+          if (opening?.type === 'opening') return opening;
+          changed = true;
+          itemChanged = true;
+          return { ...opening, type: 'opening' };
+        });
+        return itemChanged ? { ...item, openings: normalizedOpenings } : item;
+      });
+      return changed ? next : prev;
+    });
+  }, [isSchutting, showOpeningsSection]);
+
+  useEffect(() => {
+    if (!isSchutting) return;
+    if (!showOpeningsSection) return;
+    if (!hasSchuttingPoortMaterialFromPreviousPage) return;
+
+    setItems((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        const currentOpenings = Array.isArray(item?.openings) ? item.openings : [];
+        if (currentOpenings.length > 0) return item;
+
+        const parseNum = (value: any, fallback = 0) => (
+          typeof value === 'number' ? value : parseFloat(String(value ?? '')) || fallback
+        );
+        const lengteMm = Math.max(0, parseNum(item?.lengte));
+        const hoogteMm = Math.max(0, parseNum(item?.hoogte, 1800));
+        const widthMm = Math.min(1000, lengteMm > 0 ? lengteMm : 1000);
+        const fromLeftMm = Math.max(0, Math.round((lengteMm - widthMm) / 2));
+
+        changed = true;
+        return {
+          ...item,
+          openings: [{
+            id: crypto.randomUUID(),
+            type: 'opening',
+            width: Math.round(widthMm),
+            height: Math.round(hoogteMm),
+            fromLeft: fromLeftMm,
+            fromBottom: 0,
+            autoSource: 'schutting_tuinpoort_material',
+          }],
+        };
+      });
+
+      return changed ? next : prev;
+    });
+  }, [isSchutting, showOpeningsSection, hasSchuttingPoortMaterialFromPreviousPage]);
 
   const applyHellendDakDefaultsFromDakpan = (sourceItem: any, maten: DakpanWerkendeMaten | null) => {
     if (!isHellendDak) return sourceItem;
@@ -4178,6 +4269,25 @@ export default function GenericMeasurementPage() {
                         openings={item.openings || []}
                         onChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
                         constructionOptions={specificJobConfig.openingConfig.constructionOptions}
+                        addButtonLabel={isSchutting ? 'Tuinpoort toevoegen' : undefined}
+                        typeOptionsOverride={isSchutting ? [{ value: 'opening', label: 'Tuinpoort' }] : undefined}
+                        createOpening={isSchutting ? (() => {
+                          const parseNum = (value: any, fallback = 0) => (
+                            typeof value === 'number' ? value : parseFloat(String(value ?? '')) || fallback
+                          );
+                          const lengteMm = Math.max(0, parseNum(item.lengte));
+                          const hoogteMm = Math.max(0, parseNum(item.hoogte, 1800));
+                          const widthMm = Math.min(1000, lengteMm > 0 ? lengteMm : 1000);
+                          const fromLeftMm = Math.max(0, Math.round((lengteMm - widthMm) / 2));
+                          return {
+                            id: crypto.randomUUID(),
+                            type: 'opening',
+                            width: Math.round(widthMm),
+                            height: Math.round(hoogteMm),
+                            fromLeft: fromLeftMm,
+                            fromBottom: 0,
+                          };
+                        }) : undefined}
 
                         dagkanten={item.dagkanten || []}
                         vensterbanken={item.vensterbanken || []}
@@ -4849,22 +4959,22 @@ export default function GenericMeasurementPage() {
                           <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                             <div
                               className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                              onClick={() => toggleCollapsed(`paalafstand-${index}`)}
+                              onClick={() => toggleCollapsed(`paalafstand-${index}`, false)}
                             >
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-zinc-200">Paalafstand</span>
-                                {collapsedSections[`paalafstand-${index}`] !== false && item.paalafstand > 0 && (
+                                {collapsedSections[`paalafstand-${index}`] === true && item.paalafstand > 0 && (
                                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                                     {item.paalafstand}mm
                                   </span>
                                 )}
                               </div>
                               <div className="text-zinc-500">
-                                {collapsedSections[`paalafstand-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                {collapsedSections[`paalafstand-${index}`] === true ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                               </div>
                             </div>
 
-                            {collapsedSections[`paalafstand-${index}`] === false && (
+                            {collapsedSections[`paalafstand-${index}`] !== true && (
                               <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
                                 <div className="pt-2 border-t border-white/5 space-y-4">
                                   <DynamicInput
@@ -4874,6 +4984,36 @@ export default function GenericMeasurementPage() {
                                     onKeyDown={handleKeyDown}
                                     disabled={disabledAll}
                                   />
+
+                                  <div className="space-y-3">
+                                    <Label className="text-xs">Startpositie</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateItem(index, 'startFromRight', false)}
+                                        className={cn(
+                                          "flex-1 text-xs py-1.5 rounded transition-colors",
+                                          !item.startFromRight
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : "text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                      >
+                                        Links
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateItem(index, 'startFromRight', true)}
+                                        className={cn(
+                                          "flex-1 text-xs py-1.5 rounded transition-colors",
+                                          item.startFromRight
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : "text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                      >
+                                        Rechts
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -4881,7 +5021,7 @@ export default function GenericMeasurementPage() {
                         )}
 
                         {/* Betonband / Onderplaten Card */}
-                        {fields.find(f => f.key === 'betonband_hoogte') && (
+                        {fields.find(f => f.key === 'betonband_hoogte') && hasOpsluitbandenMaterialFromPreviousPage && (
                           <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
                             <div
                               className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
@@ -5711,6 +5851,7 @@ export default function GenericMeasurementPage() {
                         slug={jobSlug}
                         item={item}
                         fields={fields}
+                        showOnderplaten={hasOpsluitbandenMaterialFromPreviousPage}
                         title={`${itemLabel} ${index + 1}`}
                         isMagnifier={false}
                         fitContainer={false}
@@ -5749,6 +5890,7 @@ export default function GenericMeasurementPage() {
                             slug={jobSlug}
                             item={item}
                             fields={fields}
+                            showOnderplaten={hasOpsluitbandenMaterialFromPreviousPage}
                             title={`${itemLabel} ${index + 1}`}
                             isMagnifier={false}
                             fitContainer={true}

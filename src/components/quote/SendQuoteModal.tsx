@@ -30,6 +30,7 @@ interface SendQuoteModalProps {
     afzenderNaam: string;
     korteTitel?: string;
     korteBeschrijving?: string;
+    onMarkAsSent?: () => Promise<void> | void;
 }
 
 export function SendQuoteModal({
@@ -44,7 +45,8 @@ export function SendQuoteModal({
     bedrijfsnaam,
     afzenderNaam,
     korteTitel,
-    korteBeschrijving
+    korteBeschrijving,
+    onMarkAsSent
 }: SendQuoteModalProps) {
     const { user } = useUser();
     const [email, setEmail] = useState('');
@@ -153,6 +155,20 @@ export function SendQuoteModal({
                     variant: "destructive",
                 });
                 return;
+            }
+
+            if (onMarkAsSent) {
+                try {
+                    await Promise.resolve(onMarkAsSent());
+                } catch (error) {
+                    console.error('Error marking quote as sent:', error);
+                    toast({
+                        title: "Status bijwerken mislukt",
+                        description: "Kon offerte niet op 'Verstuurd' zetten. Probeer het opnieuw.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
             }
 
             const encodedSubject = encodeURIComponent(subject);

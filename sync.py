@@ -184,7 +184,8 @@ def run_update_rows(
     rows: List[Dict[str, Any]],
     active_columns: Set[str],
 ) -> bool:
-    for row in rows:
+    total_rows = len(rows)
+    for index, row in enumerate(rows, start=1):
         row_id = row.get("row_id")
         if not row_id:
             continue
@@ -205,6 +206,9 @@ def run_update_rows(
                     continue
                 print(f"   ❌ Error updating row {row_id}: {error}")
                 return False
+
+        if index % 100 == 0 or index == total_rows:
+            print(f"   ⏳ Updated {index}/{total_rows}")
     return True
 
 
@@ -266,6 +270,10 @@ def sync(json_file_path: str = DEFAULT_JSON_FILE_PATH, allow_delete: bool = Fals
     print(f"   Fetched {len(remote_rows)} rows from Supabase.")
 
     remote_index, duplicate_remote_ids, invalid_remote_rows = build_remote_index(remote_rows)
+    remote_columns: Set[str] = set()
+    for row in remote_rows:
+        remote_columns.update(row.keys())
+
     if duplicate_remote_ids:
         print(f"🧹 Found {len(duplicate_remote_ids)} duplicate remote rows by natural key.")
     if invalid_remote_rows:
@@ -278,6 +286,19 @@ def sync(json_file_path: str = DEFAULT_JSON_FILE_PATH, allow_delete: bool = Fals
     active_columns.difference_update(NEVER_SEND_COLUMNS)
     active_columns.discard("row_id")
 
+    # Only send/compare columns that actually exist in the remote table.
+    # This avoids expensive per-row retry loops for legacy JSON keys
+    # (e.g. id, kenmerk, kleur) and prevents false-positive updates.
+    unknown_local_columns = sorted(active_columns - remote_columns)
+    if unknown_local_columns:
+        preview = ", ".join(unknown_local_columns[:10])
+        suffix = "..." if len(unknown_local_columns) > 10 else ""
+        print(
+            "⚠️ Ignoring local-only columns not present in Supabase table: "
+            f"{preview}{suffix}"
+        )
+        active_columns.intersection_update(remote_columns)
+
     # Compute insert/update/delete sets.
     to_insert: List[Dict[str, Any]] = []
     to_update: List[Dict[str, Any]] = []
@@ -288,8 +309,7 @@ def sync(json_file_path: str = DEFAULT_JSON_FILE_PATH, allow_delete: bool = Fals
             to_insert.append(local_row)
             continue
 
-        compare_columns = active_columns.union(remote_row.keys())
-        if rows_differ(local_row, remote_row, compare_columns):
+        if rows_differ(local_row, remote_row, active_columns):
             payload = dict(local_row)
             payload["row_id"] = remote_row.get("row_id")
             to_update.append(payload)
@@ -307,6 +327,25 @@ def sync(json_file_path: str = DEFAULT_JSON_FILE_PATH, allow_delete: bool = Fals
     print(f"   Inserts: {len(to_insert)}")
     print(f"   Updates: {len(to_update)}")
     print(f"   Deletes: {len(to_delete)} (allow_delete={allow_delete})")
+
+    if to_insert:
+        print("   Insert preview:")
+        for row in to_insert[:5]:
+            print(
+                "    + "
+                f"{row.get('materiaalnaam', '')} | "
+                f"{row.get('categorie', '')} | "
+                f"{row.get('sub_categorie', '')}"
+            )
+    if to_update:
+        print("   Update preview:")
+        for row in to_update[:5]:
+            print(
+                "    ~ "
+                f"{row.get('materiaalnaam', '')} | "
+                f"{row.get('categorie', '')} | "
+                f"{row.get('sub_categorie', '')}"
+            )
 
     if dry_run:
         print("🧪 Dry-run enabled; no database changes applied.")

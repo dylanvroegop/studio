@@ -857,11 +857,7 @@ export function MaterialSelectionModal({
       const normalizedSubCategory = normalizeFilterValue(subCategory);
       return normalizedDefaultSubCategoryFilters.some((needle) => {
         const normalizedNeedle = normalizeFilterValue(needle);
-        return (
-          normalizedSubCategory === normalizedNeedle ||
-          normalizedSubCategory.includes(normalizedNeedle) ||
-          normalizedNeedle.includes(normalizedSubCategory)
-        );
+        return normalizedSubCategory === normalizedNeedle;
       });
     });
 
@@ -896,9 +892,7 @@ export function MaterialSelectionModal({
               const matSubCategory = normalizeFilterValue(getMaterialSubCategory(m));
               if (!matSubCategory) return false;
               return lowerSubCategories.some((lowerSubCategory) => (
-                matSubCategory === lowerSubCategory ||
-                matSubCategory.includes(lowerSubCategory) ||
-                lowerSubCategory.includes(matSubCategory)
+                matSubCategory === lowerSubCategory
               ));
             })()
             : false;

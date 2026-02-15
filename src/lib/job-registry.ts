@@ -22,7 +22,7 @@ export const MATERIAL_CATEGORY_INFO = {
   // --- PREFAB / ELEMENTEN ---
   // --- TUIN & SCHUTTING ---
   fundering: { title: 'Fundering & Palen', order: 1 },
-  schutting_hout: { title: 'Schutting (Hout)', order: 2 },
+  schutting_hout: { title: 'Schutting', order: 2 },
   schutting_beton: { title: 'Schutting (Beton)', order: 2 },
   schutting_composiet: { title: 'Schutting (Composiet)', order: 2 },
   poort: { title: 'Poort & Toegang', order: 3 },
@@ -161,6 +161,7 @@ export interface MaterialSection {
   category?: MaterialCategoryKey;
   category_ultra_filter?: string;
   multiEntry?: boolean;
+  maxEntries?: number;
   syncToJobAantal?: boolean;
 }
 
@@ -340,9 +341,9 @@ const GOLFPLAAT_DAK_FIELDS: MeasurementField[] = [
 ];
 
 const SCHUTTING_FIELDS: MeasurementField[] = [
-  { key: 'lengte', label: 'Totale Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 10000' },
-  { key: 'hoogte', label: 'Hoogte Schutting', type: 'number', suffix: 'mm', placeholder: 'Bijv. 1800' },
-  { key: 'paalafstand', label: 'Maat tussen palen', type: 'number', suffix: 'mm', defaultValue: 1800, group: 'constructie' },
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 10000' },
+  { key: 'hoogte', label: 'Hoogte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 1800' },
+  { key: 'paalafstand', label: 'Maat tussen palen', type: 'number', suffix: 'mm', defaultValue: 1810, group: 'constructie' },
   {
     key: 'type_schutting',
     label: 'Type Schutting',
@@ -1251,14 +1252,14 @@ const SCHUTTING_MATS: MaterialSection[] = [
   // 1. FUNDERING & PALEN (GENERAL)
   { label: 'Snelbeton', categoryFilter: 'overig', category: 'fundering', key: 'snelbeton', category_ultra_filter: '' },
   { label: 'Opsluitbanden', categoryFilter: 'overig', category: 'fundering', key: 'opsluitbanden', category_ultra_filter: '' },
-  { label: 'Paalpunthouder', categoryFilter: 'overig', category: 'fundering', key: 'paalpunthouder', category_ultra_filter: '' },
+  { label: 'Paalpunthouder', categoryFilter: 'overig', category: 'fundering', key: 'paalpunthouder', category_ultra_filter: 'subcat:Paalhouders' },
 
   // 2. OPTIE: HOUT
-  { label: 'Schuttingpalen hout', categoryFilter: 'overig', category: 'schutting_hout', key: 'schuttingpalen_hout', category_ultra_filter: '' },
-  { label: 'Paalkappen', categoryFilter: 'overig', category: 'schutting_hout', key: 'paalkap', category_ultra_filter: '' },
-  { label: 'Tuinscherm hout', categoryFilter: 'overig', category: 'schutting_hout', key: 'tuinscherm_hout', category_ultra_filter: '' },
-  { label: 'Afdeklat hout', categoryFilter: 'overig', category: 'schutting_hout', key: 'afdeklat_hout', category_ultra_filter: '' },
-  { label: 'Losse tuinplanken', categoryFilter: 'overig', category: 'schutting_hout', key: 'tuinplanken', category_ultra_filter: '' },
+  { label: 'Schuttingpalen', categoryFilter: 'overig', category: 'schutting_hout', key: 'schuttingpalen_hout', category_ultra_filter: 'subcat:Tuinpalen' },
+  { label: 'Paalkappen', categoryFilter: 'overig', category: 'schutting_hout', key: 'paalkap', category_ultra_filter: 'subcat:Paalkappen' },
+  { label: 'Tuinscherm', categoryFilter: 'overig', category: 'schutting_hout', key: 'tuinscherm_hout', category_ultra_filter: 'subcat:Tuinschermen' },
+  { label: 'Afdeklat', categoryFilter: 'overig', category: 'schutting_hout', key: 'afdeklat_hout', category_ultra_filter: 'subcat:Afdeklatten' },
+  { label: 'Losse tuinplanken', categoryFilter: 'overig', category: 'schutting_hout', key: 'tuinplanken', category_ultra_filter: 'subcat:Losse tuinplanken' },
 
   // 3. OPTIE: BETON SYSTEEM
   { label: 'Betonpalen', categoryFilter: 'Overig', category: 'schutting_beton', key: 'betonpalen', category_ultra_filter: '' },
@@ -1273,8 +1274,8 @@ const SCHUTTING_MATS: MaterialSection[] = [
   { label: 'U profielen', categoryFilter: 'Metalstud profielen, Overig', category: 'schutting_composiet', key: 'u_profiel', category_ultra_filter: '' },
 
   // 5. POORT & TOEGANG
-  { label: 'Tuinpoort', categoryFilter: 'overig', category: 'poort', key: 'tuinpoort', category_ultra_filter: '' },
-  { label: 'Stalen frame', categoryFilter: 'overig', category: 'poort', key: 'stalen_frame', category_ultra_filter: '' },
+  { label: 'Tuinpoort', categoryFilter: 'overig', category: 'poort', key: 'tuinpoort', category_ultra_filter: 'subcat:Tuinpoorten' },
+  { label: 'Stalen frame', categoryFilter: 'overig', category: 'poort', key: 'stalen_frame', category_ultra_filter: 'subcat:Poortframes' },
   { label: 'Kozijnbalken', categoryFilter: 'overig', category: 'poort', key: 'kozijnbalken', category_ultra_filter: '' },
 
   // 6. TUINDEUR BESLAG
@@ -1301,16 +1302,16 @@ const TRAPRENOVATIE_OVERZETTREDEN_MATS: MaterialSection[] = [
 ];
 
 const VLIZOTRAP_MATS: MaterialSection[] = [
-  { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: '' },
-  { label: 'Vlizotrap (Complete set)', categoryFilter: 'Vlieringtrappen', category: 'basis', key: 'trap', category_ultra_filter: '' },
-  { label: 'Zolderluik', categoryFilter: 'Overig, Binnendeuren', category: 'basis', key: 'luik', category_ultra_filter: '' },
-  { label: 'Veiligheidshek', categoryFilter: 'Vuren hout, Hardhout geschaafd', category: 'veiligheid', key: 'traphek', category_ultra_filter: '' },
-  { label: 'Veiligheidspoortje', categoryFilter: 'Overig', category: 'veiligheid', key: 'poortje', category_ultra_filter: '' },
-  { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '' },
-  { label: 'Grendel / Sluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluiting', category_ultra_filter: '' },
-  { label: 'Zelfsluitende veer', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'veer', category_ultra_filter: '' },
-  { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'handgreep', category_ultra_filter: '' },
-  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'architraaf', category_ultra_filter: '' },
+  { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: 'balken', multiEntry: true, maxEntries: 1 },
+  { label: 'Vlizotrap (Complete set)', categoryFilter: 'Vlieringtrappen', category: 'basis', key: 'trap', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Zolderluik', categoryFilter: 'Overig', category: 'basis', key: 'luik', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Veiligheidshek', categoryFilter: 'Overig', category: 'veiligheid', key: 'traphek', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Veiligheidspoortje', categoryFilter: 'Overig', category: 'veiligheid', key: 'poortje', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Scharnier', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'scharnieren', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Grendel / Sluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluiting', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Zelfsluitende veer', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'veer', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'handgreep', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'architraaf', category_ultra_filter: 'koplat', multiEntry: true, maxEntries: 1 },
 ];
 
 const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
@@ -1396,11 +1397,11 @@ const ISOLATIEGLAS_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - DAKRAMEN ==========================================
 
 const VELUX_MATS: MaterialSection[] = [
-  { label: 'Velux dakraam set', categoryFilter: 'Dakramen', category: 'vensterset', key: 'vensterset_compleet', category_ultra_filter: '', multiEntry: true },
-  { label: 'Velux Venster', categoryFilter: 'Dakramen', category: 'venster', key: 'venster_los', category_ultra_filter: '', multiEntry: true },
+  { label: 'Dakraam set', categoryFilter: 'Dakramen', category: 'vensterset', key: 'vensterset_compleet', category_ultra_filter: '', multiEntry: true },
+  { label: 'Dakraam', categoryFilter: 'Dakramen', category: 'venster', key: 'venster_los', category_ultra_filter: '', multiEntry: true },
   { label: 'Gootstukken', categoryFilter: 'Dakramen, Daktoebehoren', category: 'gootstuk', key: 'gootstuk', category_ultra_filter: '', multiEntry: true },
-  { label: 'Afwerk plaat', categoryFilter: 'Interieur Platen, Afwerking', category: 'afwerking', key: 'betimmering', category_ultra_filter: '' },
-  { label: 'Plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '' },
+  { label: 'Afwerk plaat', categoryFilter: 'Interieur Platen, Afwerking', category: 'afwerking', key: 'betimmering', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
 ];
 
 const LICHTKOEPEL_MATS: MaterialSection[] = [
@@ -2178,15 +2179,17 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek schuttingklus...',
     items: [
       {
-        title: 'Schutting (Hout)',
-        description: 'Houten schutting plaatsen',
+        title: 'Schutting',
+        description: 'Hout / Beton / Composiet',
         slug: 'schutting-hout',
         measurementLabel: 'Schutting',
         measurements: SCHUTTING_FIELDS,
         materialSections: SCHUTTING_MATS,
         categoryConfig: {
           fundering: { title: 'Basis & Fundering', order: 1 },
-          schutting_hout: { title: 'Schutting Hout', order: 2 },
+          schutting_hout: { title: 'Schutting', order: 2 },
+          schutting_beton: { title: 'Schutting (Beton)', order: 3 },
+          schutting_composiet: { title: 'Schutting (Composiet)', order: 4 },
           poort: { title: 'Poort & Toegang', order: 5 },
           beslag: { title: 'Tuindeur Beslag', order: 6 },
         },
@@ -2204,6 +2207,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           poort: { title: 'Poort & Toegang', order: 5 },
           beslag: { title: 'Tuindeur Beslag', order: 6 },
         },
+        hidden: true,
       },
       {
         title: 'Schutting (Composiet)',
@@ -2218,6 +2222,7 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
           poort: { title: 'Poort & Toegang', order: 5 },
           beslag: { title: 'Tuindeur Beslag', order: 6 },
         },
+        hidden: true,
       },
     ]
   },
@@ -2289,11 +2294,11 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     searchPlaceholder: 'Zoek dakraamklus...',
     items: [
       {
-        title: 'Velux Dakraam',
+        title: 'Dakraam',
         description: 'Plaatsen of vervangen',
         slug: 'velux-dakraam',
         measurementLabel: 'Dakraam',
-        measurements: COUNT_FIELDS,
+        measurements: [],
         materialSections: VELUX_MATS,
         categoryConfig: {
           vensterset: { title: 'Dakraam Set', order: 1 },

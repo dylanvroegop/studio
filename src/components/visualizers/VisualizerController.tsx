@@ -27,6 +27,7 @@ interface VisualizerControllerProps {
     onDataGenerated?: (data: any) => void;
     onKoofChange?: (updated: any[]) => void;
     doorEnabled?: boolean;
+    showOnderplaten?: boolean;
     // ... allow other props
     [key: string]: any;
 }
@@ -371,14 +372,18 @@ export function VisualizerController({
     // 3c. SCHUTTING (Fences)
     if (slug.includes('schutting')) {
         const toNum = (v: any, fb = 0) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || fb);
+        const showOnderplaten = props.showOnderplaten !== false;
         return (
             <SchuttingDrawing
                 lengte={toNum(item.lengte)}
                 hoogte={toNum(item.hoogte)}
-                paalafstand={toNum(item.paalafstand, 1500)}
+                paalafstand={toNum(item.paalafstand, 1810)}
+                startFromRight={Boolean(item.startFromRight)}
                 plank_richting={item.plank_richting}
                 type_schutting={item.type_schutting}
-                betonband_hoogte={toNum(item.betonband_hoogte)}
+                betonband_hoogte={showOnderplaten ? toNum(item.betonband_hoogte) : 0}
+                openings={Array.isArray(item.openings) ? item.openings : []}
+                onOpeningsChange={onOpeningsChange}
                 fitContainer={fitContainer}
                 className={className}
             />

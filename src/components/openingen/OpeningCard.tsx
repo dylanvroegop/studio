@@ -13,6 +13,11 @@ export interface OpeningConstructionOptions {
     dblOnderdorpel: boolean;
 }
 
+export interface OpeningTypeOption {
+    value: string;
+    label: string;
+}
+
 export interface OpeningData {
     id: string;
     type: string;
@@ -73,6 +78,7 @@ interface OpeningCardProps {
     isWallCategory: boolean;
     isCeilingCategory: boolean;
     categorySlug: string;
+    typeOptionsOverride?: OpeningTypeOption[];
 }
 
 export function OpeningCard({
@@ -92,6 +98,7 @@ export function OpeningCard({
     isWallCategory,
     isCeilingCategory,
     categorySlug,
+    typeOptionsOverride,
 }: OpeningCardProps) {
     const isFloorCategory = categorySlug === 'vloeren' || categorySlug.startsWith('vloer-');
 
@@ -99,6 +106,7 @@ export function OpeningCard({
     const openingVensterbank = vensterbanken.find(v => v.openingId === opening.id);
 
     const handleTypeChange = (value: string) => {
+        if (value === opening.type) return;
         let w = opening.width;
         let h = opening.height;
 
@@ -115,6 +123,36 @@ export function OpeningCard({
             height: h,
         });
     };
+
+    const wallTypeOptions: OpeningTypeOption[] = [
+        { value: 'window', label: 'Raamkozijn' },
+        { value: 'frame-inner', label: 'Binnen kozijn' },
+        { value: 'frame-outer', label: 'Buiten kozijn' },
+        { value: 'door', label: 'Deur' },
+        { value: 'opening', label: 'Sparing' },
+        { value: 'nis', label: 'Nis' },
+        { value: 'other', label: 'Overig' },
+    ];
+    const ceilingFloorTypeOptions: OpeningTypeOption[] = [
+        { value: 'opening', label: 'Sparing' },
+        { value: 'vlizotrap', label: 'Vlizotrap' },
+        { value: 'hatch', label: 'Luik' },
+        { value: 'pillar', label: 'Pilaar' },
+        { value: 'other', label: 'Overig' },
+    ];
+    const roofTypeOptions: OpeningTypeOption[] = [
+        { value: 'dakraam', label: 'Dakraam' },
+        { value: 'lichtkoepel', label: 'Lichtkoepel' },
+        { value: 'schoorsteen', label: 'Schoorsteen' },
+        { value: 'opening', label: 'Sparing' },
+        { value: 'other', label: 'Overig' },
+    ];
+    const defaultTypeOptions = isWallCategory
+        ? wallTypeOptions
+        : (isCeilingCategory || isFloorCategory ? ceilingFloorTypeOptions : roofTypeOptions);
+    const typeOptions = (Array.isArray(typeOptionsOverride) && typeOptionsOverride.length > 0)
+        ? typeOptionsOverride
+        : defaultTypeOptions;
 
     const handleRotateOpening = () => {
         onUpdate({
@@ -146,33 +184,11 @@ export function OpeningCard({
                             <SelectValue placeholder="Type" />
                         </SelectTrigger>
                         <SelectContent>
-                            {isWallCategory ? (
-                                <>
-                                    <SelectItem value="window">Raamkozijn</SelectItem>
-                                    <SelectItem value="frame-inner">Binnen kozijn</SelectItem>
-                                    <SelectItem value="frame-outer">Buiten kozijn</SelectItem>
-                                    <SelectItem value="door">Deur</SelectItem>
-                                    <SelectItem value="opening">Sparing</SelectItem>
-                                    <SelectItem value="nis">Nis</SelectItem>
-                                    <SelectItem value="other">Overig</SelectItem>
-                                </>
-                            ) : isCeilingCategory || isFloorCategory ? (
-                                <>
-                                    <SelectItem value="opening">Sparing</SelectItem>
-                                    <SelectItem value="vlizotrap">Vlizotrap</SelectItem>
-                                    <SelectItem value="hatch">Luik</SelectItem>
-                                    <SelectItem value="pillar">Pilaar</SelectItem>
-                                    <SelectItem value="other">Overig</SelectItem>
-                                </>
-                            ) : (
-                                <>
-                                    <SelectItem value="dakraam">Dakraam</SelectItem>
-                                    <SelectItem value="lichtkoepel">Lichtkoepel</SelectItem>
-                                    <SelectItem value="schoorsteen">Schoorsteen</SelectItem>
-                                    <SelectItem value="opening">Sparing</SelectItem>
-                                    <SelectItem value="other">Overig</SelectItem>
-                                </>
-                            )}
+                            {typeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </div>

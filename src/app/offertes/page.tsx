@@ -149,9 +149,9 @@ function getStatusMeta(
         sideBorderClass: 'border-l-amber-500',
       },
     verzonden: {
-      label: 'Verzonden',
-      className: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
-      sideBorderClass: 'border-l-cyan-500',
+      label: 'Verstuurd',
+      className: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+      sideBorderClass: 'border-l-blue-500',
     },
     geaccepteerd: {
       label: 'Geaccepteerd',

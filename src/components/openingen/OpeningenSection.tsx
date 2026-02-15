@@ -1,12 +1,15 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
-import { OpeningCard, OpeningData, OpeningConstructionOptions, Dagkant, Vensterbank } from './OpeningCard';
+import { OpeningCard, OpeningData, OpeningConstructionOptions, Dagkant, Vensterbank, OpeningTypeOption } from './OpeningCard';
 
 interface OpeningenSectionProps {
     openings: OpeningData[];
     onChange: (openings: OpeningData[]) => void;
     constructionOptions: OpeningConstructionOptions;
+    addButtonLabel?: string;
+    createOpening?: () => OpeningData;
+    typeOptionsOverride?: OpeningTypeOption[];
 
     // Linked items
     dagkanten: Dagkant[];
@@ -27,6 +30,9 @@ export function OpeningenSection({
     openings = [],
     onChange,
     constructionOptions,
+    addButtonLabel,
+    createOpening,
+    typeOptionsOverride,
     dagkanten = [],
     vensterbanken = [],
     onAddDagkant,
@@ -73,6 +79,10 @@ export function OpeningenSection({
     };
 
     const handleAdd = () => {
+        if (createOpening) {
+            onChange([...openings, createOpening()]);
+            return;
+        }
         const enableRaveelwerk = isCeilingCategory || isFloorCategory;
         const newOpening: OpeningData = {
             id: crypto.randomUUID(),
@@ -112,6 +122,7 @@ export function OpeningenSection({
                         isWallCategory={isWallCategory}
                         isCeilingCategory={isCeilingCategory}
                         categorySlug={categorySlug}
+                        typeOptionsOverride={typeOptionsOverride}
                     />
                 ))}
 
@@ -122,7 +133,7 @@ export function OpeningenSection({
                     className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-zinc-500 hover:text-emerald-400 transition-all font-medium text-xs"
                 >
                     <PlusCircle className="h-4 w-4" />
-                    <span>Opening Toevoegen</span>
+                    <span>{addButtonLabel || 'Opening Toevoegen'}</span>
                 </Button>
             </div>
         </div>

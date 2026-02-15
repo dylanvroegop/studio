@@ -72,6 +72,9 @@ export const jobSections: Record<string, MeasurementSection[]> = {
     'vliering-maken': ['openingen'],
     'massief-houten-vloer': ['openingen'],
     'laminaat-pvc': ['openingen'],
+
+    // Schuttingen
+    'schutting-hout': ['openingen'],
 };
 
 export const defaultJobConfig: JobTypeConfig = {
