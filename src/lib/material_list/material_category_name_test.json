@@ -18377,18 +18377,7 @@
         "sub_categorie": "Hoekprofielen"
     },
     {
-        "categorie": "Keralit",
-        "materiaalnaam": "Keralit schroef 30mm RVS 200 stuks",
-        "lengte": "30mm",
-        "materiaal": "rvs",
-        "inhoud": "200 stuks",
-        "prijs_incl_21%_btw": "€ 24,18",
-        "id": "lfcE17",
-        "order_id": 1685,
-        "sub_categorie": "Bevestigingsmiddelen"
-    },
-    {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 285x16mm Wit 290cm lang",
         "lengte": "290cm",
         "breedte": "285mm",
@@ -18411,7 +18400,7 @@
         "sub_categorie": "Goten"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 285x16mm Wit 580cm lang",
         "lengte": "580cm",
         "breedte": "285mm",
@@ -18423,7 +18412,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 235x16mm Wit 580cm lang",
         "lengte": "580cm",
         "breedte": "235mm",
@@ -18456,7 +18445,7 @@
         "sub_categorie": "Startprofielen"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel schroef 4x50mm 100 stuks incl. dopjes",
         "afmeting": "4x50mm",
         "inhoud": "100 stuks",
@@ -18466,7 +18455,7 @@
         "sub_categorie": "Bevestigingsmiddelen"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 385x16mm Wit 290cm lang",
         "lengte": "290cm",
         "breedte": "385mm",
@@ -18478,7 +18467,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 235x16mm Wit 290cm lang",
         "lengte": "290cm",
         "breedte": "235mm",
@@ -18490,7 +18479,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 185x16mm Wit 580cm lang",
         "lengte": "580cm",
         "breedte": "185mm",
@@ -18502,7 +18491,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 185x16mm Wit 290cm lang",
         "lengte": "290cm",
         "breedte": "185mm",
@@ -18536,7 +18525,7 @@
         "sub_categorie": "Stoelprofielen"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel sealer 250ml",
         "inhoud": "250ml",
         "prijs_incl_21%_btw": "€ 36,95",
@@ -18586,7 +18575,7 @@
         "sub_categorie": "Eindprofielen"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel boeiboord uitlijnprofiel 16mm Zwart Geanodiseerd 550cm lang",
         "lengte": "550cm",
         "dikte": "16mm",
@@ -18680,18 +18669,6 @@
         "id": "XnYSct",
         "order_id": 1712,
         "sub_categorie": "Hoekprofielen"
-    },
-    {
-        "categorie": "Keralit",
-        "materiaalnaam": "Torx schroef 45mm RVS V4A 100 stuks Zwartgrijs RAL7021",
-        "lengte": "45mm",
-        "materiaal": "rvs v4a",
-        "inhoud": "100 stuks",
-        "kleur": "zwartgrijs ral7021",
-        "prijs_incl_21%_btw": "€ 72,07",
-        "id": "H4tzuC",
-        "order_id": 1713,
-        "sub_categorie": "Bevestigingsmiddelen"
     },
     {
         "categorie": "Keralit",
@@ -18962,7 +18939,7 @@
         "sub_categorie": "Hoekprofielen"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Flexibel hoekverbindingsprofiel 18mm Novicell Steppe Bruin 500cm lang",
         "lengte": "500cm",
         "dikte": "18mm",
@@ -18973,7 +18950,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Verbindingsstuk rabat 333mm Grove Nerf Dubbel Steppe Bruin",
         "breedte": "333mm",
         "kleur": "steppe bruin",
@@ -18983,7 +18960,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Novicell rabat 333mm Grove Nerf Dubbel Steppe Bruin 600cm lang",
         "lengte": "600cm",
         "breedte": "333mm",
@@ -18994,7 +18971,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Novicell rabat 333mm Grove Nerf Dubbel Savanne Crème 600cm lang",
         "lengte": "600cm",
         "breedte": "333mm",
@@ -19005,7 +18982,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Novicell rabat 333mm Grove Nerf Dubbel Alaska Wit 600cm lang",
         "lengte": "600cm",
         "breedte": "333mm",
@@ -19016,7 +18993,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Novicell sponningdeel 167mm Fijne Nerf Savanne Crème 600cm lang",
         "lengte": "600cm",
         "breedte": "167mm",
@@ -19027,7 +19004,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Buitenhoekprofiel 60x60mm Novicell Steppe Bruin 600cm lang",
         "lengte": "600cm",
         "afmeting": "60x60mm",
@@ -19038,7 +19015,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Buitenhoekprofiel 60x60mm Novicell Savanne Crème 600cm lang",
         "lengte": "600cm",
         "afmeting": "60x60mm",
@@ -19049,7 +19026,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Eindprofiel 45mm Novicell Savanne Crème 600cm lang",
         "lengte": "600cm",
         "dikte": "45mm",
@@ -19060,7 +19037,7 @@
         "sub_categorie": "Novicell"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Novicell",
         "materiaalnaam": "Verbindingsstuk rabat 167mm Fijne Nerf Enkel Steppe Bruin",
         "breedte": "167mm",
         "kleur": "steppe bruin",
@@ -26964,7 +26941,7 @@
         "sub_categorie": "Verbindingsprofielen"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel sierlijst 36x52mm Wit 485cm lang",
         "lengte": "485cm",
         "afmeting": "36x52mm",
@@ -26975,7 +26952,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 610x16mm Wit 290cm lang",
         "lengte": "290cm",
         "afmeting": "610x16mm",
@@ -26986,7 +26963,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Unipanel",
         "materiaalnaam": "Unipanel bouwpaneel 385x16mm Wit 580cm lang",
         "lengte": "580cm",
         "afmeting": "385x16mm",
@@ -26995,49 +26972,6 @@
         "id": "k58Qh1",
         "order_id": 2526,
         "sub_categorie": "Unipanel"
-    },
-    {
-        "categorie": "Keralit",
-        "materiaalnaam": "RVS nagel 30mm",
-        "lengte": "30mm",
-        "inhoud": "250 stuks",
-        "prijs_incl_21%_btw": "€ 32,39",
-        "id": "cLBzVy",
-        "order_id": 2527,
-        "sub_categorie": "Bevestigingsmiddelen"
-    },
-    {
-        "categorie": "Keralit",
-        "materiaalnaam": "Paneel afgerond 175x25x9mm Verkeerswit 600cm lang",
-        "lengte": "600cm",
-        "afmeting": "175x25x9mm",
-        "kleur": "verkeerswit",
-        "prijs_incl_21%_btw": "€ 121,53",
-        "id": "jTlS7c",
-        "order_id": 2528,
-        "sub_categorie": "Bouwpanelen"
-    },
-    {
-        "categorie": "Keralit",
-        "materiaalnaam": "Platpaneel 100x9mm Crème 600cm lang",
-        "lengte": "600cm",
-        "afmeting": "100x9mm",
-        "kleur": "crème",
-        "prijs_incl_21%_btw": "€ 69,99",
-        "id": "u7lwag",
-        "order_id": 2529,
-        "sub_categorie": "Bouwpanelen"
-    },
-    {
-        "categorie": "Keralit",
-        "materiaalnaam": "Platpaneel 215x9mm Verkeerswit 600cm lang",
-        "lengte": "600cm",
-        "afmeting": "215x9mm",
-        "kleur": "verkeerswit",
-        "prijs_incl_21%_btw": "€ 143,89",
-        "id": "UVX3wq",
-        "order_id": 2530,
-        "sub_categorie": "Bouwpanelen"
     },
     {
         "categorie": "Keralit",
@@ -27051,17 +26985,6 @@
     },
     {
         "categorie": "Keralit",
-        "materiaalnaam": "Hoekpaneel 400x35x9mm Verkeerswit 600cm lang",
-        "lengte": "600cm",
-        "afmeting": "400x35x9mm",
-        "kleur": "verkeerswit",
-        "prijs_incl_21%_btw": "€ 241,18",
-        "id": "MpKrT9",
-        "order_id": 2532,
-        "sub_categorie": "Bouwpanelen"
-    },
-    {
-        "categorie": "Keralit",
         "materiaalnaam": "Omrandingprofiel 17.5mm Verkeerswit 500cm lang",
         "lengte": "500cm",
         "dikte": "17.5mm",
@@ -27070,17 +26993,6 @@
         "id": "NBkw0P",
         "order_id": 2533,
         "sub_categorie": "Omrandingprofielen"
-    },
-    {
-        "categorie": "Keralit",
-        "materiaalnaam": "Hoekpaneel 90x35x9mm Verkeerswit 600cm lang",
-        "lengte": "600cm",
-        "afmeting": "90x35x9mm",
-        "kleur": "verkeerswit",
-        "prijs_incl_21%_btw": "€ 67,37",
-        "id": "wcohPM",
-        "order_id": 2534,
-        "sub_categorie": "Bouwpanelen"
     },
     {
         "categorie": "Keralit",
@@ -27103,17 +27015,6 @@
         "id": "ijIgVr",
         "order_id": 2536,
         "sub_categorie": "Startprofielen"
-    },
-    {
-        "categorie": "Keralit",
-        "materiaalnaam": "Florence buitenplafond paneel 250x16.5mm Wit 600cm lang",
-        "lengte": "600cm",
-        "afmeting": "250x16.5mm",
-        "kleur": "wit",
-        "prijs_incl_21%_btw": "€ 111,62",
-        "id": "9Ey4cJ",
-        "order_id": 2537,
-        "sub_categorie": "Bouwpanelen"
     },
     {
         "categorie": "Keralit",

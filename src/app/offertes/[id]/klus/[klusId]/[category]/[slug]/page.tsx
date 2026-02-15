@@ -101,6 +101,15 @@ interface DakpanWerkendeMaten {
   maxHoogteMm: number | null;
 }
 
+type GevelProfielMode = 'hoek' | 'eind' | 'both';
+type GevelProfielSideType = 'hoek' | 'eind';
+
+interface GevelProfielState {
+  mode: GevelProfielMode;
+  links: GevelProfielSideType;
+  rechts: GevelProfielSideType;
+}
+
 const HELLEND_DAK_SECTION_MULTIPLIERS: Record<string, number> = {
   constructieplaat: 2,
   folie_buiten: 2,
@@ -359,6 +368,7 @@ export default function GenericMeasurementPage() {
     'metalstud-tussenwand',
   ].includes(jobSlug);
   const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
+  const isGevelbekledingKeralit = jobSlug === 'gevelbekleding-keralit';
   const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
   const hasWallFields = fields.some(f => f.key === 'balkafstand');
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
@@ -490,6 +500,13 @@ export default function GenericMeasurementPage() {
       materialenLijstSnapshot,
       ['tengelwerk_basis', 'tengelwerk', 'tengels'],
       ['tengel', 'ventilatielat']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasGevelDaktrimMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['keralit_daktrim', 'daktrim'],
+      ['daktrim']
     );
   }, [materialenLijstSnapshot]);
   const showKoofSectionInUI = showKoofSection && (!isGevelbekleding || hasGevelKoofMaterialFromPreviousPage);
@@ -697,6 +714,79 @@ export default function GenericMeasurementPage() {
     const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
     return parsed;
+  };
+
+  const normalizeGevelProfielMode = (
+    value: any,
+    fallback: GevelProfielMode = 'both'
+  ): GevelProfielMode => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'hoek') return 'hoek';
+    if (normalized === 'eind') return 'eind';
+    if (normalized === 'both' || normalized === 'beide') return 'both';
+    return fallback;
+  };
+
+  const normalizeGevelProfielSide = (
+    value: any,
+    fallback: GevelProfielSideType = 'hoek'
+  ): GevelProfielSideType => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'eind') return 'eind';
+    if (normalized === 'hoek') return 'hoek';
+    return fallback;
+  };
+
+  const resolveGevelProfielState = (
+    rawItem: any,
+    fallbackMode: GevelProfielMode = 'both'
+  ): GevelProfielState => {
+    const mode = normalizeGevelProfielMode(rawItem?.gevel_profiel_mode, fallbackMode);
+    if (mode === 'hoek') return { mode, links: 'hoek', rechts: 'hoek' };
+    if (mode === 'eind') return { mode, links: 'eind', rechts: 'eind' };
+
+    const links = normalizeGevelProfielSide(rawItem?.gevel_profiel_links, 'hoek');
+    const rechts = normalizeGevelProfielSide(
+      rawItem?.gevel_profiel_rechts,
+      links === 'hoek' ? 'eind' : 'hoek'
+    );
+
+    if (links === rechts) {
+      return {
+        mode: 'both',
+        links,
+        rechts: links === 'hoek' ? 'eind' : 'hoek',
+      };
+    }
+
+    return { mode: 'both', links, rechts };
+  };
+
+  const applyGevelProfielStateToItem = (item: any, state: GevelProfielState) => ({
+    ...item,
+    gevel_profiel_mode: state.mode,
+    gevel_profiel_links: state.links,
+    gevel_profiel_rechts: state.rechts,
+  });
+
+  const formatGevelProfielLabel = (side: GevelProfielSideType): string => (
+    side === 'hoek' ? 'Hoek' : 'Eind'
+  );
+
+  const hasGevelProfielDimensionsReady = (item: any): boolean => {
+    const lengteReady = toPositiveNumber(item?.lengte) !== null;
+    const hoogteCandidates = [
+      item?.hoogte,
+      item?.breedte,
+      item?.hoogteLinks,
+      item?.hoogteRechts,
+      item?.hoogte1,
+      item?.hoogte2,
+      item?.hoogte3,
+      item?.hoogteNok,
+    ];
+    const hoogteReady = hoogteCandidates.some((candidate) => toPositiveNumber(candidate) !== null);
+    return lengteReady && hoogteReady;
   };
 
   const isEpdmEdgeField = (key: string): key is 'edge_top' | 'edge_bottom' | 'edge_left' | 'edge_right' => (
@@ -1423,6 +1513,38 @@ export default function GenericMeasurementPage() {
 
       item.lood_gevelzijde = ['top', 'right', 'bottom', 'left'].some((side) => Boolean(item[`lood_${side}`]));
     }
+
+    if (isGevelbekledingKeralit) {
+      if (isEmptyValue(item.lengte) && !isEmptyValue(item.breedte)) {
+        item.lengte = item.breedte;
+      }
+      if (!isEmptyValue(item.lengte)) {
+        item.breedte = item.lengte;
+      }
+
+      item.keralit_panelen_afval_volgende_baan = Boolean(item.keralit_panelen_afval_volgende_baan);
+
+      if (hasGevelDaktrimMaterialFromPreviousPage) {
+        const daktrimLengte = toPositiveNumber(item.lengte ?? item.breedte);
+        if (daktrimLengte !== null) {
+          item.daktrim_lengte = Math.round(daktrimLengte);
+        }
+      } else {
+        delete item.daktrim_lengte;
+      }
+
+      const profielState = resolveGevelProfielState(item, 'both');
+      item.gevel_profiel_mode = profielState.mode;
+      item.gevel_profiel_links = profielState.links;
+      item.gevel_profiel_rechts = profielState.rechts;
+    } else {
+      delete item.gevel_profiel_mode;
+      delete item.gevel_profiel_links;
+      delete item.gevel_profiel_rechts;
+      delete item.daktrim_lengte;
+      delete item.keralit_panelen_afval_volgende_baan;
+    }
+
     delete item.epdm_orientatie_startpositie;
 
     return item;
@@ -1597,9 +1719,24 @@ export default function GenericMeasurementPage() {
     return item;
   };
 
-  const applyGevelConstructieDefaults = (item: any, hasTengelMaterial: boolean) => {
+  const applyGevelConstructieDefaults = (
+    item: any,
+    hasTengelMaterial: boolean,
+    hasDaktrimMaterial: boolean = false
+  ) => {
     if (!isGevelbekleding) return item;
     const next = { ...item };
+    if (isGevelbekledingKeralit) {
+      if (isEmptyValue(next.lengte) && !isEmptyValue(next.breedte)) {
+        next.lengte = next.breedte;
+      }
+      if (!isEmptyValue(next.lengte)) {
+        next.breedte = next.lengte;
+      }
+      if (isEmptyValue(next.keralit_panelen_afval_volgende_baan)) {
+        next.keralit_panelen_afval_volgende_baan = false;
+      }
+    }
     if (isEmptyValue(next.startLattenFromBottom)) {
       next.startLattenFromBottom = true;
     }
@@ -1616,6 +1753,26 @@ export default function GenericMeasurementPage() {
       if (isEmptyValue(next.startTengelFromBottom)) {
         next.startTengelFromBottom = true;
       }
+    }
+    if (isGevelbekledingKeralit) {
+      const profielState = resolveGevelProfielState(next, 'both');
+      next.gevel_profiel_mode = profielState.mode;
+      next.gevel_profiel_links = profielState.links;
+      next.gevel_profiel_rechts = profielState.rechts;
+
+      if (hasDaktrimMaterial) {
+        const daktrimLengte = toPositiveNumber(next.lengte ?? next.breedte);
+        if (daktrimLengte !== null) {
+          next.daktrim_lengte = Math.round(daktrimLengte);
+        } else if (isEmptyValue(next.daktrim_lengte)) {
+          next.daktrim_lengte = '';
+        }
+      } else {
+        delete next.daktrim_lengte;
+      }
+    } else {
+      delete next.daktrim_lengte;
+      delete next.keralit_panelen_afval_volgende_baan;
     }
     return next;
   };
@@ -1760,6 +1917,11 @@ export default function GenericMeasurementPage() {
             materialenLijstInContainer,
             ['tengelwerk_basis', 'tengelwerk', 'tengels'],
             ['tengel', 'ventilatielat']
+          );
+          const hasGevelDaktrimMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['keralit_daktrim', 'daktrim'],
+            ['daktrim']
           );
           const floorProfileCountFieldsInContainer: Array<{ fieldKey: string; enabled: boolean }> = [];
           if (jobSlug === 'massief-houten-vloer') {
@@ -1967,7 +2129,7 @@ export default function GenericMeasurementPage() {
               applyVoorzetwandBalkafstandDefault(applyCeilingBalkafstandDefault(item, !!balklaagMaterial))
             );
             const withGevelDefaults = withBalkafstandDefaults.map((item: any) =>
-              applyGevelConstructieDefaults(item, hasGevelTengelMaterialInContainer)
+              applyGevelConstructieDefaults(item, hasGevelTengelMaterialInContainer, hasGevelDaktrimMaterialInContainer)
             );
             const withDakpanDefaults = withGevelDefaults.map((item: any) =>
               applyHellendDakDefaultsFromDakpan(item, dakpanMaten)
@@ -1994,7 +2156,8 @@ export default function GenericMeasurementPage() {
             );
             const withGevelDefaults = applyGevelConstructieDefaults(
               withBalkafstandDefaults,
-              hasGevelTengelMaterialInContainer
+              hasGevelTengelMaterialInContainer,
+              hasGevelDaktrimMaterialInContainer
             );
             const withDakpanDefaults = applyHellendDakDefaultsFromDakpan(withGevelDefaults, dakpanMaten);
             const withGolfplaatAuto = applyGolfplaatDakverdelingAuto(withDakpanDefaults);
@@ -2087,7 +2250,8 @@ export default function GenericMeasurementPage() {
   const addItem = () => {
     const withGevelDefaults = applyGevelConstructieDefaults(
       createEmptyItem(),
-      hasGevelTengelMaterialFromPreviousPage
+      hasGevelTengelMaterialFromPreviousPage,
+      hasGevelDaktrimMaterialFromPreviousPage
     );
     const newItem = applyHellendDakDefaultsFromDakpan(withGevelDefaults, dakpanWerkendeMaten);
     setItems(prev => [...prev, newItem]);
@@ -2109,6 +2273,14 @@ export default function GenericMeasurementPage() {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
       let newItem = { ...item, [key]: value };
+
+      if (isGevelbekledingKeralit) {
+        if (key === 'lengte') {
+          newItem.breedte = value;
+        } else if (key === 'breedte') {
+          newItem.lengte = value;
+        }
+      }
 
       if (isEpdmDak && isEpdmEdgeField(key)) {
         const nextEpdmEdge = normalizeEpdmEdgeValue(value, epdmDefaultEdgeForKey(key));
@@ -2156,11 +2328,386 @@ export default function GenericMeasurementPage() {
       }
 
       newItem = applyGolfplaatDakverdelingAuto(newItem, key);
+      newItem = applyGevelConstructieDefaults(
+        newItem,
+        hasGevelTengelMaterialFromPreviousPage,
+        hasGevelDaktrimMaterialFromPreviousPage
+      );
       if (isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'werkende_breedte_mm', 'werkende_hoogte_mm', 'halfLatafstandFromBottom'].includes(key)) {
         newItem = applyHellendDakAutoCalculations(newItem, { onlyWhenEmpty: false, syncLatafstand: true });
       }
       return applyHellendDakMultipliers(newItem);
     }));
+  };
+
+  const updateKeralitGevelProfielMode = (index: number, mode: GevelProfielMode) => {
+    setItems((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      const current = resolveGevelProfielState(item, 'both');
+      if (mode === 'hoek') {
+        return applyGevelProfielStateToItem(item, { mode: 'hoek', links: 'hoek', rechts: 'hoek' });
+      }
+      if (mode === 'eind') {
+        return applyGevelProfielStateToItem(item, { mode: 'eind', links: 'eind', rechts: 'eind' });
+      }
+      const links = current.mode === 'both' ? current.links : 'hoek';
+      const rechts = links === 'hoek' ? 'eind' : 'hoek';
+      return applyGevelProfielStateToItem(item, { mode: 'both', links, rechts });
+    }));
+  };
+
+  const updateKeralitGevelProfielSide = (
+    index: number,
+    side: 'links' | 'rechts',
+    value: GevelProfielSideType
+  ) => {
+    setItems((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      const opposite: GevelProfielSideType = value === 'hoek' ? 'eind' : 'hoek';
+      const state: GevelProfielState = side === 'links'
+        ? { mode: 'both', links: value, rechts: opposite }
+        : { mode: 'both', links: opposite, rechts: value };
+      return applyGevelProfielStateToItem(item, state);
+    }));
+  };
+
+  const renderKeralitGevelProfielSection = (item: Record<string, any>, index: number) => {
+    if (jobSlug !== 'gevelbekleding-keralit') return null;
+
+    const profielState = resolveGevelProfielState(item, 'both');
+    const profielSectionKey = `gevel-profiel-${index}`;
+    const isCollapsed = collapsedSections[profielSectionKey] !== false;
+    const isReady = hasGevelProfielDimensionsReady(item);
+    const sideToggleButtonClass = "flex-1 text-xs py-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+    const summary = profielState.mode === 'both'
+      ? `Links ${formatGevelProfielLabel(profielState.links)} • Rechts ${formatGevelProfielLabel(profielState.rechts)}`
+      : `${formatGevelProfielLabel(profielState.links)} beide zijden`;
+
+    const modeButtonClass = (
+      active: boolean,
+      tone: 'hoek' | 'eind' | 'both'
+    ) => cn(
+      "text-xs py-1.5 rounded transition-colors border",
+      active
+        ? tone === 'hoek'
+          ? "bg-orange-500/20 text-orange-300 border-orange-500/30"
+          : tone === 'eind'
+            ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
+            : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+        : "bg-black/20 text-zinc-400 border-white/10 hover:text-zinc-200"
+    );
+
+    return (
+      <div className={cn("mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden", !isReady && "opacity-80")}>
+        <div
+          className={cn(
+            "px-4 py-3 flex items-center justify-between select-none transition-colors",
+            isReady ? "cursor-pointer hover:bg-white/5" : "cursor-not-allowed"
+          )}
+          onClick={() => {
+            if (!isReady) return;
+            toggleCollapsed(profielSectionKey);
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-zinc-200">Hoek/Eind profiel</span>
+            {isCollapsed && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                {summary}
+              </span>
+            )}
+          </div>
+          <div className="text-zinc-500">
+            {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </div>
+        </div>
+
+        {!isReady && (
+          <div className="px-4 pb-4 pt-0">
+            <div className="pt-2 border-t border-white/5">
+              <p className="text-[11px] text-zinc-500">Vul eerst de afmetingen in om dit te activeren.</p>
+            </div>
+          </div>
+        )}
+
+        {isReady && !isCollapsed && (
+          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+            <div className="pt-2 border-t border-white/5 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs uppercase text-zinc-500 tracking-wider">Profiel type</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    className={modeButtonClass(profielState.mode === 'hoek', 'hoek')}
+                    onClick={() => updateKeralitGevelProfielMode(index, 'hoek')}
+                    disabled={disabledAll}
+                  >
+                    Hoekprofiel
+                  </button>
+                  <button
+                    type="button"
+                    className={modeButtonClass(profielState.mode === 'eind', 'eind')}
+                    onClick={() => updateKeralitGevelProfielMode(index, 'eind')}
+                    disabled={disabledAll}
+                  >
+                    Eindprofiel
+                  </button>
+                  <button
+                    type="button"
+                    className={modeButtonClass(profielState.mode === 'both', 'both')}
+                    onClick={() => updateKeralitGevelProfielMode(index, 'both')}
+                    disabled={disabledAll}
+                  >
+                    Beide
+                  </button>
+                </div>
+              </div>
+
+              {profielState.mode === 'both' && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Links</Label>
+                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => updateKeralitGevelProfielSide(index, 'links', 'hoek')}
+                        disabled={disabledAll}
+                        className={cn(
+                          sideToggleButtonClass,
+                          profielState.links === 'hoek'
+                            ? "bg-orange-500/20 text-orange-300"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        )}
+                      >
+                        Hoek
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateKeralitGevelProfielSide(index, 'links', 'eind')}
+                        disabled={disabledAll}
+                        className={cn(
+                          sideToggleButtonClass,
+                          profielState.links === 'eind'
+                            ? "bg-sky-500/20 text-sky-300"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        )}
+                      >
+                        Eind
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Rechts</Label>
+                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => updateKeralitGevelProfielSide(index, 'rechts', 'hoek')}
+                        disabled={disabledAll}
+                        className={cn(
+                          sideToggleButtonClass,
+                          profielState.rechts === 'hoek'
+                            ? "bg-orange-500/20 text-orange-300"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        )}
+                      >
+                        Hoek
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateKeralitGevelProfielSide(index, 'rechts', 'eind')}
+                        disabled={disabledAll}
+                        className={cn(
+                          sideToggleButtonClass,
+                          profielState.rechts === 'eind'
+                            ? "bg-sky-500/20 text-sky-300"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        )}
+                      >
+                        Eind
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderKeralitPanelenSection = (item: Record<string, any>, index: number) => {
+    if (!isGevelbekledingKeralit) return null;
+
+    const sectionKey = `keralit-panelen-${index}`;
+    const isCollapsed = collapsedSections[sectionKey] !== false;
+    const isReady = hasGevelProfielDimensionsReady(item);
+    const gebruikAfvalVolgendeBaan = Boolean(item.keralit_panelen_afval_volgende_baan);
+    const summary = gebruikAfvalVolgendeBaan
+      ? 'Afval volgende baan: Aan'
+      : 'Naadloos per baan: Aan';
+
+    return (
+      <div className={cn("mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden", !isReady && "opacity-80")}>
+        <div
+          className={cn(
+            "px-4 py-3 flex items-center justify-between select-none transition-colors",
+            isReady ? "cursor-pointer hover:bg-white/5" : "cursor-not-allowed"
+          )}
+          onClick={() => {
+            if (!isReady) return;
+            toggleCollapsed(sectionKey);
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-zinc-200">Keralit panelen</span>
+            {isCollapsed && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                {summary}
+              </span>
+            )}
+          </div>
+          <div className="text-zinc-500">
+            {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </div>
+        </div>
+
+        {!isReady && (
+          <div className="px-4 pb-4 pt-0">
+            <div className="pt-2 border-t border-white/5">
+              <p className="text-[11px] text-zinc-500">Vul eerst de afmetingen in om dit te activeren.</p>
+            </div>
+          </div>
+        )}
+
+        {isReady && !isCollapsed && (
+          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+            <div className="pt-2 border-t border-white/5 space-y-3">
+              <div className="flex items-start justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-zinc-200">Afval gebruiken volgende baan</p>
+                  <p className="text-[11px] text-zinc-500">Aan: restlengtes worden doorgezet naar de volgende baan.</p>
+                </div>
+                <Switch
+                  checked={gebruikAfvalVolgendeBaan}
+                  onCheckedChange={(checked) => updateItem(index, 'keralit_panelen_afval_volgende_baan', checked)}
+                  disabled={disabledAll}
+                />
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                {gebruikAfvalVolgendeBaan
+                  ? 'Doorlopende baanberekening met hergebruik van restlengtes.'
+                  : 'Naadloos per baan: elke baan start met een volledige planklengte.'}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderKeralitDaktrimSection = (item: Record<string, any>, index: number) => {
+    if (!isGevelbekledingKeralit || !hasGevelDaktrimMaterialFromPreviousPage) return null;
+
+    const sectionKey = `keralit-daktrim-${index}`;
+    const isCollapsed = collapsedSections[sectionKey] !== false;
+    const daktrimLengte = toPositiveNumber(item.daktrim_lengte ?? item.lengte ?? item.breedte);
+    const summary = daktrimLengte !== null ? `${Math.round(daktrimLengte)}mm` : 'Niet ingevuld';
+    const displayLength = daktrimLengte !== null ? String(Math.round(daktrimLengte)) : '';
+
+    return (
+      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+        <div
+          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+          onClick={() => toggleCollapsed(sectionKey)}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-zinc-200">Daktrim</span>
+            {isCollapsed && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                {summary}
+              </span>
+            )}
+          </div>
+          <div className="text-zinc-500">
+            {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </div>
+        </div>
+
+        {!isCollapsed && (
+          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+            <div className="pt-2 border-t border-white/5 space-y-2">
+              <Label className="text-xs">Lengte</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  className="bg-black/20 border-white/10 h-9 text-sm pr-10"
+                  value={displayLength}
+                  readOnly
+                  disabled={disabledAll}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
+              </div>
+              <p className="text-[11px] text-zinc-500">Automatisch gevuld vanuit breedte.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTrespaNaadSection = (index: number) => {
+    const isTrespa = jobSlug.toLowerCase().includes('trespa');
+    const isRockpanel = jobSlug.toLowerCase().includes('rockpanel');
+    if (!isTrespa && !isRockpanel) return null;
+
+    const fieldKey = isTrespa ? 'trespa_seam_thickness' : 'rockpanel_seam_thickness';
+    const label = isTrespa ? 'Trespa naad dikte' : 'Rockpanel naad dikte';
+    const currentValue = userData?.[fieldKey] ?? 8;
+
+    return (
+      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+        <div
+          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+          onClick={() => toggleCollapsed(`trespa-${index}`)}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-zinc-200">{label}</span>
+            {collapsedSections[`trespa-${index}`] !== false && currentValue > 0 && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                {currentValue}mm
+              </span>
+            )}
+          </div>
+          <div className="text-zinc-500">
+            {collapsedSections[`trespa-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </div>
+        </div>
+
+        {collapsedSections[`trespa-${index}`] === false && (
+          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+            <div className="pt-2 border-t border-white/5 space-y-2">
+              <Label className="text-xs uppercase text-zinc-500 tracking-wider">Naad dikte</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  className="bg-black/20 border-white/10 h-9 text-sm pr-8"
+                  value={currentValue}
+                  placeholder="8"
+                  onChange={(e) => {
+                    if (userDocRef) {
+                      updateDoc(userDocRef, { [fieldKey]: Number(e.target.value) }).catch(console.error);
+                    }
+                  }}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const createVak = (type: string) => ({
@@ -2707,6 +3254,37 @@ export default function GenericMeasurementPage() {
             processed.tussenstijlen = buildTussenstijlenForSave(processed);
             const stijlen = buildStijlenForSave(processed);
             if (stijlen) processed.stijlen = stijlen;
+          }
+
+          if (isGevelbekledingKeralit) {
+            if (isEmptyValue(processed.lengte) && !isEmptyValue(processed.breedte)) {
+              processed.lengte = processed.breedte;
+            }
+            if (!isEmptyValue(processed.lengte)) {
+              processed.breedte = processed.lengte;
+            }
+            if (!isEmptyValue(processed.lengte)) {
+              processed.lengte = Number(processed.lengte);
+            }
+            if (!isEmptyValue(processed.breedte)) {
+              processed.breedte = Number(processed.breedte);
+            }
+            if (!isEmptyValue(processed.hoogte)) {
+              processed.hoogte = Number(processed.hoogte);
+            }
+
+            processed.keralit_panelen_afval_volgende_baan = Boolean(processed.keralit_panelen_afval_volgende_baan);
+
+            if (hasGevelDaktrimMaterialFromPreviousPage) {
+              const daktrimLengte = toPositiveNumber(processed.lengte ?? processed.breedte);
+              if (daktrimLengte !== null) {
+                processed.daktrim_lengte = Math.round(daktrimLengte);
+              } else {
+                delete processed.daktrim_lengte;
+              }
+            } else {
+              delete processed.daktrim_lengte;
+            }
           }
 
           if (isBoeiboord) {
@@ -3324,8 +3902,9 @@ export default function GenericMeasurementPage() {
                         const showLengte = !!fLengte;
                         const showHoogte = shape === 'rectangle' && !!fHoogte;
                         const showBreedte = shape === 'rectangle' && !!fBreedte;
+                        const shouldSwapKeralitDimensionLabels = isGevelbekledingKeralit && !showBreedte;
 
-                        const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak || isGevelbekleding) && showLengte && showHoogte;
+                        const useSideBySideLengteHoogte = (isVoorzetwandParity || isHellendDak || isGevelbekleding || isSchutting) && showLengte && showHoogte;
                         const useSideBySideLengteBreedteGolfplaat = (isGolfplaatDak || isEpdmDak) && showLengte && showHoogte;
                         const useInlineLengteBreedte = !useSideBySideLengteHoogte && !useSideBySideLengteBreedteGolfplaat && showLengte && showBreedte;
                         const showSwapDimensions = !useSideBySideLengteHoogte && !useSideBySideLengteBreedteGolfplaat && showLengte && (showHoogte || showBreedte);
@@ -3408,7 +3987,14 @@ export default function GenericMeasurementPage() {
 
                             {(useSideBySideLengteHoogte || useSideBySideLengteBreedteGolfplaat) ? (
                               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 items-end">
-                                <DynamicInput field={fLengte!} value={item.lengte} onChange={v => updateItem(index, 'lengte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
+                                <DynamicInput
+                                  field={fLengte!}
+                                  value={item.lengte}
+                                  onChange={v => updateItem(index, 'lengte', v)}
+                                  onKeyDown={handleKeyDown}
+                                  disabled={disabledAll}
+                                  labelOverride={shouldSwapKeralitDimensionLabels ? 'Breedte' : undefined}
+                                />
                                 <div className="flex justify-center pb-1">
                                   <Button
                                     type="button"
@@ -3428,7 +4014,11 @@ export default function GenericMeasurementPage() {
                                   onChange={v => updateItem(index, showBreedte ? 'breedte' : 'hoogte', v)}
                                   onKeyDown={handleKeyDown}
                                   disabled={disabledAll}
-                                  labelOverride={!showBreedte && isGevelbekleding ? 'Breedte' : undefined}
+                                  labelOverride={
+                                    shouldSwapKeralitDimensionLabels
+                                      ? 'Hoogte'
+                                      : (!showBreedte && isGevelbekleding ? 'Breedte' : undefined)
+                                  }
                                 />
                               </div>
                             ) : useInlineLengteBreedte ? (
@@ -3582,8 +4172,6 @@ export default function GenericMeasurementPage() {
                         );
                       })()}
                     </div>
-
-
                     {/* Openingen Section */}
                     {showOpeningsSection && (
                       <OpeningenSection
@@ -4341,7 +4929,7 @@ export default function GenericMeasurementPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-zinc-200">
-                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : (jobSlug.includes('hellend-dak') ? 'Pan latten' : 'Latten')}
+                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : (jobSlug.includes('hellend-dak') ? 'Pan latten' : 'Regelwerk')}
                                 </span>
                                 {/* Collapse default: true (collapsed) */}
                                 {collapsedSections[`latten-${index}`] === true && (
@@ -4563,7 +5151,7 @@ export default function GenericMeasurementPage() {
                               onClick={() => toggleCollapsed(`tengel-${index}`)}
                             >
                               <div className="flex items-center gap-3">
-                                <span className="text-sm font-medium text-zinc-200">Tengel latten</span>
+                                <span className="text-sm font-medium text-zinc-200">Ventilatielatten</span>
                                 {collapsedSections[`tengel-${index}`] === true && item.tengelafstand > 0 && (
                                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                                     {item.tengelafstand}mm h.o.h
@@ -4645,7 +5233,7 @@ export default function GenericMeasurementPage() {
                             >
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-zinc-200">
-                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : (jobSlug.includes('hellend-dak') ? 'Pan latten' : 'Latten')}
+                                  {jobSlug === 'plafond-metalstud' ? 'Profielen' : (jobSlug.includes('hellend-dak') ? 'Pan latten' : 'Regelwerk')}
                                 </span>
                                 {/* Collapse default: true (collapsed) */}
                                 {collapsedSections[`latten-${index}`] === true && item.latafstand > 0 && (
@@ -4763,61 +5351,7 @@ export default function GenericMeasurementPage() {
                             <>
                               {lattenSection}
                               {balkenSection}
-
-                              {/* Seam Thickness (Moved to bottom) */}
-                              {(() => {
-                                const isTrespa = jobSlug.toLowerCase().includes('trespa');
-                                const isRockpanel = jobSlug.toLowerCase().includes('rockpanel');
-                                if (isTrespa || isRockpanel) {
-                                  const fieldKey = isTrespa ? 'trespa_seam_thickness' : 'rockpanel_seam_thickness';
-                                  const label = isTrespa ? 'Trespa naad dikte' : 'Rockpanel naad dikte';
-                                  const currentValue = userData?.[fieldKey] ?? 8;
-
-                                  return (
-                                    <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                                      <div
-                                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                                        onClick={() => toggleCollapsed(`trespa-${index}`)}
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <span className="text-sm font-medium text-zinc-200">{label}</span>
-                                          {collapsedSections[`trespa-${index}`] !== false && currentValue > 0 && (
-                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                              {currentValue}mm
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="text-zinc-500">
-                                          {collapsedSections[`trespa-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                        </div>
-                                      </div>
-
-                                      {collapsedSections[`trespa-${index}`] === false && (
-                                        <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                                          <div className="pt-2 border-t border-white/5 space-y-2">
-                                            <Label className="text-xs uppercase text-zinc-500 tracking-wider">Naad dikte</Label>
-                                            <div className="relative">
-                                              <Input
-                                                type="number"
-                                                className="bg-black/20 border-white/10 h-9 text-sm pr-8"
-                                                value={currentValue}
-                                                placeholder="8"
-                                                onChange={(e) => {
-                                                  if (userDocRef) {
-                                                    updateDoc(userDocRef, { [fieldKey]: Number(e.target.value) }).catch(console.error);
-                                                  }
-                                                }}
-                                              />
-                                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
+                              {renderTrespaNaadSection(index)}
                             </>
                           );
                         }
@@ -4826,6 +5360,10 @@ export default function GenericMeasurementPage() {
                           <>
                             {tengelSection}
                             {lattenSection}
+                            {renderTrespaNaadSection(index)}
+                            {renderKeralitPanelenSection(item, index)}
+                            {renderKeralitGevelProfielSection(item, index)}
+                            {renderKeralitDaktrimSection(item, index)}
                           </>
                         );
                       })()

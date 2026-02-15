@@ -57,7 +57,7 @@ export function BalkenSection({
     const sectionTitle = isGolfplaatDak
         ? 'Gordingen'
         : jobSlug.includes('hellend-dak')
-        ? 'Tengel latten'
+        ? 'Ventilatielatten'
         : (isMetalStud ? 'Profielen' : 'Balken');
     const spacingLabel = isGolfplaatDak
         ? 'Gordingafstand (h.o.h)'

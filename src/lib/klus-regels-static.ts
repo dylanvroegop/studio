@@ -316,6 +316,15 @@ function createGevelbekledingRuleSet(config: {
   sectionKeyBekleding: 'gevelplaat' | 'gevelplaat_rockpanel' | 'gevelbekleding_hout' | 'gevelbekleding_kunststof';
   extraRules?: Record<string, Record<string, any>>;
 }): Record<string, Record<string, any>> {
+  const bekledingFormula =
+    config.sectionKeyBekleding === 'gevelbekleding_kunststof'
+      ? "if material.werkende_breedte_mm exists then if maatwerk_item.latten_orientation == 'vertical' then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else banen = ceil(gevel_lengte_mm / material.werkende_breedte_mm); if maatwerk_item.keralit_panelen_afval_volgende_baan == true then totaal_banen_mm = banen * gevel_hoogte_mm; stuks = ceil(totaal_banen_mm / material.lengte_mm); else segmenten_per_baan = ceil(gevel_hoogte_mm / material.lengte_mm); stuks = banen * segmenten_per_baan; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)"
+      : 'if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)';
+  const bekledingLogic =
+    config.sectionKeyBekleding === 'gevelbekleding_kunststof'
+      ? 'kunststof panelen tegengesteld aan regelwerk-richting (horizontaal regelwerk = verticale panelen, verticaal regelwerk = horizontale panelen); bij verticale panelen stuurt keralit_panelen_afval_volgende_baan doorlopende restlengtes tussen banen'
+      : 'gevelbekleding op netto oppervlak met optionele werkende-breedte logica';
+
   return {
     // Legacy gecombineerd key voor bestaande data.
     regelwerk_basis: {
@@ -367,8 +376,8 @@ function createGevelbekledingRuleSet(config: {
     [config.sectionKeyBekleding]: {
       sectionKey: config.sectionKeyBekleding,
       group: 'bekleding',
-      logic: 'gevelbekleding op netto oppervlak met optionele werkende-breedte logica',
-      formula: 'if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)',
+      logic: bekledingLogic,
+      formula: bekledingFormula,
       required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'material.lengte'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
@@ -1891,6 +1900,15 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
         missing_input_behavior: 'requires_manual_input',
         wastePercentage: 'user_input',
       },
+      keralit_daktrim: {
+        sectionKey: 'keralit_daktrim',
+        group: 'bevestiging',
+        logic: 'lineair over opgegeven daktrim-lengte (valt terug op gevelbreedte)',
+        formula: 'if maatwerk_item.daktrim_lengte exists then lineair_m1 = maatwerk_item.daktrim_lengte / 1000; else lineair_m1 = gevel_lengte_mm / 1000; aantal = ceil((lineair_m1) / material.lengte_m)',
+        required_inputs: ['maatwerk_item.daktrim_lengte|maatwerk_item.lengte', 'material.lengte'],
+        missing_input_behavior: 'requires_manual_input',
+        wastePercentage: 'user_input',
+      },
     },
   }),
   'hellend-dak': createHellendDakRuleSet(),
@@ -2046,6 +2064,8 @@ const SECTION_KEY_ALIASES_BY_SLUG: Record<string, Record<string, string>> = {
   'gevelbekleding-keralit': {
     gevelbekleding: 'gevelbekleding_kunststof',
     keralit_panelen: 'gevelbekleding_kunststof',
+    daktrim: 'keralit_daktrim',
+    keralit_daktrim: 'keralit_daktrim',
     isolatie_basis: 'isolatie_gevel',
     tengelwerk: 'tengelwerk_basis',
     tengels: 'tengelwerk_basis',

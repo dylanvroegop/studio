@@ -371,6 +371,20 @@ function isTrespaHplGevelplaatSection(
   return /\b(trespa|hpl|volkern)\b/.test(haystack);
 }
 
+function isKeralitEindOfHoekprofielSection(
+  sectionKey: string | null,
+  label?: string,
+  context?: string,
+  materialName?: string
+): boolean {
+  const normalizedSectionKey = String(sectionKey || '').toLowerCase().trim();
+  if (normalizedSectionKey === 'keralit_eindprofiel' || normalizedSectionKey === 'keralit_hoekprofiel') {
+    return true;
+  }
+  const haystack = `${label || ''} ${context || ''} ${materialName || ''}`.toLowerCase();
+  return /\bkeralit\b/.test(haystack) && /\b(eindprofiel|hoekprofiel)\b/.test(haystack);
+}
+
 function normalizeSavedWastePercentage(
   wastePercentage: number,
   sectionKey: string | null,
@@ -386,6 +400,12 @@ function normalizeSavedWastePercentage(
   ) {
     return 0;
   }
+  if (
+    wastePercentage === DEFAULT_WASTE_PERCENTAGE
+    && isKeralitEindOfHoekprofielSection(sectionKey, label, context, materialName)
+  ) {
+    return 0;
+  }
   return wastePercentage;
 }
 
@@ -397,6 +417,7 @@ function getDefaultWastePercentage(sectionKey: string | null, label?: string, co
     && /epdm/.test(haystack);
   if (isEpdmDaktrimHoeken) return 0;
   if (isTrespaHplGevelplaatSection(sectionKey, label, context)) return 0;
+  if (isKeralitEindOfHoekprofielSection(sectionKey, label, context)) return 0;
   if (ZERO_WASTE_PATTERNS.some((pattern) => pattern.test(haystack))) return 0;
   return DEFAULT_WASTE_PERCENTAGE;
 }
@@ -1690,7 +1711,10 @@ export default function GenericMaterialsPageRedesigned() {
         else if (k === 'Koof') type = 'koof';
         else if (k === 'Installatie' || k === 'Schakelmateriaal') type = 'installatie';
         else if (k === 'Dagkant' || lower === 'dagkant') type = 'dagkant';
-        else if (k === 'Vensterbank' || lower === 'vensterbank') type = 'vensterbank';
+        else if (k === 'Vensterbank' || lower === 'vensterbank') {
+          type = isGevelbekledingJob ? 'waterslag' : 'vensterbank';
+        }
+        else if (k === 'daktrim' || lower === 'daktrim') type = 'daktrim';
       }
 
       if (isCeiling) {
@@ -3259,6 +3283,8 @@ export default function GenericMaterialsPageRedesigned() {
           else if (comp.type === 'deur') cat = 'Deuren';
           else if (comp.type === 'dagkant') cat = 'Dagkant';
           else if (comp.type === 'vensterbank') cat = 'Vensterbank';
+          else if (comp.type === 'waterslag') cat = 'Vensterbank';
+          else if (comp.type === 'daktrim') cat = 'daktrim';
           else if (comp.type === 'vlizotrap') cat = 'Toegang';
           else if (comp.type === 'plafond') cat = 'plafond';
 
@@ -3448,6 +3474,8 @@ export default function GenericMaterialsPageRedesigned() {
           else if (comp.type === 'deur') cat = 'Deuren';
           else if (comp.type === 'dagkant') cat = 'Dagkant';
           else if (comp.type === 'vensterbank') cat = 'Vensterbank';
+          else if (comp.type === 'waterslag') cat = 'Vensterbank';
+          else if (comp.type === 'daktrim') cat = 'daktrim';
           else if (comp.type === 'vlizotrap') cat = 'Toegang';
           else if (comp.type === 'koof') cat = 'Koof';
           else if (comp.type === 'plafond') cat = 'plafond';
@@ -3498,6 +3526,8 @@ export default function GenericMaterialsPageRedesigned() {
         else if (comp.type === 'deur') cat = 'Deuren';
         else if (comp.type === 'dagkant') cat = 'Dagkant';
         else if (comp.type === 'vensterbank') cat = 'Vensterbank';
+        else if (comp.type === 'waterslag') cat = 'Vensterbank';
+        else if (comp.type === 'daktrim') cat = 'daktrim';
         else if (comp.type === 'vlizotrap') cat = 'Toegang';
         else if (comp.type === 'installatie') cat = 'Installatie';
         else if (comp.type === 'gips') cat = 'gips_afwerking';
@@ -5123,7 +5153,7 @@ export default function GenericMaterialsPageRedesigned() {
 
   return (
     <>
-      <main className="relative min-h-screen bg-background flex flex-col">
+      <main className="relative min-h-screen bg-background">
         {/* HEADER - Consistent with other pages */}
         <WizardHeader
           title={JOB_TITEL}
@@ -5146,7 +5176,7 @@ export default function GenericMaterialsPageRedesigned() {
         />
 
         {/* CONTENT */}
-        <div className="flex-1 px-4 py-4 max-w-5xl mx-auto w-full pb-6 space-y-6">
+        <div className="px-4 py-4 max-w-5xl mx-auto w-full pb-[280px] space-y-6">
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
           {/* Helper: Main Job Measurements - REMOVED per user request */}
@@ -5226,7 +5256,8 @@ export default function GenericMaterialsPageRedesigned() {
                   keyA === 'Koof' ||
                   (keyA === 'boeiboord' || (keyA as string).toLowerCase() === 'boeiboorden') ||
                   keyA === 'Installatie' || keyA === 'Schakelmateriaal' ||
-                  keyA === 'Dagkant' || keyA === 'Vensterbank'
+                  keyA === 'Dagkant' || keyA === 'Vensterbank' ||
+                  (isGevelbekledingJob && (keyA as string).toLowerCase() === 'daktrim')
                 )) || (isCeilingJob && (isVlizotrapSectionA || keyA === 'Koof' || keyA === 'Installatie' || keyA === 'Schakelmateriaal')) || (keyA === 'gips_afwerking') ||
                   (keyA === 'isolatie' && (categorySlug === 'boeidelen' || categorySlug === 'boeiboorden' || jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord')));
 
@@ -5236,7 +5267,8 @@ export default function GenericMaterialsPageRedesigned() {
                   keyB === 'Koof' ||
                   (keyB === 'boeiboord' || (keyB as string).toLowerCase() === 'boeiboorden') ||
                   keyB === 'Installatie' || keyB === 'Schakelmateriaal' ||
-                  keyB === 'Dagkant' || keyB === 'Vensterbank'
+                  keyB === 'Dagkant' || keyB === 'Vensterbank' ||
+                  (isGevelbekledingJob && (keyB as string).toLowerCase() === 'daktrim')
                 )) || (isCeilingJob && (isVlizotrapSectionB || keyB === 'Koof' || keyB === 'Installatie' || keyB === 'Schakelmateriaal')) || (keyB === 'gips_afwerking') ||
                   (keyB === 'isolatie' && (
                     categorySlug === 'boeidelen' ||
@@ -5279,6 +5311,7 @@ export default function GenericMaterialsPageRedesigned() {
                 const isInstallatieSection = categoryKey === 'Installatie' || categoryKey === 'Schakelmateriaal';
                 const isDagkantSection = categoryKey === 'Dagkant' || lowerKey === 'dagkant';
                 const isVensterbankSection = categoryKey === 'Vensterbank' || lowerKey === 'vensterbank';
+                const isDaktrimSection = categoryKey === 'daktrim' || lowerKey === 'daktrim';
                 const isGipsSection = categoryKey === 'gips_afwerking';
                 const isIsolatieSection = categoryKey === 'isolatie';
 
@@ -5305,7 +5338,9 @@ export default function GenericMaterialsPageRedesigned() {
                 else if (isKoofSection) targetComponentType = 'koof';
                 else if (isInstallatieSection) targetComponentType = 'installatie';
                 else if (isDagkantSection && allowDoorComponents) targetComponentType = 'dagkant';
+                else if (isVensterbankSection && isGevelbekledingJob) targetComponentType = 'waterslag';
                 else if (isVensterbankSection && allowDoorComponents) targetComponentType = 'vensterbank';
+                else if (isDaktrimSection && isGevelbekledingJob) targetComponentType = 'daktrim';
                 else if (isVlizotrapSection) targetComponentType = 'vlizotrap';
                 else if (isPlafondSection) targetComponentType = 'plafond';
                 else if (isGipsSection) targetComponentType = 'gips';
@@ -5324,27 +5359,23 @@ export default function GenericMaterialsPageRedesigned() {
                 if (sections.length === 0 && !targetComponentType) return null;
 
                 const isHidden = hiddenCategories[categoryKey];
-                const addActionLabel = targetComponentType === 'kozijn'
-                  ? 'Kozijn'
-                  : (targetComponentType === 'deur'
-                    ? 'Deur'
-                    : (targetComponentType === 'vlizotrap'
-                      ? 'Vlizotrap'
-                      : (targetComponentType === 'koof'
-                        ? 'Koof'
-                        : (targetComponentType === 'installatie'
-                          ? 'Installatie'
-                          : (targetComponentType === 'dagkant'
-                            ? 'Dagkant'
-                            : (targetComponentType === 'vensterbank'
-                              ? 'Vensterbank'
-                              : (targetComponentType === 'gips'
-                                ? 'Naden & Stucwerk'
-                                : (targetComponentType === 'isolatie'
-                                  ? 'Isolatie & Folies'
-                                  : (targetComponentType === 'plafond'
-                                    ? 'Plafond'
-                                    : 'Boeiboord')))))))));
+                const addActionLabelByType: Record<string, string> = {
+                  kozijn: 'Kozijn',
+                  deur: 'Deur',
+                  vlizotrap: 'Vlizotrap',
+                  koof: 'Koof',
+                  installatie: 'Installatie',
+                  dagkant: 'Dagkant',
+                  vensterbank: 'Vensterbank',
+                  waterslag: 'Waterslagen',
+                  daktrim: 'Daktrim',
+                  gips: 'Naden & Stucwerk',
+                  isolatie: 'Isolatie & Folies',
+                  plafond: 'Plafond',
+                };
+                const addActionLabel = targetComponentType
+                  ? (addActionLabelByType[targetComponentType] || 'Boeiboord')
+                  : 'Boeiboord';
 
                 return (
                   <div key={categoryKey} className="space-y-2">
@@ -5401,6 +5432,24 @@ export default function GenericMaterialsPageRedesigned() {
                               materials: getPresetMaterialsForType('isolatie')
                             };
                             setComponents(prev => [...prev, newIsolatie]);
+                          } else if (targetComponentType === 'waterslag') {
+                            const newWaterslag = {
+                              id: `waterslag-${Date.now()}`,
+                              type: 'waterslag' as const,
+                              label: 'Waterslagen',
+                              measurements: {},
+                              materials: getPresetMaterialsForType('waterslag')
+                            };
+                            setComponents(prev => [...prev, newWaterslag]);
+                          } else if (targetComponentType === 'daktrim') {
+                            const newDaktrim = {
+                              id: `daktrim-${Date.now()}`,
+                              type: 'daktrim' as const,
+                              label: 'Daktrim',
+                              measurements: {},
+                              materials: getPresetMaterialsForType('daktrim')
+                            };
+                            setComponents(prev => [...prev, newDaktrim]);
                           } else {
                             // If only one variant exists, add directly; otherwise open picker.
                             openVariantPickerOrAdd(targetComponentType);
@@ -5835,28 +5884,24 @@ export default function GenericMaterialsPageRedesigned() {
           <div>
             {renderKleinMateriaalSectie()}
           </div>
+
+          {/* Public Job Notes Section - Matching Measurement Page Style */}
+          <div className="space-y-3 pt-6 border-t border-white/5">
+            <div>
+              <h3 className="text-lg font-medium text-amber-500">Slimme Notities</h3>
+              <p className="text-sm text-muted-foreground">Onze assistent begrijpt vrije tekst. Type simpelweg wat je extra nodig hebt en de geschatte prijs; wij voegen het toe aan de calculatie.</p>
+            </div>
+            <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
+              <Textarea
+                value={notities}
+                onChange={(e) => setNotities(e.target.value)}
+                placeholder={notesPlaceholderText}
+                className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
+              />
+            </div>
+          </div>
         </div>
       </main >
-
-      {/* Quote Notes Section - Persistent at bottom */}
-      {/* Quote Notes Section - Persistent at bottom */}
-      <div className="max-w-5xl mx-auto px-4 pb-[280px]">
-        {/* Public Job Notes Section - Matching Measurement Page Style */}
-        <div className="space-y-3 pt-6 border-t border-white/5">
-          <div>
-            <h3 className="text-lg font-medium text-amber-500">Slimme Notities</h3>
-            <p className="text-sm text-muted-foreground">Onze assistent begrijpt vrije tekst. Type simpelweg wat je extra nodig hebt en de geschatte prijs; wij voegen het toe aan de calculatie.</p>
-          </div>
-          <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
-            <Textarea
-              value={notities}
-              onChange={(e) => setNotities(e.target.value)}
-              placeholder={notesPlaceholderText}
-              className="min-h-[120px] bg-black/20 border-white/10 focus-visible:ring-emerald-500/50 resize-y"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">

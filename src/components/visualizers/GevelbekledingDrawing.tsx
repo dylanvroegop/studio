@@ -48,6 +48,8 @@ export interface GevelbekledingDrawingProps {
     startTengelFromBottom?: boolean;
     tengel_orientation?: 'vertical' | 'horizontal';
     doubleEndTengels?: boolean;
+    gevelProfielLinks?: 'hoek' | 'eind';
+    gevelProfielRechts?: 'hoek' | 'eind';
     onKoofChange?: (updated: KoofItem[]) => void;
 }
 
@@ -102,12 +104,20 @@ export function GevelbekledingDrawing({
     startTengelFromBottom,
     tengel_orientation,
     doubleEndTengels,
+    gevelProfielLinks,
+    gevelProfielRechts,
     onDataGenerated
 }: GevelbekledingDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
     const tengelafstandNum = typeof tengelafstand === 'number' ? tengelafstand : parseFloat(String(tengelafstand)) || 0;
     const latafstandNum = typeof latafstand === 'number' ? latafstand : parseFloat(String(latafstand)) || 0;
+    const profielLinksType = gevelProfielLinks === 'eind' ? 'eind' : 'hoek';
+    const profielRechtsType = gevelProfielRechts === 'eind' ? 'eind' : 'hoek';
+    const profielAccentByType: Record<'hoek' | 'eind', string> = {
+        hoek: 'rgb(251, 146, 60)',
+        eind: 'rgb(56, 189, 248)',
+    };
 
     // Default standard height
     const hStd = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
@@ -568,6 +578,7 @@ export function GevelbekledingDrawing({
                 const WALL_WIDTH = rectW;
                 const Y_BOTTOM = startY + rectH;
                 const getY = (mm: number) => Y_BOTTOM - (mm * pxPerMm);
+                const profielLineInsetPx = Math.max(1, Math.min(4, pxPerMm * 6));
 
                 // Convert Logical Structure to Render Objects
                 const timberW = Math.max(1.5, STUD_W * pxPerMm);
@@ -884,6 +895,26 @@ export function GevelbekledingDrawing({
                         {/* Latten + Tengel Rendering */}
                         {lattenElements}
                         {tengelElements}
+                        {(gevelProfielLinks || gevelProfielRechts) && (
+                            <g pointerEvents="none" opacity={0.95}>
+                                <line
+                                    x1={WALL_X + profielLineInsetPx}
+                                    y1={startY}
+                                    x2={WALL_X + profielLineInsetPx}
+                                    y2={startY + rectH}
+                                    stroke={profielAccentByType[profielLinksType]}
+                                    strokeWidth={1}
+                                />
+                                <line
+                                    x1={WALL_X + WALL_WIDTH - profielLineInsetPx}
+                                    y1={startY}
+                                    x2={WALL_X + WALL_WIDTH - profielLineInsetPx}
+                                    y2={startY + rectH}
+                                    stroke={profielAccentByType[profielRechtsType]}
+                                    strokeWidth={1}
+                                />
+                            </g>
+                        )}
 
                         {openings.map((op) => {
                             const wPx = op.width * pxPerMm;
@@ -1144,6 +1175,35 @@ export function GevelbekledingDrawing({
                             pxPerMm={pxPerMm}
                             getWallTopMm={getWallTopMm}
                         />
+
+                        {(gevelProfielLinks || gevelProfielRechts) && (
+                            <g pointerEvents="none" style={{ userSelect: 'none' }}>
+                                <text
+                                    x={WALL_X - 45}
+                                    y={startY + rectH / 2}
+                                    transform={`rotate(-90, ${WALL_X - 45}, ${startY + rectH / 2})`}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    fill="rgb(100, 116, 139)"
+                                    style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace' }}
+                                >
+                                    <tspan>LINKS </tspan>
+                                    <tspan fill={profielAccentByType[profielLinksType]}>{profielLinksType.toUpperCase()}</tspan>
+                                </text>
+                                <text
+                                    x={WALL_X + WALL_WIDTH + 45}
+                                    y={startY + rectH / 2}
+                                    transform={`rotate(-90, ${WALL_X + WALL_WIDTH + 45}, ${startY + rectH / 2})`}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    fill="rgb(100, 116, 139)"
+                                    style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace' }}
+                                >
+                                    <tspan>RECHTS </tspan>
+                                    <tspan fill={profielAccentByType[profielRechtsType]}>{profielRechtsType.toUpperCase()}</tspan>
+                                </text>
+                            </g>
+                        )}
 
                         {showStructure && renderGaps.length > 0 && <GridMeasurements gaps={renderGaps} svgBaseYTop={getY(maxH)} />}
 

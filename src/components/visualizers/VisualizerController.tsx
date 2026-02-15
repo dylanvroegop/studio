@@ -294,6 +294,8 @@ export function VisualizerController({
                 startTengelFromBottom={item.startTengelFromBottom}
                 tengel_orientation={item.tengel_orientation}
                 doubleEndTengels={item.doubleEndTengels}
+                gevelProfielLinks={item.gevel_profiel_links}
+                gevelProfielRechts={item.gevel_profiel_rechts}
                 openings={item.openings}
                 dagkanten={item.dagkanten}
                 vensterbanken={item.vensterbanken}

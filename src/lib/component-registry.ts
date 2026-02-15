@@ -80,6 +80,22 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
             { label: 'Dagkanten', categoryFilter: 'Plaatmateriaal Interieur', category: 'afwerking', key: 'dagkanten', category_ultra_filter: '' },
         ]
     },
+    waterslag: {
+        title: 'Waterslagen',
+        description: 'Waterslagen toevoegen voor de gevel',
+        measurements: [],
+        defaultMaterials: [
+            { label: 'Waterslagen', categoryFilter: 'Keralit, Trespa, Rockpanel, Exterieur platen, Overig', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
+        ]
+    },
+    daktrim: {
+        title: 'Daktrim',
+        description: 'Daktrimprofielen toevoegen',
+        measurements: [],
+        defaultMaterials: [
+            { label: 'Daktrim', categoryFilter: 'Keralit, Trespa, Rockpanel, Exterieur platen, Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
+        ]
+    },
     // 5. Vlizotrap
     vlizotrap: {
         title: 'Vlizotrap',
