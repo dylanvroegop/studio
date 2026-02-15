@@ -30,6 +30,8 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFirestore, useUser } from '@/firebase';
+import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
+import { parsePriceToNumber } from '@/lib/utils';
 
 type QuoteStatus =
   | 'concept'
@@ -59,11 +61,17 @@ interface DashboardQuote {
 
 interface DashboardInvoice {
   id: string;
+  quoteId?: string;
   status?: InvoiceStatus;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  paidAt?: Timestamp;
   dueDate?: Timestamp;
   archived?: boolean;
   paymentSummary?: {
+    paidAmount?: number;
     openAmount?: number;
+    lastPaymentAt?: Timestamp;
   };
 }
 
@@ -127,6 +135,11 @@ function formatCurrency(amount: number): string {
 function formatTime(value: Date | null): string {
   if (!value) return '—';
   return value.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+}
+
+function safeAmount(value: unknown): number {
+  const parsed = parsePriceToNumber(value);
+  return parsed == null || !Number.isFinite(parsed) ? 0 : parsed;
 }
 
 function DashboardSkeleton() {
@@ -238,7 +251,7 @@ export default function DashboardPage() {
               const raw = d.data() as any;
               return {
                 invoiceId: inv.id,
-                amount: Number(raw?.amount || 0),
+                amount: safeAmount(raw?.amount),
                 date: parseDate(raw?.date) || new Date(0),
               } as PaymentPoint;
             });
@@ -265,20 +278,41 @@ export default function DashboardPage() {
   const activeQuotes = useMemo(() => quotes.filter((q) => !q.archived), [quotes]);
   const archivedQuotes = useMemo(() => quotes.filter((q) => !!q.archived), [quotes]);
   const activeInvoices = useMemo(() => invoices.filter((i) => !i.archived), [invoices]);
+  const acceptedQuoteIdsFromInvoices = useMemo(() => {
+    const set = new Set<string>();
+    activeInvoices.forEach((inv) => {
+      if (!invoiceImpliesAccepted(inv.status)) return;
+      if (inv.quoteId) set.add(inv.quoteId);
+    });
+    return set;
+  }, [activeInvoices]);
 
   const projectStats = useMemo(() => {
-    const count = (status: QuoteStatus) => activeQuotes.filter((q) => q.status === status).length;
+    const counts: Record<QuoteStatus, number> = {
+      concept: 0,
+      in_behandeling: 0,
+      verzonden: 0,
+      geaccepteerd: 0,
+      afgewezen: 0,
+      verlopen: 0,
+    };
+
+    activeQuotes.forEach((q) => {
+      const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) as QuoteStatus;
+      counts[effectiveStatus] += 1;
+    });
+
     return {
-      concept: count('concept'),
-      inBehandeling: count('in_behandeling'),
-      verzonden: count('verzonden'),
-      geaccepteerd: count('geaccepteerd'),
-      afgewezen: count('afgewezen'),
-      verlopen: count('verlopen'),
+      concept: counts.concept,
+      inBehandeling: counts.in_behandeling,
+      verzonden: counts.verzonden,
+      geaccepteerd: counts.geaccepteerd,
+      afgewezen: counts.afgewezen,
+      verlopen: counts.verlopen,
       totaal: activeQuotes.length,
       archief: archivedQuotes.length,
     };
-  }, [activeQuotes, archivedQuotes.length]);
+  }, [activeQuotes, archivedQuotes.length, acceptedQuoteIdsFromInvoices]);
 
   const invoiceStats = useMemo(() => {
     const now = new Date();
@@ -329,7 +363,8 @@ export default function DashboardPage() {
     for (const m of monthBuckets) map.set(m.key, 0);
 
     activeQuotes.forEach((q) => {
-      if (q.status !== 'geaccepteerd') return;
+      const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
+      if (effectiveStatus !== 'geaccepteerd') return;
       const d = parseDate(q.createdAt);
       if (!d) return;
       const key = monthKey(d);
@@ -342,14 +377,15 @@ export default function DashboardPage() {
       maand: m.label,
       value: map.get(m.key) || 0,
     }));
-  }, [activeQuotes, monthBuckets, monthKeySet]);
+  }, [activeQuotes, monthBuckets, monthKeySet, acceptedQuoteIdsFromInvoices]);
 
   const offerProfitPerMonth = useMemo(() => {
     const map = new Map<string, number>();
     for (const m of monthBuckets) map.set(m.key, 0);
 
     activeQuotes.forEach((q) => {
-      if (q.status !== 'geaccepteerd') return;
+      const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
+      if (effectiveStatus !== 'geaccepteerd') return;
       const d = parseDate(q.createdAt);
       if (!d) return;
       const key = monthKey(d);
@@ -362,18 +398,51 @@ export default function DashboardPage() {
       maand: m.label,
       value: map.get(m.key) || 0,
     }));
-  }, [activeQuotes, monthBuckets, monthKeySet]);
+  }, [activeQuotes, monthBuckets, monthKeySet, acceptedQuoteIdsFromInvoices]);
 
   const invoicePaymentsPerMonth = useMemo(() => {
     const invoiceIds = new Set(activeInvoices.map((i) => i.id));
+    const recordedPaidByInvoice = new Map<string, number>();
     const map = new Map<string, number>();
     for (const m of monthBuckets) map.set(m.key, 0);
 
     payments.forEach((p) => {
       if (!invoiceIds.has(p.invoiceId)) return;
+      const amount = safeAmount(p.amount);
+      if (amount <= 0) return;
+      recordedPaidByInvoice.set(p.invoiceId, (recordedPaidByInvoice.get(p.invoiceId) || 0) + amount);
+    });
+
+    const syntheticPayments: PaymentPoint[] = activeInvoices.flatMap((inv) => {
+      const expectedPaid = safeAmount(inv.paymentSummary?.paidAmount);
+      if (expectedPaid <= 0) return [];
+
+      const recordedPaid = recordedPaidByInvoice.get(inv.id) || 0;
+      const missing = expectedPaid - recordedPaid;
+      if (missing <= 0.0001) return [];
+
+      const fallbackDate =
+        parseDate(inv.paidAt) ||
+        parseDate(inv.paymentSummary?.lastPaymentAt) ||
+        parseDate(inv.updatedAt) ||
+        parseDate(inv.createdAt) ||
+        new Date();
+
+      return [{
+        invoiceId: inv.id,
+        amount: missing,
+        date: fallbackDate,
+      }];
+    });
+
+    const effectivePayments = [...payments, ...syntheticPayments];
+    effectivePayments.forEach((p) => {
+      if (!invoiceIds.has(p.invoiceId)) return;
+      const amount = safeAmount(p.amount);
+      if (amount <= 0) return;
       const key = monthKey(p.date);
       if (!monthKeySet.has(key)) return;
-      map.set(key, (map.get(key) || 0) + p.amount);
+      map.set(key, (map.get(key) || 0) + amount);
     });
 
     return monthBuckets.map((m) => ({

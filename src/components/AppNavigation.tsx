@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import Image from 'next/image';
 import { Archive, Menu, LayoutDashboard, FileText, ReceiptText, TrendingUp, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,7 @@ function isActivePath(pathname: string, href: string): boolean {
 function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string; onNavigate?: () => void; onClose?: () => void }) {
     return (
         <div className="flex h-full flex-col border-r border-border bg-card/95 backdrop-blur-sm">
-            <div className="border-b border-border px-6 py-6">
+            <div className="border-b border-border px-6 py-4">
                 {onClose && (
                     <Button
                         variant="outline"
@@ -51,7 +52,16 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                         <Menu className="h-4 w-4" />
                     </Button>
                 )}
-                <h2 className="text-2xl font-semibold tracking-tight text-foreground">Navigatie</h2>
+                <div className="flex items-center">
+                    <Image
+                        src="/logo_calvora_clean.svg"
+                        alt="Calvora Logo"
+                        width={200}
+                        height={60}
+                        className="h-10 w-auto object-contain"
+                        priority
+                    />
+                </div>
             </div>
 
             <div className="px-4 py-5">

@@ -96,7 +96,7 @@ export interface UserSettings {
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
-    bedrijfsnaam: '',
+    bedrijfsnaam: 'Calvora',
     kvkNummer: '',
     btwNummer: '',
     contactNaam: '',

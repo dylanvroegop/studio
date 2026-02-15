@@ -39,6 +39,7 @@ import {
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
+import { promoteQuoteToAcceptedInTransaction } from '@/lib/quote-status';
 
 type FilterMode = 'alle' | 'openstaand' | 'betaald';
 
@@ -221,6 +222,8 @@ export default function FacturenPage() {
           paidAt: data?.paidAt ?? serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+
+        await promoteQuoteToAcceptedInTransaction(tx, firestore, data?.quoteId);
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });

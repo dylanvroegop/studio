@@ -12864,18 +12864,6 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Rachel 22x50mm 2700mm lang (Netto 21x48)",
-        "dikte": "22mm",
-        "breedte": "50mm",
-        "lengte": "270cm",
-        "netto_maat": "21x48",
-        "prijs_incl_21%_btw": "€ 1.98 per stuk",
-        "id": "kHmlt8",
-        "order_id": 1184,
-        "sub_categorie": "Ribben, sls, rachels"
-    },
-    {
-        "categorie": "Vuren hout",
         "materiaalnaam": "Rachel 22x50mm 3000mm lang (Netto 21x48)",
         "dikte": "22mm",
         "breedte": "50mm",
@@ -13220,17 +13208,6 @@
         "id": "1sLkmz",
         "order_id": 1215,
         "sub_categorie": "Sls"
-    },
-    {
-        "categorie": "Vuren hout",
-        "materiaalnaam": "Spouwlat Ruw 32x50mm 4500mm lang",
-        "dikte": "32mm",
-        "breedte": "50mm",
-        "lengte": "450cm",
-        "prijs_incl_21%_btw": "€ 7.70 per stuk",
-        "id": "O4LwG6",
-        "order_id": 1216,
-        "sub_categorie": "Spouwlatten"
     },
     {
         "categorie": "Vuren hout",
@@ -17133,18 +17110,6 @@
     },
     {
         "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Geschaafd 32x50mm 4500mm lang (Netto 28x46)",
-        "dikte": "32mm",
-        "breedte": "50mm",
-        "lengte": "450cm",
-        "netto_maat": "28x46",
-        "prijs_incl_21%_btw": "€ 8.52 per stuk",
-        "id": "QDv4OE",
-        "order_id": 1572,
-        "sub_categorie": "Vuren lat"
-    },
-    {
-        "categorie": "Vuren hout",
         "materiaalnaam": "Vuren Ventilatielat Wolma 32x50mm 4500mm lang",
         "dikte": "32mm",
         "breedte": "50mm",
@@ -17225,28 +17190,6 @@
         "id": "US7B06",
         "order_id": 1579,
         "sub_categorie": "Planken"
-    },
-    {
-        "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Piket Gepunt 44x69mm 1000mm lang",
-        "dikte": "44mm",
-        "breedte": "69mm",
-        "lengte": "100cm",
-        "prijs_incl_21%_btw": "€ 2.72 per stuk",
-        "id": "1SON4L",
-        "order_id": 1580,
-        "sub_categorie": "Piket"
-    },
-    {
-        "categorie": "Vuren hout",
-        "materiaalnaam": "Vuren Piket Gepunt 44x69mm 1500mm lang",
-        "dikte": "44mm",
-        "breedte": "69mm",
-        "lengte": "150cm",
-        "prijs_incl_21%_btw": "€ 4.09 per stuk",
-        "id": "jQCELo",
-        "order_id": 1581,
-        "sub_categorie": "Piket"
     },
     {
         "categorie": "Vuren hout",
@@ -18457,7 +18400,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Daktoebehoren",
         "materiaalnaam": "Verholen goot 120mm Grijs 600cm lang",
         "lengte": "600cm",
         "breedte": "120mm",
@@ -18571,7 +18514,7 @@
         "sub_categorie": "Unipanel"
     },
     {
-        "categorie": "Keralit",
+        "categorie": "Daktoebehoren",
         "materiaalnaam": "Verholen ondergoot 120mm Grijs 600cm lang",
         "lengte": "600cm",
         "breedte": "120mm",
@@ -27159,7 +27102,7 @@
         "prijs_incl_21%_btw": "€ 24,47",
         "id": "ijIgVr",
         "order_id": 2536,
-        "sub_categorie": "Bouwpanelen"
+        "sub_categorie": "Startprofielen"
     },
     {
         "categorie": "Keralit",
@@ -27201,5 +27144,14 @@
         "id": "iMevwq",
         "order_id": 2540,
         "sub_categorie": "Eindprofielen"
+    },
+    {
+        "categorie": "Keralit",
+        "materiaalnaam": "Keralit Geventileerd platprofiel",
+        "lengte": "500cm",
+        "prijs_incl_21%_btw": "€ 13,99",
+        "id": "KgP163",
+        "order_id": 2543,
+        "sub_categorie": "Startprofielen"
     }
 ]

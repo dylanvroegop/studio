@@ -2791,7 +2791,9 @@ export default function GenericMaterialsPageRedesigned() {
   useEffect(() => {
     if (typeof window === 'undefined' || !user) return;
     try {
-      const saved = localStorage.getItem(`offertehulp:favorieten:${user.uid}`);
+      const newKey = `calvora:favorieten:${user.uid}`;
+      const legacyKey = `offertehulp:favorieten:${user.uid}`;
+      const saved = localStorage.getItem(newKey) ?? localStorage.getItem(legacyKey);
       if (saved) setFavorieten(JSON.parse(saved));
     } catch (e) { console.error(e); }
   }, [user]);
@@ -2802,7 +2804,7 @@ export default function GenericMaterialsPageRedesigned() {
       let next;
       if (prev.includes(id)) next = prev.filter((fid) => fid !== id);
       else next = [...prev, id];
-      localStorage.setItem(`offertehulp:favorieten:${user.uid}`, JSON.stringify(next));
+      localStorage.setItem(`calvora:favorieten:${user.uid}`, JSON.stringify(next));
       return next;
     });
   }, [user]);

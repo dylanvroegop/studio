@@ -1131,12 +1131,12 @@ const GEVEL_BEKLEDING_HOUT_MATS: MaterialSection[] = [
 const GEVEL_BEKLEDING_KERALIT_MATS: MaterialSection[] = [
   ...GEVEL_BEKLEDING_BASE_MATS,
   { label: 'Kunststof Panelen', categoryFilter: 'Keralit, Vloer-rabat-vellingdelen, Overig', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: 'keralit' },
-  { label: 'Keralit Startprofiel', categoryFilter: 'Keralit, Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_startprofiel', category_ultra_filter: 'keralit' },
-  { label: 'Keralit Eindprofiel', categoryFilter: 'Keralit, Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_eindprofiel', category_ultra_filter: 'keralit' },
-  { label: 'Keralit Hoekprofiel', categoryFilter: 'Keralit, Daktoebehoren, Overig', category: 'bevestiging', key: 'keralit_hoekprofiel', category_ultra_filter: 'keralit' },
+  { label: 'Keralit Startprofiel', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_startprofiel', category_ultra_filter: 'subcat:startprofielen' },
+  { label: 'Keralit Eindprofiel', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_eindprofiel', category_ultra_filter: '' },
+  { label: 'Keralit Hoekprofiel', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_hoekprofiel', category_ultra_filter: '' },
   ...GEVEL_BEKLEDING_AFWERKING_MATS.map((section) =>
     section.key === 'ventilatieprofiel'
-      ? { ...section, categoryFilter: 'Keralit, Overig', category_ultra_filter: 'keralit' }
+      ? { ...section, categoryFilter: 'Keralit', category_ultra_filter: '' }
       : section
   ),
 ];
@@ -1817,8 +1817,8 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
         }
       },
       {
-        title: 'Boeidelen (Keralit)',
-        description: 'Vervangen door Keralit',
+        title: 'Boeidelen (Keralit / Unipanel)',
+        description: 'Vervangen door Keralit / Unipanel',
         slug: 'boeiboorden-keralit',
         measurementLabel: 'Boeiboord',
         measurements: BOEIBOORD_FIELDS,

@@ -172,8 +172,8 @@ export default function RegisterPage() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex justify-center">
             <Image
-              src="/logo_final.png"
-              alt="OfferteHulp"
+              src="/logo_calvora_clean.svg"
+              alt="Calvora"
               width={800}
               height={224}
               priority

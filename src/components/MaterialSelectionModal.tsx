@@ -373,6 +373,7 @@ export function MaterialSelectionModal({
   const [priceImportDialogOpen, setPriceImportDialogOpen] = useState(false);
   const [favoriteSubCategories, setFavoriteSubCategories] = useState<string[]>([]);
   const [shouldApplyFavoriteOnOpen, setShouldApplyFavoriteOnOpen] = useState(false);
+  const [shouldApplyDefaultSubCategoryOnOpen, setShouldApplyDefaultSubCategoryOnOpen] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
   const quickCategoryPickerRef = useRef<HTMLDivElement | null>(null);
 
@@ -436,6 +437,7 @@ export function MaterialSelectionModal({
       setPriceImportDialogOpen(false);
       setFavoriteSubCategories(savedFavorites);
       setShouldApplyFavoriteOnOpen(true);
+      setShouldApplyDefaultSubCategoryOnOpen(true);
       setDisplayLimit(50);
 
       // 2. Reset Form Fields (CLEAN SLATE)
@@ -566,16 +568,33 @@ export function MaterialSelectionModal({
     return Array.from(options).sort((a, b) => a.localeCompare(b, 'nl'));
   }, [uniqueCategories, selectedCategoryForNewMaterial]);
 
-  const normalizedNameContainsFilters = useMemo(() => {
+  const { normalizedNameContainsFilters, normalizedDefaultSubCategoryFilters } = useMemo(() => {
     const rawValues = Array.isArray(nameContainsFilter)
       ? nameContainsFilter
       : typeof nameContainsFilter === 'string'
         ? nameContainsFilter.split(',')
         : [];
 
-    return rawValues
+    const normalizedValues = rawValues
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean);
+
+    const nameFilters: string[] = [];
+    const defaultSubCategoryFilters: string[] = [];
+
+    normalizedValues.forEach((value) => {
+      if (value.startsWith('subcat:')) {
+        const parsed = value.replace(/^subcat:/, '').trim();
+        if (parsed) defaultSubCategoryFilters.push(parsed);
+        return;
+      }
+      nameFilters.push(value);
+    });
+
+    return {
+      normalizedNameContainsFilters: nameFilters,
+      normalizedDefaultSubCategoryFilters: defaultSubCategoryFilters,
+    };
   }, [nameContainsFilter]);
 
   const isSubCategorySelected = (subCategory: string): boolean => {
@@ -809,6 +828,10 @@ export function MaterialSelectionModal({
 
   useEffect(() => {
     if (!open || !shouldApplyFavoriteOnOpen) return;
+    if (normalizedDefaultSubCategoryFilters.length > 0) {
+      setShouldApplyFavoriteOnOpen(false);
+      return;
+    }
     if (!favoriteSubCategories.length) {
       setShouldApplyFavoriteOnOpen(false);
       return;
@@ -820,7 +843,34 @@ export function MaterialSelectionModal({
       setSubCategoryFilter(favoritesToApply);
     }
     setShouldApplyFavoriteOnOpen(false);
-  }, [open, shouldApplyFavoriteOnOpen, favoriteSubCategories, availableSubCategories]);
+  }, [open, shouldApplyFavoriteOnOpen, favoriteSubCategories, availableSubCategories, normalizedDefaultSubCategoryFilters]);
+
+  useEffect(() => {
+    if (!open || !shouldApplyDefaultSubCategoryOnOpen) return;
+    if (normalizedDefaultSubCategoryFilters.length === 0) {
+      setShouldApplyDefaultSubCategoryOnOpen(false);
+      return;
+    }
+    if (availableSubCategories.length === 0) return;
+
+    const matches = availableSubCategories.filter((subCategory) => {
+      const normalizedSubCategory = normalizeFilterValue(subCategory);
+      return normalizedDefaultSubCategoryFilters.some((needle) => {
+        const normalizedNeedle = normalizeFilterValue(needle);
+        return (
+          normalizedSubCategory === normalizedNeedle ||
+          normalizedSubCategory.includes(normalizedNeedle) ||
+          normalizedNeedle.includes(normalizedSubCategory)
+        );
+      });
+    });
+
+    if (matches.length > 0) {
+      setSubCategoryFilter(matches);
+      setShouldApplyFavoriteOnOpen(false);
+    }
+    setShouldApplyDefaultSubCategoryOnOpen(false);
+  }, [open, shouldApplyDefaultSubCategoryOnOpen, normalizedDefaultSubCategoryFilters, availableSubCategories]);
 
   const allFilteredMaterials = useMemo(() => {
     let result = materialsAfterCategoryFilter;

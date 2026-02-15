@@ -32,6 +32,7 @@ import type { PDFInvoiceData } from '@/lib/generate-invoice-pdf';
 import { generateInvoicePDF } from '@/lib/generate-invoice-pdf';
 import { SendInvoiceModal } from '@/components/invoice/SendInvoiceModal';
 import { toast } from '@/hooks/use-toast';
+import { invoiceImpliesAccepted, promoteQuoteToAcceptedInTransaction } from '@/lib/quote-status';
 
 function naarDate(value: any): Date | null {
   if (!value) return null;
@@ -286,6 +287,8 @@ export default function FactuurDetailPage() {
           paidAt: data?.paidAt ?? serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+
+        await promoteQuoteToAcceptedInTransaction(tx, firestore, data?.quoteId);
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });
@@ -348,6 +351,10 @@ export default function FactuurDetailPage() {
         }
 
         tx.update(invRef, update);
+
+        if (invoiceImpliesAccepted(newStatus)) {
+          await promoteQuoteToAcceptedInTransaction(tx, firestore, inv?.quoteId);
+        }
       });
 
       setPayAmount('');

@@ -3,7 +3,7 @@ import { PlusCircle } from "lucide-react";
 
 export type IconName = "wall" | "ceiling" | "floor" | "roof" | "frame" | "plus" | "fascia" | "door" | "siding" | "glass" | "finishing" | "window" | "fence" | "pergola" | "logo";
 
-export function OfferteHulpIcon(props: SVGProps<SVGSVGElement>) {
+export function CalvoraIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -206,7 +206,7 @@ const icons: Record<IconName, React.ElementType> = {
   window: WindowIcon,
   fence: FenceIcon,
   pergola: PergolaIcon,
-  logo: OfferteHulpIcon
+  logo: CalvoraIcon
 };
 
 export function JobIcon({ name, ...props }: { name: IconName } & SVGProps<SVGSVGElement>) {

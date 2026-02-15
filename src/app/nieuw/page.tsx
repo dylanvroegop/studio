@@ -230,7 +230,7 @@ export default function NieuwPage() {
             Incoming features
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Overzicht van 20 potentiële verbeteringen voor OfferteHulp, afgestemd op calculatie, planning, facturatie en winststuring.
+            Overzicht van 20 potentiële verbeteringen voor Calvora, afgestemd op calculatie, planning, facturatie en winststuring.
           </p>
 
           <div className="grid gap-4 lg:grid-cols-2">

@@ -6,7 +6,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 
 export const metadata: Metadata = {
-  title: 'OfferteHulp',
+  title: 'Calvora',
   description: 'Maak snel en eenvoudig offertes voor timmerwerk.',
 };
 

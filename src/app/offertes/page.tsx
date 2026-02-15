@@ -48,8 +48,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
+import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
 import { supabase } from '@/lib/supabase';
-import type { Quote } from '@/lib/types';
+import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type FilterMode = 'alle' | 'concept' | 'verzonden';
@@ -65,6 +66,13 @@ type QuoteRow = Quote & {
   totaalbedrag?: number;
   offerteNummer?: number;
   title?: string;
+};
+
+type InvoiceSyncRow = {
+  id: string;
+  quoteId?: string;
+  status?: InvoiceStatus;
+  archived?: boolean;
 };
 
 type Client = {
@@ -292,6 +300,7 @@ export default function OffertesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceSyncRow[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
 
@@ -383,6 +392,34 @@ export default function OffertesPage() {
     })();
   }, [createOpen, firestore, user]);
 
+  useEffect(() => {
+    if (!user || !firestore) return;
+
+    const ref = collection(firestore, 'invoices');
+    const q = query(ref, where('userId', '==', user.uid));
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((docSnap) => {
+          const raw = docSnap.data() as any;
+          return {
+            id: docSnap.id,
+            quoteId: raw?.quoteId,
+            status: raw?.status,
+            archived: !!raw?.archived,
+          } as InvoiceSyncRow;
+        });
+        setInvoices(data);
+      },
+      (err: any) => {
+        console.warn('Fout bij ophalen factuurstatus voor offertes:', err);
+      }
+    );
+
+    return () => unsub();
+  }, [firestore, user]);
+
   const pendingQuoteIds = useMemo(
     () =>
       quotes
@@ -390,6 +427,17 @@ export default function OffertesPage() {
         .map((q) => q.id),
     [quotes]
   );
+
+  const acceptedQuoteIdsFromInvoices = useMemo(() => {
+    const ids = new Set<string>();
+    invoices.forEach((invoice) => {
+      if (invoice.archived) return;
+      if (!invoice.quoteId) return;
+      if (!invoiceImpliesAccepted(invoice.status)) return;
+      ids.add(invoice.quoteId);
+    });
+    return ids;
+  }, [invoices]);
 
   useEffect(() => {
     if (!user || !firestore || pendingQuoteIds.length === 0) return;
@@ -458,12 +506,47 @@ export default function OffertesPage() {
     };
   }, [firestore, pendingQuoteIds, user]);
 
+  useEffect(() => {
+    if (!firestore || acceptedQuoteIdsFromInvoices.size === 0 || quotes.length === 0) return;
+
+    const quoteIdsToPromote = quotes
+      .filter((quote) => acceptedQuoteIdsFromInvoices.has(quote.id) && quote.status !== 'geaccepteerd')
+      .map((quote) => quote.id);
+
+    if (quoteIdsToPromote.length === 0) return;
+
+    let cancelled = false;
+
+    const promoteQuotes = async () => {
+      for (let i = 0; i < quoteIdsToPromote.length; i += 450) {
+        if (cancelled) return;
+        const chunk = quoteIdsToPromote.slice(i, i + 450);
+        const batch = writeBatch(firestore);
+        chunk.forEach((quoteId) => {
+          batch.update(doc(firestore, 'quotes', quoteId), {
+            status: 'geaccepteerd',
+            updatedAt: serverTimestamp(),
+          } as any);
+        });
+        await batch.commit();
+      }
+    };
+
+    void promoteQuotes().catch((err) => {
+      console.warn('Kon quote status niet automatisch op geaccepteerd zetten:', err);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [acceptedQuoteIdsFromInvoices, firestore, quotes]);
+
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();
     let result = [...quotes];
 
-    if (filter === 'concept') result = result.filter((q) => q.status === 'concept');
-    if (filter === 'verzonden') result = result.filter((q) => q.status === 'verzonden');
+    if (filter === 'concept') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept');
+    if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
 
     if (!s) return result;
     return result.filter((q) => {
@@ -472,7 +555,7 @@ export default function OffertesPage() {
       const titel = getTitel(q).toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s);
     });
-  }, [filter, quotes, search]);
+  }, [filter, quotes, search, acceptedQuoteIdsFromInvoices]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -904,11 +987,12 @@ export default function OffertesPage() {
                 {filteredQuotes.map((q) => {
                   const totaal = q.totaalbedrag || q.amount || 0;
                   const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
-                  const statusMeta = getStatusMeta(q.status, hasCalculated);
+                  const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
+                  const statusMeta = getStatusMeta(effectiveStatus, hasCalculated);
                   const datum = q.updatedAtDate ?? q.createdAtDate;
                   const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : null;
                   const klant = getKlantNaam(q);
-                  const isCalculating = q.status === 'in_behandeling' && !hasCalculated;
+                  const isCalculating = effectiveStatus === 'in_behandeling' && !hasCalculated;
 
                   return (
                     <div

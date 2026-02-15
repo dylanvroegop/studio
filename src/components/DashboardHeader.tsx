@@ -85,18 +85,8 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
   return (
     <header className="flex h-20 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-xl md:h-24 sm:bg-transparent sm:px-6">
       {/* Left: Logo */}
-      <div className={`flex shrink-0 items-center gap-3 ${showBrandLogo ? 'pl-14 sm:pl-16' : ''}`}>
-        {showBrandLogo && (
-          <Image
-            src="/logo_final.png"
-            alt="OfferteHulp Logo"
-            width={500}
-            height={128}
-            className="h-14 w-auto object-contain md:h-20"
-            priority
-            unoptimized
-          />
-        )}
+      <div className="flex shrink-0 items-center gap-3">
+        {/* Logo removed and moved to sidebar */}
       </div>
 
       {/* Center: Title */}
