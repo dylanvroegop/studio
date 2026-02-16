@@ -27,7 +27,7 @@ Buitendeuren
 Metalstud profielen
 
 Gipsplaten
-(knauf) gipsproducten
+Stucwerk
 Brandwerende platen
 
 Rockpanel

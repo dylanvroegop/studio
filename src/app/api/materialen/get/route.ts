@@ -89,12 +89,11 @@ export async function GET(req: Request) {
     const { data: ownData, error: ownError } = await supabaseAdmin
       .from('main_material_list')
       .select('*')
-      .eq('gebruikerid', uid)
-      .order('order_id', { ascending: true })
-      .range(0, 5000);
+      .eq('gebruikerid', uid);
 
     if (ownError) throw ownError;
 
+    console.log(`[Materialen API] ownData length: ${ownData?.length}`);
     let data = [...(ownData || [])];
 
     // First-login/self-heal: if user has no personal catalog yet,
@@ -111,36 +110,36 @@ export async function GET(req: Request) {
       data = [...(refetchedOwnData || [])];
     }
 
-    data = data.filter((row, index, arr) => {
-      const rowId = row?.row_id ?? row?.id;
-      if (!rowId) return true;
-      return arr.findIndex((candidate) => (candidate?.row_id ?? candidate?.id) === rowId) === index;
-    });
+    // DB now enforces uniqueness via Primary Key on (gebruikerid, row_id).
+    // The previous JS filtering was likely causing issues if row_id property access was flaky.
+    // We trust the DB result.
+
 
     const normalized = Array.isArray(data)
       ? data.map((row: any) => {
-          const excl =
-            parsePriceToNumber(row?.prijs_excl_btw ?? row?.prijs) ??
-            (() => {
-              const incl = parsePriceToNumber(row?.prijs_incl_btw);
-              return incl == null ? null : Number((incl / 1.21).toFixed(2));
-            })();
-          const incl =
-            parsePriceToNumber(row?.prijs_incl_btw) ??
-            (excl == null ? null : Number((excl * 1.21).toFixed(2)));
+        const excl =
+          parsePriceToNumber(row?.prijs_excl_btw ?? row?.prijs) ??
+          (() => {
+            const incl = parsePriceToNumber(row?.prijs_incl_btw);
+            return incl == null ? null : Number((incl / 1.21).toFixed(2));
+          })();
+        const incl =
+          parsePriceToNumber(row?.prijs_incl_btw) ??
+          (excl == null ? null : Number((excl * 1.21).toFixed(2)));
 
-          return {
-            ...row,
-            // Canonical unit price in the app is excl. btw.
-            prijs: excl,
-            prijs_excl_btw: excl,
-            prijs_incl_btw: incl,
-            // Keep subcategory separate from main category.
-            subsectie: row?.subsectie ?? row?.sub_categorie ?? null,
-          };
-        })
+        return {
+          ...row,
+          // Canonical unit price in the app is excl. btw.
+          prijs: excl,
+          prijs_excl_btw: excl,
+          prijs_incl_btw: incl,
+          // Keep subcategory separate from main category.
+          subsectie: row?.subsectie ?? row?.sub_categorie ?? null,
+        };
+      })
       : data;
 
+    console.log(`[Materialen API] Fetched ${data.length} items for user ${uid}.`);
     return NextResponse.json({ ok: true, data: normalized });
   } catch (error: any) {
     console.error("Fetch Error:", error.message);

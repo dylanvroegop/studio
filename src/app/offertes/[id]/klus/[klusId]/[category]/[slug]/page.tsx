@@ -391,6 +391,13 @@ export default function GenericMeasurementPage() {
   const [dakpanWerkendeMaten, setDakpanWerkendeMaten] = useState<DakpanWerkendeMaten | null>(null);
   const prevVakIdsRef = useRef<Record<number, Set<string>>>({});
   const [manualVakkenOverride, setManualVakkenOverride] = useState<Record<number, boolean>>({});
+  const [nadenDefaults, setNadenDefaults] = useState<{
+    behangklaar: { vullen: string; afwerken: string };
+    schilderklaar: { vullen: string; afwerken: string };
+  }>({
+    behangklaar: { vullen: '0,3', afwerken: '0,1' },
+    schilderklaar: { vullen: '0,4', afwerken: '0,15' },
+  });
   const hasFilledMaterialInSnapshotEntry = (entry: any): boolean => {
     if (!entry || typeof entry !== 'object') return false;
     const material = entry.material;
@@ -523,9 +530,25 @@ export default function GenericMeasurementPage() {
       ['daktrim']
     );
   }, [materialenLijstSnapshot]);
-  const showKoofSectionInUI = showKoofSection && (!isGevelbekleding || hasGevelKoofMaterialFromPreviousPage);
-  const showVensterbankSectionInUI = showVensterbankSection && (!isGevelbekleding || hasGevelVensterbankMaterialFromPreviousPage);
-  const showDagkantSectionInUI = showDagkantSection && (!isGevelbekleding || hasGevelDagkantMaterialFromPreviousPage);
+  const hasKozijnMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['kozijn_compleet', 'kozijn_element', 'deur_kozijn', 'glas', 'roosters'],
+      ['kozijn', 'raamkozijn']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasDeurMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['deur_blad', 'deur_scharnieren', 'deur_sloten', 'deur_krukken', 'deur_rooster'],
+      ['deurblad']
+    );
+  }, [materialenLijstSnapshot]);
+  const showKoofSectionInUI = showKoofSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelKoofMaterialFromPreviousPage);
+  const showVensterbankSectionInUI = showVensterbankSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelVensterbankMaterialFromPreviousPage);
+  const showDagkantSectionInUI = showDagkantSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelDagkantMaterialFromPreviousPage);
+  const showStucwerkSectionInUI = isNadenVullenJob && hasNadenStucMaterialFromPreviousPage;
+  const showOpeningsSectionInUI = showOpeningsSection && (!isNadenVullenJob || hasKozijnMaterialFromPreviousPage || hasDeurMaterialFromPreviousPage);
   const floorProfileCountFields = useMemo(() => {
     if (jobSlug === 'massief-houten-vloer') {
       return [
@@ -1558,7 +1581,7 @@ export default function GenericMeasurementPage() {
       if (afwerking === 'behangklaar' || afwerking === 'schilderklaar') {
         item.naden_vullen_afwerking = afwerking;
       } else if (shouldAutoDefaultAfwerking) {
-        item.naden_vullen_afwerking = 'behangklaar';
+        item.naden_vullen_afwerking = 'schilderklaar';
       } else {
         delete item.naden_vullen_afwerking;
       }
@@ -1934,8 +1957,22 @@ export default function GenericMeasurementPage() {
         const userRef = doc(firestore, 'users', user.uid);
         const snap = await getDoc(userRef);
         if (snap.exists()) {
-          const prefs = snap.data().ui_preferences || {};
+          const data = snap.data();
+          const prefs = data.ui_preferences || {};
           setCollapsedSections(prev => ({ ...prev, ...prefs }));
+          const md = data.measurement_defaults;
+          if (md && typeof md === 'object') {
+            setNadenDefaults(prev => ({
+              behangklaar: {
+                vullen: typeof md.naden_vullen_behangklaar === 'string' ? md.naden_vullen_behangklaar : prev.behangklaar.vullen,
+                afwerken: typeof md.naden_afwerken_behangklaar === 'string' ? md.naden_afwerken_behangklaar : prev.behangklaar.afwerken,
+              },
+              schilderklaar: {
+                vullen: typeof md.naden_vullen_schilderklaar === 'string' ? md.naden_vullen_schilderklaar : prev.schilderklaar.vullen,
+                afwerken: typeof md.naden_afwerken_schilderklaar === 'string' ? md.naden_afwerken_schilderklaar : prev.schilderklaar.afwerken,
+              },
+            }));
+          }
         }
       } catch (err) {
         console.error("Error fetching preferences:", err);
@@ -2314,9 +2351,11 @@ export default function GenericMeasurementPage() {
     }
     if (isNadenVullenJob) {
       const shouldSetNadenDefaults = options?.withNadenDefaults ?? hasNadenStucMaterialFromPreviousPage;
-      newItem.naden_vullen_verbruik_per_m2 = shouldSetNadenDefaults ? '0,3' : '';
-      newItem.naden_afwerken_verbruik_per_m2 = shouldSetNadenDefaults ? '0,1' : '';
-      newItem.naden_vullen_afwerking = shouldSetNadenDefaults ? 'behangklaar' : '';
+      const afwerkingDefault = 'schilderklaar';
+      const afwerkingDefaults = nadenDefaults[afwerkingDefault];
+      newItem.naden_vullen_verbruik_per_m2 = shouldSetNadenDefaults ? afwerkingDefaults.vullen : '';
+      newItem.naden_afwerken_verbruik_per_m2 = shouldSetNadenDefaults ? afwerkingDefaults.afwerken : '';
+      newItem.naden_vullen_afwerking = shouldSetNadenDefaults ? afwerkingDefault : '';
     }
     if (isEpdmDak) {
       newItem.edge_top = 'wall';
@@ -2441,6 +2480,38 @@ export default function GenericMeasurementPage() {
       if (isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'werkende_breedte_mm', 'werkende_hoogte_mm', 'halfLatafstandFromBottom'].includes(key)) {
         newItem = applyHellendDakAutoCalculations(newItem, { onlyWhenEmpty: false, syncLatafstand: true });
       }
+
+      // Auto-switch naden verbruik when toggling afwerking
+      if (isNadenVullenJob && key === 'naden_vullen_afwerking' && (value === 'behangklaar' || value === 'schilderklaar')) {
+        const defaults = nadenDefaults[value as 'behangklaar' | 'schilderklaar'];
+        newItem.naden_vullen_verbruik_per_m2 = defaults.vullen;
+        newItem.naden_afwerken_verbruik_per_m2 = defaults.afwerken;
+      }
+
+      // Persist naden verbruik as new defaults in Firestore (per afwerking)
+      if (isNadenVullenJob && (key === 'naden_vullen_verbruik_per_m2' || key === 'naden_afwerken_verbruik_per_m2')) {
+        const trimmed = String(value ?? '').trim();
+        const currentAfwerking = (newItem.naden_vullen_afwerking === 'behangklaar' || newItem.naden_vullen_afwerking === 'schilderklaar')
+          ? newItem.naden_vullen_afwerking as 'behangklaar' | 'schilderklaar'
+          : 'schilderklaar';
+        if (trimmed.length > 0) {
+          const isVullen = key === 'naden_vullen_verbruik_per_m2';
+          setNadenDefaults(prev => ({
+            ...prev,
+            [currentAfwerking]: {
+              ...prev[currentAfwerking],
+              [isVullen ? 'vullen' : 'afwerken']: trimmed,
+            },
+          }));
+          if (user && firestore) {
+            const firestoreKey = isVullen ? `naden_vullen_${currentAfwerking}` : `naden_afwerken_${currentAfwerking}`;
+            setDoc(doc(firestore, 'users', user.uid), {
+              measurement_defaults: { [firestoreKey]: trimmed }
+            }, { merge: true }).catch(err => console.error('Failed to save naden default:', err));
+          }
+        }
+      }
+
       return applyHellendDakMultipliers(newItem);
     }));
   };
@@ -4278,12 +4349,19 @@ export default function GenericMeasurementPage() {
                       })()}
                     </div>
                     {/* Openingen Section */}
-                    {showOpeningsSection && (
+                    {showOpeningsSectionInUI && (
                       <OpeningenSection
                         openings={item.openings || []}
                         onChange={(newOpenings) => updateItem(index, 'openings', newOpenings)}
                         constructionOptions={specificJobConfig.openingConfig.constructionOptions}
                         addButtonLabel={isSchutting ? 'Tuinpoort toevoegen' : undefined}
+                        defaultOpeningType={
+                          isNadenVullenJob
+                            ? (hasKozijnMaterialFromPreviousPage && !hasDeurMaterialFromPreviousPage ? 'frame-inner'
+                              : !hasKozijnMaterialFromPreviousPage && hasDeurMaterialFromPreviousPage ? 'door'
+                                : undefined)
+                            : undefined
+                        }
                         typeOptionsOverride={isSchutting ? [{ value: 'opening', label: 'Tuinpoort' }] : undefined}
                         createOpening={isSchutting ? (() => {
                           const parseNum = (value: any, fallback = 0) => (
@@ -5563,112 +5641,234 @@ export default function GenericMeasurementPage() {
                       />
                     )}
 
-                    {isNadenVullenJob && (
-                      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
-                        <div
-                          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
-                          onClick={() => toggleCollapsed(`naden-vullen-${index}`)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium text-zinc-200">Naden verbruik</span>
-                            {collapsedSections[`naden-vullen-${index}`] !== false && (() => {
-                              const hasNadenVerbruikValues =
-                                !isEmptyValue(item.naden_vullen_verbruik_per_m2) ||
-                                !isEmptyValue(item.naden_afwerken_verbruik_per_m2);
-                              const hasAfwerkingChoice =
-                                item.naden_vullen_afwerking === 'behangklaar' ||
-                                item.naden_vullen_afwerking === 'schilderklaar';
-                              const shouldShowBadge =
-                                hasNadenVerbruikValues ||
-                                (hasNadenStucMaterialFromPreviousPage && hasAfwerkingChoice);
-                              if (!shouldShowBadge) return null;
-                              return (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                  {hasNadenVerbruikValues
-                                    ? 'Ingesteld'
-                                    : (item.naden_vullen_afwerking === 'schilderklaar' ? 'Schilderklaar' : 'Behangklaar')}
-                                </span>
-                              );
-                            })()}
+                    {showStucwerkSectionInUI && (() => {
+                      const profielState = resolveGevelProfielState(item, 'both');
+                      const sideToggleButtonClass = "flex-1 text-xs py-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+                      const profielSummary = profielState.mode === 'both'
+                        ? `Links ${formatGevelProfielLabel(profielState.links)} • Rechts ${formatGevelProfielLabel(profielState.rechts)}`
+                        : `${formatGevelProfielLabel(profielState.links)} beide zijden`;
+                      const modeButtonClass = (
+                        active: boolean,
+                        tone: 'hoek' | 'eind' | 'both'
+                      ) => cn(
+                        "text-xs py-1.5 rounded transition-colors border",
+                        active
+                          ? tone === 'hoek'
+                            ? "bg-orange-500/20 text-orange-300 border-orange-500/30"
+                            : tone === 'eind'
+                              ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
+                              : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                          : "bg-black/20 text-zinc-400 border-white/10 hover:text-zinc-200"
+                      );
+
+                      return (
+                        <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+                          <div
+                            className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                            onClick={() => toggleCollapsed(`naden-vullen-${index}`)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium text-zinc-200">Stucwerk</span>
+                              {collapsedSections[`naden-vullen-${index}`] !== false && (() => {
+                                const hasNadenVerbruikValues =
+                                  !isEmptyValue(item.naden_vullen_verbruik_per_m2) ||
+                                  !isEmptyValue(item.naden_afwerken_verbruik_per_m2);
+                                const hasAfwerkingChoice =
+                                  item.naden_vullen_afwerking === 'behangklaar' ||
+                                  item.naden_vullen_afwerking === 'schilderklaar';
+                                const shouldShowBadge =
+                                  hasNadenVerbruikValues ||
+                                  (hasNadenStucMaterialFromPreviousPage && hasAfwerkingChoice);
+                                if (!shouldShowBadge) return null;
+                                return (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    {hasNadenVerbruikValues
+                                      ? 'Ingesteld'
+                                      : (item.naden_vullen_afwerking === 'schilderklaar' ? 'Schilderklaar' : 'Behangklaar')}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                            <div className="text-zinc-500">
+                              {collapsedSections[`naden-vullen-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </div>
                           </div>
-                          <div className="text-zinc-500">
-                            {collapsedSections[`naden-vullen-${index}`] !== false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </div>
-                        </div>
 
-                        {collapsedSections[`naden-vullen-${index}`] === false && (
-                          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                            <div className="pt-2 border-t border-white/5 space-y-4">
-                              <div className="space-y-2">
-                                <Label className="text-xs">Afwerking</Label>
-                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateItem(index, 'naden_vullen_afwerking', 'behangklaar')}
-                                    className={cn(
-                                      "flex-1 text-xs py-1.5 rounded transition-colors",
-                                      item.naden_vullen_afwerking === 'behangklaar'
-                                        ? "bg-emerald-500/20 text-emerald-400"
-                                        : "text-zinc-500 hover:text-zinc-300"
-                                    )}
-                                  >
-                                    Behangklaar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateItem(index, 'naden_vullen_afwerking', 'schilderklaar')}
-                                    className={cn(
-                                      "flex-1 text-xs py-1.5 rounded transition-colors",
-                                      item.naden_vullen_afwerking === 'schilderklaar'
-                                        ? "bg-emerald-500/20 text-emerald-400"
-                                        : "text-zinc-500 hover:text-zinc-300"
-                                    )}
-                                  >
-                                    Schilderklaar
-                                  </button>
+                          {collapsedSections[`naden-vullen-${index}`] === false && (
+                            <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                              <div className="pt-2 border-t border-white/5 space-y-4">
+                                {/* Hoek/Eind profiel — same UI as Keralit */}
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs uppercase text-zinc-500 tracking-wider">Hoek/Eind profiel</Label>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                      type="button"
+                                      className={modeButtonClass(profielState.mode === 'hoek', 'hoek')}
+                                      onClick={() => updateKeralitGevelProfielMode(index, 'hoek')}
+                                      disabled={disabledAll}
+                                    >
+                                      Hoekprofiel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={modeButtonClass(profielState.mode === 'eind', 'eind')}
+                                      onClick={() => updateKeralitGevelProfielMode(index, 'eind')}
+                                      disabled={disabledAll}
+                                    >
+                                      Eindprofiel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={modeButtonClass(profielState.mode === 'both', 'both')}
+                                      onClick={() => updateKeralitGevelProfielMode(index, 'both')}
+                                      disabled={disabledAll}
+                                    >
+                                      Beide
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
 
-                              <div className="space-y-2">
-                                <Label htmlFor={`naden-vullen-verbruik-${index}`} className="text-xs">Naden vullen (verbruik p/m²)</Label>
-                                <div className="relative">
-                                  <Input
-                                    id={`naden-vullen-verbruik-${index}`}
-                                    type="text"
-                                    inputMode="decimal"
-                                    className="bg-black/20 border-white/10 h-9 text-sm pr-14"
-                                    placeholder="Bijv. 0,3"
-                                    value={item.naden_vullen_verbruik_per_m2 ?? ''}
-                                    onChange={(e) => updateItem(index, 'naden_vullen_verbruik_per_m2', e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    disabled={disabledAll}
-                                  />
-                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">p/m²</span>
+                                {profielState.mode === 'both' && (
+                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Links</Label>
+                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateKeralitGevelProfielSide(index, 'links', 'hoek')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            profielState.links === 'hoek'
+                                              ? "bg-orange-500/20 text-orange-300"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Hoek
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateKeralitGevelProfielSide(index, 'links', 'eind')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            profielState.links === 'eind'
+                                              ? "bg-sky-500/20 text-sky-300"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Eind
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Rechts</Label>
+                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateKeralitGevelProfielSide(index, 'rechts', 'hoek')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            profielState.rechts === 'hoek'
+                                              ? "bg-orange-500/20 text-orange-300"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Hoek
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateKeralitGevelProfielSide(index, 'rechts', 'eind')}
+                                          disabled={disabledAll}
+                                          className={cn(
+                                            sideToggleButtonClass,
+                                            profielState.rechts === 'eind'
+                                              ? "bg-sky-500/20 text-sky-300"
+                                              : "text-zinc-500 hover:text-zinc-300"
+                                          )}
+                                        >
+                                          Eind
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Afwerking */}
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Afwerking</Label>
+                                  <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateItem(index, 'naden_vullen_afwerking', 'behangklaar')}
+                                      className={cn(
+                                        "flex-1 text-xs py-1.5 rounded transition-colors",
+                                        item.naden_vullen_afwerking === 'behangklaar'
+                                          ? "bg-emerald-500/20 text-emerald-400"
+                                          : "text-zinc-500 hover:text-zinc-300"
+                                      )}
+                                    >
+                                      Behangklaar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateItem(index, 'naden_vullen_afwerking', 'schilderklaar')}
+                                      className={cn(
+                                        "flex-1 text-xs py-1.5 rounded transition-colors",
+                                        item.naden_vullen_afwerking === 'schilderklaar'
+                                          ? "bg-emerald-500/20 text-emerald-400"
+                                          : "text-zinc-500 hover:text-zinc-300"
+                                      )}
+                                    >
+                                      Schilderklaar
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
 
-                              <div className="space-y-2">
-                                <Label htmlFor={`naden-afwerken-verbruik-${index}`} className="text-xs">Naden afwerken (verbruik p/m²)</Label>
-                                <div className="relative">
-                                  <Input
-                                    id={`naden-afwerken-verbruik-${index}`}
-                                    type="text"
-                                    inputMode="decimal"
-                                    className="bg-black/20 border-white/10 h-9 text-sm pr-14"
-                                    placeholder="Bijv. 0,1"
-                                    value={item.naden_afwerken_verbruik_per_m2 ?? ''}
-                                    onChange={(e) => updateItem(index, 'naden_afwerken_verbruik_per_m2', e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    disabled={disabledAll}
-                                  />
-                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">p/m²</span>
+                                {/* Naden verbruik */}
+                                <div className="space-y-2">
+                                  <Label htmlFor={`naden-vullen-verbruik-${index}`} className="text-xs">Naden vullen (verbruik kg/m²)</Label>
+                                  <div className="relative">
+                                    <Input
+                                      id={`naden-vullen-verbruik-${index}`}
+                                      type="text"
+                                      inputMode="decimal"
+                                      className="bg-black/20 border-white/10 h-9 text-sm pr-14"
+                                      placeholder="Bijv. 0,4"
+                                      value={item.naden_vullen_verbruik_per_m2 ?? ''}
+                                      onChange={(e) => updateItem(index, 'naden_vullen_verbruik_per_m2', e.target.value)}
+                                      onKeyDown={handleKeyDown}
+                                      disabled={disabledAll}
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">kg/m²</span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor={`naden-afwerken-verbruik-${index}`} className="text-xs">Naden afwerken (verbruik kg/m²)</Label>
+                                  <div className="relative">
+                                    <Input
+                                      id={`naden-afwerken-verbruik-${index}`}
+                                      type="text"
+                                      inputMode="decimal"
+                                      className="bg-black/20 border-white/10 h-9 text-sm pr-14"
+                                      placeholder="Bijv. 0,1"
+                                      value={item.naden_afwerken_verbruik_per_m2 ?? ''}
+                                      onChange={(e) => updateItem(index, 'naden_afwerken_verbruik_per_m2', e.target.value)}
+                                      onKeyDown={handleKeyDown}
+                                      disabled={disabledAll}
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">kg/m²</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Kopkanten Configuration (non-boeiboord — boeiboord renders inline) */}
                     {!isBoeiboord && fields.find(f => f.key === 'kopkanten') && (

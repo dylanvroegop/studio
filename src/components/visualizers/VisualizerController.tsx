@@ -322,6 +322,8 @@ export function VisualizerController({
             <WallDrawing
                 {...normalizedItem}
                 balkafstand={item.balkafstand}
+                gevelProfielLinks={item.gevel_profiel_links}
+                gevelProfielRechts={item.gevel_profiel_rechts}
                 openings={item.openings}
                 variant={item.variant}
                 isMagnifier={isMagnifier}

@@ -40,6 +40,8 @@ export interface WallDrawingProps {
     vensterbanken?: Vensterbank[];
     koven?: KoofItem[];
     onKoofChange?: (updated: KoofItem[]) => void;
+    gevelProfielLinks?: 'hoek' | 'eind';
+    gevelProfielRechts?: 'hoek' | 'eind';
 }
 
 type LogicalBeam = {
@@ -87,8 +89,14 @@ export function WallDrawing({
     vensterbanken = [],
     koven = [],
     onKoofChange,
-    onDataGenerated
+    onDataGenerated,
+    gevelProfielLinks,
+    gevelProfielRechts
 }: WallDrawingProps) {
+    const profielAccentByType: Record<'hoek' | 'eind', string> = {
+        hoek: 'rgb(251, 146, 60)',
+        eind: 'rgb(56, 189, 248)',
+    };
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
 
@@ -826,6 +834,39 @@ export function WallDrawing({
                             svgBaseY={Y_BOTTOM}
                             pxPerMm={pxPerMm}
                         />
+
+                        {(gevelProfielLinks || gevelProfielRechts) && (
+                            <g pointerEvents="none" style={{ userSelect: 'none' }}>
+                                {gevelProfielLinks && (
+                                    <text
+                                        x={WALL_X - 45}
+                                        y={startY + rectH / 2}
+                                        transform={`rotate(-90, ${WALL_X - 45}, ${startY + rectH / 2})`}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        fill="rgb(100, 116, 139)"
+                                        style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace' }}
+                                    >
+                                        <tspan>LINKS </tspan>
+                                        <tspan fill={profielAccentByType[gevelProfielLinks]}>{gevelProfielLinks.toUpperCase()}</tspan>
+                                    </text>
+                                )}
+                                {gevelProfielRechts && (
+                                    <text
+                                        x={WALL_X + WALL_WIDTH + 45}
+                                        y={startY + rectH / 2}
+                                        transform={`rotate(-90, ${WALL_X + WALL_WIDTH + 45}, ${startY + rectH / 2})`}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        fill="rgb(100, 116, 139)"
+                                        style={{ fontSize: 10, fontWeight: 600, fontFamily: 'monospace' }}
+                                    >
+                                        <tspan>RECHTS </tspan>
+                                        <tspan fill={profielAccentByType[gevelProfielRechts]}>{gevelProfielRechts.toUpperCase()}</tspan>
+                                    </text>
+                                )}
+                            </g>
+                        )}
 
                         {segments.length > 0 && (
                             <g>

@@ -65,7 +65,7 @@ export const MATERIAL_CATEGORY_INFO = {
   afwerking_binnen: { title: 'Afwerken (Binnen)', order: 4 },
   afwerking_buiten: { title: 'Afwerken (Buiten)', order: 5 },
   lijstwerk: { title: 'Lijstwerk', order: 4 },
-  gips_afwerking: { title: '(knauf) gipsproducten', order: 6 },
+  gips_afwerking: { title: 'Naden & Stucwerk', order: 6 },
   Koof: { title: 'Koof', order: 9 },
   Cinewall: { title: 'Cinewall Elementen', order: 21 },
   // --- TUIN & SCHUTTING ---
@@ -374,16 +374,16 @@ const SCHUTTING_FIELDS: MeasurementField[] = [
 
 const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
-  { label: 'Staanders & Liggers', categoryFilter: 'Vuren hout', category: 'hout', key: 'staanders_en_liggers', category_ultra_filter: '' },
-  { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'ventilatie_latten', category_ultra_filter: '' },
+  { label: 'Staanders & Liggers', categoryFilter: 'Vuren hout', category: 'hout', key: 'staanders_en_liggers', category_ultra_filter: 'Ribben' },
+  { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'ventilatie_latten', category_ultra_filter: 'Rachels' },
 
   // 2. ISOLATIE & FOLIES
-  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: 'Dampremmend' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 3. BEPLATING
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: 'osb' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: 'Gipsplaten' },
 
   // 4. KOOF
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
@@ -398,9 +398,9 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
   // 6. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: 'Hoekprofielen' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 
   // 7. KOZIJNEN
   { label: 'Kozijnen (Complete Set)', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'kozijn_compleet', category_ultra_filter: '' },
@@ -418,8 +418,8 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
 const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE
-  { label: 'Staanders & Liggers', categoryFilter: 'Vuren hout', category: 'hout', key: 'staanders_en_liggers', category_ultra_filter: '' },
-  { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'ventilatie_latten', category_ultra_filter: '' },
+  { label: 'Staanders & Liggers', categoryFilter: 'Vuren hout', category: 'hout', key: 'staanders_en_liggers', category_ultra_filter: 'Ribben' },
+  { label: 'Tengelwerk / Rachels', categoryFilter: 'Vuren hout', category: 'hout', key: 'ventilatie_latten', category_ultra_filter: 'Rachels' },
 
   // 2. ISOLATIE
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
@@ -427,8 +427,8 @@ const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 3. BEPLATING
   { label: 'Constructieplaat (Zijde 1)', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat_1', category_ultra_filter: '' },
   { label: 'Constructieplaat (Zijde 2)', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat_2', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat_1', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat_2', category_ultra_filter: '' },
+  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat_1', category_ultra_filter: 'Gipsplaten' },
+  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat_2', category_ultra_filter: 'Gipsplaten' },
 
   // 4. KOOF
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
@@ -445,9 +445,9 @@ const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: 'Hoekprofielen' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 
   // 8. KOZIJNEN
   { label: 'Kozijnen (Complete Set)', categoryFilter: 'Montage kozijnen', category: 'Kozijnen', key: 'kozijn_compleet', category_ultra_filter: '' },
@@ -465,17 +465,17 @@ const HSB_SCHEIDINGSWAND_MATS: MaterialSection[] = [
 
 const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 1. METAAL & CONSTRUCTIE
-  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_liggers', category_ultra_filter: '' },
-  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_staanders', category_ultra_filter: '' },
+  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_liggers', category_ultra_filter: 'Wand profielen' },
+  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_staanders', category_ultra_filter: 'Wand profielen' },
   { label: 'Verstevigingsprofielen (UA)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_ua_profiel', category_ultra_filter: '' },
 
   // 2. ISOLATIE & FOLIES
-  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: 'Dampremmend' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 3. BEPLATING
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat', category_ultra_filter: 'osb' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: 'Gipsplaten' },
 
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
@@ -492,9 +492,9 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS / STUC)
-  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: 'Hoekprofielen' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 
   // 8. KOZIJNEN
   { label: 'Raamkozijnen', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
@@ -512,8 +512,8 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
 const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 1. METAAL & CONSTRUCTIE
-  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_liggers', category_ultra_filter: '' },
-  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_staanders', category_ultra_filter: '' },
+  { label: 'Liggers (U-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_liggers', category_ultra_filter: 'Wand profielen' },
+  { label: 'Staanders (C-profielen)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_staanders', category_ultra_filter: 'Wand profielen' },
   { label: 'Verstevigingsprofielen (UA)', categoryFilter: 'Metalstud profielen', category: 'metaal', key: 'ms_ua_profiel', category_ultra_filter: '' },
 
   // 2. ISOLATIE (No folies for separation walls)
@@ -522,8 +522,8 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 3. BEPLATING
   { label: 'Constructieplaat (Zijde 1)', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat_1', category_ultra_filter: '' },
   { label: 'Constructieplaat (Zijde 2)', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat_2', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_1', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_2', category_ultra_filter: '' },
+  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_1', category_ultra_filter: 'Gipsplaten' },
+  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_2', category_ultra_filter: 'Gipsplaten' },
 
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
@@ -540,9 +540,9 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS / STUC)
-  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: 'Hoekprofielen' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 
   // 8. KOZIJNEN
   { label: 'Raamkozijnen', categoryFilter: 'Kozijnhout', category: 'Kozijnen', key: 'kozijn_element', category_ultra_filter: '' },
@@ -586,9 +586,9 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
   { label: 'Gevelhoeken', categoryFilter: 'Exterieur platen, Overig', category: 'afwerking_buiten', key: 'hoek_buiten', category_ultra_filter: '' },
 
   // 6. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: 'Hoekprofielen' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 
   // 7. KOZIJNEN
   { label: 'Stelkozijnen', categoryFilter: 'Kozijnhout, Vuren hout', category: 'Kozijnen', key: 'stelkozijn', category_ultra_filter: '' },
@@ -631,9 +631,9 @@ const CINEWALL_TV_WAND_MATS: MaterialSection[] = [
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
 
   // 7. NADEN & STUCWERK
-  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: 'Hoekprofielen' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 
   // 8. CINEWALL ELEMENTEN
   { label: 'Inbouw Sfeerhaard', categoryFilter: 'Overig', category: 'Cinewall', key: 'sfeerhaard', category_ultra_filter: '' },
@@ -666,9 +666,9 @@ const KNIESCHOTTEN_MATS: MaterialSection[] = [
   // 6. INSTALLATIE
 
   // 7. AFWERKEN (GIPS & WAND)
-  { label: 'Hoekprofielen', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: '' },
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'hoekafwerking', category_ultra_filter: 'Hoekprofielen' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 
   // 8. SCHUIFWANDEN (Replaces Standard Doors)
   { label: 'Schuifdeurrails', categoryFilter: 'Deurbeslag', category: 'Schuifdeuren', key: 'schuifdeur_rails', category_ultra_filter: '' },
@@ -718,8 +718,8 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'Toegang', key: 'luik_afwerking', category_ultra_filter: '' },
 
   // 10. NADEN & STUCWERK
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 ];
 
 const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
@@ -752,8 +752,8 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'Toegang', key: 'luik_afwerking', category_ultra_filter: '' },
 
   // 10. NADEN & STUCWERK
-  { label: 'Voegenmiddel', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: '' },
-  { label: 'Finish Pasta', categoryFilter: '(knauf) gipsproducten', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: '' },
+  { label: 'Voegenmiddel', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_vuller', category_ultra_filter: 'Naden vullen' },
+  { label: 'Finish Pasta', categoryFilter: 'Stucwerk', category: 'gips_afwerking', key: 'gips_finish', category_ultra_filter: 'Naden vullen' },
 ];
 //#endregion
 

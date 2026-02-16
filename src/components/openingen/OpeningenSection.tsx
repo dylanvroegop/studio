@@ -10,6 +10,7 @@ interface OpeningenSectionProps {
     addButtonLabel?: string;
     createOpening?: () => OpeningData;
     typeOptionsOverride?: OpeningTypeOption[];
+    defaultOpeningType?: string;
 
     // Linked items
     dagkanten: Dagkant[];
@@ -33,6 +34,7 @@ export function OpeningenSection({
     addButtonLabel,
     createOpening,
     typeOptionsOverride,
+    defaultOpeningType,
     dagkanten = [],
     vensterbanken = [],
     onAddDagkant,
@@ -78,21 +80,32 @@ export function OpeningenSection({
         onChange(newOpenings);
     };
 
+    const getDefaultDimensions = (type: string): { width: number; height: number } => {
+        switch (type) {
+            case 'frame-inner': return { width: 930, height: 2115 };
+            case 'frame-outer': return { width: 1000, height: 2200 };
+            case 'door': return { width: 830, height: 2015 };
+            case 'window': return { width: 1000, height: 1000 };
+            default: return { width: isWallCategory ? 1000 : 600, height: isWallCategory ? 1000 : 600 };
+        }
+    };
+
     const handleAdd = () => {
         if (createOpening) {
             onChange([...openings, createOpening()]);
             return;
         }
         const enableRaveelwerk = isCeilingCategory || isFloorCategory;
+        const type = defaultOpeningType || (isWallCategory ? 'window' : 'opening');
+        const { width, height } = getDefaultDimensions(type);
         const newOpening: OpeningData = {
             id: crypto.randomUUID(),
-            type: isWallCategory ? 'window' : 'opening',
-            width: isWallCategory ? 1000 : 600,
-            height: isWallCategory ? 1000 : 600,
+            type,
+            width,
+            height,
             fromLeft: 1000,
-            fromBottom: 1000,
+            fromBottom: (type === 'door' || type === 'frame-inner') ? 0 : 1000,
             requires_raveelwerk: enableRaveelwerk || undefined,
-            // Default to defaults?
         };
         onChange([...openings, newOpening]);
     };

@@ -1876,9 +1876,9 @@ export default function GenericMaterialsPageRedesigned() {
       const registrySections = COMPONENT_REGISTRY[component.type as JobComponentType]?.defaultMaterials || [];
       const componentLabel = String(
         component.label
-          || COMPONENT_REGISTRY[component.type as JobComponentType]?.title
-          || component.type
-          || 'Onderdeel',
+        || COMPONENT_REGISTRY[component.type as JobComponentType]?.title
+        || component.type
+        || 'Onderdeel',
       ).trim();
 
       (component.materials || []).forEach((entry: any) => {
@@ -2392,6 +2392,22 @@ export default function GenericMaterialsPageRedesigned() {
     }));
   };
 
+  const handleCornerChange = async (widthSide: 'links' | 'rechts', value: 'hoek' | undefined) => {
+    if (!klus || !firestore) return;
+
+    // Optimistic update
+    setKlus((prev: any) => ({ ...prev, [widthSide === 'links' ? 'gevel_profiel_links' : 'gevel_profiel_rechts']: value }));
+
+    try {
+      const ref = doc(firestore, `quotes/${quoteId}/klussen/${klusId}`);
+      const field = widthSide === 'links' ? 'gevel_profiel_links' : 'gevel_profiel_rechts';
+      await updateDoc(ref, { [field]: value || null });
+    } catch (err) {
+      console.error("Failed to update corner profile:", err);
+      toast({ title: 'Fout bij opslaan', description: 'Kon hoekprofiel keuze niet opslaan.', variant: 'destructive' });
+    }
+  };
+
   // Component Deletion Confirmation
   const [componentDeleteId, setComponentDeleteId] = useState<string | null>(null);
 
@@ -2593,11 +2609,13 @@ export default function GenericMaterialsPageRedesigned() {
     setMaterialenLaden(true);
 
     try {
+      console.log('[DEBUG] fetchMaterials started');
       const token = await user.getIdToken();
       const res = await fetch('/api/materialen/get', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const json = await res.json();
+      console.log('[DEBUG] fetchMaterials response:', json);
 
       if (!res.ok || !json.ok) {
         throw new Error(json.error || 'Fout bij ophalen');
@@ -2624,11 +2642,13 @@ export default function GenericMaterialsPageRedesigned() {
         };
       });
 
+      console.log(`[DEBUG] Parsed ${materialenData.length} materials in page`);
       setAlleMaterialen(materialenData);
     } catch (err) {
       console.error("Fetch materials error:", err);
       setFoutMaterialen('Kon materialen niet laden.');
     } finally {
+      console.log('[DEBUG] fetchMaterials finished');
       setMaterialenLaden(false);
     }
   }, [user]);
@@ -4209,10 +4229,10 @@ export default function GenericMaterialsPageRedesigned() {
     const rawQuestions = item.questions.length > 0
       ? item.questions
       : normalizePendingQuestions(undefined, {
-          question: item.question,
-          expectedUnit: item.expectedUnit,
-          answer: item.answer,
-        });
+        question: item.question,
+        expectedUnit: item.expectedUnit,
+        answer: item.answer,
+      });
     const draftPayload = item.draftPayload || {};
     const baseNaam = String(draftPayload.materiaalnaam || '').trim();
     let resolvedNaam = baseNaam;
@@ -5156,8 +5176,8 @@ export default function GenericMaterialsPageRedesigned() {
           const cleanedWithMultiplier = applySectionMultiplierToMaterial(cleaned, sectionMultiplier);
           const storageKey =
             isEpdmDakJob
-            && (k === 'daktrim' || k === 'daktrim_hoeken')
-            && normalizedSectionKey
+              && (k === 'daktrim' || k === 'daktrim_hoeken')
+              && normalizedSectionKey
               ? normalizedSectionKey
               : k;
 
@@ -6053,6 +6073,56 @@ export default function GenericMaterialsPageRedesigned() {
                                         })}
                                         onRemove={() => handleMateriaalVerwijderen(section.key)}
                                       />
+                                      {/* Corner Profile Selection */}
+                                      {section.key === 'hoekafwerking' && (
+                                        <div className="mt-2 mb-2 text-sm text-muted-foreground flex flex-col sm:flex-row sm:items-center gap-4 pl-1 animate-in fade-in slide-in-from-top-1">
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id="corner-left"
+                                              checked={(klus as any)?.gevel_profiel_links === 'hoek'}
+                                              onCheckedChange={(checked) => handleCornerChange('links', checked ? 'hoek' : undefined)}
+                                            />
+                                            <label htmlFor="corner-left" className="text-sm font-medium leading-none cursor-pointer text-foreground/80 hover:text-foreground transition-colors">
+                                              Linker zijde is hoek
+                                            </label>
+                                          </div>
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id="corner-right"
+                                              checked={(klus as any)?.gevel_profiel_rechts === 'hoek'}
+                                              onCheckedChange={(checked) => handleCornerChange('rechts', checked ? 'hoek' : undefined)}
+                                            />
+                                            <label htmlFor="corner-right" className="text-sm font-medium leading-none cursor-pointer text-foreground/80 hover:text-foreground transition-colors">
+                                              Rechter zijde is hoek
+                                            </label>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {/* Corner Profile Selection */}
+                                      {section.key === 'hoekafwerking' && (
+                                        <div className="mt-2 mb-2 text-sm text-muted-foreground flex flex-col sm:flex-row sm:items-center gap-4 pl-1 animate-in fade-in slide-in-from-top-1">
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id="corner-left"
+                                              checked={(klus as any)?.gevel_profiel_links === 'hoek'}
+                                              onCheckedChange={(checked) => handleCornerChange('links', checked ? 'hoek' : undefined)}
+                                            />
+                                            <label htmlFor="corner-left" className="text-sm font-medium leading-none cursor-pointer text-foreground/80 hover:text-foreground transition-colors">
+                                              Linker zijde is hoek
+                                            </label>
+                                          </div>
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id="corner-right"
+                                              checked={(klus as any)?.gevel_profiel_rechts === 'hoek'}
+                                              onCheckedChange={(checked) => handleCornerChange('rechts', checked ? 'hoek' : undefined)}
+                                            />
+                                            <label htmlFor="corner-right" className="text-sm font-medium leading-none cursor-pointer text-foreground/80 hover:text-foreground transition-colors">
+                                              Rechter zijde is hoek
+                                            </label>
+                                          </div>
+                                        </div>
+                                      )}
                                       {/* Beam Height Warning - shows after staanders selection */}
                                       {['staanders_en_liggers', 'regelwerk_hoofd', 'ms_staanders'].includes(section.key) && beamHeightWarning && (
                                         <div className="mx-1 mb-2 p-3 rounded-lg border bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700/50 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -6680,10 +6750,10 @@ export default function GenericMaterialsPageRedesigned() {
                   const questions = item.questions.length > 0
                     ? item.questions
                     : normalizePendingQuestions(undefined, {
-                        question: item.question,
-                        expectedUnit: item.expectedUnit,
-                        answer: item.answer,
-                      });
+                      question: item.question,
+                      expectedUnit: item.expectedUnit,
+                      answer: item.answer,
+                    });
                   return (
                     <div key={item.id} className="space-y-3 p-4 rounded-lg border border-border bg-muted/20">
                       <div className="flex items-center justify-between gap-3">
@@ -6717,10 +6787,10 @@ export default function GenericMaterialsPageRedesigned() {
                                     const existingQuestions = x.questions.length > 0
                                       ? x.questions
                                       : normalizePendingQuestions(undefined, {
-                                          question: x.question,
-                                          expectedUnit: x.expectedUnit,
-                                          answer: x.answer,
-                                        });
+                                        question: x.question,
+                                        expectedUnit: x.expectedUnit,
+                                        answer: x.answer,
+                                      });
                                     const updatedQuestions = existingQuestions.map((q, idx) => (
                                       idx === questionIndex ? { ...q, answer: value } : q
                                     ));
@@ -6897,10 +6967,10 @@ export default function GenericMaterialsPageRedesigned() {
                     const questions = item.questions.length > 0
                       ? item.questions
                       : normalizePendingQuestions(undefined, {
-                          question: item.question,
-                          expectedUnit: item.expectedUnit,
-                          answer: item.answer,
-                        });
+                        question: item.question,
+                        expectedUnit: item.expectedUnit,
+                        answer: item.answer,
+                      });
                     return questions.some((question) => !String(question.answer || '').trim());
                   });
                   if (missingAnswers.length > 0) {
@@ -6916,10 +6986,10 @@ export default function GenericMaterialsPageRedesigned() {
                     const questions = item.questions.length > 0
                       ? item.questions
                       : normalizePendingQuestions(undefined, {
-                          question: item.question,
-                          expectedUnit: item.expectedUnit,
-                          answer: item.answer,
-                        });
+                        question: item.question,
+                        expectedUnit: item.expectedUnit,
+                        answer: item.answer,
+                      });
                     return questions.some((question) => {
                       const shouldMapToVerbruik =
                         question.key === 'verbruik_per_m2' ||

@@ -441,9 +441,11 @@ export default function QuotePage() {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const json = await res.json();
+                console.log('[DEBUG] fetchMaterials response:', json);
 
                 if (res.ok && json.ok) {
                     const materialenData = (json.data || []).map((m: any) => {
+                        // ...
                         const excl = parsePriceToNumber(m.prijs_excl_btw)
                             ?? Number((((parsePriceToNumber(m.prijs_incl_btw ?? m.prijs) ?? 0) / 1.21)).toFixed(2));
                         const incl = parsePriceToNumber(m.prijs_incl_btw)
@@ -451,16 +453,15 @@ export default function QuotePage() {
                         return {
                             ...m,
                             id: m.row_id || m.id,
-                            // In offertes we treat row/unit price as EXCL. BTW.
                             prijs: excl,
                             prijs_per_stuk: excl,
                             prijs_excl_btw: excl,
                             prijs_incl_btw: incl,
-                            // Standardization for the modal
                             materiaalnaam: m.materiaalnaam || m.naam,
                             categorie: m.categorie || m.subsectie || 'Overig',
                         };
                     });
+                    console.log(`[DEBUG] Parsed ${materialenData.length} materials`);
                     setAlleMaterialen(materialenData);
                 } else {
                     const message = json?.message || json?.error || 'Kon materialen niet laden.';
@@ -1348,8 +1349,8 @@ export default function QuotePage() {
                     quoteMeta.quoteId === id
                         ? `Huidige offerte${quoteMeta.offerteNummer !== null ? ` (${quoteMeta.offerteNummer})` : ''}`
                         : quoteMeta.offerteNummer !== null
-                        ? `Offerte ${quoteMeta.offerteNummer}`
-                        : `Offerte ${index + 1}`;
+                            ? `Offerte ${quoteMeta.offerteNummer}`
+                            : `Offerte ${index + 1}`;
 
                 const parsedHours = parsePriceToNumber((normalized as any)?.totaal_uren);
                 const totalHours = parsedHours !== null && Number.isFinite(parsedHours)

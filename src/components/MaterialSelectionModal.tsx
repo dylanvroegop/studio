@@ -425,8 +425,16 @@ export function MaterialSelectionModal({
   }, [categoryTitle, defaultCategory]);
 
   // --- RESET ON OPEN ---
+  // --- RESET ON OPEN ---
   useEffect(() => {
     if (open) {
+      console.log('[DEBUG] MaterialSelectionModal opened. existingMaterials count:', existingMaterials?.length);
+      if (existingMaterials?.length > 0) {
+        console.log('[DEBUG] First 3 materials:', existingMaterials.slice(0, 3));
+      } else {
+        console.log('[DEBUG] existingMaterials is empty or undefined');
+      }
+
       const savedFavoritesRaw =
         typeof window !== 'undefined'
           ? window.localStorage.getItem(favoriteSubCategoryKey)
@@ -491,7 +499,7 @@ export function MaterialSelectionModal({
     const CATEGORY_ORDER = [
       "Vuren ruw", "Vuren geschaafd", "Ribben, sls, rachels", "Plinten & koplatten", "Hardhout geschaafd", "Merantie",
       "Vloer-rabat-vellingdelen", "Underlayment", "Interieur Platen", "Exterieur platen", "Deurbeslag", "Binnendeuren",
-      "Buitendeuren", "Kozijnhout", "Montage kozijnen", "Metalstud profielen", "Gipsplaten", "Brandwerende platen", "(knauf) gipsproducten", "Rockpanel", "Kikern",
+      "Buitendeuren", "Kozijnhout", "Montage kozijnen", "Metalstud profielen", "Gipsplaten", "Brandwerende platen", "Stucwerk", "Rockpanel", "Kikern",
       "Glaswol", "Steenwol", "Pir", "Eps", "Xps", "Folieën", "Dpc", "Lood", "Loodvervanger", "Epdm folie", "Epdm benodigdheden",
       "Epdm afvoeren", "Dakrollen", "Asfaltsingels", "Betonpannen", "Gebakken pannen", "Flexim", "Bitumen golfplaten",
       "Polyester golfplaten", "Pvc golfplaten", "Vezelcement golfplaten", "Golfplaat afdichting en bevestiging", "Velux",
@@ -1292,377 +1300,377 @@ export function MaterialSelectionModal({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className={cn(
-          "w-[95vw] p-0 transition-all duration-200",
-          step === 'search'
-            ? "max-w-[1200px] h-[88vh] flex flex-col overflow-hidden gap-0"
-            : "sm:max-w-[640px] h-auto block"
-        )}
-      >
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className={cn(
+            "w-[95vw] p-0 transition-all duration-200",
+            step === 'search'
+              ? "max-w-[1200px] h-[88vh] flex flex-col overflow-hidden gap-0"
+              : "sm:max-w-[640px] h-auto block"
+          )}
+        >
 
-        {/* === STEP 1: SEARCH & FILTER === */}
-        {step === 'search' && (
-          <>
-            <div className="flex-1 min-h-0 border-t grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
-              <aside className="hidden lg:flex flex-col border-r border-border/60 min-h-0">
-                <div className="px-3 py-2 border-b border-border/60">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Filters</p>
-                </div>
-                <div className="p-2 border-b border-border/60">
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-2">Categorie</div>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryPickerOpen((prev) => !prev)}
-                    className="w-full h-9 rounded-md border border-muted-foreground/25 px-2.5 text-xs text-left flex items-center justify-between text-muted-foreground hover:text-foreground hover:border-emerald-500/40 transition-colors"
-                  >
-                    <span className="truncate pr-2">{selectedCategoryLabel}</span>
-                    <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", categoryPickerOpen && "rotate-180")} />
-                  </button>
+          {/* === STEP 1: SEARCH & FILTER === */}
+          {step === 'search' && (
+            <>
+              <div className="flex-1 min-h-0 border-t grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <aside className="hidden lg:flex flex-col border-r border-border/60 min-h-0">
+                  <div className="px-3 py-2 border-b border-border/60">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Filters</p>
+                  </div>
+                  <div className="p-2 border-b border-border/60">
+                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-2">Categorie</div>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryPickerOpen((prev) => !prev)}
+                      className="w-full h-9 rounded-md border border-muted-foreground/25 px-2.5 text-xs text-left flex items-center justify-between text-muted-foreground hover:text-foreground hover:border-emerald-500/40 transition-colors"
+                    >
+                      <span className="truncate pr-2">{selectedCategoryLabel}</span>
+                      <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", categoryPickerOpen && "rotate-180")} />
+                    </button>
 
-                  {categoryPickerOpen && (
-                    <div className="mt-2 space-y-2">
-                      <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
-                        <Input
-                          value={categorySearchTerm}
-                          onChange={(e) => {
-                            setCategorySearchTerm(e.target.value);
-                            if (!categoryPickerOpen) setCategoryPickerOpen(true);
-                          }}
-                          placeholder="Zoek categorie..."
-                          className="h-8 pl-8 text-xs border-muted-foreground/20"
-                        />
-                      </div>
-                      <div className="max-h-[190px] overflow-y-auto space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            applyCategoryFilter('all');
-                            setCategorySearchTerm('');
-                            setCategoryPickerOpen(false);
-                          }}
-                          className={cn(
-                            "w-full rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
-                            categoryFilter === 'all'
-                              ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                              : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                          )}
-                        >
-                          Toon alles
-                        </button>
-                        {filteredSidebarCategories.map((cat) => {
-                          const selected = Array.isArray(categoryFilter)
-                            ? categoryFilter.includes(cat)
-                            : categoryFilter === cat;
-                          return (
-                            <button
-                              key={cat}
-                              type="button"
-                              onClick={() => {
-                                applyCategoryFilter(cat);
-                                setCategorySearchTerm('');
-                                setCategoryPickerOpen(false);
-                              }}
-                              className={cn(
-                                "w-full rounded-md border px-2.5 py-1.5 text-xs text-left leading-5 transition-colors",
-                                selected
-                                  ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                                  : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                              )}
-                            >
-                              {cat}
-                            </button>
-                          );
-                        })}
-                        {filteredSidebarCategories.length === 0 && (
-                          <div className="px-2.5 py-1.5 text-xs text-muted-foreground">
-                            Geen categorie gevonden.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 py-2 border-b border-border/60">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Subcategorie</p>
-                </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSubCategoryFilter('all')}
-                    className={cn(
-                      "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
-                      isAllSubCategoriesSelected
-                        ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                        : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                    )}
-                  >
-                    <span>Alles</span>
-                    <span className="text-[10px] opacity-70">{materialsAfterCategoryFilter.length}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleSubCategorySelection(FAVORITE_SUBCATEGORY_FILTER)}
-                    className={cn(
-                      "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
-                      isSubCategorySelected(FAVORITE_SUBCATEGORY_FILTER)
-                        ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                        : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                    )}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                      Favorieten
-                    </span>
-                    <span className="text-[10px] opacity-70">{favoriteMaterialsCount}</span>
-                  </button>
-                  {availableSubCategories.map((subCat) => {
-                    const isFavoriteSubCategory = favoriteSubCategories.includes(subCat);
-                    return (
-                      <div key={subCat} className="w-full flex items-center gap-1">
-                        <button
-                          type="button"
-                          aria-label={isFavoriteSubCategory ? `Verwijder favoriet ${subCat}` : `Maak favoriet ${subCat}`}
-                          title={isFavoriteSubCategory ? 'Favoriet verwijderen' : 'Favoriet maken'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavoriteSubCategory(subCat);
-                          }}
-                          className="h-7 w-7 shrink-0 rounded-md border border-muted-foreground/25 flex items-center justify-center hover:border-emerald-500/50 hover:bg-muted/40 transition-colors"
-                        >
-                          <Star className={cn("h-3.5 w-3.5", isFavoriteSubCategory ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40")} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleSubCategorySelection(subCat)}
-                          className={cn(
-                            "flex-1 flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
-                            isSubCategorySelected(subCat)
-                              ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                              : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                          )}
-                        >
-                          <span className="truncate pr-2">{subCat}</span>
-                          <span className="text-[10px] opacity-70 shrink-0">{subCategoryCounts.get(subCat) || 0}</span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </aside>
-
-              <div className="flex flex-col min-h-0">
-                <div className="p-6 pb-3 border-b border-border/60 shrink-0">
-                  <div className="flex items-start justify-between mb-4 gap-3">
-                    <div className="flex flex-col gap-0.5">
-                      <DialogTitle className="text-xl font-semibold">
-                        {categoryTitle || 'Kies materiaal'}
-                      </DialogTitle>
-                      <p className="text-xs text-muted-foreground hidden sm:block">
-                        Selecteer een materiaal voor {categoryTitle ? categoryTitle.toLowerCase() : 'dit onderdeel'}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="relative hidden lg:block" ref={quickCategoryPickerRef}>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setQuickCategoryPickerOpen((prev) => !prev);
-                          }}
-                          className="h-8 px-2.5 gap-2 border-emerald-500/45 bg-emerald-500/12 text-emerald-100 hover:bg-emerald-500/20 hover:border-emerald-400"
-                          title="Standaard categorie aanpassen voor dit onderdeel"
-                        >
-                          <Filter className="h-3.5 w-3.5" />
-                          <span className="max-w-[220px] truncate text-xs font-semibold">{selectedCategoryLabel}</span>
-                          <Pencil className="h-3 w-3 opacity-70" />
-                        </Button>
-
-                        {quickCategoryPickerOpen && (
-                          <div className="absolute right-0 top-full mt-2 z-50 w-[300px] rounded-lg border border-emerald-500/30 bg-background/95 shadow-2xl backdrop-blur p-2 space-y-2">
-                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold px-1">
-                              Kies standaard categorie
-                            </div>
-                            <div className="relative">
-                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
-                              <Input
-                                value={quickCategorySearchTerm}
-                                onChange={(e) => setQuickCategorySearchTerm(e.target.value)}
-                                placeholder="Zoek categorie..."
-                                className="h-8 pl-8 text-xs border-muted-foreground/20"
-                              />
-                            </div>
-                            <div className="max-h-[220px] overflow-y-auto space-y-1">
+                    {categoryPickerOpen && (
+                      <div className="mt-2 space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
+                          <Input
+                            value={categorySearchTerm}
+                            onChange={(e) => {
+                              setCategorySearchTerm(e.target.value);
+                              if (!categoryPickerOpen) setCategoryPickerOpen(true);
+                            }}
+                            placeholder="Zoek categorie..."
+                            className="h-8 pl-8 text-xs border-muted-foreground/20"
+                          />
+                        </div>
+                        <div className="max-h-[190px] overflow-y-auto space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              applyCategoryFilter('all');
+                              setCategorySearchTerm('');
+                              setCategoryPickerOpen(false);
+                            }}
+                            className={cn(
+                              "w-full rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
+                              categoryFilter === 'all'
+                                ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                            )}
+                          >
+                            Toon alles
+                          </button>
+                          {filteredSidebarCategories.map((cat) => {
+                            const selected = Array.isArray(categoryFilter)
+                              ? categoryFilter.includes(cat)
+                              : categoryFilter === cat;
+                            return (
                               <button
+                                key={cat}
                                 type="button"
-                                onClick={() => applyCategoryFilter('all', { persist: true, closeQuickPicker: true })}
+                                onClick={() => {
+                                  applyCategoryFilter(cat);
+                                  setCategorySearchTerm('');
+                                  setCategoryPickerOpen(false);
+                                }}
                                 className={cn(
-                                  "w-full rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
-                                  categoryFilter === 'all'
+                                  "w-full rounded-md border px-2.5 py-1.5 text-xs text-left leading-5 transition-colors",
+                                  selected
                                     ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
                                     : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
                                 )}
                               >
-                                Toon alles
+                                {cat}
                               </button>
-                              {quickFilteredCategories.map((cat) => {
-                                const selected = Array.isArray(categoryFilter)
-                                  ? categoryFilter.includes(cat)
-                                  : categoryFilter === cat;
-                                return (
-                                  <button
-                                    key={cat}
-                                    type="button"
-                                    onClick={() => applyCategoryFilter(cat, { persist: true, closeQuickPicker: true })}
-                                    className={cn(
-                                      "w-full rounded-md border px-2.5 py-1.5 text-xs text-left leading-5 transition-colors",
-                                      selected
-                                        ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                                        : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                                    )}
-                                  >
-                                    {cat}
-                                  </button>
-                                );
-                              })}
-                              {quickFilteredCategories.length === 0 && (
-                                <div className="px-2.5 py-1.5 text-xs text-muted-foreground">
-                                  Geen categorie gevonden.
-                                </div>
-                              )}
+                            );
+                          })}
+                          {filteredSidebarCategories.length === 0 && (
+                            <div className="px-2.5 py-1.5 text-xs text-muted-foreground">
+                              Geen categorie gevonden.
                             </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-3 py-2 border-b border-border/60">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Subcategorie</p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSubCategoryFilter('all')}
+                      className={cn(
+                        "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                        isAllSubCategoriesSelected
+                          ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                          : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                      )}
+                    >
+                      <span>Alles</span>
+                      <span className="text-[10px] opacity-70">{materialsAfterCategoryFilter.length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSubCategorySelection(FAVORITE_SUBCATEGORY_FILTER)}
+                      className={cn(
+                        "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                        isSubCategorySelected(FAVORITE_SUBCATEGORY_FILTER)
+                          ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                          : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                        Favorieten
+                      </span>
+                      <span className="text-[10px] opacity-70">{favoriteMaterialsCount}</span>
+                    </button>
+                    {availableSubCategories.map((subCat) => {
+                      const isFavoriteSubCategory = favoriteSubCategories.includes(subCat);
+                      return (
+                        <div key={subCat} className="w-full flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={isFavoriteSubCategory ? `Verwijder favoriet ${subCat}` : `Maak favoriet ${subCat}`}
+                            title={isFavoriteSubCategory ? 'Favoriet verwijderen' : 'Favoriet maken'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavoriteSubCategory(subCat);
+                            }}
+                            className="h-7 w-7 shrink-0 rounded-md border border-muted-foreground/25 flex items-center justify-center hover:border-emerald-500/50 hover:bg-muted/40 transition-colors"
+                          >
+                            <Star className={cn("h-3.5 w-3.5", isFavoriteSubCategory ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40")} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleSubCategorySelection(subCat)}
+                            className={cn(
+                              "flex-1 flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
+                              isSubCategorySelected(subCat)
+                                ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                            )}
+                          >
+                            <span className="truncate pr-2">{subCat}</span>
+                            <span className="text-[10px] opacity-70 shrink-0">{subCategoryCounts.get(subCat) || 0}</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </aside>
+
+                <div className="flex flex-col min-h-0">
+                  <div className="p-6 pb-3 border-b border-border/60 shrink-0">
+                    <div className="flex items-start justify-between mb-4 gap-3">
+                      <div className="flex flex-col gap-0.5">
+                        <DialogTitle className="text-xl font-semibold">
+                          {categoryTitle || 'Kies materiaal'}
+                        </DialogTitle>
+                        <p className="text-xs text-muted-foreground hidden sm:block">
+                          Selecteer een materiaal voor {categoryTitle ? categoryTitle.toLowerCase() : 'dit onderdeel'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="relative hidden lg:block" ref={quickCategoryPickerRef}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setQuickCategoryPickerOpen((prev) => !prev);
+                            }}
+                            className="h-8 px-2.5 gap-2 border-emerald-500/45 bg-emerald-500/12 text-emerald-100 hover:bg-emerald-500/20 hover:border-emerald-400"
+                            title="Standaard categorie aanpassen voor dit onderdeel"
+                          >
+                            <Filter className="h-3.5 w-3.5" />
+                            <span className="max-w-[220px] truncate text-xs font-semibold">{selectedCategoryLabel}</span>
+                            <Pencil className="h-3 w-3 opacity-70" />
+                          </Button>
+
+                          {quickCategoryPickerOpen && (
+                            <div className="absolute right-0 top-full mt-2 z-50 w-[300px] rounded-lg border border-emerald-500/30 bg-background/95 shadow-2xl backdrop-blur p-2 space-y-2">
+                              <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold px-1">
+                                Kies standaard categorie
+                              </div>
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
+                                <Input
+                                  value={quickCategorySearchTerm}
+                                  onChange={(e) => setQuickCategorySearchTerm(e.target.value)}
+                                  placeholder="Zoek categorie..."
+                                  className="h-8 pl-8 text-xs border-muted-foreground/20"
+                                />
+                              </div>
+                              <div className="max-h-[220px] overflow-y-auto space-y-1">
+                                <button
+                                  type="button"
+                                  onClick={() => applyCategoryFilter('all', { persist: true, closeQuickPicker: true })}
+                                  className={cn(
+                                    "w-full rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
+                                    categoryFilter === 'all'
+                                      ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                      : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                                  )}
+                                >
+                                  Toon alles
+                                </button>
+                                {quickFilteredCategories.map((cat) => {
+                                  const selected = Array.isArray(categoryFilter)
+                                    ? categoryFilter.includes(cat)
+                                    : categoryFilter === cat;
+                                  return (
+                                    <button
+                                      key={cat}
+                                      type="button"
+                                      onClick={() => applyCategoryFilter(cat, { persist: true, closeQuickPicker: true })}
+                                      className={cn(
+                                        "w-full rounded-md border px-2.5 py-1.5 text-xs text-left leading-5 transition-colors",
+                                        selected
+                                          ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                          : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                                      )}
+                                    >
+                                      {cat}
+                                    </button>
+                                  );
+                                })}
+                                {quickFilteredCategories.length === 0 && (
+                                  <div className="px-2.5 py-1.5 text-xs text-muted-foreground">
+                                    Geen categorie gevonden.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setQuickCategoryPickerOpen(false);
+                            setPriceImportDialogOpen(true);
+                          }}
+                          className="hidden h-8 px-2.5 text-xs gap-2 border border-amber-400/45 bg-amber-500/12 text-amber-100 hover:bg-amber-500/20 lg:inline-flex"
+                        >
+                          Prijs import aanvragen
+                        </Button>
+
+                        {isEditingWaste ? (
+                          <div className="flex items-center gap-1 rounded-md border border-sky-400/50 bg-sky-500/15 px-2 py-1">
+                            <span className="text-xs font-semibold text-sky-100 uppercase tracking-wide">Afval</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              className="h-6 w-14 text-xs px-1 py-0 bg-background/30 border-sky-300/50 focus-visible:ring-0 text-right font-medium"
+                              value={wastePercentage.toString()}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (!isNaN(val) && val >= 0) setWastePercentage(val);
+                                else if (e.target.value === '') setWastePercentage(0);
+                              }}
+                              onBlur={() => {
+                                setIsEditingWaste(false);
+                                if (onUpdateWaste) onUpdateWaste(wastePercentage);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  setIsEditingWaste(false);
+                                  if (onUpdateWaste) onUpdateWaste(wastePercentage);
+                                }
+                              }}
+                            />
+                            <span className="text-xs text-sky-100 pr-1">%</span>
                           </div>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditingWaste(true)}
+                            className="h-8 px-2.5 text-xs gap-2 border border-sky-400/45 bg-sky-500/12 text-sky-100 hover:bg-sky-500/20"
+                          >
+                            <Pencil className="h-3.5 w-3.5 opacity-80" />
+                            <span className="font-semibold uppercase tracking-wide">Afval</span>
+                            <span className="font-bold">{wastePercentage}%</span>
+                          </Button>
                         )}
                       </div>
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setQuickCategoryPickerOpen(false);
-                          setPriceImportDialogOpen(true);
-                        }}
-                        className="hidden h-8 px-2.5 text-xs gap-2 border border-amber-400/45 bg-amber-500/12 text-amber-100 hover:bg-amber-500/20 lg:inline-flex"
-                      >
-                        Prijs import aanvragen
-                      </Button>
+                      <DialogDescription className="sr-only">
+                        Zoek en selecteer een materiaal uit de lijst of maak een nieuwe aan.
+                      </DialogDescription>
+                    </div>
 
-                      {isEditingWaste ? (
-                        <div className="flex items-center gap-1 rounded-md border border-sky-400/50 bg-sky-500/15 px-2 py-1">
-                          <span className="text-xs font-semibold text-sky-100 uppercase tracking-wide">Afval</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            className="h-6 w-14 text-xs px-1 py-0 bg-background/30 border-sky-300/50 focus-visible:ring-0 text-right font-medium"
-                            value={wastePercentage.toString()}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val) && val >= 0) setWastePercentage(val);
-                              else if (e.target.value === '') setWastePercentage(0);
-                            }}
-                            onBlur={() => {
-                              setIsEditingWaste(false);
-                              if (onUpdateWaste) onUpdateWaste(wastePercentage);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                setIsEditingWaste(false);
-                                if (onUpdateWaste) onUpdateWaste(wastePercentage);
-                              }
-                            }}
-                          />
-                          <span className="text-xs text-sky-100 pr-1">%</span>
-                        </div>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsEditingWaste(true)}
-                          className="h-8 px-2.5 text-xs gap-2 border border-sky-400/45 bg-sky-500/12 text-sky-100 hover:bg-sky-500/20"
+                    <div className="flex flex-col lg:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Zoek op materiaalnaam..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/50"
+                        />
+                      </div>
+
+                      <div className="lg:hidden">
+                        <Select
+                          value={Array.isArray(categoryFilter) ? 'custom_filter' : categoryFilter}
+                          onValueChange={(value) => {
+                            applyCategoryFilter(value);
+                          }}
                         >
-                          <Pencil className="h-3.5 w-3.5 opacity-80" />
-                          <span className="font-semibold uppercase tracking-wide">Afval</span>
-                          <span className="font-bold">{wastePercentage}%</span>
-                        </Button>
-                      )}
-                    </div>
+                          <SelectTrigger className="w-full h-10 text-xs border-muted-foreground/20 bg-transparent">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Filter className="h-3 w-3" />
+                              <span className="truncate max-w-[220px]">
+                                {Array.isArray(categoryFilter)
+                                  ? categoryFilter.join(', ')
+                                  : categoryFilter === 'all'
+                                    ? 'Filter op categorie...'
+                                    : categoryFilter}
+                              </span>
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Toon alles</SelectItem>
+                            {Array.isArray(categoryFilter) && (
+                              <SelectItem value="custom_filter" className="hidden">Geselecteerde Groep</SelectItem>
+                            )}
+                            {uniqueCategories.map(cat => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    <DialogDescription className="sr-only">
-                      Zoek en selecteer een materiaal uit de lijst of maak een nieuwe aan.
-                    </DialogDescription>
-                  </div>
-
-                  <div className="flex flex-col lg:flex-row gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Zoek op materiaalnaam..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/50"
-                      />
-                    </div>
-
-                    <div className="lg:hidden">
-                      <Select
-                        value={Array.isArray(categoryFilter) ? 'custom_filter' : categoryFilter}
-                        onValueChange={(value) => {
-                          applyCategoryFilter(value);
+                      <Button
+                        onClick={() => {
+                          setEditingMaterialId(null);
+                          setCustomNaam('');
+                          setCustomEenheid('stuk');
+                          setCustomPrijs('');
+                          setCustomPrijsExclBtw('');
+                          setCustomSubsectie(selectedCategoryForNewMaterial || '');
+                          setCustomLeverancier('');
+                          setStep('form');
                         }}
+                        variant="outline"
+                        className="h-10 px-3 border-dashed border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:bg-muted/10 hover:border-emerald-500/50 shrink-0"
                       >
-                        <SelectTrigger className="w-full h-10 text-xs border-muted-foreground/20 bg-transparent">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Filter className="h-3 w-3" />
-                            <span className="truncate max-w-[220px]">
-                              {Array.isArray(categoryFilter)
-                                ? categoryFilter.join(', ')
-                                : categoryFilter === 'all'
-                                  ? 'Filter op categorie...'
-                                  : categoryFilter}
-                            </span>
-                          </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Toon alles</SelectItem>
-                          {Array.isArray(categoryFilter) && (
-                            <SelectItem value="custom_filter" className="hidden">Geselecteerde Groep</SelectItem>
-                          )}
-                          {uniqueCategories.map(cat => (
-                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <Plus className="mr-1.5 h-4 w-4" />
+                        Nieuw
+                      </Button>
                     </div>
-
-                    <Button
-                      onClick={() => {
-                    setEditingMaterialId(null);
-                    setCustomNaam('');
-                    setCustomEenheid('stuk');
-                    setCustomPrijs('');
-                    setCustomPrijsExclBtw('');
-                    setCustomSubsectie(selectedCategoryForNewMaterial || '');
-                    setCustomLeverancier('');
-                        setStep('form');
-                      }}
-                      variant="outline"
-                      className="h-10 px-3 border-dashed border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:bg-muted/10 hover:border-emerald-500/50 shrink-0"
-                    >
-                      <Plus className="mr-1.5 h-4 w-4" />
-                      Nieuw
-                    </Button>
                   </div>
-                </div>
 
-                {availableSubCategories.length > 0 && (
-                  <div className="lg:hidden border-b border-border/60 px-2 py-2 overflow-x-auto">
-                    <div className="flex items-center gap-1.5 min-w-max">
+                  {availableSubCategories.length > 0 && (
+                    <div className="lg:hidden border-b border-border/60 px-2 py-2 overflow-x-auto">
+                      <div className="flex items-center gap-1.5 min-w-max">
                         <Button
                           type="button"
                           variant="outline"
@@ -1676,7 +1684,7 @@ export function MaterialSelectionModal({
                           )}
                         >
                           Alles
-                      </Button>
+                        </Button>
                         <Button
                           type="button"
                           variant="outline"
@@ -1708,22 +1716,22 @@ export function MaterialSelectionModal({
                                 ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400"
                                 : "border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
                             )}
-                        >
-                          <span className="truncate">{subCat}</span>
-                          <span className="ml-1 text-[10px] text-muted-foreground">
-                            {subCategoryCounts.get(subCat) || 0}
-                          </span>
-                        </Button>
-                      ))}
+                          >
+                            <span className="truncate">{subCat}</span>
+                            <span className="ml-1 text-[10px] text-muted-foreground">
+                              {subCategoryCounts.get(subCat) || 0}
+                            </span>
+                          </Button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="flex-1 overflow-y-auto">
-                  <ul className="divide-y divide-border">
-                    {visibleMaterials.map((mat) => (
-                      <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
-                        <div className="w-full flex items-stretch">
+                  <div className="flex-1 overflow-y-auto">
+                    <ul className="divide-y divide-border">
+                      {visibleMaterials.map((mat) => (
+                        <li key={mat.row_id} className="group border-b border-border/50 last:border-0">
+                          <div className="w-full flex items-stretch">
 
                             {/* DEV: COPY MATERIAL NAME */}
                             {showDevCopyButton && (
@@ -1823,310 +1831,310 @@ export function MaterialSelectionModal({
                               </div>
                             </div>
                           </div>
-                      </li>
-                    ))}
+                        </li>
+                      ))}
 
-                    {visibleMaterials.length < allFilteredMaterials.length && (
-                      <li className="p-4 flex justify-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDisplayLimit(prev => prev + 50)}
-                          className="w-full text-muted-foreground"
+                      {visibleMaterials.length < allFilteredMaterials.length && (
+                        <li className="p-4 flex justify-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDisplayLimit(prev => prev + 50)}
+                            className="w-full text-muted-foreground"
+                          >
+                            <ChevronDown className="mr-2 h-4 w-4" />
+                            Meer laden
+                          </Button>
+                        </li>
+                      )}
+
+                      {allFilteredMaterials.length === 0 && (
+                        <li className="p-8 text-center text-muted-foreground text-sm">
+                          Geen materialen gevonden.
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="border-t p-3 bg-muted/5 flex justify-between items-center sm:justify-between">
+                <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground">
+                  Annuleren
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* === STEP 2: FORM === */}
+          {step === 'form' && (
+            <div className="flex flex-col">
+              <DialogHeader className="px-6 pt-6 flex flex-row items-center gap-4 space-y-0 text-left border-b border-zinc-800 pb-6 shrink-0 bg-background">
+                <Button size="icon" variant="ghost" className="-ml-2 h-8 w-8" onClick={() => setStep('search')}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex flex-col gap-1">
+                  <DialogTitle className="text-xl font-bold text-white leading-none">
+                    {editingMaterialId ? 'Bewerk Materiaal' : 'Nieuw Materiaal'}
+                  </DialogTitle>
+                  <DialogDescription className="text-zinc-400 text-sm">
+                    {editingMaterialId ? 'Pas de gegevens van het materiaal aan.' : 'Vul de gegevens van het materiaal in.'}
+                  </DialogDescription>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-4 px-6 py-4">
+                {error && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
+                    {error}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Materiaalnaam *</div>
+                  <Input
+                    value={customNaam}
+                    onChange={(e) => setCustomNaam(e.target.value)}
+                    onBlur={() => {
+                      if (customNaam.trim()) {
+                        const capitalized = customNaam.charAt(0).toUpperCase() + customNaam.slice(1);
+                        setCustomNaam(capitalized);
+                      }
+                    }}
+                    placeholder="bijv. Keukenkraan chroom"
+                  />
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Prijs per eenheid
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-[130px_1fr_1fr] gap-3 items-end">
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">Eenheid *</div>
+                      <Select value={customEenheid} onValueChange={setCustomEenheid}>
+                        <SelectTrigger className="h-10 text-xs">
+                          <SelectValue placeholder="Kies" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
+                            <SelectItem key={e} value={e}>{e}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">Excl. btw</div>
+                      <Input
+                        value={customPrijsExclBtw}
+                        onChange={(e) => handleExclPriceChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (['e', 'E', '+', '-'].includes(e.key)) {
+                            e.preventDefault();
+                          }
+                        }}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">Incl. btw *</div>
+                      <Input
+                        value={customPrijs}
+                        onChange={(e) => handleInclPriceChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (['e', 'E', '+', '-'].includes(e.key)) {
+                            e.preventDefault();
+                          }
+                        }}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Vul incl. of excl. in; het andere veld wordt automatisch bijgewerkt.
+                  </div>
+                </div>
+
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Categorie (optioneel)</div>
+                    <div className="relative">
+                      <Input
+                        value={customSubsectie}
+                        onChange={(e) => setCustomSubsectie(e.target.value)}
+                        onFocus={() => setCategorieDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setCategorieDropdownOpen(false), 150)}
+                        placeholder="Bijv. Balkhout"
+                        autoComplete="off"
+                        className={formCategoryOptions.length > 0 ? "pr-10" : ""}
+                      />
+                      {formCategoryOptions.length > 0 && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); setCategorieDropdownOpen(!categorieDropdownOpen); }}
+                          className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
                         >
-                          <ChevronDown className="mr-2 h-4 w-4" />
-                          Meer laden
-                        </Button>
-                      </li>
-                    )}
-
-                    {allFilteredMaterials.length === 0 && (
-                      <li className="p-8 text-center text-muted-foreground text-sm">
-                        Geen materialen gevonden.
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="border-t p-3 bg-muted/5 flex justify-between items-center sm:justify-between">
-              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground">
-                Annuleren
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-
-        {/* === STEP 2: FORM === */}
-        {step === 'form' && (
-          <div className="flex flex-col">
-            <DialogHeader className="px-6 pt-6 flex flex-row items-center gap-4 space-y-0 text-left border-b border-zinc-800 pb-6 shrink-0 bg-background">
-              <Button size="icon" variant="ghost" className="-ml-2 h-8 w-8" onClick={() => setStep('search')}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex flex-col gap-1">
-                <DialogTitle className="text-xl font-bold text-white leading-none">
-                  {editingMaterialId ? 'Bewerk Materiaal' : 'Nieuw Materiaal'}
-                </DialogTitle>
-                <DialogDescription className="text-zinc-400 text-sm">
-                  {editingMaterialId ? 'Pas de gegevens van het materiaal aan.' : 'Vul de gegevens van het materiaal in.'}
-                </DialogDescription>
-              </div>
-            </DialogHeader>
-
-            <div className="space-y-4 px-6 py-4">
-              {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
-                  {error}
-                </div>
-              )}
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Materiaalnaam *</div>
-                <Input
-                  value={customNaam}
-                  onChange={(e) => setCustomNaam(e.target.value)}
-                  onBlur={() => {
-                    if (customNaam.trim()) {
-                      const capitalized = customNaam.charAt(0).toUpperCase() + customNaam.slice(1);
-                      setCustomNaam(capitalized);
-                    }
-                  }}
-                  placeholder="bijv. Keukenkraan chroom"
-                />
-              </div>
-              <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Prijs per eenheid
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-[130px_1fr_1fr] gap-3 items-end">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Eenheid *</div>
-                    <Select value={customEenheid} onValueChange={setCustomEenheid}>
-                      <SelectTrigger className="h-10 text-xs">
-                        <SelectValue placeholder="Kies" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
-                          <SelectItem key={e} value={e}>{e}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      )}
+                      {categorieDropdownOpen && filteredCategories.length > 0 && (
+                        <div className="absolute z-50 bottom-full left-0 right-0 mb-1 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
+                          {filteredCategories.map(cat => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onMouseDown={(e) => { e.preventDefault(); setCustomSubsectie(cat); setCategorieDropdownOpen(false); }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Excl. btw</div>
-                    <Input
-                      value={customPrijsExclBtw}
-                      onChange={(e) => handleExclPriceChange(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (['e', 'E', '+', '-'].includes(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0,00"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Incl. btw *</div>
-                    <Input
-                      value={customPrijs}
-                      onChange={(e) => handleInclPriceChange(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (['e', 'E', '+', '-'].includes(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0,00"
-                    />
+                    <div className="text-sm font-medium">Leverancier (optioneel)</div>
+                    <div className="relative">
+                      <Input
+                        value={customLeverancier}
+                        onChange={(e) => setCustomLeverancier(e.target.value)}
+                        onFocus={() => setLeverancierDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setLeverancierDropdownOpen(false), 150)}
+                        placeholder="Bijv. Bouwmaat"
+                        autoComplete="off"
+                        className={uniqueLeveranciers.length > 0 ? "pr-10" : ""}
+                      />
+                      {uniqueLeveranciers.length > 0 && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); setLeverancierDropdownOpen(!leverancierDropdownOpen); }}
+                          className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      )}
+                      {leverancierDropdownOpen && filteredLeveranciers.length > 0 && (
+                        <div className="absolute z-50 bottom-full left-0 right-0 mb-1 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
+                          {filteredLeveranciers.map(lev => (
+                            <button
+                              key={lev}
+                              type="button"
+                              onMouseDown={(e) => { e.preventDefault(); setCustomLeverancier(lev); setLeverancierDropdownOpen(false); }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                            >
+                              {lev}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Vul incl. of excl. in; het andere veld wordt automatisch bijgewerkt.
-                </div>
+
               </div>
 
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Categorie (optioneel)</div>
-                  <div className="relative">
-                    <Input
-                      value={customSubsectie}
-                      onChange={(e) => setCustomSubsectie(e.target.value)}
-                      onFocus={() => setCategorieDropdownOpen(true)}
-                      onBlur={() => setTimeout(() => setCategorieDropdownOpen(false), 150)}
-                      placeholder="Bijv. Balkhout"
-                      autoComplete="off"
-                      className={formCategoryOptions.length > 0 ? "pr-10" : ""}
-                    />
-                    {formCategoryOptions.length > 0 && (
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); setCategorieDropdownOpen(!categorieDropdownOpen); }}
-                        className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                    )}
-                    {categorieDropdownOpen && filteredCategories.length > 0 && (
-                      <div className="absolute z-50 bottom-full left-0 right-0 mb-1 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
-                        {filteredCategories.map(cat => (
-                          <button
-                            key={cat}
-                            type="button"
-                            onMouseDown={(e) => { e.preventDefault(); setCustomSubsectie(cat); setCategorieDropdownOpen(false); }}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                          >
-                            {cat}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Leverancier (optioneel)</div>
-                  <div className="relative">
-                    <Input
-                      value={customLeverancier}
-                      onChange={(e) => setCustomLeverancier(e.target.value)}
-                      onFocus={() => setLeverancierDropdownOpen(true)}
-                      onBlur={() => setTimeout(() => setLeverancierDropdownOpen(false), 150)}
-                      placeholder="Bijv. Bouwmaat"
-                      autoComplete="off"
-                      className={uniqueLeveranciers.length > 0 ? "pr-10" : ""}
-                    />
-                    {uniqueLeveranciers.length > 0 && (
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); setLeverancierDropdownOpen(!leverancierDropdownOpen); }}
-                        className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                    )}
-                    {leverancierDropdownOpen && filteredLeveranciers.length > 0 && (
-                      <div className="absolute z-50 bottom-full left-0 right-0 mb-1 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
-                        {filteredLeveranciers.map(lev => (
-                          <button
-                            key={lev}
-                            type="button"
-                            onMouseDown={(e) => { e.preventDefault(); setCustomLeverancier(lev); setLeverancierDropdownOpen(false); }}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                          >
-                            {lev}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <DialogFooter className="border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3 shrink-0">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setStep('search')}
-                className="h-11"
-              >
-                Vorige
-              </Button>
-              <Button
-                type="button"
-                className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
-                onClick={() => void saveCustomMaterial()}
-                disabled={!canSaveCustom || savingCustom}
-              >
-                {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingMaterialId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
-                {editingMaterialId ? "Opslaan" : "Materiaal toevoegen"}
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-    <AlertDialog
-      open={safetyDialogOpen}
-      onOpenChange={(nextOpen) => {
-        setSafetyDialogOpen(nextOpen);
-        if (!nextOpen) {
-          setSafetyExpectedUnit('');
-          setSafetyAnswer('');
-          setSafetyAnswerError(null);
-        }
-      }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Controle voordat je opslaat</AlertDialogTitle>
-          <AlertDialogDescription>
-            {safetyQuestion || 'Vul extra productinformatie in (zoals 750ml, 5L of 25kg).'}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="space-y-2">
-          <Input
-            value={safetyAnswer}
-            onChange={(e) => {
-              setSafetyAnswer(e.target.value);
-              if (safetyAnswerError) setSafetyAnswerError(null);
-            }}
-            placeholder="Bijv. 750ml, 5 liter, 25kg"
-            autoFocus
-          />
-          {safetyAnswerError ? (
-            <p className="text-sm text-destructive">{safetyAnswerError}</p>
-          ) : (
-            <div className="space-y-1">
-              {safetyExpectedUnit ? (
-                <p className="text-xs text-muted-foreground">
-                  Verwachte eenheid: <span className="font-semibold">{safetyExpectedUnit}</span>
-                </p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">
-                Dit antwoord wordt toegevoegd aan de materiaalnaam en daarna opnieuw opgeslagen.
-              </p>
+              <DialogFooter className="border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3 shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setStep('search')}
+                  className="h-11"
+                >
+                  Vorige
+                </Button>
+                <Button
+                  type="button"
+                  className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
+                  onClick={() => void saveCustomMaterial()}
+                  disabled={!canSaveCustom || savingCustom}
+                >
+                  {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingMaterialId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
+                  {editingMaterialId ? "Opslaan" : "Materiaal toevoegen"}
+                </Button>
+              </DialogFooter>
             </div>
           )}
-        </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel asChild>
-            <Button variant="ghost">Terug</Button>
-          </AlertDialogCancel>
-          <Button
-            type="button"
-            className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
-            onClick={handleSafetyConfirm}
-          >
-            Aanvullen en opslaan
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-    <Dialog open={priceImportDialogOpen} onOpenChange={setPriceImportDialogOpen}>
-      <DialogContent className="w-[96vw] max-w-6xl max-h-[90vh] overflow-y-auto p-0">
-        <DialogHeader className="px-6 pt-6 pb-0">
-          <DialogTitle>Prijs import aanvragen</DialogTitle>
-          <DialogDescription>
-            Dien je aanvraag in zonder de materialenlijst te verlaten.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="p-6 pt-4">
-          <PriceImportRequestForm
-            className="border-0 bg-transparent p-0"
-            onSuccess={() => {
-              setPriceImportDialogOpen(false);
-            }}
-          />
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog
+        open={safetyDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setSafetyDialogOpen(nextOpen);
+          if (!nextOpen) {
+            setSafetyExpectedUnit('');
+            setSafetyAnswer('');
+            setSafetyAnswerError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Controle voordat je opslaat</AlertDialogTitle>
+            <AlertDialogDescription>
+              {safetyQuestion || 'Vul extra productinformatie in (zoals 750ml, 5L of 25kg).'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={safetyAnswer}
+              onChange={(e) => {
+                setSafetyAnswer(e.target.value);
+                if (safetyAnswerError) setSafetyAnswerError(null);
+              }}
+              placeholder="Bijv. 750ml, 5 liter, 25kg"
+              autoFocus
+            />
+            {safetyAnswerError ? (
+              <p className="text-sm text-destructive">{safetyAnswerError}</p>
+            ) : (
+              <div className="space-y-1">
+                {safetyExpectedUnit ? (
+                  <p className="text-xs text-muted-foreground">
+                    Verwachte eenheid: <span className="font-semibold">{safetyExpectedUnit}</span>
+                  </p>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  Dit antwoord wordt toegevoegd aan de materiaalnaam en daarna opnieuw opgeslagen.
+                </p>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="ghost">Terug</Button>
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
+              onClick={handleSafetyConfirm}
+            >
+              Aanvullen en opslaan
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog open={priceImportDialogOpen} onOpenChange={setPriceImportDialogOpen}>
+        <DialogContent className="w-[96vw] max-w-6xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogTitle>Prijs import aanvragen</DialogTitle>
+            <DialogDescription>
+              Dien je aanvraag in zonder de materialenlijst te verlaten.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-6 pt-4">
+            <PriceImportRequestForm
+              className="border-0 bg-transparent p-0"
+              onSuccess={() => {
+                setPriceImportDialogOpen(false);
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
