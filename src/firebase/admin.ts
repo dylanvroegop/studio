@@ -4,10 +4,14 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 export function initFirebaseAdmin() {
   if (!getApps().length) {
+    const projectId =
+      process.env.FIREBASE_PROJECT_ID
+      || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+      || 'studio-6011690104-60fbf';
+
     initializeApp({
       credential: applicationDefault(),
-      // This line is what finally kills the "monospace-13" error
-      projectId: 'studio-6011690104-60fbf',
+      projectId,
     });
   }
 

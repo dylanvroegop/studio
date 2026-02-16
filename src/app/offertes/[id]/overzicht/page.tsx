@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -57,6 +57,7 @@ import type { Quote, Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
+import { reportOperationalError } from '@/lib/report-operational-error';
 import {
   doc,
   getDoc,
@@ -76,6 +77,23 @@ import { WizardHeader } from '@/components/WizardHeader';
 /* ---------------------------------------------
  Helpers
 --------------------------------------------- */
+
+const WEBSITE_UPSELL_TOAST_LAST_SEEN_KEY = 'website_upsell_toast_last_seen';
+const WEBSITE_UPSELL_TOAST_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+function shouldShowWebsiteUpsellToast(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const raw = window.localStorage.getItem(WEBSITE_UPSELL_TOAST_LAST_SEEN_KEY);
+  const lastSeen = raw ? Number(raw) : 0;
+  if (Number.isFinite(lastSeen) && lastSeen > 0) {
+    const cooldownActive = Date.now() - lastSeen < WEBSITE_UPSELL_TOAST_COOLDOWN_MS;
+    if (cooldownActive) return false;
+  }
+
+  window.localStorage.setItem(WEBSITE_UPSELL_TOAST_LAST_SEEN_KEY, String(Date.now()));
+  return true;
+}
 
 function humanizeJobKey(jobKey?: string | null): string {
   if (!jobKey) return 'Klus';
@@ -615,6 +633,7 @@ function CollapsedInfoChip({
 export default function OverzichtPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const quoteId = params.id as string;
 
   const { toast } = useToast();
@@ -625,8 +644,10 @@ export default function OverzichtPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [calculatorUnavailable, setCalculatorUnavailable] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingTestError, setIsSendingTestError] = useState(false);
 
   // Job delete
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -1055,6 +1076,16 @@ export default function OverzichtPage() {
   }, [stats]);
 
   const isDevelopment = process.env.NODE_ENV !== 'production';
+  const showErrorTestButton = useMemo(() => {
+    const raw = (
+      searchParams.get('debugError') ??
+      searchParams.get('testError') ??
+      ''
+    )
+      .trim()
+      .toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+  }, [searchParams]);
 
   const incompleteJobs = useMemo(() => {
     return jobs.filter((job: any) => !jobIsComplete(job));
@@ -1950,6 +1981,7 @@ export default function OverzichtPage() {
     }
 
     setIsSubmitting(true);
+    setCalculatorUnavailable(false);
 
     try {
       await saveExtrasToFirestore(false);
@@ -1991,6 +2023,11 @@ export default function OverzichtPage() {
       }
 
       if (!res.ok) {
+        if (res.status === 503 && data && typeof data === 'object' && data.code === 'calculator_unavailable') {
+          setCalculatorUnavailable(true);
+          return;
+        }
+
         const msg =
           (data && typeof data === 'object' && (data.error || data.detail))
             ? `${data.error ?? 'Fout'}${data.detail ? ` - ${data.detail}` : ''}`
@@ -1999,9 +2036,24 @@ export default function OverzichtPage() {
       }
 
       toast({ title: 'Offerte verzonden', description: 'De offerte is doorgestuurd naar verwerking.' });
+      if (shouldShowWebsiteUpsellToast()) {
+        toast({
+          title: 'Volgende stap: premium website',
+          description: 'Meer kwalitatieve aanvragen via je eigen premium website. Open "Website laten maken".',
+        });
+      }
       router.push(`/offertes/${quoteId}`);
     } catch (err: any) {
       console.error('Generate error:', err);
+      void reportOperationalError({
+        source: 'offerte_generate',
+        title: 'Genereren mislukt',
+        message: err?.message || 'Kon offerte niet versturen.',
+        severity: 'critical',
+        context: {
+          quoteId,
+        },
+      });
       toast({
         variant: 'destructive',
         title: 'Genereren mislukt',
@@ -2026,6 +2078,86 @@ export default function OverzichtPage() {
     }
 
     await echteGenerate();
+  };
+
+  const sendManualOperationalErrorTest = async () => {
+    if (isSendingTestError) return;
+    setIsSendingTestError(true);
+
+    try {
+      const idToken =
+        typeof (user as any)?.getIdToken === 'function'
+          ? await (user as any).getIdToken().catch(() => null)
+          : null;
+
+      if (!idToken) {
+        toast({
+          variant: 'destructive',
+          title: 'Testfout niet verstuurd',
+          description: 'Geen actieve login gevonden.',
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString();
+      const res = await fetch('/api/errors/report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          source: 'manual_hidden_button_test',
+          title: 'Handmatige testfout',
+          message: `Test vanuit verborgen knop (${timestamp})`,
+          severity: 'warning',
+          context: {
+            test: true,
+            location: 'overzicht_footer',
+            quoteId,
+          },
+        }),
+      });
+
+      const responseText = await res.text().catch(() => '');
+      let responseData: any = null;
+      try {
+        responseData = responseText ? JSON.parse(responseText) : null;
+      } catch {
+        responseData = responseText;
+      }
+
+      if (!res.ok) {
+        const detail =
+          responseData && typeof responseData === 'object'
+            ? [
+                responseData.error,
+                responseData.detail,
+                responseData.message,
+                responseData.status ? `n8n status ${responseData.status}` : null,
+                responseData.webhookUrl ? `url ${responseData.webhookUrl}` : null,
+                responseData.body ? `body ${String(responseData.body).slice(0, 180)}` : null,
+              ]
+                .filter(Boolean)
+                .join(' | ')
+            : (typeof responseData === 'string' ? responseData : '') || `HTTP ${res.status}`;
+        console.error('Testfout API response', { status: res.status, responseData });
+        throw new Error(detail);
+      }
+
+      toast({
+        title: 'Testfout verstuurd',
+        description: 'Controleer je n8n test workflow en Telegram.',
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Testfout mislukt',
+        description: err?.message || 'Kon de testfout niet versturen.',
+      });
+    } finally {
+      setIsSendingTestError(false);
+    }
   };
 
   async function bevestigPopupEnGaVerder() {
@@ -2116,6 +2248,43 @@ export default function OverzichtPage() {
             <div className="pt-4">
               <Button variant="outline" onClick={() => router.push('/dashboard')}>
                 Terug
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (calculatorUnavailable) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-xl w-full border-amber-500/30 bg-background/95">
+          <CardHeader className="space-y-3">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <CardTitle>Calculator tijdelijk niet beschikbaar</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Onze calculator is op dit moment tijdelijk uit door onderhoud of een storing bij de verwerkingsserver.
+            </p>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-200">
+              Probeer het over ongeveer 1 uur opnieuw.
+            </div>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button
+                variant="success"
+                onClick={() => {
+                  setCalculatorUnavailable(false);
+                  void handleFinishQuote();
+                }}
+              >
+                Nu opnieuw proberen
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/dashboard')}>
+                Naar dashboard
               </Button>
             </div>
           </CardContent>
@@ -3537,6 +3706,23 @@ export default function OverzichtPage() {
                     </>
                   )}
                 </div>
+
+                {showErrorTestButton && (
+                  <Button
+                    type="button"
+                    onClick={sendManualOperationalErrorTest}
+                    disabled={isSendingTestError}
+                    variant="outline"
+                    className="gap-2 border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+                  >
+                    {isSendingTestError ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4" />
+                    )}
+                    {isSendingTestError ? 'Test sturen…' : 'Testfout'}
+                  </Button>
+                )}
 
                 <Button
                   onClick={handleFinishQuote}

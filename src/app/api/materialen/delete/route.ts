@@ -4,8 +4,7 @@
 // DOEL:
 // - Frontend stuurt { row_id: "uuid" } + Bearer Firebase token
 // - Deze route verifieert token -> uid
-// - Deze route roept n8n webhook aan met { uid, row_id }
-// - n8n delete vervolgens de rij (bij voorkeur met extra check gebruikerid == uid)
+// - Deze route verwijdert direct in Supabase (gebruikerid == uid)
 //
 // BELANGRIJK:
 // - Je gebruikt GEEN .env.local. Dit werkt op Firebase App Hosting via apphosting.yaml env vars.
@@ -20,8 +19,13 @@ export const dynamic = 'force-dynamic';
 /** Firebase Admin via ADC (werkt op Firebase App Hosting) */
 function krijgFirebaseAdminApp() {
   if (admin.apps.length > 0) return admin.app();
+  const projectId =
+    process.env.FIREBASE_PROJECT_ID
+    || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    || 'studio-6011690104-60fbf';
   return admin.initializeApp({
     credential: admin.credential.applicationDefault(),
+    projectId,
   });
 }
 
@@ -57,21 +61,6 @@ async function bepaalUid(req: Request): Promise<string> {
   return decoded.uid;
 }
 
-/**
- * 1) Als N8N_MATERIALEN_DELETE_URL bestaat -> gebruik die.
- * 2) Anders: deriveer uit N8N_WEBHOOK_URL (die werkt al bij generate).
- *    Voorbeeld:
- *    https://n8n.dylan8n.org/webhook-test/offerte-test
- *    -> https://n8n.dylan8n.org/webhook-test/materialen-delete
- */
-function bepaalN8nUrlVoorMaterialenDelete(): string {
-    const direct = process.env.N8N_MATERIALEN_DELETE_URL;
-    if (direct && direct.trim()) return direct.trim();
-  
-    // HARD FAIL -> geen fallback naar webhook-test
-    throw new Error('ENV ontbreekt: N8N_MATERIALEN_DELETE_URL (geen fallback toegestaan).');
-  }  
-
 async function hasOwnedMaterialRow(rowId: string, uid: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
     .from('main_material_list')
@@ -84,6 +73,19 @@ async function hasOwnedMaterialRow(rowId: string, uid: string): Promise<boolean>
   return Boolean(data?.row_id);
 }
 
+async function deleteOwnedMaterialRow(rowId: string, uid: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('main_material_list')
+    .delete()
+    .eq('row_id', rowId)
+    .eq('gebruikerid', uid)
+    .select('row_id')
+    .maybeSingle();
+
+  if (error) throw new Error(error.message || 'Kon materiaal niet verwijderen.');
+  return Boolean(data?.row_id);
+}
+
 export async function POST(req: Request) {
   try {
     const body = await leesBodyVeilig(req);
@@ -93,11 +95,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    const secret = process.env.N8N_HEADER_SECRET;
-    if (!secret || !secret.trim()) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
-
-    const n8nUrl = bepaalN8nUrlVoorMaterialenDelete();
 
     // 1) UID server-side bepalen
     const uid = await bepaalUid(req);
@@ -126,41 +123,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) Call n8n
-    const payload = { uid, row_id };
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(n8nUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-offertehulp-secret': secret.trim(),
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    }).finally(() => clearTimeout(timeout));
-
-    const txt = await res.text();
-
-    if (!res.ok) {
+    // 3) Direct delete in Supabase
+    const deleted = await deleteOwnedMaterialRow(row_id, uid);
+    if (!deleted) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: 'n8n webhook faalde',
-          status: res.status,
-          body: txt,
-        },
-        { status: 502 }
+        { ok: false, message: 'Materiaal verwijderen mislukt of al verwijderd.' },
+        { status: 404 }
       );
     }
 
-    // n8n kan JSON of tekst teruggeven
-    try {
-      return NextResponse.json({ ok: true, n8n: JSON.parse(txt) });
-    } catch {
-      return NextResponse.json({ ok: true, n8n: txt });
-    }
+    return NextResponse.json({ ok: true, row_id });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, message: e?.message || 'Onbekende serverfout' },

@@ -1,6 +1,5 @@
 'use client';
 
-import { supabase } from '@/lib/supabase';
 import { useState, useEffect, useRef } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
 import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson, unwrapRoot } from '@/lib/quote-calculations';
@@ -37,6 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { parsePriceToNumber } from '@/lib/utils';
+import { reportOperationalError } from '@/lib/report-operational-error';
 
 import { Quote } from "@/lib/types";
 
@@ -464,6 +464,14 @@ export default function QuotePage() {
                     setAlleMaterialen(materialenData);
                 } else {
                     const message = json?.message || json?.error || 'Kon materialen niet laden.';
+                    void reportOperationalError({
+                        source: 'offerte_materialen_fetch',
+                        title: 'Fout bij laden materialen',
+                        message,
+                        context: {
+                            httpStatus: res.status,
+                        },
+                    });
                     toast({
                         variant: 'destructive',
                         title: 'Fout bij laden materialen',
@@ -472,6 +480,12 @@ export default function QuotePage() {
                 }
             } catch (err) {
                 console.error("Error fetching materials:", err);
+                const message = err instanceof Error ? err.message : 'Netwerkfout tijdens ophalen van materialen.';
+                void reportOperationalError({
+                    source: 'offerte_materialen_fetch',
+                    title: 'Fout bij laden materialen',
+                    message,
+                });
                 toast({
                     variant: 'destructive',
                     title: 'Fout bij laden materialen',
@@ -1294,15 +1308,24 @@ export default function QuotePage() {
             }
 
             const quoteIds = recentQuotes.map((quoteMeta) => quoteMeta.quoteId);
-            const { data: calculationRows, error: calculationRowsError } = await supabase
-                .from('quotes_collection')
-                .select('quoteid, data_json, created_at')
-                .in('quoteid', quoteIds)
-                .order('created_at', { ascending: false });
+            const token = await user.getIdToken();
+            const response = await fetch('/api/quotes/get-calculations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ quoteIds }),
+            });
 
-            if (calculationRowsError) {
-                throw new Error(calculationRowsError.message || 'Kon calculaties niet ophalen.');
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.message || 'Kon calculaties niet ophalen.');
             }
+
+            const calculationRows = Array.isArray(payload.rows)
+                ? (payload.rows as Array<{ quoteid: string; data_json: unknown }>)
+                : [];
 
             const latestCalculationByQuote = new Map<string, { quoteid: string; data_json: unknown }>();
             for (const row of calculationRows || []) {

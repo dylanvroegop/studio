@@ -7,12 +7,18 @@ import { getMaterialRule } from '@/lib/klus-regels-static';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+const CALCULATOR_UNAVAILABLE_CODE = 'calculator_unavailable';
 
 /** Firebase Admin via ADC (werkt op Firebase App Hosting)*/
 function krijgFirebaseAdminApp() {
   if (admin.apps.length > 0) return admin.app();
+  const projectId =
+    process.env.FIREBASE_PROJECT_ID
+    || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    || 'studio-6011690104-60fbf';
   return admin.initializeApp({
     credential: admin.credential.applicationDefault(),
+    projectId,
   });
 }
 
@@ -295,6 +301,27 @@ async function postN8nMetTestFallback(payload: unknown, secret: string): Promise
   }
 }
 
+function isCalculatorUnavailableError(error: unknown): boolean {
+  const message = String((error as { message?: unknown } | null)?.message ?? error ?? '').toLowerCase();
+  if (!message) return false;
+
+  const statusMatch = message.match(/n8n productie error (\d+)/i);
+  if (statusMatch) {
+    const status = Number(statusMatch[1]);
+    return [404, 408, 429, 500, 502, 503, 504].includes(status);
+  }
+
+  return (
+    message.includes('fetch failed')
+    || message.includes('networkerror')
+    || message.includes('econnrefused')
+    || message.includes('ecconnreset')
+    || message.includes('etimedout')
+    || message.includes('socket hang up')
+    || message.includes('aborterror')
+  );
+}
+
 /**
  * POST
  */
@@ -377,7 +404,7 @@ export async function POST(req: Request) {
               const excl = parsePriceToNumber(m.prijs_excl_btw) ?? (incl != null ? Number((incl / 1.21).toFixed(2)) : 0);
               materialMap.set(String(m.row_id), {
                 ...m,
-                subsectie: m.subsectie ?? m.categorie ?? null,
+                subsectie: m.subsectie ?? m.sub_categorie ?? m.categorie ?? null,
                 prijs_excl_btw: excl,
                 prijs_incl_btw: incl ?? Number((excl * 1.21).toFixed(2)),
                 // Backwards compatibility for n8n flow: these are used as unit price in calculations.
@@ -995,11 +1022,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    const rawMessage = String(e?.message || e || 'Onbekende fout');
+
     if (db && quoteIdForError) {
       try {
         await db.collection('quotes').doc(quoteIdForError).update({
           status: 'fout',
-          calculationError: String(e?.message || e).slice(0, 1000),
+          calculationError: rawMessage.slice(0, 1000),
           calculationFailedAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -1007,6 +1036,19 @@ export async function POST(req: Request) {
         console.error('Kon foutstatus niet opslaan op quote:', statusErr);
       }
     }
-    return NextResponse.json({ ok: false, message: e?.message || String(e) }, { status: 500 });
+
+    if (isCalculatorUnavailableError(e)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: CALCULATOR_UNAVAILABLE_CODE,
+          message: 'Onze calculator is op dit moment tijdelijk niet beschikbaar. Probeer het over ongeveer 1 uur opnieuw.',
+          retryAfterMinutes: 60,
+        },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json({ ok: false, message: rawMessage }, { status: 500 });
   }
 }

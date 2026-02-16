@@ -16,6 +16,7 @@ import { Mail, Download, Sparkles, Loader2 } from "lucide-react";
 import { KlantInformatie, generateWorkSummary } from "@/lib/quote-calculations";
 import { toast } from "@/hooks/use-toast";
 import { useUser } from '@/firebase';
+import { reportOperationalError } from '@/lib/report-operational-error';
 
 interface SendQuoteModalProps {
     isOpen: boolean;
@@ -100,7 +101,20 @@ export function SendQuoteModal({
                 })
             });
 
-            if (!response.ok) throw new Error('Generation failed');
+            if (!response.ok) {
+                const apiError = await response
+                    .json()
+                    .then((payload) => {
+                        if (!payload || typeof payload !== 'object') return null;
+                        const candidate = payload as { error?: unknown; message?: unknown };
+                        if (typeof candidate.error === 'string' && candidate.error.trim()) return candidate.error;
+                        if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message;
+                        return null;
+                    })
+                    .catch(() => null);
+
+                throw new Error(apiError || `Generation failed (${response.status})`);
+            }
 
             const data = await response.json();
             if (data.onderwerp || data.body) {
@@ -119,6 +133,15 @@ export function SendQuoteModal({
             }
         } catch (error) {
             console.error('Error generating email:', error);
+            const message = error instanceof Error ? error.message : 'Onbekende fout bij genereren van e-mailtekst.';
+            void reportOperationalError({
+                source: 'send_quote_generate_email',
+                title: 'Fout bij genereren',
+                message,
+                context: {
+                    offerteNummer,
+                },
+            });
             toast({
                 title: "Fout bij genereren",
                 description: "Kon tekst niet genereren, probeer opnieuw.",

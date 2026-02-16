@@ -14,6 +14,8 @@ import {
 import {
   CalendarDays,
   Loader2,
+  Sparkles,
+  X,
 } from 'lucide-react';
 import {
   Bar,
@@ -92,6 +94,9 @@ interface PaymentPoint {
   date: Date;
 }
 
+const WEBSITE_PROMO_DISMISS_KEY = 'website_promo_dismissed_until';
+const WEBSITE_PROMO_HIDE_MS = 30 * 24 * 60 * 60 * 1000;
+
 function parseDate(value: any): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -169,6 +174,7 @@ export default function DashboardPage() {
   const [quotesReady, setQuotesReady] = useState(false);
   const [invoicesReady, setInvoicesReady] = useState(false);
   const [planningReady, setPlanningReady] = useState(false);
+  const [showWebsitePromo, setShowWebsitePromo] = useState(false);
 
   const loading = !quotesReady || !invoicesReady || !planningReady;
 
@@ -185,6 +191,16 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(WEBSITE_PROMO_DISMISS_KEY);
+    const until = raw ? Number(raw) : 0;
+    if (Number.isFinite(until) && until > Date.now()) {
+      setShowWebsitePromo(false);
+      return;
+    }
+    setShowWebsitePromo(true);
+  }, []);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -453,6 +469,12 @@ export default function DashboardPage() {
 
   if (isUserLoading || !user || loading) return <DashboardSkeleton />;
 
+  const dismissWebsitePromo = () => {
+    const hideUntil = Date.now() + WEBSITE_PROMO_HIDE_MS;
+    window.localStorage.setItem(WEBSITE_PROMO_DISMISS_KEY, String(hideUntil));
+    setShowWebsitePromo(false);
+  };
+
   return (
     <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
@@ -463,6 +485,45 @@ export default function DashboardPage() {
           <div className="px-1">
             <div className="text-3xl font-light tracking-tight">{greeting}</div>
           </div>
+
+          {showWebsitePromo && (
+            <Card className="relative border-cyan-500/30 bg-cyan-500/5">
+              <button
+                type="button"
+                aria-label="Premium kaart sluiten"
+                onClick={dismissWebsitePromo}
+                className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-cyan-500/10 hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <CardHeader className="pb-2 pr-12">
+                <CardTitle className="flex items-center gap-2 text-base text-cyan-200">
+                  <Sparkles className="h-4 w-4 text-cyan-300" />
+                  Zet je bedrijf online op premium niveau
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-cyan-50/90">
+                  Een strakke, snelle website die vertrouwen uitstraalt en aanvragen oplevert. Volledig
+                  afgestemd op jouw diensten. Vanaf €200.
+                </p>
+                <p className="text-xs text-cyan-100/80">
+                  Vrijblijvende intake, daarna pas een voorstel.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="success"
+                    onClick={() => router.push('/website-laten-maken?mode=plan')}
+                  >
+                    Plan strategiegesprek
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={dismissWebsitePromo}>
+                    Later bekijken
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-3">
             <Card>

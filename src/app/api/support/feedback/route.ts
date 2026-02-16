@@ -23,8 +23,13 @@ type UserDocData = {
 
 function krijgFirebaseAdminApp() {
   if (admin.apps.length > 0) return admin.app();
+  const projectId =
+    process.env.FIREBASE_PROJECT_ID
+    || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    || 'studio-6011690104-60fbf';
   return admin.initializeApp({
     credential: admin.credential.applicationDefault(),
+    projectId,
   });
 }
 

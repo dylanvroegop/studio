@@ -1016,7 +1016,7 @@ export async function POST(req: Request) {
             prijs_incl_btw: finalIncl ?? null,
             subsectie:
               (data as any).subsectie ??
-              (data as any).categorie ??
+              (data as any).sub_categorie ??
               null,
           }
         : data;

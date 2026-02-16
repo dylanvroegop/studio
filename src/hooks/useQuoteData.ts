@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { DataJson } from '@/lib/quote-calculations';
 import { useUser } from '@/firebase/provider';
 
@@ -23,24 +22,33 @@ export function useQuoteData(quoteId: string) {
         let pollTimer: NodeJS.Timeout;
 
         async function fetchQuoteData() {
+            if (!user) return;
+
             try {
                 // Only set loading to true on the very first call if we don't have data yet
                 // But generally, we want the UI to know we are "waiting" for completion.
                 // We'll keep loading=true as long as we don't have a 'completed' status.
 
                 console.log('Fetching for quoteId:', quoteId);
+                const token = await user.getIdToken();
+                const response = await fetch('/api/quotes/get-calculations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        quoteId,
+                        latestOnly: true,
+                    }),
+                });
 
-                const { data, error } = await supabase
-                    .from('quotes_collection')
-                    .select('*')
-                    .eq('quoteid', quoteId)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || 'Failed to fetch quote data');
+                }
 
-                console.log('Supabase response:', { data, error });
-
-                if (error) throw error;
+                const data = result.row as QuoteCalculation | null;
 
                 if (isMounted) {
                     setCalculation(data);
@@ -76,7 +84,7 @@ export function useQuoteData(quoteId: string) {
             isMounted = false;
             if (pollTimer) clearTimeout(pollTimer);
         };
-    }, [quoteId]);
+    }, [quoteId, user]);
 
 
     // Function to update the data_json (for price edits)

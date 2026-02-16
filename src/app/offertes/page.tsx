@@ -49,7 +49,6 @@ import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
-import { supabase } from '@/lib/supabase';
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -453,16 +452,26 @@ export default function OffertesPage() {
       isSyncingTotalsRef.current = true;
 
       try {
-        const { data, error } = await supabase
-          .from('quotes_collection')
-          .select('quoteid, data_json, created_at')
-          .in('quoteid', quoteIdsToCheck)
-          .order('created_at', { ascending: false });
+        const token = await user.getIdToken();
+        const response = await fetch('/api/quotes/get-calculations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ quoteIds: quoteIdsToCheck }),
+        });
 
-        if (error || !data?.length) return;
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) return;
+
+        const data = Array.isArray(payload.rows)
+          ? (payload.rows as Array<{ quoteid: string; data_json: unknown }>)
+          : [];
+        if (!data.length) return;
 
         const rowsByQuote = new Map<string, Array<{ data_json: unknown }>>();
-        for (const row of data as Array<{ quoteid: string; data_json: unknown }>) {
+        for (const row of data) {
           if (!row?.quoteid) continue;
           const existing = rowsByQuote.get(row.quoteid) || [];
           existing.push({ data_json: row.data_json });

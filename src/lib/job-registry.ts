@@ -875,35 +875,35 @@ const VLIERING_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - AFWERKINGEN ==========================================
 
 const DAGKANT_MATS: MaterialSection[] = [
-  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '' },
+  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '', multiEntry: true },
   { label: 'Afwerk Hout', categoryFilter: 'Interieur Platen, Hardhout geschaafd', category: 'afwerking', key: 'dagkant', category_ultra_filter: '', multiEntry: true },
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten, Overig', category: 'afwerking', key: 'hoekprofiel', category_ultra_filter: '' },
+  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten, Overig', category: 'afwerking', key: 'hoekprofiel', category_ultra_filter: '', multiEntry: true },
 ];
 
 const PLINTEN_MATS: MaterialSection[] = [
-  { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '' },
-  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'koplatten', category_ultra_filter: '' },
-  { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'vloerplinten', category_ultra_filter: '' },
+  { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '', multiEntry: true },
+  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'koplatten', category_ultra_filter: '', multiEntry: true },
+  { label: 'Vloerplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'vloerplinten', category_ultra_filter: '', multiEntry: true },
 ];
 
 const KOOF_MATS: MaterialSection[] = [
-  { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
-  { label: 'Constructieplaat', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
-  { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
-  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'hoekprofielen', category_ultra_filter: '' },
+  { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'hout', key: 'regelwerk', category_ultra_filter: '', multiEntry: true },
+  { label: 'Constructieplaat', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '', multiEntry: true },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '', multiEntry: true },
+  { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '', multiEntry: true },
+  { label: 'Hoekprofielen', categoryFilter: 'Gipsplaten', category: 'afwerking', key: 'hoekprofielen', category_ultra_filter: '', multiEntry: true },
 ];
 
 const OMKASTING_MATS: MaterialSection[] = [
-  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '' },
-  { label: 'Afwerk Hout', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'afwerking', key: 'beplating', category_ultra_filter: '' },
+  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '', multiEntry: true },
+  { label: 'Afwerk Hout', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'afwerking', key: 'beplating', category_ultra_filter: '', multiEntry: true },
 ];
 
 const VENSTERBANK_MATS: MaterialSection[] = [
-  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '' },
+  { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'frame', category_ultra_filter: '', multiEntry: true },
   { label: 'Vensterbank', categoryFilter: 'vensterbanken', category: 'afwerking', key: 'vensterbank', category_ultra_filter: '', multiEntry: true },
-  { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'afwerking', key: 'roosters', category_ultra_filter: '' },
-  { label: 'Olie, Lak of Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'behandeling', category_ultra_filter: '' },
+  { label: 'Ventilatieroosters', categoryFilter: 'Overig', category: 'afwerking', key: 'roosters', category_ultra_filter: '', multiEntry: true },
+  { label: 'Olie, Lak of Beits', categoryFilter: 'Overig', category: 'afwerking', key: 'behandeling', category_ultra_filter: '', multiEntry: true },
 ];
 
 //#region ========================================== MATERIAL SECTIONS - DEUREN XXX==========================================
@@ -1302,7 +1302,7 @@ const TRAPRENOVATIE_OVERZETTREDEN_MATS: MaterialSection[] = [
 ];
 
 const VLIZOTRAP_MATS: MaterialSection[] = [
-  { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: 'balken', multiEntry: true, maxEntries: 1 },
+  { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: 'subcat:balken', multiEntry: true, maxEntries: 1 },
   { label: 'Vlizotrap (Complete set)', categoryFilter: 'Vlieringtrappen', category: 'basis', key: 'trap', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Zolderluik', categoryFilter: 'Overig', category: 'basis', key: 'luik', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Veiligheidshek', categoryFilter: 'Overig', category: 'veiligheid', key: 'traphek', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
@@ -1311,7 +1311,7 @@ const VLIZOTRAP_MATS: MaterialSection[] = [
   { label: 'Grendel / Sluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluiting', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Zelfsluitende veer', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'veer', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'handgreep', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
-  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'architraaf', category_ultra_filter: 'koplat', multiEntry: true, maxEntries: 1 },
+  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'architraaf', category_ultra_filter: 'subcat:koplat', multiEntry: true, maxEntries: 1 },
 ];
 
 const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
@@ -1337,11 +1337,11 @@ const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
 //#region ========================================== MATERIAL SECTIONS - HOUTROTREPARATIE ==========================================
 
 const HOUTROTREPARATIE_MATS: MaterialSection[] = [
-  { label: 'Houtrotstop vloeistof', categoryFilter: 'Overig', category: 'reparatie', key: 'houtrotstop', category_ultra_filter: '' },
-  { label: 'Houtstabilisator', categoryFilter: 'Overig', category: 'reparatie', key: 'stabilisator', category_ultra_filter: '' },
+  { label: 'Houtrotstop vloeistof', categoryFilter: 'Overig', category: 'reparatie', key: 'houtrotstop', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Houtstabilisator', categoryFilter: 'Overig', category: 'reparatie', key: 'stabilisator', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
 
-  { label: 'Twee-componenten epoxy vuller', categoryFilter: 'Overig', category: 'reparatie', key: 'epoxy_vuller', category_ultra_filter: '' },
-  { label: 'Vervangend hout inzetstuk', categoryFilter: 'Merantie, Hardhout geschaafd, Vuren hout', category: 'reparatie', key: 'hout_inzetstuk', category_ultra_filter: '' },
+  { label: 'Twee-componenten epoxy vuller', categoryFilter: 'Overig', category: 'reparatie', key: 'epoxy_vuller', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
+  { label: 'Vervangend hout inzetstuk', categoryFilter: 'Merantie, Hardhout geschaafd, Vuren hout', category: 'reparatie', key: 'hout_inzetstuk', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
 ];
 
 //#endregion
@@ -1407,9 +1407,9 @@ const VELUX_MATS: MaterialSection[] = [
 const LICHTKOEPEL_MATS: MaterialSection[] = [
   { label: 'Lichtkoepel', categoryFilter: 'Lichtkoepels', category: 'koepel', key: 'koepel', category_ultra_filter: '', multiEntry: true },
   { label: 'Opstand Houtbalk of Prefab Set', categoryFilter: 'Lichtkoepels, Vuren hout', category: 'opstand', key: 'opstand', category_ultra_filter: '', multiEntry: true },
-  { label: 'Dakbedekking', categoryFilter: 'Epdm, Dakrollen', category: 'afwerking_dak', key: 'dakbedekking', category_ultra_filter: '' },
-  { label: 'Afwerk plaat', categoryFilter: 'Interieur Platen, Afwerking', category: 'afwerking', key: 'betimmering', category_ultra_filter: '' },
-  { label: 'Plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '' },
+  { label: 'Dakbedekking', categoryFilter: 'Epdm, Dakrollen', category: 'afwerking_dak', key: 'dakbedekking', category_ultra_filter: '', multiEntry: true },
+  { label: 'Afwerk plaat', categoryFilter: 'Interieur Platen, Afwerking', category: 'afwerking', key: 'betimmering', category_ultra_filter: '', multiEntry: true },
+  { label: 'Plinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten', category_ultra_filter: '', multiEntry: true },
 ];
 
 //WATCH OUT BECAUSE THIS MIGHT NOT BE CORRECT AT ALL VVVVVVVVVVVVV

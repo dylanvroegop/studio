@@ -4,7 +4,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { supabase } from '@/lib/supabase';
 import { normalizeDataJson } from '@/lib/quote-calculations';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -198,31 +197,32 @@ export function ScheduleModal({
 
     // Fetch hours when quote changes
     useEffect(() => {
-        if (!selectedQuoteId || !firestore || existingEntry) return;
+        if (!selectedQuoteId || !firestore || existingEntry || !user) return;
 
         const fetchQuoteHours = async () => {
             try {
-                // Fetch calculation data from Supabase
-                const { data: calculation, error } = await supabase
-                    .from('quotes_collection')
-                    .select('data_json')
-                    .eq('quoteid', selectedQuoteId)
-                    .eq('status', 'completed')
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single();
+                const token = await user.getIdToken();
+                const response = await fetch('/api/quotes/get-calculations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        quoteId: selectedQuoteId,
+                        status: 'completed',
+                        latestOnly: true,
+                    }),
+                });
 
-                if (error) {
-                    if (error.code === 'PGRST116') {
-                        // No rows found - this is fine
-                        return;
-                    }
-                    console.error('Error fetching calculation:', error);
+                const payload = await response.json();
+                if (!response.ok || !payload.ok) {
+                    console.error('Error fetching calculation:', payload.message);
                     return;
                 }
 
-                if (calculation?.data_json) {
-                    const normalized = normalizeDataJson(calculation.data_json);
+                if (payload.row?.data_json) {
+                    const normalized = normalizeDataJson(payload.row.data_json);
                     if (normalized?.totaal_uren) {
                         setTotalHours(normalized.totaal_uren);
                     }
@@ -233,7 +233,7 @@ export function ScheduleModal({
         };
 
         fetchQuoteHours();
-    }, [selectedQuoteId, firestore, existingEntry]);
+    }, [selectedQuoteId, firestore, existingEntry, user]);
 
     const getQuoteLabel = (quote: Quote) => {
         const parts: string[] = [];

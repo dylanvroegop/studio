@@ -9,6 +9,7 @@ import { Loader2, Plus, Trash2, Calculator, Package, Rows3, List, ArrowUpDown } 
 import { useUser } from '@/firebase';
 
 import { cn, parsePriceToNumber } from '@/lib/utils';
+import { reportOperationalError } from '@/lib/report-operational-error';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
@@ -348,10 +349,22 @@ export default function MaterialenPage() {
           (typeof json === 'string' ? json : null) ||
           `Kon materialen niet laden (HTTP ${res.status}).`;
         setPageError(msg);
+        void reportOperationalError({
+          source: 'materialen_fetch',
+          title: 'Materialen laden mislukt',
+          message: msg,
+          context: { httpStatus: res.status },
+        });
       }
     } catch (err: any) {
       console.error(err);
-      setPageError(err?.message || 'Netwerkfout bij het laden van materialen.');
+      const message = err?.message || 'Netwerkfout bij het laden van materialen.';
+      setPageError(message);
+      void reportOperationalError({
+        source: 'materialen_fetch',
+        title: 'Materialen laden mislukt',
+        message,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -681,6 +694,16 @@ export default function MaterialenPage() {
       if (!res.ok || !json?.ok) {
         const msg = json?.message || json?.error || 'Onbekende fout bij opslaan.';
         setPageError(`Opslaan mislukt: ${msg}`);
+        void reportOperationalError({
+          source: 'materialen_upsert',
+          title: 'Opslaan mislukt',
+          message: msg,
+          severity: 'critical',
+          context: {
+            httpStatus: res.status,
+            materiaalnaam: payload?.materiaalnaam ?? null,
+          },
+        });
         setSavingCustom(false);
         return;
       }
@@ -707,7 +730,14 @@ export default function MaterialenPage() {
       setDialogOpen(false);
     } catch (e: any) {
       console.error(e);
-      setPageError(e?.message || 'Onbekende fout.');
+      const message = e?.message || 'Onbekende fout.';
+      setPageError(message);
+      void reportOperationalError({
+        source: 'materialen_upsert',
+        title: 'Opslaan mislukt',
+        message,
+        severity: 'critical',
+      });
       setSavingCustom(false);
     }
   }, [
@@ -780,6 +810,16 @@ export default function MaterialenPage() {
           'Onbekende fout bij verwijderen.';
         console.error('Delete API error:', msg, json);
         setPageError(`Verwijderen mislukt: ${msg}`);
+        void reportOperationalError({
+          source: 'materialen_delete',
+          title: 'Verwijderen mislukt',
+          message: msg,
+          severity: 'critical',
+          context: {
+            httpStatus: res.status,
+            rowId: deleteTarget.row_id,
+          },
+        });
         setDeleting(false);
         return;
       }
@@ -792,7 +832,17 @@ export default function MaterialenPage() {
       setDeleting(false);
     } catch (e: any) {
       console.error(e);
-      setPageError(e?.message || 'Onbekende fout.');
+      const message = e?.message || 'Onbekende fout.';
+      setPageError(message);
+      void reportOperationalError({
+        source: 'materialen_delete',
+        title: 'Verwijderen mislukt',
+        message,
+        severity: 'critical',
+        context: {
+          rowId: deleteTarget?.row_id ?? null,
+        },
+      });
       setDeleting(false);
     }
   }, [deleteTarget, fetchMaterials]);

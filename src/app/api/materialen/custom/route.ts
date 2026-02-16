@@ -158,7 +158,7 @@ export async function POST(req: Request) {
               null,
             subsectie:
               (data as any).subsectie ??
-              (data as any).categorie ??
+              (data as any).sub_categorie ??
               null,
           }
         : data;

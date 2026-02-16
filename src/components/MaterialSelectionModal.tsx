@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PriceImportRequestForm } from '@/components/PriceImportRequestForm';
 import { cn } from '@/lib/utils';
+import { reportOperationalError } from '@/lib/report-operational-error';
 
 // Centralized logic for naming.
 function constructFinalName(baseName: string): string {
@@ -239,12 +240,28 @@ function normalizeFilterValue(value: unknown): string {
   return value.toLowerCase().trim();
 }
 
+function isLooseFilterMatch(haystackRaw: unknown, needleRaw: unknown): boolean {
+  const haystack = normalizeFilterValue(haystackRaw);
+  const needle = normalizeFilterValue(needleRaw);
+  if (!haystack || !needle) return false;
+  return haystack === needle || haystack.includes(needle) || needle.includes(haystack);
+}
+
 function getMaterialSubCategory(material: ExistingMaterial): string {
   const value =
+    (material as any).subsectie ??
     (material as any).sub_categorie ??
     (material as any).subcategorie ??
     (material as any).subCategory ??
     (material as any).subsection ??
+    null;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getMaterialMainCategory(material: ExistingMaterial): string {
+  const value =
+    (material as any).categorie ??
+    (material as any).main_categorie ??
     null;
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -481,7 +498,11 @@ export function MaterialSelectionModal({
       "Keylite", "Lichtkoepels", "Daktoebehoren", "Ubbink"
     ];
 
-    const cats = new Set(existingMaterials.map(m => m.subsectie).filter(Boolean));
+    const cats = new Set(
+      existingMaterials
+        .map((m) => getMaterialMainCategory(m))
+        .filter((value) => value.length > 0)
+    );
     const list = Array.from(cats) as string[];
 
     return list.sort((a, b) => {
@@ -588,7 +609,16 @@ export function MaterialSelectionModal({
         if (parsed) defaultSubCategoryFilters.push(parsed);
         return;
       }
+      if (value.startsWith('name:')) {
+        const parsed = value.replace(/^name:/, '').trim();
+        if (parsed) nameFilters.push(parsed);
+        return;
+      }
+
+      // Backwards compatibility:
+      // plain ultra filters should narrow by both subcategory and material name.
       nameFilters.push(value);
+      defaultSubCategoryFilters.push(value);
     });
 
     return {
@@ -596,6 +626,11 @@ export function MaterialSelectionModal({
       normalizedDefaultSubCategoryFilters: defaultSubCategoryFilters,
     };
   }, [nameContainsFilter]);
+
+  useEffect(() => {
+    if (!open) return;
+    setShouldApplyDefaultSubCategoryOnOpen(true);
+  }, [open, normalizedDefaultSubCategoryFilters.join('|')]);
 
   const isSubCategorySelected = (subCategory: string): boolean => {
     if (subCategoryFilter === 'all') return false;
@@ -747,34 +782,26 @@ export function MaterialSelectionModal({
     if (categoryFilter !== 'all') {
       if (Array.isArray(categoryFilter)) {
         const lowerFilters = categoryFilter.map(normalizeFilterValue).filter(Boolean);
-        result = result.filter(m => {
-          const sub = normalizeFilterValue(m.subsectie);
-          const cat = normalizeFilterValue((m as any).categorie);
-
-          return lowerFilters.some(filterItem => {
-            const matchesSub = sub.includes(filterItem) || filterItem.includes(sub);
-            const matchesCat = cat.includes(filterItem) || filterItem.includes(cat);
-            return matchesSub || matchesCat;
-          });
+        result = result.filter((m) => {
+          const mainCategory = getMaterialMainCategory(m);
+          return lowerFilters.some((filterItem) => isLooseFilterMatch(mainCategory, filterItem));
         });
       } else {
         const lowerFilter = normalizeFilterValue(categoryFilter);
-        result = result.filter(m => {
-          const sub = normalizeFilterValue(m.subsectie);
-          const cat = normalizeFilterValue((m as any).categorie);
-
-          const matchesSub = sub.includes(lowerFilter) || lowerFilter.includes(sub);
-          const matchesCat = cat.includes(lowerFilter) || lowerFilter.includes(cat);
-          return matchesSub || matchesCat;
+        result = result.filter((m) => {
+          const mainCategory = getMaterialMainCategory(m);
+          return isLooseFilterMatch(mainCategory, lowerFilter);
         });
       }
     }
 
     if (normalizedNameContainsFilters.length > 0) {
       result = result.filter((m) => {
-        const materialName = (m.materiaalnaam || '').toLowerCase();
-        if (!materialName) return false;
-        return normalizedNameContainsFilters.some((needle) => materialName.includes(needle));
+        const materialName = m.materiaalnaam || '';
+        const materialSubCategory = getMaterialSubCategory(m);
+        return normalizedNameContainsFilters.some((needle) => (
+          isLooseFilterMatch(materialName, needle) || isLooseFilterMatch(materialSubCategory, needle)
+        ));
       });
     }
 
@@ -854,10 +881,8 @@ export function MaterialSelectionModal({
     if (availableSubCategories.length === 0) return;
 
     const matches = availableSubCategories.filter((subCategory) => {
-      const normalizedSubCategory = normalizeFilterValue(subCategory);
       return normalizedDefaultSubCategoryFilters.some((needle) => {
-        const normalizedNeedle = normalizeFilterValue(needle);
-        return normalizedSubCategory === normalizedNeedle;
+        return isLooseFilterMatch(subCategory, needle);
       });
     });
 
@@ -1166,6 +1191,17 @@ export function MaterialSelectionModal({
 
     } catch (e: any) {
       console.error("❌ Fout bij opslaan:", e);
+      void reportOperationalError({
+        source: 'material_selection_upsert',
+        title: 'Aanmaken materiaal mislukt',
+        message: e?.message || 'Onbekende fout.',
+        severity: 'critical',
+        context: {
+          editingMaterialId: editingMaterialId ?? null,
+          backgroundMode: shouldRunInBackground,
+          backgroundClientId: backgroundClientId ?? null,
+        },
+      });
       if (shouldRunInBackground && backgroundClientId) {
         onPendingMaterialFailed?.({
           clientId: backgroundClientId,

@@ -5,7 +5,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function getWebhookUrl(): string | null {
-  const url = process.env.N8N_GENERATE_EMAIL_WEBHOOK_URL?.trim() || '';
+  const url = (
+    process.env.N8N_GENERATE_EMAIL_WEBHOOK_URL
+    || process.env.NEXT_PUBLIC_N8N_GENERATE_EMAIL_WEBHOOK
+    || ''
+  ).trim();
   return url || null;
 }
 

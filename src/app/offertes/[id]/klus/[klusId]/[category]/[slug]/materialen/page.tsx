@@ -75,6 +75,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { getMaterialRule, KLUS_REGELS_STATIC_VERSION } from '@/lib/klus-regels-static';
+import { reportOperationalError } from '@/lib/report-operational-error';
 import { useUser, useFirestore } from '@/firebase';
 
 import {
@@ -2588,15 +2589,9 @@ export default function GenericMaterialsPageRedesigned() {
       const materialenData = (json.data || []).map((m: any) => {
         const exclPrice = getExclPriceFromMaterial(m);
         const rawCategorie = String(m.categorie || '').trim();
-        const rawSubsectie = String(m.subsectie || '').trim();
-        const hasSpecificCategorie = rawCategorie.length > 0 && rawCategorie.toLowerCase() !== 'overig';
-        const hasSpecificSubsectie = rawSubsectie.length > 0 && rawSubsectie.toLowerCase() !== 'overig';
-        const effectiveSubsectie = hasSpecificSubsectie
-          ? rawSubsectie
-          : hasSpecificCategorie
-            ? rawCategorie
-            : (rawSubsectie || rawCategorie || 'Overig');
-        const effectiveCategorie = rawCategorie || rawSubsectie || 'Overig';
+        const rawSubsectie = String(m.subsectie || m.sub_categorie || '').trim();
+        const effectiveCategorie = rawCategorie || 'Overig';
+        const effectiveSubsectie = rawSubsectie || 'Overig';
         return {
           ...m, // Keep all raw fields
           _raw: m, // Store exact raw object for pristine saving
@@ -6392,6 +6387,15 @@ export default function GenericMaterialsPageRedesigned() {
           }, { remove: true });
         }}
         onPendingMaterialFailed={({ clientId, error }) => {
+          void reportOperationalError({
+            source: 'klus_materialen_pending_upsert',
+            title: 'Aanmaken materiaal mislukt',
+            message: error || 'Onbekende fout.',
+            severity: 'critical',
+            context: {
+              pendingClientId: clientId,
+            },
+          });
           setPendingSafetyItems((prev) => prev.map((item) => item.id === clientId ? {
             ...item,
             status: 'error',
