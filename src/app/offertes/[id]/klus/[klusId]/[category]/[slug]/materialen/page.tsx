@@ -103,7 +103,7 @@ import {
   MaterialCategoryKey
 } from '@/lib/job-registry';
 import { COMPONENT_REGISTRY } from '@/lib/component-registry';
-import { getJobConfig, getPresetCompatibleJobTypes, getPresetGroup, getPresetKey } from '@/config/jobTypes/index';
+import { getJobConfig, getPresetCompatibleJobTypes, getPresetGroup, getPresetKey, resolvePresetJobTypeAlias } from '@/config/jobTypes/index';
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
 import type { LeverancierContact } from '@/lib/types-settings';
 import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
@@ -526,6 +526,10 @@ function normalizeMaterialName(value: any): string | null {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim().toLowerCase();
   return normalized.length > 0 ? normalized : null;
+}
+
+function normalizePresetIdentity(value: any): string {
+  return String(value || '').trim().toLowerCase();
 }
 
 function normalizeEpdmDaktrimSectionKeyForSave(
@@ -1361,13 +1365,25 @@ export default function GenericMaterialsPageRedesigned() {
   const PRESET_GROUP = useMemo(() => getPresetGroup(JOB_KEY), [JOB_KEY]);
   const PRESET_KEY = useMemo(() => getPresetKey(JOB_KEY), [JOB_KEY]);
   const PRESET_COMPATIBLE_JOB_TYPES = useMemo(() => getPresetCompatibleJobTypes(JOB_KEY), [JOB_KEY]);
+  const PRESET_KEY_NORMALIZED = useMemo(() => normalizePresetIdentity(PRESET_KEY), [PRESET_KEY]);
+  const PRESET_COMPATIBLE_JOB_TYPES_SET = useMemo(
+    () => new Set(PRESET_COMPATIBLE_JOB_TYPES.map((value) => normalizePresetIdentity(value))),
+    [PRESET_COMPATIBLE_JOB_TYPES]
+  );
 
   const isPresetCompatible = useCallback((preset: any) => {
-    const presetJobType = (preset?.jobType || '').trim();
-    const presetGroup = (preset?.presetGroup || '').trim();
-    if (presetGroup && presetGroup === PRESET_KEY) return true;
-    return PRESET_COMPATIBLE_JOB_TYPES.includes(presetJobType);
-  }, [PRESET_COMPATIBLE_JOB_TYPES, PRESET_KEY]);
+    const presetGroup = normalizePresetIdentity(preset?.presetGroup);
+    if (presetGroup && presetGroup === PRESET_KEY_NORMALIZED) return true;
+
+    const rawPresetJobType = String(preset?.jobType || '').trim();
+    if (!rawPresetJobType) return false;
+
+    const canonicalPresetJobType = normalizePresetIdentity(resolvePresetJobTypeAlias(rawPresetJobType));
+    if (canonicalPresetJobType && PRESET_COMPATIBLE_JOB_TYPES_SET.has(canonicalPresetJobType)) return true;
+
+    const presetJobType = normalizePresetIdentity(rawPresetJobType);
+    return PRESET_COMPATIBLE_JOB_TYPES_SET.has(presetJobType);
+  }, [PRESET_COMPATIBLE_JOB_TYPES_SET, PRESET_KEY_NORMALIZED]);
 
   const mapPresetSlotsForJob = useCallback((slots: Record<string, string> | undefined, currentJobType: string) => {
     if (!slots) return slots;
@@ -1648,6 +1664,7 @@ export default function GenericMaterialsPageRedesigned() {
   const autoApplyDefaultPresetRef = useRef(false);
   const userHiddenPrefsRef = useRef<Record<string, boolean> | null>(null); // Store loaded user prefs to prevent race condition
   const hasAttemptedPresetSlotRepairRef = useRef(false);
+  const lastPresetLoadIssueKeyRef = useRef<string | null>(null);
 
   const defaultPresetCandidate = useMemo(() => (
     presets.find((p) => p.isDefault) || presets.find((p) => (p.name || '').toLowerCase().includes('standaard')) || null
@@ -2630,10 +2647,54 @@ export default function GenericMaterialsPageRedesigned() {
       try {
         const q = query(collection(firestore, 'presets'), where('userId', '==', user.uid));
         const querySnapshot = await getDocs(q);
-        const fetched = querySnapshot.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter((p: any) => isPresetCompatible(p));
-        setPresets(fetched);
+        const fetched = querySnapshot.docs.map((d) => {
+          const data = d.data();
+          return { id: d.id, ...data };
+        });
+
+        const compatible = fetched.filter((preset: any) => isPresetCompatible(preset));
+        setPresets(compatible);
+
+        const legacyMigrations: Array<{ id: string; updates: Record<string, unknown> }> = [];
+        compatible.forEach((preset: any) => {
+          const rawJobType = String(preset?.jobType || '').trim();
+          const canonicalJobType = resolvePresetJobTypeAlias(rawJobType);
+          const rawPresetGroup = String(preset?.presetGroup || '').trim();
+          const expectedPresetGroup = getPresetGroup(canonicalJobType);
+          const updates: Record<string, unknown> = {};
+
+          const jobTypeChanged =
+            normalizePresetIdentity(rawJobType)
+            && normalizePresetIdentity(rawJobType) !== normalizePresetIdentity(canonicalJobType);
+          if (jobTypeChanged) {
+            updates.jobType = canonicalJobType;
+          }
+
+          if (expectedPresetGroup) {
+            if (normalizePresetIdentity(rawPresetGroup) !== normalizePresetIdentity(expectedPresetGroup)) {
+              updates.presetGroup = expectedPresetGroup;
+            }
+          }
+
+          if (Object.keys(updates).length === 0) return;
+          legacyMigrations.push({
+            id: String(preset.id),
+            updates: {
+              ...updates,
+              updatedAt: serverTimestamp(),
+            },
+          });
+        });
+
+        if (legacyMigrations.length > 0) {
+          void Promise.all(
+            legacyMigrations.map((migration) =>
+              setDoc(doc(firestore, 'presets', migration.id), migration.updates, { merge: true })
+            )
+          ).catch((error) => {
+            console.error('Kon preset migratie niet opslaan:', error);
+          });
+        }
       } catch (e) { console.error(e); } finally {
         setPresetsLaden(false);
         setHasLoadedPresetsOnce(true);
@@ -3434,6 +3495,38 @@ export default function GenericMaterialsPageRedesigned() {
     setCustomGroups(built);
   }, [firestoreCustommateriaal, alleMaterialen, customGroups.length]);
 
+  // Detect stale/missing preset IDs referenced by the quote.
+  useEffect(() => {
+    if (gekozenPresetId === 'default') return;
+    if (isPaginaLaden || isPresetsLaden) return;
+    if (presets.some((preset) => preset.id === gekozenPresetId)) return;
+
+    const issueKey = `${gekozenPresetId}|${JOB_KEY}|preset-id-missing`;
+    if (lastPresetLoadIssueKeyRef.current === issueKey) return;
+    lastPresetLoadIssueKeyRef.current = issueKey;
+
+    toast({
+      variant: 'destructive',
+      title: 'Werkpakket ontbreekt',
+      description: 'Het gekoppelde werkpakket bestaat niet meer of is niet compatibel met deze klus.',
+    });
+
+    void reportOperationalError({
+      source: 'klus_preset_reference_missing',
+      title: 'Werkpakket referentie ontbreekt',
+      message: `Preset ${gekozenPresetId} ontbreekt voor job ${JOB_KEY}.`,
+      severity: 'critical',
+      context: {
+        quoteId,
+        klusId,
+        jobSlug: JOB_KEY,
+        presetId: gekozenPresetId,
+      },
+    });
+
+    setGekozenPresetId('default');
+  }, [gekozenPresetId, isPaginaLaden, isPresetsLaden, presets, JOB_KEY, quoteId, klusId, toast]);
+
   // Auto Preset
   useEffect(() => {
     if (isPaginaLaden || isPresetsLaden || !presets.length || userHeeftPresetGewijzigdRef.current || hasSavedConfigRef.current || gekozenPresetId !== 'default') return;
@@ -3493,13 +3586,123 @@ export default function GenericMaterialsPageRedesigned() {
       try {
         const newSels: any = {};
         const mappedSlots = mapPresetSlotsForJob(preset.slots, JOB_KEY);
+        const slotMeta = preset?.slotMeta && typeof preset.slotMeta === 'object'
+          ? preset.slotMeta as Record<string, { materialId?: string; materialName?: string }>
+          : {};
+        const rawPresetSlots = preset?.slots && typeof preset.slots === 'object'
+          ? preset.slots as Record<string, unknown>
+          : {};
+        const missingSlotKeys: string[] = [];
+        const repairedSlotIds: Record<string, string> = {};
+        let totalReferencedSlots = 0;
+        let resolvedFromNameCount = 0;
+
         if (mappedSlots) {
-          Object.keys(mappedSlots).forEach(key => {
-            const matId = mappedSlots[key];
-            const found = findMaterialByAnyId(matId);
-            if (found) newSels[key] = found;
+          Object.keys(mappedSlots).forEach((key) => {
+            const matId = normalizeMaterialId(mappedSlots[key]);
+            if (!matId) return;
+
+            totalReferencedSlots += 1;
+            let found = findMaterialByAnyId(matId);
+
+            if (!found) {
+              const fallbackName = normalizeMaterialName(slotMeta?.[key]?.materialName);
+              if (fallbackName) {
+                const fallbackByName = materialByName.get(fallbackName);
+                if (fallbackByName) {
+                  found = fallbackByName;
+                  resolvedFromNameCount += 1;
+                  const nextId = normalizeMaterialId(
+                    fallbackByName?.id || fallbackByName?.row_id || fallbackByName?.material_ref_id
+                  );
+                  if (
+                    nextId
+                    && nextId !== matId
+                    && Object.prototype.hasOwnProperty.call(rawPresetSlots, key)
+                  ) {
+                    repairedSlotIds[key] = nextId;
+                  }
+                }
+              }
+            }
+
+            if (found) {
+              newSels[key] = found;
+            } else {
+              missingSlotKeys.push(key);
+            }
           });
         }
+
+        const resolvedSlotsCount = Object.keys(newSels).length;
+        const slotRepairEntries = Object.entries(repairedSlotIds);
+        if (slotRepairEntries.length > 0 && firestore && preset?.id) {
+          const slotFieldUpdates: Record<string, unknown> = {};
+          slotRepairEntries.forEach(([sectionKey, slotId]) => {
+            slotFieldUpdates[`slots.${sectionKey}`] = slotId;
+            slotFieldUpdates[`slotMeta.${sectionKey}.materialId`] = slotId;
+          });
+          void updateDoc(
+            doc(firestore, 'presets', String(preset.id)),
+            {
+              ...slotFieldUpdates,
+              updatedAt: serverTimestamp(),
+            }
+          ).catch((error) => {
+            console.error('Kon preset slot-herstel niet opslaan:', error);
+          });
+        }
+
+        if (totalReferencedSlots > 0 && resolvedSlotsCount === 0) {
+          const issueKey = `${String(preset.id)}|${JOB_KEY}|preset-not-loaded`;
+          if (lastPresetLoadIssueKeyRef.current !== issueKey) {
+            lastPresetLoadIssueKeyRef.current = issueKey;
+            toast({
+              variant: 'destructive',
+              title: 'Werkpakket niet geladen',
+              description: 'Geen materialen uit dit werkpakket konden worden gekoppeld. Controleer of materiaal-IDs of secties zijn gewijzigd.',
+            });
+            void reportOperationalError({
+              source: 'klus_preset_apply_failed',
+              title: 'Werkpakket kon niet geladen worden',
+              message: `0/${totalReferencedSlots} materialen gekoppeld voor preset ${String(preset.id)}.`,
+              severity: 'critical',
+              context: {
+                quoteId,
+                klusId,
+                jobSlug: JOB_KEY,
+                presetId: String(preset.id),
+                missingSlotKeys: missingSlotKeys.slice(0, 50),
+              },
+            });
+          }
+        } else if (totalReferencedSlots > 0 && missingSlotKeys.length > 0) {
+          const issueKey = `${String(preset.id)}|${JOB_KEY}|preset-partial|${missingSlotKeys.join(',')}`;
+          if (lastPresetLoadIssueKeyRef.current !== issueKey) {
+            lastPresetLoadIssueKeyRef.current = issueKey;
+            toast({
+              title: 'Werkpakket deels geladen',
+              description: `${resolvedSlotsCount}/${totalReferencedSlots} materialen geladen. ${missingSlotKeys.length} onderdeel(en) vragen controle.`,
+            });
+            void reportOperationalError({
+              source: 'klus_preset_apply_partial',
+              title: 'Werkpakket deels geladen',
+              message: `${resolvedSlotsCount}/${totalReferencedSlots} materialen gekoppeld voor preset ${String(preset.id)}.`,
+              severity: 'warning',
+              context: {
+                quoteId,
+                klusId,
+                jobSlug: JOB_KEY,
+                presetId: String(preset.id),
+                missingSlotKeys: missingSlotKeys.slice(0, 50),
+                resolvedFromNameCount,
+              },
+            });
+          }
+        } else {
+          lastPresetLoadIssueKeyRef.current = null;
+        }
+
         const normalizedSels = normalizeSelectedMaterialsForJob(newSels, JOB_KEY, { forcePresetAantalOne: true });
         setGekozenMaterialen(normalizedSels);
         if (preset.collapsedSections) setCollapsedSections(preset.collapsedSections);
@@ -3571,7 +3774,19 @@ export default function GenericMaterialsPageRedesigned() {
     return () => clearTimeout(timer);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gekozenPresetId, presets, alleMaterialen, isMaterialenLaden, findMaterialByAnyId]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
+  }, [
+    gekozenPresetId,
+    presets,
+    alleMaterialen,
+    isMaterialenLaden,
+    findMaterialByAnyId,
+    materialByName,
+    firestore,
+    quoteId,
+    klusId,
+    JOB_KEY,
+    toast,
+  ]); // intentionally exclude components to prevent infinite loop when resetting to 'default'
 
   // Watchdog: never leave preset-apply lock active indefinitely
   useEffect(() => {
@@ -4417,14 +4632,25 @@ export default function GenericMaterialsPageRedesigned() {
   const handleSavePreset = async (presetName: string, isDefault: boolean, existingId?: string) => {
     if (!user || !firestore) return;
     const slots: Record<string, string> = {};
+    const slotMeta: Record<string, { materialId: string; materialName?: string }> = {};
     for (const key of Object.keys(gekozenMaterialen || {})) {
       const materiaal = (gekozenMaterialen as any)[key];
       let matId = materiaal?.id || materiaal?.row_id || materiaal?.material_ref_id;
+      let materialName = materiaal?.materiaalnaam;
       if (!matId && isMultiEntrySlot(materiaal)) {
         const firstEntryMaterial = materiaal.entries?.[0]?.material;
         matId = firstEntryMaterial?.id || firstEntryMaterial?.row_id || firstEntryMaterial?.material_ref_id;
+        materialName = firstEntryMaterial?.materiaalnaam;
       }
-      if (matId) slots[key] = String(matId);
+      const normalizedMatId = normalizeMaterialId(matId);
+      if (!normalizedMatId) continue;
+
+      slots[key] = normalizedMatId;
+
+      const cleanName = String(materialName || '').trim();
+      slotMeta[key] = cleanName
+        ? { materialId: normalizedMatId, materialName: cleanName }
+        : { materialId: normalizedMatId };
     }
     // NOTE:
     // Component materials are stored in `components` itself.
@@ -4439,6 +4665,8 @@ export default function GenericMaterialsPageRedesigned() {
       name: presetName,
       isDefault,
       slots: slots,
+      slotMeta,
+      schemaVersion: 2,
       collapsedSections,
       // hiddenCategories removed - now stored in user profile globally, not per-preset
       kleinMateriaalConfig,
@@ -4869,10 +5097,10 @@ export default function GenericMaterialsPageRedesigned() {
           { target: 'verbruik_per_m2', sources: ['verbruik_per_m2', 'vebruik_per_m2'] },
           { target: 'max_werkende_lengte_mm', sources: ['max_werkende_lengte_mm', 'max_werkende_hoogte_mm'] },
           { target: 'min_werkende_lengte_mm', sources: ['min_werkende_lengte_mm', 'min_werkende_hoogte_mm'] },
-          { target: 'max_werkende_breedte_mm', sources: ['max_werkende_breedte_mm', 'werkende_breedte_maat', 'werkende_breedte_mm'] },
-          { target: 'min_werkende_breedte_mm', sources: ['min_werkende_breedte_mm', 'werkende_breedte_maat', 'werkende_breedte_mm'] },
-          { target: 'max_werkende_hoogte_mm', sources: ['max_werkende_hoogte_mm', 'werkende_hoogte_maat', 'werkende_hoogte_mm'] },
-          { target: 'min_werkende_hoogte_mm', sources: ['min_werkende_hoogte_mm', 'werkende_hoogte_maat', 'werkende_hoogte_mm'] },
+          { target: 'max_werkende_breedte_mm', sources: ['max_werkende_breedte_mm', 'werkende_breedte_maat', 'werkende_breedte_mm', 'werkende_breedte', 'werkend'] },
+          { target: 'min_werkende_breedte_mm', sources: ['min_werkende_breedte_mm', 'werkende_breedte_maat', 'werkende_breedte_mm', 'werkende_breedte', 'werkend'] },
+          { target: 'max_werkende_hoogte_mm', sources: ['max_werkende_hoogte_mm', 'werkende_hoogte_maat', 'werkende_hoogte_mm', 'werkende_hoogte', 'werkende_lengte', 'panlatafstand', 'latafstand'] },
+          { target: 'min_werkende_hoogte_mm', sources: ['min_werkende_hoogte_mm', 'werkende_hoogte_maat', 'werkende_hoogte_mm', 'werkende_hoogte', 'werkende_lengte', 'panlatafstand', 'latafstand'] },
         ];
 
         helperBackfillSpecs.forEach(({ target, sources }) => {
@@ -6927,6 +7155,9 @@ export default function GenericMaterialsPageRedesigned() {
                   }
 
                   setMissingPriceItems(remaining);
+                  // Persist updated material snapshots immediately so reopening
+                  // this step does not re-trigger missing-price checks.
+                  await saveToFirestore({ silent: true });
                   if (remaining.length === 0) {
                     setShowMissingPriceDialog(false);
                     if (pendingNavigateTo) router.push(pendingNavigateTo);

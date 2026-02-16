@@ -768,8 +768,7 @@ export async function POST(req: Request) {
 
     // 6) Update of insert
     if (incomingRowId) {
-      // SECURITY: update alleen eigen materiaal. Als het bronmateriaal niet van deze user is,
-      // maken we een persoonlijke kopie i.p.v. het globale item aan te passen.
+      // SECURITY: update alleen eigen materiaal.
       const upd = await supabaseAdmin
         .from('main_material_list')
         .update(dbPayload)
@@ -782,20 +781,37 @@ export async function POST(req: Request) {
       data = upd.data;
 
       if (!data) {
-        const base = await supabaseAdmin
+        // Fallback: clone source row from another owned catalog (never NULL-owner),
+        // then persist as this user's row.
+        const source = await supabaseAdmin
           .from('main_material_list')
-          .select('row_id')
+          .select('*')
           .eq('row_id', incomingRowId)
+          .neq('gebruikerid', uid)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
-        if (base.error) return jsonFail(base.error.message || 'Lookup failed', 500);
-        if (!base.data) return jsonFail('Materiaal niet gevonden.', 404);
+        if (source.error) return jsonFail(source.error.message || 'Lookup failed', 500);
+        if (!source.data) return jsonFail('Materiaal niet gevonden voor deze gebruiker.', 404);
+
+        const {
+          created_at: _createdAt,
+          gebruikerid: _sourceOwner,
+          ...sourceBase
+        } = source.data as Record<string, unknown>;
+
+        const copyPayload = {
+          ...sourceBase,
+          ...dbPayload,
+          gebruikerid: uid,
+        };
 
         const insCopy = await supabaseAdmin
           .from('main_material_list')
-          .insert(dbPayload)
+          .upsert(copyPayload, { onConflict: 'gebruikerid,row_id' })
           .select('*')
-          .single();
+          .maybeSingle();
 
         if (insCopy.error) return jsonFail(insCopy.error.message || 'Insert failed', 500);
         data = insCopy.data;

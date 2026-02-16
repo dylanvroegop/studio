@@ -91,40 +91,39 @@ export async function POST(req: Request) {
             return NextResponse.json({ ok: true, data: updatedRows });
         }
 
-        // If no owned row exists, create a user-owned copy from the shared row and apply the update there.
+        // Fallback: clone source row from another owned catalog (never from NULL owner),
+        // then apply the update as a user-owned row.
         let sourceQuery = supabaseAdmin
             .from('main_material_list')
             .select('*')
-            .is('gebruikerid', null)
+            .neq('gebruikerid', uid)
             .limit(1);
 
         sourceQuery = normalizedRowId
             ? sourceQuery.eq('row_id', normalizedRowId)
             : sourceQuery.eq('materiaalnaam', normalizedMateriaalnaam).order('created_at', { ascending: false });
 
-        const { data: sharedSource, error: sourceError } = await sourceQuery.maybeSingle();
-
+        const { data: sourceRow, error: sourceError } = await sourceQuery.maybeSingle();
         if (sourceError) {
-            console.error('Supabase lookup error:', sourceError);
+            console.error('Supabase source lookup error:', sourceError);
             return NextResponse.json({ ok: false, message: sourceError.message }, { status: 500 });
         }
 
-        if (!sharedSource) {
+        if (!sourceRow) {
             return NextResponse.json(
-                { ok: false, message: 'Geen materiaal gevonden in main_material_list voor update.' },
+                { ok: false, message: 'Geen bronmateriaal gevonden voor deze update.' },
                 { status: 404 }
             );
         }
 
         const {
             created_at: _createdAt,
-            gebruikerid: _sharedOwner,
-            ...sharedBase
-        } = sharedSource as Record<string, any>;
+            gebruikerid: _sourceOwner,
+            ...sourceBase
+        } = sourceRow as Record<string, any>;
 
-        // Keep shared row_id in the override when possible so the GET route can prefer the user-specific row.
         const insertPayload: Record<string, any> = {
-            ...sharedBase,
+            ...sourceBase,
             ...updatePayload,
             gebruikerid: uid,
         };
@@ -133,33 +132,18 @@ export async function POST(req: Request) {
             insertPayload.materiaalnaam = normalizedMateriaalnaam;
         }
 
-        let insertedRow: any = null;
-        const insertAttempt = await supabaseAdmin
+        const upsertAttempt = await supabaseAdmin
             .from('main_material_list')
-            .insert(insertPayload)
+            .upsert(insertPayload, { onConflict: 'gebruikerid,row_id' })
             .select()
-            .single();
+            .maybeSingle();
 
-        if (insertAttempt.error) {
-            // Fallback: if row_id turns out unique in a specific environment, retry without row_id.
-            const { row_id: _rowId, ...insertPayloadWithoutRowId } = insertPayload;
-            const retryInsert = await supabaseAdmin
-                .from('main_material_list')
-                .insert(insertPayloadWithoutRowId)
-                .select()
-                .single();
-
-            if (retryInsert.error) {
-                console.error('Supabase insert fallback error:', retryInsert.error);
-                return NextResponse.json({ ok: false, message: retryInsert.error.message }, { status: 500 });
-            }
-
-            insertedRow = retryInsert.data;
-        } else {
-            insertedRow = insertAttempt.data;
+        if (upsertAttempt.error) {
+            console.error('Supabase upsert fallback error:', upsertAttempt.error);
+            return NextResponse.json({ ok: false, message: upsertAttempt.error.message }, { status: 500 });
         }
 
-        return NextResponse.json({ ok: true, data: insertedRow ? [insertedRow] : [] });
+        return NextResponse.json({ ok: true, data: upsertAttempt.data ? [upsertAttempt.data] : [] });
 
     } catch (error: any) {
         console.error('API Error /api/materialen/update-price:', error);

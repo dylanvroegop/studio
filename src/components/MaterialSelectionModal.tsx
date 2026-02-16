@@ -615,9 +615,11 @@ export function MaterialSelectionModal({
         return;
       }
 
-      // Backwards compatibility:
-      // plain ultra filters should narrow by both subcategory and material name.
-      nameFilters.push(value);
+      // IMPORTANT:
+      // Plain ultra filters (e.g. "osb") are "default subcategory picks" only.
+      // They must NOT hard-filter the material list, otherwise users lose the
+      // other subcategories (or see an empty list when there is no direct match).
+      // Use `name:` when strict name/subcategory narrowing is explicitly needed.
       defaultSubCategoryFilters.push(value);
     });
 

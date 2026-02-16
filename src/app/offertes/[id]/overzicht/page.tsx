@@ -2028,11 +2028,18 @@ export default function OverzichtPage() {
           return;
         }
 
-        const msg =
-          (data && typeof data === 'object' && (data.error || data.detail))
-            ? `${data.error ?? 'Fout'}${data.detail ? ` - ${data.detail}` : ''}`
-            : `Server fout: ${res.status}${text ? ` - ${String(text).slice(0, 200)}` : ''}`;
-        throw new Error(msg);
+        const debugInfo = {
+          status: res.status,
+          error: data && typeof data === 'object' ? (data.error ?? null) : null,
+          detail: data && typeof data === 'object' ? (data.detail ?? null) : null,
+          message: data && typeof data === 'object' ? (data.message ?? null) : null,
+          bodyPreview: String(text || '').slice(0, 400),
+        };
+        console.error('Generate API response error:', debugInfo);
+
+        const requestError = new Error('Kon offerte niet versturen.') as Error & { debugInfo?: unknown };
+        requestError.debugInfo = debugInfo;
+        throw requestError;
       }
 
       toast({ title: 'Offerte verzonden', description: 'De offerte is doorgestuurd naar verwerking.' });
@@ -2044,20 +2051,24 @@ export default function OverzichtPage() {
       }
       router.push(`/offertes/${quoteId}`);
     } catch (err: any) {
+      if (err?.debugInfo) {
+        console.error('Generate error details:', err.debugInfo);
+      }
       console.error('Generate error:', err);
       void reportOperationalError({
         source: 'offerte_generate',
         title: 'Genereren mislukt',
-        message: err?.message || 'Kon offerte niet versturen.',
+        message: 'Kon offerte niet versturen.',
         severity: 'critical',
         context: {
           quoteId,
+          debugInfo: err?.debugInfo ?? null,
         },
       });
       toast({
         variant: 'destructive',
         title: 'Genereren mislukt',
-        description: err?.message || 'Kon offerte niet versturen.',
+        description: 'Kon offerte niet versturen. Probeer het opnieuw.',
       });
     } finally {
       setIsSubmitting(false);

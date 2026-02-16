@@ -693,16 +693,30 @@ export default function GenericMeasurementPage() {
   const resolveDakpanWerkendeMaten = (material: any): DakpanWerkendeMaten | null => {
     if (!material) return null;
 
+    const breedteFallbackRaw =
+      material?.werkende_breedte_maat ??
+      material?.werkende_breedte_mm ??
+      material?.werkende_breedte ??
+      material?.werkend;
+
+    const hoogteFallbackRaw =
+      material?.werkende_hoogte_maat ??
+      material?.werkende_hoogte_mm ??
+      material?.werkende_lengte_mm ??
+      material?.werkende_lengte ??
+      material?.panlatafstand ??
+      material?.latafstand;
+
     const breedteRange = buildRangeMm(
       material?.min_werkende_breedte_mm,
       material?.max_werkende_breedte_mm,
-      material?.werkende_breedte_maat ?? material?.werkende_breedte_mm
+      breedteFallbackRaw
     );
 
     const hoogteRange = buildRangeMm(
       material?.min_werkende_hoogte_mm ?? material?.min_werkende_lengte_mm,
       material?.max_werkende_hoogte_mm ?? material?.max_werkende_lengte_mm,
-      material?.werkende_hoogte_maat ?? material?.werkende_hoogte_mm ?? material?.werkende_lengte_mm
+      hoogteFallbackRaw
     );
 
     const hasAny =

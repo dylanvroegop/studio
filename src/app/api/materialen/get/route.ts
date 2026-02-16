@@ -20,6 +20,56 @@ function krijgFirebaseAdminApp() {
   });
 }
 
+async function provisionOwnedCatalogForUser(uid: string): Promise<void> {
+  const { data: templateRows, error: templateError } = await supabaseAdmin
+    .from('main_material_list')
+    .select('*')
+    .neq('gebruikerid', uid)
+    .order('order_id', { ascending: true })
+    .range(0, 5000);
+
+  if (templateError) {
+    throw templateError;
+  }
+  if (!Array.isArray(templateRows) || templateRows.length === 0) {
+    return;
+  }
+
+  const dedupedByRowId = new Map<string, any>();
+  for (const row of templateRows) {
+    const rowId = row?.row_id ?? row?.id;
+    if (!rowId) continue;
+    const key = String(rowId);
+    if (!dedupedByRowId.has(key)) {
+      dedupedByRowId.set(key, row);
+    }
+  }
+
+  const sourceRows = Array.from(dedupedByRowId.values());
+  if (sourceRows.length === 0) return;
+
+  const rowsToInsert = sourceRows.map((row) => {
+    const {
+      created_at: _createdAt,
+      gebruikerid: _owner,
+      ...rest
+    } = row as Record<string, unknown>;
+    return {
+      ...rest,
+      gebruikerid: uid,
+    };
+  });
+
+  const chunkSize = 500;
+  for (let i = 0; i < rowsToInsert.length; i += chunkSize) {
+    const chunk = rowsToInsert.slice(i, i + chunkSize);
+    const { error } = await supabaseAdmin
+      .from('main_material_list')
+      .upsert(chunk, { onConflict: 'gebruikerid,row_id' });
+    if (error) throw error;
+  }
+}
+
 export async function GET(req: Request) {
   try {
     // 1. Get UID from Token
@@ -35,9 +85,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: 'Invalid token' }, { status: 401 });
     }
 
-    // 2. Use Shared Supabase Admin Client
-
-
+    // 2. Fetch only user-owned materials.
     const { data: ownData, error: ownError } = await supabaseAdmin
       .from('main_material_list')
       .select('*')
@@ -47,19 +95,23 @@ export async function GET(req: Request) {
 
     if (ownError) throw ownError;
 
-    const { data: sharedData, error: sharedError } = await supabaseAdmin
-      .from('main_material_list')
-      .select('*')
-      .is('gebruikerid', null)
-      .order('order_id', { ascending: true })
-      .range(0, 5000);
+    let data = [...(ownData || [])];
 
-    if (sharedError) throw sharedError;
+    // First-login/self-heal: if user has no personal catalog yet,
+    // clone from an existing owned catalog template.
+    if (data.length === 0) {
+      await provisionOwnedCatalogForUser(uid);
+      const { data: refetchedOwnData, error: refetchError } = await supabaseAdmin
+        .from('main_material_list')
+        .select('*')
+        .eq('gebruikerid', uid)
+        .order('order_id', { ascending: true })
+        .range(0, 5000);
+      if (refetchError) throw refetchError;
+      data = [...(refetchedOwnData || [])];
+    }
 
-    const data = [
-      ...(ownData || []),
-      ...(sharedData || []),
-    ].filter((row, index, arr) => {
+    data = data.filter((row, index, arr) => {
       const rowId = row?.row_id ?? row?.id;
       if (!rowId) return true;
       return arr.findIndex((candidate) => (candidate?.row_id ?? candidate?.id) === rowId) === index;
