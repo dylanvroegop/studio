@@ -44,7 +44,6 @@
 - able to export drawings as pdf
 - able to expand drawings on phone or desktop. 
 - make sure theres some form of better sync with 'done with calculation' on the quotes page. because currently the user might sit there waiting. im not sure how to do that because now we use webhook - calculate - supabase - fetch from supabase. because return webhook is too long, since the calculation happens for 10 minutes maybe. 
-- make a 'export material list' 
 - make them able to edit total amount on the verbruiks materialen, keeping the list itself but it converts to '% or euro' conversion that they can then fill in. 
 - add more information to the 'section_key' so for example the 'balklaag' has things like 'this is a balklaag constructie etc' also adding extra information like 'gebruik hiervoor pluggen 8x100'
 - Set new option in automatische berekening on material page for “schatting prijzen” toggle on off
@@ -63,3 +62,13 @@ Gipsplaat ak2 2600x1200x12,5mm
 Since it was more convenient if the ceiling is 2540 in width, that means the product of Gipsplaat ak4 2400x1200x12,5mm now gets updated in their material list to;
 Gipsplaat ak2 2600x1200x12,5mm 
 In a sense overwriting their originalGipsplaat ak4 2400x1200x12,5mm making that disappear from their list
+
+
+
+## 2026-02-13
+- Max character in material name input field as well as number/ any input field (to prevent people from putting in pdf file into a material name to troll and blow up tokens)
+- Export pdf materiaal lijst of mail. Optie; met of zonder prijzen. Altijd zonder "hoe berekend"
+
+## 2026-02-16
+- Limit 5 quotes with 5 jobs max.
+- Multiklussen true

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Dialog,
@@ -15,14 +15,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Copy, Download, Loader2, Mail, AlertTriangle } from 'lucide-react';
+import { Copy, Download, Loader2, Mail, AlertTriangle, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import {
   MaterialListExportItem,
   MaterialListExportMeta,
   buildDefaultMaterialListFileName,
   buildMaterialListEmailBody,
+  buildMaterialListRowsText,
   buildMaterialListText,
   generateMaterialListPDF,
   sanitizeMaterialListFilename,
@@ -46,7 +49,45 @@ interface MaterialListExportDialogProps {
     contactNaam: string;
     email: string;
   }) => Promise<string | void>;
+  savedEmailTemplate?: string;
+  onSaveEmailTemplate?: (template: string) => Promise<void>;
 }
+
+const TEMPLATE_PLACEHOLDERS: Array<{ label: string; token: string }> = [
+  { label: 'Aanhef', token: '{{AANHEF}}' },
+  { label: 'Materiaallijst', token: '{{MATERIAALLIJST}}' },
+  { label: 'Offerte nummer', token: '{{offerte_nummer}}' },
+  { label: 'Klus titel', token: '{{klus_titel}}' },
+  { label: 'Project klant', token: '{{project_klant}}' },
+  { label: 'Datum', token: '{{datum}}' },
+  { label: 'Bedrijfsnaam', token: '{{bedrijfsnaam}}' },
+  { label: 'Contactnaam', token: '{{contactnaam}}' },
+  { label: 'Adresregel', token: '{{adresregel}}' },
+  { label: 'Postcode + plaats', token: '{{postcode_plaats}}' },
+  { label: 'Telefoon', token: '{{telefoon}}' },
+  { label: 'KVK nummer', token: '{{kvk_nummer}}' },
+  { label: 'BTW nummer', token: '{{btw_nummer}}' },
+];
+
+const DEFAULT_TEMPLATE_EXAMPLE = [
+  'Beste {{AANHEF}},',
+  '',
+  'Hierbij sturen we onze materiaallijst.',
+  'Zou u voor onderstaande materialen uw actuele prijzen (excl. btw) en verwachte levertijd met ons kunnen delen?',
+  '',
+  '{{MATERIAALLIJST}}',
+  '',
+  'Met vriendelijke groet,',
+  '{{contactnaam}}',
+  '',
+  '{{bedrijfsnaam}}',
+  '{{adresregel}}',
+  '{{postcode_plaats}}',
+  '',
+  'Tel.: {{telefoon}}',
+  'KVK nr. {{kvk_nummer}}',
+  'BTW nr.: {{btw_nummer}}',
+].join('\n');
 
 export function MaterialListExportDialog({
   isOpen,
@@ -57,6 +98,8 @@ export function MaterialListExportDialog({
   defaultSupplierId,
   onUpdateSupplierContact,
   onCreateSupplier,
+  savedEmailTemplate,
+  onSaveEmailTemplate,
 }: MaterialListExportDialogProps) {
   const { toast } = useToast();
   const [includePrices, setIncludePrices] = useState(false);
@@ -68,11 +111,17 @@ export function MaterialListExportDialog({
   const [newSupplierEmail, setNewSupplierEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [fileName, setFileName] = useState('');
   const [subjectTouched, setSubjectTouched] = useState(false);
   const [bodyTouched, setBodyTouched] = useState(false);
   const [isPdfBusy, setIsPdfBusy] = useState(false);
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
+  const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
+  const [templateDraft, setTemplateDraft] = useState('');
+  const [isSavingTemplateEditor, setIsSavingTemplateEditor] = useState(false);
+  const [materialSelectionMode, setMaterialSelectionMode] = useState<'all' | 'custom'>('all');
+  const [selectedMaterialKeys, setSelectedMaterialKeys] = useState<string[]>([]);
+  const lastSavedTemplateRef = useRef('');
+  const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const hasSuppliers = suppliers.length > 0;
   const selectedSupplier = useMemo(
@@ -111,14 +160,33 @@ export function MaterialListExportDialog({
     [meta],
   );
 
+  const selectedMaterialKeySet = useMemo(
+    () => new Set(selectedMaterialKeys),
+    [selectedMaterialKeys],
+  );
+
+  const exportItems = useMemo(
+    () => (materialSelectionMode === 'all'
+      ? items
+      : items.filter((item) => selectedMaterialKeySet.has(item.key))),
+    [items, materialSelectionMode, selectedMaterialKeySet],
+  );
+
+  const hasExportItems = exportItems.length > 0;
+
   const generatedBody = useMemo(
-    () => buildMaterialListEmailBody(items, { includePrices, meta, greetingName: selectedSupplierDisplayName }),
-    [items, includePrices, meta, selectedSupplierDisplayName],
+    () => buildMaterialListEmailBody(exportItems, {
+      includePrices,
+      meta,
+      greetingName: selectedSupplierDisplayName,
+      emailTemplate: savedEmailTemplate,
+    }),
+    [exportItems, includePrices, meta, selectedSupplierDisplayName, savedEmailTemplate],
   );
 
   const plainListText = useMemo(
-    () => buildMaterialListText(items, { includePrices, meta }),
-    [items, includePrices, meta],
+    () => buildMaterialListText(exportItems, { includePrices, meta }),
+    [exportItems, includePrices, meta],
   );
 
   useEffect(() => {
@@ -136,13 +204,15 @@ export function MaterialListExportDialog({
     setNewSupplierName('');
     setNewSupplierContactName('');
     setNewSupplierEmail('');
+    setMaterialSelectionMode('all');
+    setSelectedMaterialKeys(items.map((item) => item.key));
     setSubject(defaultSubject);
     setBody(buildMaterialListEmailBody(items, {
       includePrices: false,
       meta,
       greetingName: String(initialSupplier?.contactNaam || initialSupplier?.naam || '').trim(),
+      emailTemplate: savedEmailTemplate,
     }));
-    setFileName(defaultFileName);
     setSubjectTouched(false);
     setBodyTouched(false);
 
@@ -153,7 +223,7 @@ export function MaterialListExportDialog({
         description: 'Voeg hieronder direct een leverancier toe om e-mail te gebruiken.',
       });
     }
-  }, [isOpen, defaultSupplierId, suppliers, defaultSubject, defaultFileName, items, meta, toast]);
+  }, [isOpen, defaultSupplierId, suppliers, defaultSubject, items, meta, toast, savedEmailTemplate]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -181,7 +251,191 @@ export function MaterialListExportDialog({
     }
   }, [isOpen, selectedSupplierId, suppliers, defaultSupplierId]);
 
+  const handleToggleMaterial = (key: string): void => {
+    setSelectedMaterialKeys((current) => (
+      current.includes(key)
+        ? current.filter((entry) => entry !== key)
+        : [...current, key]
+    ));
+  };
+
+  const handleSelectAllMaterials = (): void => {
+    setSelectedMaterialKeys(items.map((item) => item.key));
+  };
+
+  const handleClearMaterialSelection = (): void => {
+    setSelectedMaterialKeys([]);
+  };
+
+  const getBodyTemplateFromCurrentBody = useCallback((): string => {
+    const currentBody = String(body || '').replace(/\r\n/g, '\n').trim();
+    if (!currentBody) return DEFAULT_TEMPLATE_EXAMPLE;
+
+    const currentGreetingName = String(selectedSupplierDisplayName || '').trim() || 'team';
+    const senderCompanyName = String(meta?.senderCompanyName || '').trim();
+    const senderContactName = String(meta?.senderContactName || '').trim();
+    const offerteNummer = String(meta?.offerteNummer || '').trim();
+    const klusTitel = String(meta?.klusTitel || '').trim();
+    const projectKlant = String(meta?.klantNaam || '').trim();
+    const datum = (meta?.createdAt instanceof Date ? meta.createdAt : new Date()).toLocaleDateString('nl-NL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    const listWithoutPrices = buildMaterialListText(exportItems, {
+      includePrices: false,
+      includeSource: false,
+      meta,
+    });
+    const listWithPrices = buildMaterialListText(exportItems, {
+      includePrices: true,
+      includeSource: false,
+      meta,
+    });
+    const listRowsWithoutPrices = buildMaterialListRowsText(exportItems, {
+      includePrices: false,
+      includeSource: false,
+    });
+    const listRowsWithPrices = buildMaterialListRowsText(exportItems, {
+      includePrices: true,
+      includeSource: false,
+    });
+
+    let template = currentBody;
+    const greetingLine = `Beste ${currentGreetingName},`;
+    if (template.includes(greetingLine)) {
+      template = template.replace(greetingLine, 'Beste {{aanhef}},');
+    }
+
+    if (senderCompanyName) {
+      template = template.replaceAll(senderCompanyName, '{{bedrijfsnaam}}');
+    }
+    if (senderContactName) {
+      template = template.replaceAll(senderContactName, '{{contactnaam}}');
+    }
+    if (offerteNummer) {
+      template = template.replaceAll(`Offerte: #${offerteNummer}`, '{{offerte_nummer}}');
+    }
+    if (klusTitel) {
+      template = template.replaceAll(`Materiaallijst - ${klusTitel}`, '{{klus_titel}}');
+    }
+    if (projectKlant) {
+      template = template.replaceAll(`Project klant: ${projectKlant}`, '{{project_klant}}');
+    }
+    template = template.replaceAll(`Datum: ${datum}`, '{{datum}}');
+
+    const replaceList = (candidate: string): void => {
+      if (candidate && template.includes(candidate)) {
+        template = template.replace(candidate, '{{materiaallijst}}');
+      }
+    };
+
+    replaceList(listWithoutPrices);
+    replaceList(listWithPrices);
+    replaceList(listRowsWithoutPrices);
+    replaceList(listRowsWithPrices);
+
+    if (!template.toLowerCase().includes('{{materiaallijst}}')) {
+      template = `${template}\n\n{{materiaallijst}}`;
+    }
+
+    return template.trim();
+  }, [body, selectedSupplierDisplayName, meta, exportItems]);
+
+  const handleInsertTemplateToken = (token: string, start?: number, end?: number): void => {
+    const safeToken = String(token || '').trim();
+    if (!safeToken) return;
+
+    const currentText = templateDraft;
+    const fallbackPos = currentText.length;
+    const from = typeof start === 'number' ? start : (templateTextareaRef.current?.selectionStart ?? fallbackPos);
+    const to = typeof end === 'number' ? end : (templateTextareaRef.current?.selectionEnd ?? from);
+    const next = `${currentText.slice(0, from)}${safeToken}${currentText.slice(to)}`;
+
+    setTemplateDraft(next);
+
+    const nextCursorPos = from + safeToken.length;
+    requestAnimationFrame(() => {
+      const el = templateTextareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(nextCursorPos, nextCursorPos);
+    });
+  };
+
+  const handleOpenTemplateEditor = (): void => {
+    const baseTemplate = String(savedEmailTemplate || '').trim() || DEFAULT_TEMPLATE_EXAMPLE;
+    setTemplateDraft(baseTemplate);
+    setIsTemplateEditorOpen(true);
+  };
+
+  const handleSaveTemplateEditor = async (): Promise<void> => {
+    if (!onSaveEmailTemplate) {
+      toast({
+        variant: 'destructive',
+        title: 'Opslaan niet beschikbaar',
+        description: 'Kon e-mailsjabloon niet opslaan.',
+      });
+      return;
+    }
+
+    const normalizedTemplate = String(templateDraft || '').trim();
+    setIsSavingTemplateEditor(true);
+    try {
+      await onSaveEmailTemplate(normalizedTemplate);
+      lastSavedTemplateRef.current = normalizedTemplate;
+      setIsTemplateEditorOpen(false);
+      setBodyTouched(false);
+      setBody(buildMaterialListEmailBody(exportItems, {
+        includePrices,
+        meta,
+        greetingName: selectedSupplierDisplayName,
+        emailTemplate: normalizedTemplate,
+      }));
+      toast({
+        title: 'Sjabloon opgeslagen',
+        description: 'Je e-mailsjabloon is bijgewerkt.',
+      });
+    } catch (error) {
+      console.error('Sjabloon opslaan mislukt:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Opslaan mislukt',
+        description: 'Kon e-mailsjabloon niet opslaan. Probeer het opnieuw.',
+      });
+    } finally {
+      setIsSavingTemplateEditor(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !bodyTouched || !onSaveEmailTemplate) return;
+
+    const template = getBodyTemplateFromCurrentBody();
+    if (!template || template === lastSavedTemplateRef.current) return;
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        await onSaveEmailTemplate(template);
+        lastSavedTemplateRef.current = template;
+      } catch (error) {
+        console.error('E-mailtemplate live opslaan mislukt:', error);
+      }
+    }, 900);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isOpen, bodyTouched, onSaveEmailTemplate, getBodyTemplateFromCurrentBody]);
+
   const handleCopy = async (): Promise<void> => {
+    if (!hasExportItems) {
+      toast({
+        variant: 'destructive',
+        title: 'Geen materialen geselecteerd',
+        description: 'Kies minimaal een materiaal om te kopieren.',
+      });
+      return;
+    }
+
     try {
       await navigator.clipboard.writeText(plainListText);
       toast({
@@ -201,6 +455,15 @@ export function MaterialListExportDialog({
   };
 
   const handleOpenMail = (): void => {
+    if (!hasExportItems) {
+      toast({
+        variant: 'destructive',
+        title: 'Geen materialen geselecteerd',
+        description: 'Kies minimaal een materiaal om in de e-mail op te nemen.',
+      });
+      return;
+    }
+
     if (!hasSuppliers) {
       toast({
         variant: 'destructive',
@@ -352,11 +615,11 @@ export function MaterialListExportDialog({
   };
 
   const handleDownloadPdf = async (): Promise<void> => {
-    if (!items.length) {
+    if (!hasExportItems) {
       toast({
         variant: 'destructive',
-        title: 'Geen materialen',
-        description: 'Er zijn nog geen materialen geselecteerd om te exporteren.',
+        title: 'Geen materialen geselecteerd',
+        description: 'Kies minimaal een materiaal om te exporteren.',
       });
       return;
     }
@@ -364,13 +627,13 @@ export function MaterialListExportDialog({
     setIsPdfBusy(true);
     try {
       const blob = await generateMaterialListPDF({
-        items,
+        items: exportItems,
         includePrices,
         meta,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      const safeName = sanitizeMaterialListFilename(fileName || defaultFileName);
+      const safeName = sanitizeMaterialListFilename(defaultFileName);
       link.href = url;
       link.download = safeName.toLowerCase().endsWith('.pdf') ? safeName : `${safeName}.pdf`;
       document.body.appendChild(link);
@@ -396,15 +659,123 @@ export function MaterialListExportDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl w-[95vw] max-h-[88vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl w-[95vw] max-h-[88vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Materiaallijst delen</DialogTitle>
           <DialogDescription>
-            Kies of je prijzen wilt tonen en deel de lijst via kopieren, e-mail of PDF.
+            Kies materialen, toon optioneel prijzen en deel via kopieren, e-mail of PDF.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 py-2">
+        <div className="flex-1 overflow-y-auto pr-1">
+          <div className="space-y-5 py-2 pb-6">
+            <Tabs
+              value={materialSelectionMode}
+              onValueChange={(value) => setMaterialSelectionMode(value === 'custom' ? 'custom' : 'all')}
+              className="space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Materialen meesturen</p>
+                  <p className="text-xs text-muted-foreground">
+                    Bepaal direct welke materialen meegaan in e-mail, kopie en PDF.
+                  </p>
+                </div>
+                <div className="text-xs text-muted-foreground shrink-0">
+                  {exportItems.length}/{items.length} geselecteerd
+                </div>
+              </div>
+
+              <TabsList className="grid w-full grid-cols-2 h-9">
+                <TabsTrigger value="all">Alles meesturen</TabsTrigger>
+                <TabsTrigger value="custom">Zelf kiezen</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="all" className="mt-0">
+                <div className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+                  Alle materialen worden opgenomen in de aanvraag.
+                </div>
+              </TabsContent>
+
+              <TabsContent value="custom" className="mt-0">
+                <div className="rounded-lg border border-border/70 p-3 space-y-3">
+                  {!items.length && (
+                    <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      Er zijn nog geen materialen om te kiezen.
+                    </div>
+                  )}
+
+                  {!!items.length && (
+                    <>
+                      <div className="max-h-[42vh] overflow-y-auto space-y-2 pr-1">
+                        {items.map((item, index) => {
+                          const isSelected = selectedMaterialKeySet.has(item.key);
+                          const amount = Number.isFinite(item.aantal) && item.aantal > 0 ? Math.round(item.aantal) : 1;
+                          const unit = String(item.eenheid || '').trim() || 'stuk';
+
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => handleToggleMaterial(item.key)}
+                              className={cn(
+                                'w-full rounded-md border px-3 py-2 text-left transition-colors',
+                                isSelected
+                                  ? 'border-primary/45 bg-primary/10'
+                                  : 'border-border/70 bg-muted/20 hover:bg-muted/40',
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-0.5">
+                                  <p className="text-sm font-medium leading-snug">
+                                    {index + 1}. {item.naam}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {amount} {unit}
+                                  </p>
+                                </div>
+                                <span
+                                  className={cn(
+                                    'shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                                    isSelected
+                                      ? 'border-primary/35 text-primary'
+                                      : 'border-border text-muted-foreground',
+                                  )}
+                                >
+                                  {isSelected ? 'Meesturen' : 'Overslaan'}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleClearMaterialSelection}
+                          disabled={!selectedMaterialKeys.length}
+                        >
+                          Alles uit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleSelectAllMaterials}
+                          disabled={selectedMaterialKeys.length === items.length}
+                        >
+                          Alles aan
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+
           {!hasSuppliers && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm space-y-3">
               <div className="flex items-start gap-2 text-destructive">
@@ -492,15 +863,12 @@ export function MaterialListExportDialog({
 
           {hasSuppliers && !hasValidSelectedSupplier && (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-              Vul ontvanger e-mail in en klik op &quot;Contact opslaan&quot;.
+              Vul ontvanger e-mail in en sla contact op.
             </div>
           )}
 
           {hasSuppliers && selectedSupplier && (
             <div className="rounded-lg border border-border/70 p-3 space-y-3">
-              <div className="text-xs text-muted-foreground">
-                Wijzig contactpersoon en e-mail direct voor <span className="font-medium">{selectedSupplier.naam || 'deze leverancier'}</span>.
-              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="material-share-contact-name">Contactpersoon</Label>
@@ -515,25 +883,26 @@ export function MaterialListExportDialog({
                   <Label htmlFor="material-share-email">
                     Ontvanger e-mail (contact: {String(contactName || '').trim() || 'niet ingevuld'})
                   </Label>
-                  <Input
-                    id="material-share-email"
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="inkoop@leverancier.nl"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="material-share-email"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="inkoop@leverancier.nl"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSaveSupplierContact}
+                      disabled={isSavingSupplier}
+                      aria-label="Contact opslaan"
+                    >
+                      {isSavingSupplier ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleSaveSupplierContact}
-                  disabled={isSavingSupplier}
-                >
-                  {isSavingSupplier ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Contact opslaan
-                </Button>
               </div>
             </div>
           )}
@@ -549,48 +918,6 @@ export function MaterialListExportDialog({
             </Label>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCopy}
-              disabled={!items.length}
-              className="gap-2"
-            >
-              <Copy className="h-4 w-4" />
-              Kopieer lijst
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleOpenMail}
-              disabled={!items.length || !hasSuppliers || !hasValidSelectedSupplier}
-              className="gap-2"
-            >
-              <Mail className="h-4 w-4" />
-              Open e-mail
-            </Button>
-            <Button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={!items.length || isPdfBusy}
-              className="gap-2"
-            >
-              {isPdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Download PDF
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="material-file-name">PDF bestandsnaam</Label>
-            <Input
-              id="material-file-name"
-              value={fileName}
-              onChange={(event) => setFileName(event.target.value)}
-              placeholder="Materiaallijst"
-            />
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="material-share-subject">Onderwerp</Label>
             <Input
@@ -604,7 +931,19 @@ export function MaterialListExportDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="material-share-body">E-mailtekst</Label>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="material-share-body">E-mailtekst</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleOpenTemplateEditor}
+                className="gap-2"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Edit sjabloon
+              </Button>
+            </div>
             <Textarea
               id="material-share-body"
               value={body}
@@ -612,25 +951,116 @@ export function MaterialListExportDialog({
                 setBodyTouched(true);
                 setBody(event.target.value);
               }}
-              className="min-h-[220px] resize-y"
+              className="min-h-[660px] resize-y"
             />
           </div>
         </div>
+        </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="sticky bottom-0 z-10 border-t border-border/70 bg-background/95 pt-3 backdrop-blur gap-2 sm:gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
             Sluiten
           </Button>
           <Button
             type="button"
+            variant="outline"
+            onClick={handleCopy}
+            disabled={!hasExportItems}
+            className="gap-2"
+          >
+            <Copy className="h-4 w-4" />
+            Kopieer lijst
+          </Button>
+          <Button
+            type="button"
             onClick={handleOpenMail}
-            disabled={!items.length || !hasSuppliers || !hasValidSelectedSupplier}
+            disabled={!hasExportItems || !hasSuppliers || !hasValidSelectedSupplier}
             className="gap-2"
           >
             <Mail className="h-4 w-4" />
             E-mail openen
           </Button>
+          <Button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={!hasExportItems || isPdfBusy}
+            className="gap-2"
+          >
+            {isPdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download PDF
+          </Button>
         </DialogFooter>
+
+        <Dialog open={isTemplateEditorOpen} onOpenChange={setIsTemplateEditorOpen}>
+          <DialogContent className="max-w-2xl w-[95vw] max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>E-mail sjabloon bewerken</DialogTitle>
+              <DialogDescription>
+                Sleep placeholders in de tekst of klik erop om in te voegen.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto space-y-4 py-2">
+              <div className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+                Voorbeeld placeholders: <code>{'{{AANHEF}}'}</code>, <code>{'{{MATERIAALLIJST}}'}</code>, <code>{'{{offerte_nummer}}'}</code>, <code>{'{{datum}}'}</code>.
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {TEMPLATE_PLACEHOLDERS.map((placeholder) => (
+                  <button
+                    key={placeholder.token}
+                    type="button"
+                    draggable
+                    onClick={() => handleInsertTemplateToken(placeholder.token)}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData('application/x-template-token', placeholder.token);
+                      event.dataTransfer.setData('text/plain', placeholder.token);
+                      event.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    className="rounded-md border border-border/70 bg-background px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="text-xs font-medium">{placeholder.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{placeholder.token}</div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="template-editor-textarea">Sjabloontekst</Label>
+                <Textarea
+                  id="template-editor-textarea"
+                  ref={templateTextareaRef}
+                  value={templateDraft}
+                  onChange={(event) => setTemplateDraft(event.target.value)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const token = event.dataTransfer.getData('application/x-template-token')
+                      || event.dataTransfer.getData('text/plain');
+                    if (!token) return;
+                    handleInsertTemplateToken(token, event.currentTarget.selectionStart, event.currentTarget.selectionEnd);
+                  }}
+                  className="min-h-[430px] resize-y"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsTemplateEditorOpen(false)}>
+                Annuleren
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveTemplateEditor}
+                disabled={isSavingTemplateEditor}
+                className="gap-2"
+              >
+                {isSavingTemplateEditor ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Sjabloon opslaan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

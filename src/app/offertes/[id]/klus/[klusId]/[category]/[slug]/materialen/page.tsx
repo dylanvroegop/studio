@@ -184,6 +184,19 @@ function formatNlMoneyFromNumber(n: number | null | undefined): string {
   return `${withDots},${d}`;
 }
 
+function splitAddressForMaterialExport(rawAddress: unknown): { straat: string; huisnummer: string } {
+  const address = String(rawAddress || '').trim();
+  if (!address) return { straat: '', huisnummer: '' };
+
+  const match = address.match(/^(.*?)(?:\s+(\d+\S*))$/);
+  if (!match) return { straat: address, huisnummer: '' };
+
+  return {
+    straat: String(match[1] || '').trim(),
+    huisnummer: String(match[2] || '').trim(),
+  };
+}
+
 function mergeSafetyAnswerIntoNaam(naam: string, antwoord: string): string {
   const cleanNaam = (naam || '').trim();
   const cleanAntwoord = (antwoord || '').trim();
@@ -1663,6 +1676,7 @@ export default function GenericMaterialsPageRedesigned() {
   });
   const [materialSuppliers, setMaterialSuppliers] = useState<LeverancierContact[]>([]);
   const [defaultMaterialSupplierId, setDefaultMaterialSupplierId] = useState('');
+  const [materialEmailTemplate, setMaterialEmailTemplate] = useState('');
 
   // Missing price dialog
   const [missingPriceItems, setMissingPriceItems] = useState<any[]>([]);
@@ -2069,6 +2083,21 @@ export default function GenericMaterialsPageRedesigned() {
     await saveMaterialSupplierSettings(nextSuppliers, newSupplier.id);
     return newSupplier.id;
   }, [materialSuppliers, saveMaterialSupplierSettings]);
+
+  const handleSaveMaterialEmailTemplate = useCallback(async (template: string): Promise<void> => {
+    if (!user || !firestore) {
+      throw new Error('Gebruiker of database niet beschikbaar.');
+    }
+
+    const normalizedTemplate = String(template || '').trim();
+    await setDoc(doc(firestore, 'users', user.uid), {
+      settings: {
+        materialListEmailTemplate: normalizedTemplate,
+      },
+    }, { merge: true });
+
+    setMaterialEmailTemplate(normalizedTemplate);
+  }, [user, firestore]);
 
   const orphanedComponents = components.filter((c) => {
     const normalizedType = normalizeComponentType(c.type);
@@ -3169,21 +3198,92 @@ export default function GenericMaterialsPageRedesigned() {
         const offerteNummer = String(data?.offerteNummer || '').trim();
         let senderCompanyName = '';
         let senderContactName = '';
+        let senderStreet = '';
+        let senderHouseNumber = '';
+        let senderAddress = '';
+        let senderPostalCode = '';
+        let senderCity = '';
+        let senderPhone = '';
+        let senderKvk = '';
+        let senderBtw = '';
 
         if (user) {
-          const userSettingsSnap = await getDoc(doc(firestore, 'users', user.uid));
+          const [userSettingsSnap, businessSnap] = await Promise.all([
+            getDoc(doc(firestore, 'users', user.uid)),
+            getDoc(doc(firestore, 'businesses', user.uid)),
+          ]);
           const rawSettings = userSettingsSnap.exists()
             ? (userSettingsSnap.data()?.settings || {})
             : {};
+          const rawBusiness = businessSnap.exists() ? (businessSnap.data() || {}) : {};
+          const splitSettingsAddress = splitAddressForMaterialExport(
+            rawSettings?.bedrijfsgegevens?.adress || rawSettings?.adres,
+          );
+          const splitBusinessAddress = splitAddressForMaterialExport(
+            rawBusiness?.bedrijfsgegevens?.adress || rawBusiness?.adres,
+          );
+
           senderCompanyName = String(rawSettings?.bedrijfsnaam || '').trim();
+          if (!senderCompanyName) {
+            senderCompanyName = String(rawBusiness?.bedrijfsnaam || '').trim();
+          }
           senderContactName = String(rawSettings?.contactNaam || '').trim();
+          if (!senderContactName) {
+            senderContactName = String(rawBusiness?.contactNaam || '').trim();
+          }
+          senderStreet = String(
+            rawSettings?.bedrijfsgegevens?.straat
+            || rawSettings?.adres
+            || splitSettingsAddress.straat
+            || rawBusiness?.bedrijfsgegevens?.straat
+            || splitBusinessAddress.straat
+            || '',
+          ).trim();
+          senderHouseNumber = String(
+            rawSettings?.bedrijfsgegevens?.huisnummer
+            || rawSettings?.huisnummer
+            || splitSettingsAddress.huisnummer
+            || rawBusiness?.bedrijfsgegevens?.huisnummer
+            || splitBusinessAddress.huisnummer
+            || '',
+          ).trim();
+          senderAddress = String(
+            rawSettings?.bedrijfsgegevens?.adress
+            || rawBusiness?.bedrijfsgegevens?.adress
+            || '',
+          ).trim();
+          if (!senderAddress) {
+            senderAddress = [senderStreet, senderHouseNumber].filter(Boolean).join(' ').trim();
+          }
+          senderPostalCode = String(
+            rawSettings?.bedrijfsgegevens?.postcode
+            || rawSettings?.postcode
+            || rawBusiness?.bedrijfsgegevens?.postcode
+            || rawBusiness?.postcode
+            || '',
+          ).trim();
+          senderCity = String(
+            rawSettings?.bedrijfsgegevens?.plaats
+            || rawSettings?.plaats
+            || rawBusiness?.bedrijfsgegevens?.plaats
+            || rawBusiness?.plaats
+            || rawBusiness?.city
+            || '',
+          ).trim();
+          senderPhone = String(rawSettings?.telefoon || rawBusiness?.telefoon || '').trim();
+          senderKvk = String(rawSettings?.kvkNummer || rawBusiness?.kvkNummer || '').trim();
+          senderBtw = String(rawSettings?.btwNummer || rawBusiness?.btwNummer || '').trim();
+
           const leveranciers = normalizeLeverancierContactList(rawSettings?.leveranciers);
           const defaultLeverancierId = pickDefaultLeverancierId(rawSettings?.defaultLeverancierId, leveranciers);
+          const savedMaterialEmailTemplate = String(rawSettings?.materialListEmailTemplate || '').trim();
           setMaterialSuppliers(leveranciers);
           setDefaultMaterialSupplierId(defaultLeverancierId);
+          setMaterialEmailTemplate(savedMaterialEmailTemplate);
         } else {
           setMaterialSuppliers([]);
           setDefaultMaterialSupplierId('');
+          setMaterialEmailTemplate('');
         }
 
         setMaterialExportMeta({
@@ -3191,6 +3291,14 @@ export default function GenericMaterialsPageRedesigned() {
           klantNaam,
           senderCompanyName,
           senderContactName,
+          senderAddress,
+          senderStreet,
+          senderHouseNumber,
+          senderPostalCode,
+          senderCity,
+          senderPhone,
+          senderKvk,
+          senderBtw,
         });
 
         if (klusNode) setKlus(klusNode as unknown as Job);
@@ -6566,6 +6674,8 @@ export default function GenericMaterialsPageRedesigned() {
         defaultSupplierId={defaultMaterialSupplierId}
         onUpdateSupplierContact={handleUpdateMaterialSupplierContact}
         onCreateSupplier={handleCreateMaterialSupplier}
+        savedEmailTemplate={materialEmailTemplate}
+        onSaveEmailTemplate={handleSaveMaterialEmailTemplate}
       />
 
       <Dialog open={presetPickerOpen} onOpenChange={setPresetPickerOpen}>

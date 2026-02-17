@@ -16,6 +16,14 @@ export interface MaterialListExportMeta {
   klantEmail?: string;
   senderCompanyName?: string;
   senderContactName?: string;
+  senderAddress?: string;
+  senderStreet?: string;
+  senderHouseNumber?: string;
+  senderPostalCode?: string;
+  senderCity?: string;
+  senderPhone?: string;
+  senderKvk?: string;
+  senderBtw?: string;
   createdAt?: Date;
 }
 
@@ -23,6 +31,11 @@ interface BuildMaterialListTextOptions {
   includePrices: boolean;
   meta?: MaterialListExportMeta;
   greetingName?: string;
+  includeSource?: boolean;
+}
+
+interface BuildMaterialListEmailOptions extends BuildMaterialListTextOptions {
+  emailTemplate?: string;
 }
 
 interface GenerateMaterialListPDFInput {
@@ -47,6 +60,75 @@ function clampToPositiveInteger(value: number): number {
 
 function safeString(value: unknown): string {
   return String(value ?? '').trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function replaceTemplateToken(template: string, aliases: string[], replacement: string): string {
+  let out = template;
+  aliases.forEach((alias) => {
+    const escapedAlias = escapeRegExp(alias);
+    const pattern = new RegExp(`\\{\\{\\s*${escapedAlias}\\s*\\}\\}`, 'gi');
+    out = out.replace(pattern, replacement);
+  });
+  return out;
+}
+
+interface SenderSignatureData {
+  contactName: string;
+  companyName: string;
+  addressLine: string;
+  postalCityLine: string;
+  phone: string;
+  kvk: string;
+  btw: string;
+  signatureLines: string[];
+}
+
+function buildSenderSignatureData(meta?: MaterialListExportMeta): SenderSignatureData {
+  const contactName = safeString(meta?.senderContactName);
+  const companyName = safeString(meta?.senderCompanyName);
+  const street = safeString(meta?.senderStreet);
+  const houseNumber = safeString(meta?.senderHouseNumber);
+  const addressLine = safeString(meta?.senderAddress) || [street, houseNumber].filter(Boolean).join(' ').trim();
+  const postalCityLine = [safeString(meta?.senderPostalCode), safeString(meta?.senderCity)].filter(Boolean).join(' ').trim();
+  const phone = safeString(meta?.senderPhone);
+  const kvk = safeString(meta?.senderKvk);
+  const btw = safeString(meta?.senderBtw);
+
+  const signatureBlocks = [
+    [contactName].filter(Boolean),
+    [companyName, addressLine, postalCityLine].filter(Boolean),
+    [
+      phone ? `Tel.: ${phone}` : '',
+      kvk ? `KVK nr. ${kvk}` : '',
+      btw ? `BTW nr.: ${btw}` : '',
+    ].filter(Boolean),
+  ].filter((block) => block.length > 0);
+
+  const signatureLines: string[] = [];
+  signatureBlocks.forEach((block, index) => {
+    if (index > 0) signatureLines.push('');
+    signatureLines.push(...block);
+  });
+
+  return {
+    contactName,
+    companyName,
+    addressLine,
+    postalCityLine,
+    phone,
+    kvk,
+    btw,
+    signatureLines,
+  };
+}
+
+interface BuildMaterialListRowsOptions {
+  includePrices: boolean;
+  includeSource?: boolean;
 }
 
 export function formatMaterialListCurrency(value: number | null | undefined): string {
@@ -82,7 +164,10 @@ export function buildMaterialListText(
   items: MaterialListExportItem[],
   options: BuildMaterialListTextOptions,
 ): string {
-  const includePrices = options.includePrices;
+  const rowsText = buildMaterialListRowsText(items, {
+    includePrices: options.includePrices,
+    includeSource: options.includeSource,
+  });
   const meta = options.meta;
   const title = safeString(meta?.klusTitel);
   const offerteNummer = safeString(meta?.offerteNummer);
@@ -96,42 +181,88 @@ export function buildMaterialListText(
     '',
   ].filter(Boolean);
 
+  return [...headerLines, rowsText].join('\n');
+}
+
+export function buildMaterialListRowsText(
+  items: MaterialListExportItem[],
+  options: BuildMaterialListRowsOptions,
+): string {
+  const includePrices = options.includePrices;
+  const includeSource = options.includeSource !== false;
+
   if (!items.length) {
-    return [...headerLines, 'Geen materialen geselecteerd.'].join('\n');
+    return 'Geen materialen geselecteerd.';
   }
 
   const body = items.map((item, index) => {
     const aantal = clampToPositiveInteger(item.aantal);
     const eenheid = safeString(item.eenheid) || 'stuk';
+    const sourcePart = includeSource ? ` | Bron: ${item.bron}` : '';
     const priceLine = includePrices
       ? ` | Prijs excl. btw: ${formatMaterialListCurrency(item.prijsExclBtw)}`
       : '';
-    return `${index + 1}. ${item.naam} | Aantal: ${aantal} ${eenheid} | Bron: ${item.bron}${priceLine}`;
+    return `${index + 1}. ${item.naam} | Aantal: ${aantal} ${eenheid}${sourcePart}${priceLine}`;
   });
 
-  return [...headerLines, ...body].join('\n');
+  return body.join('\n');
 }
 
 export function buildMaterialListEmailBody(
   items: MaterialListExportItem[],
-  options: BuildMaterialListTextOptions,
+  options: BuildMaterialListEmailOptions,
 ): string {
   const greetingName = safeString(options.greetingName);
   const introName = greetingName || 'team';
-  const senderCompanyName = safeString(options.meta?.senderCompanyName);
-  const senderContactName = safeString(options.meta?.senderContactName);
-  const signatureLines = [senderCompanyName, senderContactName].filter(Boolean);
-  const listText = buildMaterialListText(items, options);
+  const senderSignature = buildSenderSignatureData(options.meta);
+  const listText = buildMaterialListText(items, {
+    ...options,
+    includeSource: false,
+  });
+  const listRowsText = buildMaterialListRowsText(items, {
+    includePrices: options.includePrices,
+    includeSource: false,
+  });
+  const offerteNummer = safeString(options.meta?.offerteNummer);
+  const klusTitel = safeString(options.meta?.klusTitel);
+  const projectKlant = safeString(options.meta?.klantNaam);
+  const datum = toDutchDate(options.meta?.createdAt);
+  const emailTemplate = safeString(options.emailTemplate);
+
+  if (emailTemplate) {
+    const hasListToken = /\{\{\s*(materiaallijst|material_list)\s*\}\}/i.test(emailTemplate);
+    let rendered = emailTemplate;
+    rendered = replaceTemplateToken(rendered, ['aanhef', 'greeting_name'], introName);
+    rendered = replaceTemplateToken(rendered, ['materiaallijst', 'material_list'], listRowsText);
+    rendered = replaceTemplateToken(rendered, ['offerte_nummer', 'quote_number'], offerteNummer);
+    rendered = replaceTemplateToken(rendered, ['klus_titel', 'job_title'], klusTitel);
+    rendered = replaceTemplateToken(rendered, ['project_klant', 'client_name'], projectKlant);
+    rendered = replaceTemplateToken(rendered, ['datum', 'date'], datum);
+    rendered = replaceTemplateToken(rendered, ['bedrijfsnaam', 'sender_company'], senderSignature.companyName);
+    rendered = replaceTemplateToken(rendered, ['contactnaam', 'sender_contact'], senderSignature.contactName);
+    rendered = replaceTemplateToken(rendered, ['adresregel', 'address_line'], senderSignature.addressLine);
+    rendered = replaceTemplateToken(rendered, ['postcode_plaats', 'postal_city'], senderSignature.postalCityLine);
+    rendered = replaceTemplateToken(rendered, ['telefoon', 'phone'], senderSignature.phone);
+    rendered = replaceTemplateToken(rendered, ['kvk_nummer', 'kvk'], senderSignature.kvk);
+    rendered = replaceTemplateToken(rendered, ['btw_nummer', 'btw'], senderSignature.btw);
+
+    if (!hasListToken && !rendered.includes(listRowsText)) {
+      rendered = `${rendered.trim()}\n\n${listRowsText}`;
+    }
+
+    return rendered.trim();
+  }
 
   return [
     `Beste ${introName},`,
     '',
-    'Hierbij sturen we de materiaallijst.',
+    'Hierbij sturen we onze materiaallijst.',
+    'Zou u voor onderstaande materialen uw actuele prijzen (excl. btw) en verwachte levertijd met ons kunnen delen?',
     '',
     listText,
     '',
     'Met vriendelijke groet,',
-    ...signatureLines,
+    ...senderSignature.signatureLines,
   ].join('\n');
 }
 

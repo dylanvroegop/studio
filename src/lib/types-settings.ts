@@ -96,6 +96,7 @@ export interface UserSettings {
     // 6. Leveranciers voor materiaallijst-export
     leveranciers: LeverancierContact[];
     defaultLeverancierId: string;
+    materialListEmailTemplate?: string;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -142,7 +143,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
         workDays: [1, 2, 3, 4, 5]
     },
     leveranciers: [],
-    defaultLeverancierId: ''
+    defaultLeverancierId: '',
+    materialListEmailTemplate: ''
 };
 
 const safeString = (value: unknown): string => String(value ?? '').trim();
