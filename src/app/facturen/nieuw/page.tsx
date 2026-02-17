@@ -175,6 +175,7 @@ function NieuweFactuurPageContent() {
           <div className="flex items-center gap-4">
             <div>
               <div className="flex items-center gap-3">
+                <ReceiptText className="h-5 w-5 text-emerald-400" />
                 <h1 className="text-xl font-bold text-foreground">Nieuwe factuur</h1>
                 <span className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1">Facturen</span>
               </div>

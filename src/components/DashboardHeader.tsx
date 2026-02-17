@@ -1,7 +1,21 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, LogOut } from 'lucide-react';
+import {
+  Archive,
+  Boxes,
+  CalendarDays,
+  ChevronDown,
+  Clock3,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  ReceiptText,
+  Settings,
+  StickyNote,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, User } from 'firebase/auth';
@@ -58,6 +72,83 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
   }, [profileName, user?.displayName, user?.email]);
   const showBrandLogo = pathname === '/dashboard';
 
+  const titleIconMeta = useMemo(() => {
+    if (pathname.startsWith('/dashboard')) {
+      return {
+        icon: LayoutDashboard,
+        iconClassName: 'text-sky-400',
+      };
+    }
+    if (pathname.startsWith('/offertes')) {
+      return {
+        icon: FileText,
+        iconClassName: 'text-cyan-400',
+      };
+    }
+    if (pathname.startsWith('/facturen')) {
+      return {
+        icon: ReceiptText,
+        iconClassName: 'text-emerald-400',
+      };
+    }
+    if (pathname.startsWith('/meerwerkbon')) {
+      return {
+        icon: FileText,
+        iconClassName: 'text-amber-400',
+      };
+    }
+    if (pathname.startsWith('/winst')) {
+      return {
+        icon: TrendingUp,
+        iconClassName: 'text-lime-400',
+      };
+    }
+    if (pathname.startsWith('/planning')) {
+      return {
+        icon: CalendarDays,
+        iconClassName: 'text-violet-400',
+      };
+    }
+    if (pathname.startsWith('/materialen')) {
+      return {
+        icon: Boxes,
+        iconClassName: 'text-orange-400',
+      };
+    }
+    if (pathname.startsWith('/klanten')) {
+      return {
+        icon: Users,
+        iconClassName: 'text-blue-400',
+      };
+    }
+    if (pathname.startsWith('/urenregistratie')) {
+      return {
+        icon: Clock3,
+        iconClassName: 'text-indigo-400',
+      };
+    }
+    if (pathname.startsWith('/notities')) {
+      return {
+        icon: StickyNote,
+        iconClassName: 'text-rose-400',
+      };
+    }
+    if (pathname.startsWith('/archief')) {
+      return {
+        icon: Archive,
+        iconClassName: 'text-zinc-400',
+      };
+    }
+    if (pathname.startsWith('/instellingen')) {
+      return {
+        icon: Settings,
+        iconClassName: 'text-purple-400',
+      };
+    }
+    return null;
+  }, [pathname]);
+  const TitleIcon = titleIconMeta?.icon;
+
   const handleLogout = async () => {
     if (!auth) {
       toast({
@@ -92,7 +183,12 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
       {/* Center: Title */}
       {title && (
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
+          <div className="flex items-center gap-2">
+            {TitleIcon && titleIconMeta && (
+              <TitleIcon className={`h-5 w-5 ${titleIconMeta.iconClassName}`} />
+            )}
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
+          </div>
         </div>
       )}
 

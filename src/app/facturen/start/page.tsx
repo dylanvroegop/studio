@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { collection, getDocs, query, Timestamp, where } from 'firebase/firestore';
-import { ArrowLeft, FileText, Loader2, Plus, Search } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Plus, ReceiptText, Search } from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
@@ -128,6 +128,7 @@ export default function StartFactuurPage() {
       <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
+            <ReceiptText className="h-5 w-5 text-emerald-400" />
             <h1 className="text-xl font-bold text-foreground">Nieuwe factuur</h1>
             <span className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1">Facturen</span>
           </div>
@@ -146,7 +147,7 @@ export default function StartFactuurPage() {
             <Button
               type="button"
               variant="outline"
-              className="gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+              className="gap-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25"
               onClick={() => router.push('/offertes/nieuw')}
             >
               <Plus className="h-4 w-4" />
@@ -157,7 +158,7 @@ export default function StartFactuurPage() {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-cyan-400" />
+                <FileText className="h-5 w-5 text-emerald-400" />
                 Kies een offerte voor facturatie
               </CardTitle>
             </CardHeader>
@@ -191,7 +192,7 @@ export default function StartFactuurPage() {
                       <div
                         key={q.id}
                         className={cn(
-                          'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-l-cyan-500/70 border-white/5 bg-card/40 px-5 py-4',
+                          'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-l-emerald-500/70 border-white/5 bg-card/40 px-5 py-4',
                           'hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md'
                         )}
                       >
@@ -216,7 +217,7 @@ export default function StartFactuurPage() {
                           <Button
                             type="button"
                             variant="outline"
-                            className="h-9 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                            className="h-9 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
                             disabled={disabled}
                             onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=voorschot`)}
                           >

@@ -332,6 +332,14 @@ export default function GenericMeasurementPage() {
   const klusId = params.klusId as string;
   const categorySlug = params.category as string;
   const jobSlug = params.slug as string;
+  const normalizedJobSlug = String(jobSlug || '').trim().toLowerCase();
+  const isVoorzetwandParityJob = [
+    'hsb-voorzetwand',
+    'metalstud-voorzetwand',
+    'hsb-tussenwand',
+    'hbs-buiten-wand',
+    'hsb-buiten-wand',
+  ].includes(normalizedJobSlug);
   const isMaatwerkKozijn = jobSlug === 'maatwerk-kozijnen';
   const specificJobConfig = getJobConfig(jobSlug);
 
@@ -362,22 +370,28 @@ export default function GenericMeasurementPage() {
     (jobSlug && (jobSlug.includes('voorzetwand') || jobSlug.includes('tussenwand') || jobSlug.includes('scheidingswand') || jobSlug.includes('gevelbekleding')))
   );
   const isCeilingCategory = Boolean(categorySlug === 'plafonds' || (jobSlug && jobSlug.includes('plafond')));
+  const isGipsPlafondJob = normalizedJobSlug === 'plafond-houten-framework' || normalizedJobSlug === 'plafond-metalstud';
   const isRoofCategory = categorySlug === 'dakrenovatie' || (jobSlug && (jobSlug.includes('dak') || jobSlug.includes('hellend') || jobSlug.includes('epdm')));
   const isHellendDak = !!jobSlug && jobSlug.includes('hellend-dak');
   const isGolfplaatDak = jobSlug === 'golfplaat-dak';
   const isEpdmDak = jobSlug === 'epdm-dakbedekking';
-  const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
-  const isVoorzetwandParity = !!jobSlug && (
-    jobSlug.includes('hsb-voorzetwand') ||
-    jobSlug.includes('metalstud-voorzetwand') ||
-    jobSlug.includes('hsb-tussenwand')
+  const isBoeiboord = Boolean(
+    categorySlug === 'boeiboorden'
+    || categorySlug === 'boeidelen'
+    || normalizedJobSlug.includes('boeiboord')
+    || normalizedJobSlug.includes('boeidelen')
   );
+  const isVoorzetwandParity = isVoorzetwandParityJob;
   const isNadenVullenJob = [
     'hsb-voorzetwand',
     'metalstud-voorzetwand',
     'hsb-tussenwand',
     'metalstud-tussenwand',
-  ].includes(jobSlug);
+    'hbs-buiten-wand',
+    'hsb-buiten-wand',
+    'plafond-houten-framework',
+    'plafond-metalstud',
+  ].includes(normalizedJobSlug);
   const isGevelbekleding = categorySlug === 'gevelbekleding' || (jobSlug && jobSlug.includes('gevelbekleding'));
   const isGevelbekledingKeralit = jobSlug === 'gevelbekleding-keralit';
   const isSchutting = categorySlug === 'schutting' || (jobSlug && jobSlug.includes('schutting'));
@@ -387,6 +401,8 @@ export default function GenericMeasurementPage() {
   const showVensterbankSection = specificJobConfig.sections.includes('vensterbanken');
   const showDagkantSection = specificJobConfig.sections.includes('dagkanten');
   const GLAS_MAATWERK_OFFSET_MM = 5;
+  const DEFAULT_VLIZOTRAP_OPENING_WIDTH_MM = 1200;
+  const DEFAULT_VLIZOTRAP_OPENING_HEIGHT_MM = 700;
 
   // 3. State: Array of Item Objects
   const [items, setItems] = useState<Record<string, any>[]>([]);
@@ -508,6 +524,20 @@ export default function GenericMeasurementPage() {
       ['tuinpoort', 'poortframe', 'stalen frame']
     );
   }, [materialenLijstSnapshot]);
+  const hasCeilingFrameMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['balklaag', 'randhout', 'randprofielen', 'draagprofielen'],
+      ['balklaag', 'randprofiel', 'draagprofiel']
+    );
+  }, [materialenLijstSnapshot]);
+  const hasBoeiboordBalklaagMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['balklaag'],
+      ['balklaag']
+    );
+  }, [materialenLijstSnapshot]);
   const hasGevelKoofMaterialFromPreviousPage = useMemo(() => {
     return hasMaterialInSnapshotBySection(
       materialenLijstSnapshot,
@@ -565,6 +595,13 @@ export default function GenericMeasurementPage() {
       ['daktrim']
     );
   }, [materialenLijstSnapshot]);
+  const hasBoeiboordDaktrimMaterialFromPreviousPage = useMemo(() => {
+    return hasMaterialInSnapshotBySection(
+      materialenLijstSnapshot,
+      ['daktrim'],
+      ['daktrim']
+    );
+  }, [materialenLijstSnapshot]);
   const hasKozijnMaterialFromPreviousPage = useMemo(() => {
     return hasMaterialInSnapshotBySection(
       materialenLijstSnapshot,
@@ -579,7 +616,11 @@ export default function GenericMeasurementPage() {
       ['deurblad']
     );
   }, [materialenLijstSnapshot]);
-  const showKoofSectionInUI = showKoofSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelKoofMaterialFromPreviousPage);
+  const hasExistingKoofEntries = useMemo(
+    () => items.some((item) => Array.isArray(item?.koven) && item.koven.length > 0),
+    [items]
+  );
+  const showKoofSectionInUI = showKoofSection && (hasGevelKoofMaterialFromPreviousPage || hasExistingKoofEntries);
   const showVensterbankSectionInUI = showVensterbankSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelVensterbankMaterialFromPreviousPage);
   const showDagkantSectionInUI = showDagkantSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelDagkantMaterialFromPreviousPage);
   const showStucwerkSectionInUI = isNadenVullenJob && hasNadenStucMaterialFromPreviousPage;
@@ -719,6 +760,29 @@ export default function GenericMeasurementPage() {
       .map(part => parseFloat(part.replace(',', '.')))
       .filter(n => Number.isFinite(n))
       .map(n => n * factor);
+  };
+
+  const normalizeVlizotrapOpeningDefaults = (opening: any) => {
+    if (!opening || typeof opening !== 'object') return opening;
+    if (String(opening.type || '').trim().toLowerCase() !== 'vlizotrap') return opening;
+
+    const widthMm = parseDimToMm(opening.width);
+    const heightMm = parseDimToMm(opening.height);
+    const hasValidWidth = widthMm !== null && widthMm >= 200;
+    const hasValidHeight = heightMm !== null && heightMm >= 200;
+
+    const normalized = {
+      ...opening,
+      width: hasValidWidth ? widthMm : DEFAULT_VLIZOTRAP_OPENING_WIDTH_MM,
+      height: hasValidHeight ? heightMm : DEFAULT_VLIZOTRAP_OPENING_HEIGHT_MM,
+      requires_raveelwerk: true,
+    };
+
+    if (normalized.autoSource) {
+      delete normalized.autoSource;
+    }
+
+    return normalized;
   };
 
   const buildRangeMm = (minRaw: any, maxRaw: any, fallbackRaw?: any): { min: number | null; max: number | null } => {
@@ -1852,22 +1916,6 @@ export default function GenericMeasurementPage() {
     });
   };
 
-  const findVlizotrapMaterial = (container: any) => {
-    const materialenLijst = container?.materialen?.materialen_lijst || {};
-    let found: any = null;
-    Object.values(materialenLijst).forEach((entry: any) => {
-      if (!entry || !entry.material) return;
-      const sectionKey = entry.sectionKey || entry.material?.sectionKey;
-      const categorie = entry.material?.categorie;
-      const naam = entry.material?.materiaalnaam || '';
-      const keyMatch = sectionKey === 'trap' || sectionKey === 'vlizotrap' || sectionKey === 'vlizotrap_unit';
-      const catMatch = typeof categorie === 'string' && categorie.toLowerCase().includes('vlieringtrap');
-      const nameMatch = typeof naam === 'string' && naam.toLowerCase().includes('vlizotrap');
-      if (keyMatch || catMatch || nameMatch) found = entry.material;
-    });
-    return found;
-  };
-
   const findKozijnhoutMaterial = (container: any) => {
     const materialenLijst = container?.materialen?.materialen_lijst || {};
     let found: any = null;
@@ -1896,7 +1944,15 @@ export default function GenericMeasurementPage() {
     Object.values(materialenLijst).forEach((entry: any) => {
       if (!entry || !entry.material) return;
       const sectionKey = entry.sectionKey || entry.material?.sectionKey;
-      if (sectionKey === 'balklaag') found = entry.material;
+      const normalizedSectionKey = String(sectionKey || '').trim().toLowerCase();
+      if (
+        normalizedSectionKey === 'balklaag'
+        || normalizedSectionKey === 'randhout'
+        || normalizedSectionKey === 'randprofielen'
+        || normalizedSectionKey === 'draagprofielen'
+      ) {
+        found = entry.material;
+      }
     });
     return found;
   };
@@ -1913,8 +1969,7 @@ export default function GenericMeasurementPage() {
   };
 
   const applyCeilingBalkafstandDefault = (item: any, hasBalklaagMaterial: boolean) => {
-    const isCeilingJob = jobSlug === 'plafond-houten-framework' || jobSlug === 'plafond-metalstud';
-    if (!isCeilingJob || !hasBalklaagMaterial) return item;
+    if (!isGipsPlafondJob || !hasBalklaagMaterial) return item;
     const current = item?.balkafstand;
     if (current === undefined || current === null || current === '') {
       return { ...item, balkafstand: 600 };
@@ -1923,7 +1978,7 @@ export default function GenericMeasurementPage() {
   };
 
   const applyVoorzetwandBalkafstandDefault = (item: any) => {
-    const isVoorzetwand = jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand' || jobSlug === 'hsb-tussenwand';
+    const isVoorzetwand = isVoorzetwandParityJob;
     if (!isVoorzetwand) return item;
     const current = item?.balkafstand;
     if (current === undefined || current === null || current === '') {
@@ -1990,50 +2045,30 @@ export default function GenericMeasurementPage() {
     return next;
   };
 
+  const applyBoeiboordConstructieDefaults = (
+    item: any,
+    hasBalklaagMaterial: boolean,
+    hasDaktrimMaterial: boolean
+  ) => {
+    if (!isBoeiboord) return item;
+    const next = { ...item };
 
+    next.show_balklaag = hasBalklaagMaterial;
 
-  const syncVlizotrapOpening = (item: any, material: any) => {
-    if (!showOpeningsSection) return item;
-    const openings = Array.isArray(item.openings) ? [...item.openings] : [];
-    const autoIndex = openings.findIndex((op: any) => op?.autoSource === 'vlizotrap_material');
-    const widthMm = parseDimToMm(material?.breedte);
-    const heightMm = parseDimToMm(material?.lengte);
-
-    if (!material || !widthMm || !heightMm) {
-      if (autoIndex !== -1) openings.splice(autoIndex, 1);
-      return { ...item, openings };
-    }
-
-    if (autoIndex === -1) {
-      const len = Number(item.lengte) || 0;
-      const br = Number(item.breedte) || 0;
-      const fromLeft = len > 0 ? Math.max(0, (len - widthMm) / 2) : 0;
-      const fromBottom = br > 0 ? Math.max(0, (br - heightMm) / 2) : 0;
-      openings.push({
-        id: crypto.randomUUID(),
-        type: 'vlizotrap',
-        width: widthMm,
-        height: heightMm,
-        fromLeft,
-        fromBottom,
-        autoSource: 'vlizotrap_material',
-        sourceMaterialId: material?.row_id || material?.id || null,
-      });
+    if (hasDaktrimMaterial) {
+      if (typeof next.show_daktrim !== 'boolean') {
+        next.show_daktrim = true;
+      }
+      if (next.daktrim_position !== 'top' && next.daktrim_position !== 'bottom') {
+        next.daktrim_position = 'top';
+      }
     } else {
-      const existing = openings[autoIndex];
-      openings[autoIndex] = {
-        ...existing,
-        type: 'vlizotrap',
-        width: widthMm,
-        height: heightMm,
-        autoSource: 'vlizotrap_material',
-        sourceMaterialId: material?.row_id || material?.id || existing?.sourceMaterialId || null,
-      };
+      next.show_daktrim = false;
+      delete next.daktrim_position;
     }
 
-    return { ...item, openings };
+    return next;
   };
-
   // Sync with Firestore preferences
   useEffect(() => {
     if (!user || !firestore) return;
@@ -2101,8 +2136,11 @@ export default function GenericMeasurementPage() {
 
     hasAppliedPendingOpeningIntentRef.current = true;
     const openingIntentContext = { quoteId, klusId, categorySlug, jobSlug };
+    const canApplyIntent = pendingOpeningIntent === 'vlizotrap'
+      ? showOpeningsSectionInUI
+      : (isNadenVullenJob && showOpeningsSectionInUI);
 
-    if (!isNadenVullenJob || !showOpeningsSectionInUI) {
+    if (!canApplyIntent) {
       clearMeasurementOpeningIntent(openingIntentContext);
       setPendingOpeningIntent(null);
       return;
@@ -2118,9 +2156,20 @@ export default function GenericMeasurementPage() {
     setItems((prev) => {
       if (prev.length === 0) return prev;
 
-      const openingByIntent: Record<MeasurementOpeningIntent, { type: 'frame-inner' | 'door'; width: number; height: number; fromBottom: number }> = {
+      const openingByIntent: Record<MeasurementOpeningIntent, {
+        type: 'frame-inner' | 'door' | 'vlizotrap';
+        width: number;
+        height: number;
+        fromBottom: number;
+      }> = {
         'frame-inner': { type: 'frame-inner', width: 930, height: 2115, fromBottom: 0 },
         'door': { type: 'door', width: 830, height: 2015, fromBottom: 0 },
+        'vlizotrap': {
+          type: 'vlizotrap',
+          width: DEFAULT_VLIZOTRAP_OPENING_WIDTH_MM,
+          height: DEFAULT_VLIZOTRAP_OPENING_HEIGHT_MM,
+          fromBottom: 1000,
+        },
       };
       const openingPreset = openingByIntent[pendingOpeningIntent];
 
@@ -2141,6 +2190,7 @@ export default function GenericMeasurementPage() {
                 height: openingPreset.height,
                 fromLeft: 1000,
                 fromBottom: openingPreset.fromBottom,
+                requires_raveelwerk: openingPreset.type === 'vlizotrap' ? true : undefined,
               },
             ],
           }
@@ -2236,6 +2286,16 @@ export default function GenericMeasurementPage() {
             ['keralit_daktrim', 'daktrim'],
             ['daktrim']
           );
+          const hasBoeiboordBalklaagMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['balklaag'],
+            ['balklaag']
+          );
+          const hasBoeiboordDaktrimMaterialInContainer = hasMaterialInSnapshotBySection(
+            materialenLijstInContainer,
+            ['daktrim'],
+            ['daktrim']
+          );
           const floorProfileCountFieldsInContainer: Array<{ fieldKey: string; enabled: boolean }> = [];
           if (jobSlug === 'massief-houten-vloer') {
             floorProfileCountFieldsInContainer.push(
@@ -2252,7 +2312,6 @@ export default function GenericMeasurementPage() {
             );
           }
           const maatwerk = container.maatwerk;
-          const vlizotrapMaterial = findVlizotrapMaterial(container);
           const kozijnhoutMaterial = isMaatwerkKozijn ? findKozijnhoutMaterial(container) : null;
           const tussenstijlMaterial = isMaatwerkKozijn ? findTussenstijlMaterial(container) : null;
           const balklaagMaterial = findBalklaagMaterial(container);
@@ -2283,7 +2342,7 @@ export default function GenericMeasurementPage() {
                   if (op.openingHeight !== undefined && op.height === undefined) {
                     normalizedOpening.height = op.openingHeight;
                   }
-                  return normalizedOpening;
+                  return normalizeVlizotrapOpeningDefaults(normalizedOpening);
                 });
               }
 
@@ -2314,9 +2373,15 @@ export default function GenericMeasurementPage() {
                 }
               }
 
+              if (Array.isArray(normalizedItem.openings)) {
+                normalizedItem.openings = normalizedItem.openings.map((opening: any) =>
+                  normalizeVlizotrapOpeningDefaults(opening)
+                );
+              }
+
 
               // Data Migration for HSB Voorzetwand
-              if (jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand' || jobSlug === 'hsb-tussenwand') {
+              if (isVoorzetwandParityJob) {
 
                 // Move single objects to arrays if they exist
                 if (normalizedItem.koof_lengte !== undefined && normalizedItem.koven.length === 0) {
@@ -2435,16 +2500,21 @@ export default function GenericMeasurementPage() {
 
               return sanitizeItemBySections(normalizedItem);
             });
-            const withVlizotrap = vlizotrapMaterial
-              ? normalizedItems.map((item: any) => syncVlizotrapOpening(item, vlizotrapMaterial))
-              : normalizedItems;
+            const withVlizotrap = normalizedItems;
             const withBalkafstandDefaults = withVlizotrap.map((item: any) =>
               applyVoorzetwandBalkafstandDefault(applyCeilingBalkafstandDefault(item, !!balklaagMaterial))
             );
             const withGevelDefaults = withBalkafstandDefaults.map((item: any) =>
               applyGevelConstructieDefaults(item, hasGevelTengelMaterialInContainer, hasGevelDaktrimMaterialInContainer)
             );
-            const withDakpanDefaults = withGevelDefaults.map((item: any) =>
+            const withBoeiboordDefaults = withGevelDefaults.map((item: any) =>
+              applyBoeiboordConstructieDefaults(
+                item,
+                hasBoeiboordBalklaagMaterialInContainer,
+                hasBoeiboordDaktrimMaterialInContainer
+              )
+            );
+            const withDakpanDefaults = withBoeiboordDefaults.map((item: any) =>
               applyHellendDakDefaultsFromDakpan(item, dakpanMaten)
             );
             const withGolfplaatAuto = withDakpanDefaults.map((item: any) =>
@@ -2461,9 +2531,7 @@ export default function GenericMeasurementPage() {
                 hasHwaUitloopMaterial: hasHwaUitloopMaterialInContainer,
               }
             });
-            const withVlizotrap = vlizotrapMaterial
-              ? syncVlizotrapOpening(emptyItem, vlizotrapMaterial)
-              : emptyItem;
+            const withVlizotrap = emptyItem;
             const withBalkafstandDefaults = applyVoorzetwandBalkafstandDefault(
               applyCeilingBalkafstandDefault(withVlizotrap, !!balklaagMaterial)
             );
@@ -2472,7 +2540,12 @@ export default function GenericMeasurementPage() {
               hasGevelTengelMaterialInContainer,
               hasGevelDaktrimMaterialInContainer
             );
-            const withDakpanDefaults = applyHellendDakDefaultsFromDakpan(withGevelDefaults, dakpanMaten);
+            const withBoeiboordDefaults = applyBoeiboordConstructieDefaults(
+              withGevelDefaults,
+              hasBoeiboordBalklaagMaterialInContainer,
+              hasBoeiboordDaktrimMaterialInContainer
+            );
+            const withDakpanDefaults = applyHellendDakDefaultsFromDakpan(withBoeiboordDefaults, dakpanMaten);
             const withGolfplaatAuto = applyGolfplaatDakverdelingAuto(withDakpanDefaults);
             setItems([withGolfplaatAuto]);
           }
@@ -2568,7 +2641,12 @@ export default function GenericMeasurementPage() {
       hasGevelTengelMaterialFromPreviousPage,
       hasGevelDaktrimMaterialFromPreviousPage
     );
-    const newItem = applyHellendDakDefaultsFromDakpan(withGevelDefaults, dakpanWerkendeMaten);
+    const withBoeiboordDefaults = applyBoeiboordConstructieDefaults(
+      withGevelDefaults,
+      hasBoeiboordBalklaagMaterialFromPreviousPage,
+      hasBoeiboordDaktrimMaterialFromPreviousPage
+    );
+    const newItem = applyHellendDakDefaultsFromDakpan(withBoeiboordDefaults, dakpanWerkendeMaten);
     setItems(prev => [...prev, newItem]);
   };
 
@@ -2647,6 +2725,11 @@ export default function GenericMeasurementPage() {
         newItem,
         hasGevelTengelMaterialFromPreviousPage,
         hasGevelDaktrimMaterialFromPreviousPage
+      );
+      newItem = applyBoeiboordConstructieDefaults(
+        newItem,
+        hasBoeiboordBalklaagMaterialFromPreviousPage,
+        hasBoeiboordDaktrimMaterialFromPreviousPage
       );
       if (isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'werkende_breedte_mm', 'werkende_hoogte_mm', 'halfLatafstandFromBottom'].includes(key)) {
         newItem = applyHellendDakAutoCalculations(newItem, { onlyWhenEmpty: false, syncLatafstand: true });
@@ -3031,6 +3114,85 @@ export default function GenericMeasurementPage() {
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">mm</span>
               </div>
               <p className="text-[11px] text-zinc-500">Automatisch gevuld vanuit breedte.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderBoeiboordDaktrimSection = (item: Record<string, any>, index: number) => {
+    if (!isBoeiboord || !hasBoeiboordDaktrimMaterialFromPreviousPage) return null;
+
+    const sectionKey = `boeiboord-daktrim-${index}`;
+    const isCollapsed = collapsedSections[sectionKey] !== false;
+    const isVisible = item.show_daktrim !== false;
+    const daktrimPosition = item.daktrim_position === 'bottom' ? 'bottom' : 'top';
+    const summary = !isVisible ? 'Uit' : (daktrimPosition === 'bottom' ? 'Onderzijde' : 'Bovenzijde');
+
+    return (
+      <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
+        <div
+          className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+          onClick={() => toggleCollapsed(sectionKey)}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-zinc-200">Daktrim</span>
+            {isCollapsed && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                {summary}
+              </span>
+            )}
+          </div>
+          <div className="text-zinc-500">
+            {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </div>
+        </div>
+
+        {!isCollapsed && (
+          <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+            <div className="pt-2 border-t border-white/5 space-y-3">
+              <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
+                <Label className="text-[11px] text-zinc-300">Toon daktrim</Label>
+                <Switch
+                  checked={isVisible}
+                  onCheckedChange={(checked) => updateItem(index, 'show_daktrim', checked)}
+                  disabled={disabledAll}
+                  className="scale-75 origin-right"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Positie</Label>
+                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                  <button
+                    type="button"
+                    disabled={disabledAll || !isVisible}
+                    onClick={() => updateItem(index, 'daktrim_position', 'top')}
+                    className={cn(
+                      "flex-1 text-xs py-1.5 rounded transition-colors disabled:opacity-40",
+                      daktrimPosition === 'top'
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                  >
+                    Bovenzijde
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabledAll || !isVisible}
+                    onClick={() => updateItem(index, 'daktrim_position', 'bottom')}
+                    className={cn(
+                      "flex-1 text-xs py-1.5 rounded transition-colors disabled:opacity-40",
+                      daktrimPosition === 'bottom'
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                  >
+                    Onderzijde
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -5461,7 +5623,7 @@ export default function GenericMeasurementPage() {
                         )}
 
                         {/* Balken Configuration */}
-                        {!isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (
+                        {!isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (!isGipsPlafondJob || hasCeilingFrameMaterialFromPreviousPage) && (
                           <BalkenSection
                             balkafstand={item.balkafstand}
                             startFromRight={item.startFromRight}
@@ -5764,7 +5926,10 @@ export default function GenericMeasurementPage() {
                           </div>
                         );
 
-                        const balkenSection = !isGevelbekleding && fields.find(f => f.key === 'balkafstand') && (
+                        const balkenSection = !isGevelbekleding
+                          && fields.find(f => f.key === 'balkafstand')
+                          && (!isGipsPlafondJob || hasCeilingFrameMaterialFromPreviousPage)
+                          && (!isBoeiboord || hasBoeiboordBalklaagMaterialFromPreviousPage) && (
                           <BalkenSection
                             balkafstand={item.balkafstand}
                             startFromRight={item.startFromRight}
@@ -5788,6 +5953,7 @@ export default function GenericMeasurementPage() {
                             <>
                               {lattenSection}
                               {balkenSection}
+                              {renderBoeiboordDaktrimSection(item, index)}
                               {renderTrespaNaadSection(index)}
                             </>
                           );
@@ -5880,18 +6046,17 @@ export default function GenericMeasurementPage() {
                                 const hasNadenVerbruikValues =
                                   !isEmptyValue(item.naden_vullen_verbruik_per_m2) ||
                                   !isEmptyValue(item.naden_afwerken_verbruik_per_m2);
-                                const hasAfwerkingChoice =
-                                  item.naden_vullen_afwerking === 'behangklaar' ||
-                                  item.naden_vullen_afwerking === 'schilderklaar';
-                                const shouldShowBadge =
-                                  hasNadenVerbruikValues ||
-                                  (hasNadenStucMaterialFromPreviousPage && hasAfwerkingChoice);
+                                const afwerkingLabel =
+                                  item.naden_vullen_afwerking === 'schilderklaar'
+                                    ? 'Schilderklaar'
+                                    : item.naden_vullen_afwerking === 'behangklaar'
+                                      ? 'Behangklaar'
+                                      : null;
+                                const shouldShowBadge = Boolean(afwerkingLabel) || hasNadenVerbruikValues;
                                 if (!shouldShowBadge) return null;
                                 return (
                                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                    {hasNadenVerbruikValues
-                                      ? 'Ingesteld'
-                                      : (item.naden_vullen_afwerking === 'schilderklaar' ? 'Schilderklaar' : 'Behangklaar')}
+                                    {afwerkingLabel ?? 'Ingesteld'}
                                   </span>
                                 );
                               })()}
@@ -6269,7 +6434,12 @@ export default function GenericMeasurementPage() {
                       <VisualizerController
                         category={categorySlug}
                         slug={jobSlug}
-                        item={item}
+                        item={{
+                          ...item,
+                          show_balklaag: hasBoeiboordBalklaagMaterialFromPreviousPage,
+                          show_daktrim: item.show_daktrim ?? hasBoeiboordDaktrimMaterialFromPreviousPage,
+                          daktrim_position: item.daktrim_position === 'bottom' ? 'bottom' : 'top',
+                        }}
                         fields={fields}
                         showOnderplaten={hasOpsluitbandenMaterialFromPreviousPage}
                         title={`${itemLabel} ${index + 1}`}
@@ -6308,7 +6478,11 @@ export default function GenericMeasurementPage() {
                           <VisualizerController
                             category={categorySlug}
                             slug={jobSlug}
-                            item={item}
+                            item={{
+                              ...item,
+                              show_daktrim: isGevelbekleding ? hasGevelDaktrimMaterialFromPreviousPage : Boolean(item.show_daktrim),
+                              daktrim_position: item.daktrim_position || 'top',
+                            }}
                             fields={fields}
                             showOnderplaten={hasOpsluitbandenMaterialFromPreviousPage}
                             title={`${itemLabel} ${index + 1}`}

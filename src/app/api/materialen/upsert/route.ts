@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { getDefaultTemplateUidOrThrow } from '@/lib/bootstrap-defaults';
 import { parsePriceToNumber } from '@/lib/utils';
 import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
 
@@ -29,6 +30,7 @@ type Body = {
   // UI vs DB
   categorie?: unknown;  // DB
   subsectie?: unknown;  // UI (legacy)
+  sub_categorie?: unknown; // DB alias
 
   // Frontend stuurt soms beide mee; in jouw DB bestaat alleen row_id
   row_id?: unknown;
@@ -210,6 +212,7 @@ const MAIN_MATERIAL_LIST_COLUMNS = new Set<string>([
   'prijs_incl_btw',
   'prijs_excl_btw',
   'categorie',
+  'sub_categorie',
   'leverancier',
   'lengte',
   'breedte',
@@ -225,6 +228,10 @@ const MAIN_MATERIAL_LIST_COLUMNS = new Set<string>([
 function toMainMaterialListPayload(payload: Record<string, unknown>): Record<string, unknown> {
   const cleanPayload: Record<string, unknown> = {};
   Object.entries(payload).forEach(([key, value]) => {
+    if (key === 'subsectie') {
+      cleanPayload.sub_categorie = value;
+      return;
+    }
     if (!MAIN_MATERIAL_LIST_COLUMNS.has(key)) return;
     cleanPayload[key] = value;
   });
@@ -664,9 +671,11 @@ export async function POST(req: Request) {
     const eenheid = normalizeString(body.eenheid);
     const { prijsExcl: prijsExclNum, prijsIncl: prijsInclNum } = resolveCanonicalPrices(body);
 
-    const categorie =
-      normalizeString(body.categorie) ??
-      normalizeString(body.subsectie);
+    const categorie = normalizeString(body.categorie);
+    const subsectie =
+      normalizeString(body.subsectie) ??
+      normalizeString(body.sub_categorie);
+    const effectiveCategorie = categorie ?? subsectie;
 
     const leverancier = normalizeString(body.leverancier);
     const lengte = normalizeString(body.lengte);
@@ -730,7 +739,8 @@ export async function POST(req: Request) {
       prijs_incl_btw: prijsInclSafe,
       prijs_excl_btw: prijsExclNum,
     };
-    if (categorie) payload.categorie = categorie;
+    if (effectiveCategorie) payload.categorie = effectiveCategorie;
+    if (subsectie) payload.subsectie = subsectie;
     if (leverancier) payload.leverancier = leverancier;
     if (lengte) payload.lengte = lengte;
     if (breedte) payload.breedte = breedte;
@@ -781,13 +791,14 @@ export async function POST(req: Request) {
       data = upd.data;
 
       if (!data) {
-        // Fallback: clone source row from another owned catalog (never NULL-owner),
+        // Fallback: clone source row from the dedicated template catalog,
         // then persist as this user's row.
+        const templateUid = getDefaultTemplateUidOrThrow();
         const source = await supabaseAdmin
           .from('main_material_list')
           .select('*')
           .eq('row_id', incomingRowId)
-          .neq('gebruikerid', uid)
+          .eq('gebruikerid', templateUid)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();

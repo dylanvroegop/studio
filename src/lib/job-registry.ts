@@ -654,8 +654,8 @@ const DEUR_SCHUIF_MATS: MaterialSection[] = [
 
 const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 1. HOUT & CONSTRUCTIE (FRAMEWERK)
-  { label: 'Balklaag', categoryFilter: 'Vuren hout', category: 'hout', key: 'randhout', category_ultra_filter: '' },
-  { label: 'Rachelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachels', category_ultra_filter: '' },
+  { label: 'Balklaag', categoryFilter: 'Vuren hout', category: 'hout', key: 'randhout', category_ultra_filter: 'Ribben' },
+  { label: 'Rachelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'rachels', category_ultra_filter: 'Rachels' },
 
   // 2. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
@@ -667,11 +667,11 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 4. ELEKTRA (RUWBOUW)
 
   // 6. ISOLATIE & FOLIES
-  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: 'Dampremmend' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 7. BEPLATING
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: 'Gipsplaten' },
 
   // 8. AFWERKEN (TIMMERWERK)
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
@@ -700,11 +700,11 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   // 4. ELEKTRA (RUWBOUW)
 
   // 6. ISOLATIE & FOLIES
-  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
+  { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: 'Dampremmend' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 7. BEPLATING
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: 'Gipsplaten' },
 
   // 8. AFWERKEN (TIMMERWERK)
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
@@ -947,7 +947,7 @@ const DAK_EPDM_MATS: MaterialSection[] = [
   { label: 'Dakrand balk', categoryFilter: 'Vuren hout', category: 'dakrand', key: 'dakrand_balk', category_ultra_filter: '' },
 
   // 3. AFWERKING & DETAILS
-  { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
+  { label: 'Daktrim', categoryFilter: 'Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
   { label: 'Daktrim Hoeken', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim_hoeken', category_ultra_filter: '' },
   { label: 'Dakgoot', categoryFilter: 'Ubbink, Overig', category: 'dakgoot_hwa', key: 'dakgoot', category_ultra_filter: '' },
   { label: 'HWA', categoryFilter: 'Ubbink, Overig', category: 'dakgoot_hwa', key: 'hwa', category_ultra_filter: '' },
@@ -982,6 +982,7 @@ const DAK_GOLFPLAAT_MATS: MaterialSection[] = [
 const BOEIBOORD_ROCKPANEL_MATS: MaterialSection[] = [
   // 1. CONSTRUCTIE
   { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+  { label: 'Balklaag', categoryFilter: 'Vuren hout', category: 'hout', key: 'balklaag', category_ultra_filter: 'Balken' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
@@ -1004,20 +1005,21 @@ const BOEIBOORD_ROCKPANEL_MATS: MaterialSection[] = [
 const BOEIBOORD_TRESPA_MATS: MaterialSection[] = [
   // 1. CONSTRUCTIE
   { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+  { label: 'Balklaag', categoryFilter: 'Vuren hout', category: 'hout', key: 'balklaag', category_ultra_filter: 'Balken' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
 
   // 3. BEKLEDING
-  { label: 'Trespa / HPL Plaat', categoryFilter: 'Trespa, Exterieur platen', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },
+  { label: 'Trespa / HPL Plaat', categoryFilter: 'Trespa', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },
 
   // 4. AFWERKING
-  { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
-  { label: 'Voegband', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'voegband', category_ultra_filter: '' },
-  { label: 'Eindprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'eindprofiel', category_ultra_filter: '' },
-  { label: 'Afwerkprofielen', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'afwerk_profiel', category_ultra_filter: '' },
-  { label: 'Trespa schroeven', categoryFilter: 'Golfplaten, Overig', category: 'afwerking', key: 'bevestiging', category_ultra_filter: '' },
+  { label: 'Ventilatieprofiel', categoryFilter: 'Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
+  { label: 'Voegband', categoryFilter: 'Overig', category: 'afwerking', key: 'voegband', category_ultra_filter: '' },
+  { label: 'Eindprofiel', categoryFilter: 'Overig', category: 'afwerking', key: 'eindprofiel', category_ultra_filter: '' },
+  { label: 'Afwerkprofielen', categoryFilter: 'Overig', category: 'afwerking', key: 'afwerk_profiel', category_ultra_filter: '' },
+  { label: 'Trespa schroeven', categoryFilter: 'Overig', category: 'afwerking', key: 'bevestiging', category_ultra_filter: '' },
 
   // 5. DAKTRIM
   { label: 'Daktrim', categoryFilter: 'Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
@@ -1026,6 +1028,7 @@ const BOEIBOORD_TRESPA_MATS: MaterialSection[] = [
 const BOEIBOORD_HOUT_MATS: MaterialSection[] = [
   // 1. CONSTRUCTIE
   { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+  { label: 'Balklaag', categoryFilter: 'Vuren hout', category: 'hout', key: 'balklaag', category_ultra_filter: 'Balken' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
@@ -1048,6 +1051,7 @@ const BOEIBOORD_HOUT_MATS: MaterialSection[] = [
 const BOEIBOORD_KERALIT_MATS: MaterialSection[] = [
   // 1. CONSTRUCTIE
   { label: 'Regelwerk / Achterhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+  { label: 'Balklaag', categoryFilter: 'Vuren hout', category: 'hout', key: 'balklaag', category_ultra_filter: 'Balken' },
 
   // 2. ISOLATIE & FOLIES
   { label: 'Folies', categoryFilter: 'Folieën', category: 'isolatie', key: 'folie_buiten', category_ultra_filter: '' },
@@ -1108,8 +1112,8 @@ const GEVEL_BEKLEDING_KERALIT_MATS: MaterialSection[] = [
 
 const GEVEL_BEKLEDING_TRESPA_MATS: MaterialSection[] = [
   ...GEVEL_BEKLEDING_BASE_MATS,
-  { label: 'Volkern/HPL Plaat', categoryFilter: 'Trespa, Rockpanel, Exterieur platen', category: 'gevel_plaat', key: 'gevelplaat', category_ultra_filter: '' },
-  { label: 'Waterslagen', categoryFilter: 'Trespa, Rockpanel, Exterieur platen', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
+  { label: 'Volkern/HPL Plaat', categoryFilter: 'Trespa', category: 'gevel_plaat', key: 'gevelplaat', category_ultra_filter: '' },
+  { label: 'Waterslagen', categoryFilter: 'Overig', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
   { label: 'Daktrim', categoryFilter: 'Trespa, Rockpanel, Exterieur platen', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
   ...GEVEL_BEKLEDING_AFWERKING_MATS,
 ];
@@ -1265,7 +1269,7 @@ const TRAPRENOVATIE_OVERZETTREDEN_MATS: MaterialSection[] = [
 ];
 
 const VLIZOTRAP_MATS: MaterialSection[] = [
-  { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: 'subcat:balken', multiEntry: true, maxEntries: 1 },
+  { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: 'Balken', multiEntry: true, maxEntries: 1 },
   { label: 'Vlizotrap (Complete set)', categoryFilter: 'Vlieringtrappen', category: 'basis', key: 'trap', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Zolderluik', categoryFilter: 'Overig', category: 'basis', key: 'luik', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Veiligheidshek', categoryFilter: 'Overig', category: 'veiligheid', key: 'traphek', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
@@ -1274,7 +1278,7 @@ const VLIZOTRAP_MATS: MaterialSection[] = [
   { label: 'Grendel / Sluiting', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'sluiting', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Zelfsluitende veer', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'veer', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
   { label: 'Handgreep', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'handgreep', category_ultra_filter: '', multiEntry: true, maxEntries: 1 },
-  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'architraaf', category_ultra_filter: 'subcat:koplat', multiEntry: true, maxEntries: 1 },
+  { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'architraaf', category_ultra_filter: 'koplatten', multiEntry: true, maxEntries: 1 },
 ];
 
 const NIEUWE_TRAP_PLAATSEN_MATS: MaterialSection[] = [
@@ -1581,10 +1585,10 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
       },
       {
         title: 'HSB Buiten Wand',
-        description: 'Volledige gevelopbouw incl. bekleding',
+        description: 'Volledige gevelopbouw',
         slug: 'HBS-buiten-wand',
         measurementLabel: 'Wand',
-        measurements: WALL_FIELDS,
+        measurements: HSB_VOORZETWAND_FIELDS,
         materialSections: HSB_BUITENWAND_MATS,
         categoryConfig: {
           hout: { title: 'Framewerk', order: 1 },

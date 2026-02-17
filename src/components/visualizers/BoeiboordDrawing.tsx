@@ -25,6 +25,8 @@ interface BoeiboordDrawingProps {
     boeiboordAngle?: number;
     boeiboordMirror?: boolean;
     mirrorBadgeText?: string;
+    showDaktrim?: boolean;
+    daktrimPosition?: 'top' | 'bottom';
     fitContainer?: boolean;
     className?: string;
     shape?: 'rectangle' | 'slope' | 'gable';
@@ -51,6 +53,8 @@ export function BoeiboordDrawing({
     boeiboordAngle,
     boeiboordMirror,
     mirrorBadgeText,
+    showDaktrim = false,
+    daktrimPosition = 'top',
     fitContainer,
     className,
     shape,
@@ -222,6 +226,37 @@ export function BoeiboordDrawing({
 
                         const midX = startX + rectW / 2;
                         const yBottom = startY + rectH;
+                        const daktrimAccent = 'rgb(245, 158, 11)';
+                        const resolvedDaktrimPosition = daktrimPosition === 'bottom' ? 'bottom' : 'top';
+                        const daktrimLineInsetPx = Math.max(1, Math.min(4, pxPerMm * 6));
+                        const daktrimY = resolvedDaktrimPosition === 'bottom'
+                            ? startY + rectH - daktrimLineInsetPx
+                            : startY + daktrimLineInsetPx;
+                        const daktrimLabelY = resolvedDaktrimPosition === 'bottom'
+                            ? daktrimY - 10
+                            : daktrimY + 10;
+                        const daktrimOverlay = showDaktrim ? (
+                            <g pointerEvents="none" opacity={0.95}>
+                                <line
+                                    x1={startX + daktrimLineInsetPx}
+                                    y1={daktrimY}
+                                    x2={startX + rectW - daktrimLineInsetPx}
+                                    y2={daktrimY}
+                                    stroke={daktrimAccent}
+                                    strokeWidth={1}
+                                />
+                                <text
+                                    x={startX + rectW / 2}
+                                    y={daktrimLabelY}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    fill={daktrimAccent}
+                                    style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
+                                >
+                                    DAKTRIM
+                                </text>
+                            </g>
+                        ) : null;
 
                         const dashProps = {
                             stroke: structureColor,
@@ -679,6 +714,7 @@ export function BoeiboordDrawing({
                                                 lengte
                                             )}
                                         </g>
+                                        {daktrimOverlay}
 
                                         {title && (
                                             <text
@@ -794,6 +830,7 @@ export function BoeiboordDrawing({
                                                 lengthOffset
                                             )}
                                         </g>
+                                        {daktrimOverlay}
 
                                         {title && (
                                             <text
@@ -1003,6 +1040,7 @@ export function BoeiboordDrawing({
                                         opacity="0.35"
                                     />
                                 )}
+                                {daktrimOverlay}
 
                                 {/* Beam grid dims (top) */}
                                 <GridMeasurements gaps={gridGaps} svgBaseYTop={startY} />

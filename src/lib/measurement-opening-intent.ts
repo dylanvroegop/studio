@@ -1,4 +1,4 @@
-export type MeasurementOpeningIntent = 'frame-inner' | 'door';
+export type MeasurementOpeningIntent = 'frame-inner' | 'door' | 'vlizotrap';
 
 interface MeasurementOpeningIntentContext {
   quoteId: string;
@@ -10,7 +10,7 @@ interface MeasurementOpeningIntentContext {
 const STORAGE_KEY_PREFIX = 'offertehulp:auto-opening-intent';
 
 const normalizeIntent = (value: string | null): MeasurementOpeningIntent | null => {
-  if (value === 'frame-inner' || value === 'door') return value;
+  if (value === 'frame-inner' || value === 'door' || value === 'vlizotrap') return value;
   return null;
 };
 

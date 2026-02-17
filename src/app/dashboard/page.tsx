@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   collection,
@@ -175,6 +175,7 @@ export default function DashboardPage() {
   const [invoicesReady, setInvoicesReady] = useState(false);
   const [planningReady, setPlanningReady] = useState(false);
   const [showWebsitePromo, setShowWebsitePromo] = useState(false);
+  const bootstrapAttemptedForUidRef = useRef<string | null>(null);
 
   const loading = !quotesReady || !invoicesReady || !planningReady;
 
@@ -191,6 +192,40 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (bootstrapAttemptedForUidRef.current === user.uid) return;
+    bootstrapAttemptedForUidRef.current = user.uid;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        if (cancelled) return;
+
+        const response = await fetch('/api/onboarding/bootstrap-defaults', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const message = payload?.message || `HTTP ${response.status}`;
+          console.warn('Onboarding bootstrap failed:', message);
+        }
+      } catch (error) {
+        console.warn('Onboarding bootstrap failed:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(WEBSITE_PROMO_DISMISS_KEY);

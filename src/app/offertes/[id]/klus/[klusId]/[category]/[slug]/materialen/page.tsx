@@ -1391,6 +1391,7 @@ export default function GenericMaterialsPageRedesigned() {
   const jobSlug = params.slug as string;
   const isSchuttingHoutJob = categorySlug === 'schutting' && jobSlug === 'schutting-hout';
   const isGevelbekledingJob = categorySlug === 'gevelbekleding' || jobSlug.includes('gevelbekleding');
+  const isBoeiboordJob = categorySlug === 'boeidelen' || categorySlug === 'boeiboorden' || jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord');
   const specificJobConfig = getJobConfig(jobSlug);
   const showOpeningsSection = specificJobConfig.sections.includes('openingen');
 
@@ -2575,6 +2576,11 @@ export default function GenericMaterialsPageRedesigned() {
       setMeasurementOpeningIntent(
         { quoteId, klusId, categorySlug, jobSlug },
         'door'
+      );
+    } else if (type === 'vlizotrap') {
+      setMeasurementOpeningIntent(
+        { quoteId, klusId, categorySlug, jobSlug },
+        'vlizotrap'
       );
     }
 
@@ -5576,7 +5582,21 @@ export default function GenericMaterialsPageRedesigned() {
       ? `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`
       : `/offertes/${quoteId}/overzicht`;
 
-    if (hasMeasurements && components.some((comp) => comp.type === 'kozijn')) {
+    const hasVlizotrapComponent = components.some((comp) => comp.type === 'vlizotrap');
+    const hasDeurComponent = components.some((comp) => comp.type === 'deur');
+    const hasKozijnComponent = components.some((comp) => comp.type === 'kozijn');
+
+    if (hasMeasurements && hasVlizotrapComponent) {
+      setMeasurementOpeningIntent(
+        { quoteId, klusId, categorySlug, jobSlug },
+        'vlizotrap'
+      );
+    } else if (hasMeasurements && hasDeurComponent) {
+      setMeasurementOpeningIntent(
+        { quoteId, klusId, categorySlug, jobSlug },
+        'door'
+      );
+    } else if (hasMeasurements && hasKozijnComponent) {
       setMeasurementOpeningIntent(
         { quoteId, klusId, categorySlug, jobSlug },
         'frame-inner'
@@ -5726,7 +5746,11 @@ export default function GenericMaterialsPageRedesigned() {
                   || jobSlug.includes('hellend')
                   || jobSlug.includes('plat')
                   || jobSlug.includes('gevelbekleding')
+                  || jobSlug.includes('boeiboord')
+                  || jobSlug.includes('boeidelen')
                   || categorySlug === 'gevelbekleding'
+                  || categorySlug === 'boeiboorden'
+                  || categorySlug === 'boeidelen'
                 );
                 const isCeilingJob = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
                 const isBoeiboordSection = (keyA === 'boeiboord' || (keyA as string).toLowerCase() === 'boeiboorden');
@@ -5740,7 +5764,7 @@ export default function GenericMaterialsPageRedesigned() {
                   (keyA === 'boeiboord' || (keyA as string).toLowerCase() === 'boeiboorden') ||
                   keyA === 'Installatie' || keyA === 'Schakelmateriaal' ||
                   keyA === 'Dagkant' || keyA === 'Vensterbank' ||
-                  (isGevelbekledingJob && (keyA as string).toLowerCase() === 'daktrim')
+                  ((isGevelbekledingJob || isBoeiboordJob) && (keyA as string).toLowerCase() === 'daktrim')
                 )) || (isCeilingJob && (isVlizotrapSectionA || keyA === 'Koof' || keyA === 'Installatie' || keyA === 'Schakelmateriaal')) || (keyA === 'gips_afwerking') ||
                   (keyA === 'isolatie' && (categorySlug === 'boeidelen' || categorySlug === 'boeiboorden' || jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord')));
 
@@ -5751,7 +5775,7 @@ export default function GenericMaterialsPageRedesigned() {
                   (keyB === 'boeiboord' || (keyB as string).toLowerCase() === 'boeiboorden') ||
                   keyB === 'Installatie' || keyB === 'Schakelmateriaal' ||
                   keyB === 'Dagkant' || keyB === 'Vensterbank' ||
-                  (isGevelbekledingJob && (keyB as string).toLowerCase() === 'daktrim')
+                  ((isGevelbekledingJob || isBoeiboordJob) && (keyB as string).toLowerCase() === 'daktrim')
                 )) || (isCeilingJob && (isVlizotrapSectionB || keyB === 'Koof' || keyB === 'Installatie' || keyB === 'Schakelmateriaal')) || (keyB === 'gips_afwerking') ||
                   (keyB === 'isolatie' && (
                     categorySlug === 'boeidelen' ||
@@ -5779,7 +5803,11 @@ export default function GenericMaterialsPageRedesigned() {
                   || jobSlug.includes('hellend')
                   || jobSlug.includes('plat')
                   || jobSlug.includes('gevelbekleding')
+                  || jobSlug.includes('boeiboord')
+                  || jobSlug.includes('boeidelen')
                   || categorySlug === 'gevelbekleding'
+                  || categorySlug === 'boeiboorden'
+                  || categorySlug === 'boeidelen'
                 );
                 const isCeilingJob = (jobSlug.includes('plafond') || jobSlug.includes('vliering') || jobSlug.includes('bergzolder') || categorySlug === 'plafonds');
 
@@ -5800,7 +5828,6 @@ export default function GenericMaterialsPageRedesigned() {
 
                 // 3. Guards (Prevents Global Fallback Pollution)
                 if (isBoeiboordSection) {
-                  const isBoeiboordJob = jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord') || categorySlug === 'boeidelen' || categorySlug === 'boeiboorden';
                   // Force return null if not a boeiboord job
                   if (!isBoeiboordJob) return null;
                 }
@@ -5815,7 +5842,6 @@ export default function GenericMaterialsPageRedesigned() {
                 if (isKozijnenSection && allowDoorComponents) targetComponentType = 'kozijn';
                 else if (isDeurenSection && allowDoorComponents) targetComponentType = 'deur';
                 else if (isBoeiboordSection) {
-                  const isBoeiboordJob = jobSlug.includes('boeidelen') || jobSlug.includes('boeiboord') || categorySlug === 'boeidelen' || categorySlug === 'boeiboorden';
                   if (isBoeiboordJob) targetComponentType = 'boeiboord';
                 }
                 else if (isKoofSection) targetComponentType = 'koof';
@@ -5823,7 +5849,7 @@ export default function GenericMaterialsPageRedesigned() {
                 else if (isDagkantSection && allowDoorComponents) targetComponentType = 'dagkant';
                 else if (isVensterbankSection && isGevelbekledingJob) targetComponentType = 'waterslag';
                 else if (isVensterbankSection && allowDoorComponents) targetComponentType = 'vensterbank';
-                else if (isDaktrimSection && isGevelbekledingJob) targetComponentType = 'daktrim';
+                else if (isDaktrimSection && (isGevelbekledingJob || isBoeiboordJob)) targetComponentType = 'daktrim';
                 else if (isVlizotrapSection) targetComponentType = 'vlizotrap';
                 else if (isPlafondSection) targetComponentType = 'plafond';
                 else if (isGipsSection) targetComponentType = 'gips';

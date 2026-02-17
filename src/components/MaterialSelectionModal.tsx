@@ -403,6 +403,7 @@ export function MaterialSelectionModal({
   const [customEenheid, setCustomEenheid] = useState<string>('');
   const [customPrijs, setCustomPrijs] = useState<string>('');
   const [customPrijsExclBtw, setCustomPrijsExclBtw] = useState<string>('');
+  const [customCategorie, setCustomCategorie] = useState<string>('');
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>('');
   const [safetyDialogOpen, setSafetyDialogOpen] = useState(false);
@@ -413,6 +414,7 @@ export function MaterialSelectionModal({
 
   // --- AUTOCOMPLETE FOCUS STATES ---
   const [categorieDropdownOpen, setCategorieDropdownOpen] = useState(false);
+  const [subsectieDropdownOpen, setSubsectieDropdownOpen] = useState(false);
   const [leverancierDropdownOpen, setLeverancierDropdownOpen] = useState(false);
 
   const subCategoryPreferenceScope = useMemo(() => {
@@ -470,6 +472,7 @@ export function MaterialSelectionModal({
       setCustomEenheid('stuk');
       setCustomPrijs('');
       setCustomPrijsExclBtw('');
+      setCustomCategorie('');
       setCustomSubsectie('');
       setCustomLeverancier('');
       setSafetyDialogOpen(false);
@@ -566,6 +569,18 @@ export function MaterialSelectionModal({
     if (!categoryFilter || categoryFilter === 'all') return '';
     return categoryFilter;
   }, [categoryFilter]);
+
+  const selectedSubCategoryForNewMaterial = useMemo(() => {
+    const selected = subCategoryFilter === 'all'
+      ? []
+      : Array.isArray(subCategoryFilter)
+        ? subCategoryFilter
+        : [subCategoryFilter];
+
+    const explicitSelections = selected.filter((value) => value !== FAVORITE_SUBCATEGORY_FILTER);
+    if (explicitSelections.length === 1) return explicitSelections[0];
+    return '';
+  }, [subCategoryFilter]);
 
   const quickFilteredCategories = useMemo(() => {
     const query = quickCategorySearchTerm.trim().toLowerCase();
@@ -705,11 +720,44 @@ export function MaterialSelectionModal({
   };
 
   // Filtered autocomplete suggestions based on current input
+  const formSubsectionOptions = useMemo(() => {
+    const options = new Set<string>();
+    const normalizedFormCategory = normalizeFilterValue(customCategorie);
+    const normalizedSelectedCategory = normalizeFilterValue(selectedCategoryForNewMaterial);
+
+    const sourceMaterials = normalizedFormCategory
+      ? existingMaterials.filter((material) =>
+        isLooseFilterMatch(getMaterialMainCategory(material), normalizedFormCategory)
+      )
+      : normalizedSelectedCategory
+        ? existingMaterials.filter((material) =>
+          isLooseFilterMatch(getMaterialMainCategory(material), normalizedSelectedCategory)
+        )
+        : existingMaterials;
+
+    sourceMaterials.forEach((material) => {
+      const subCategory = getMaterialSubCategory(material);
+      if (subCategory) options.add(subCategory);
+    });
+
+    if (selectedSubCategoryForNewMaterial) {
+      options.add(selectedSubCategoryForNewMaterial);
+    }
+
+    return Array.from(options).sort((a, b) => a.localeCompare(b, 'nl'));
+  }, [existingMaterials, customCategorie, selectedCategoryForNewMaterial, selectedSubCategoryForNewMaterial]);
+
   const filteredCategories = useMemo(() => {
-    if (!customSubsectie.trim()) return formCategoryOptions;
-    const lower = customSubsectie.toLowerCase();
+    if (!customCategorie.trim()) return formCategoryOptions;
+    const lower = customCategorie.toLowerCase();
     return formCategoryOptions.filter(cat => cat.toLowerCase().includes(lower));
-  }, [formCategoryOptions, customSubsectie]);
+  }, [formCategoryOptions, customCategorie]);
+
+  const filteredSubsecties = useMemo(() => {
+    if (!customSubsectie.trim()) return formSubsectionOptions;
+    const lower = customSubsectie.toLowerCase();
+    return formSubsectionOptions.filter((sub) => sub.toLowerCase().includes(lower));
+  }, [formSubsectionOptions, customSubsectie]);
 
   const filteredLeveranciers = useMemo(() => {
     if (!customLeverancier.trim()) return uniqueLeveranciers;
@@ -1072,9 +1120,11 @@ export function MaterialSelectionModal({
           payload.verbruik_per_m2 = verbruikPerM2Value;
         }
       }
-      const categorie = customSubsectie.trim();
+      const categorie = customCategorie.trim();
+      const subsectie = customSubsectie.trim();
       const leverancier = customLeverancier.trim();
       if (categorie) payload.categorie = categorie;
+      if (subsectie) payload.subsectie = subsectie;
       if (leverancier) payload.leverancier = leverancier;
       if (shouldRunInBackground && backgroundClientId) {
         payload.pending_id = backgroundClientId;
@@ -1264,7 +1314,8 @@ export function MaterialSelectionModal({
     setCustomPrijs(formatPriceInput(priceIncl));
     setCustomPrijsExclBtw(formatPriceInput(priceExcl));
 
-    setCustomSubsectie(mat.categorie || mat.subsectie || '');
+    setCustomCategorie(mat.categorie || '');
+    setCustomSubsectie(mat.subsectie || (mat as any).sub_categorie || '');
     setCustomLeverancier(mat.leverancier || '');
 
     setStep('form');
@@ -1655,7 +1706,8 @@ export function MaterialSelectionModal({
                           setCustomEenheid('stuk');
                           setCustomPrijs('');
                           setCustomPrijsExclBtw('');
-                          setCustomSubsectie(selectedCategoryForNewMaterial || '');
+                          setCustomCategorie(selectedCategoryForNewMaterial || '');
+                          setCustomSubsectie(selectedSubCategoryForNewMaterial || '');
                           setCustomLeverancier('');
                           setStep('form');
                         }}
@@ -1958,13 +2010,13 @@ export function MaterialSelectionModal({
                 </div>
 
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Categorie (optioneel)</div>
                     <div className="relative">
                       <Input
-                        value={customSubsectie}
-                        onChange={(e) => setCustomSubsectie(e.target.value)}
+                        value={customCategorie}
+                        onChange={(e) => setCustomCategorie(e.target.value)}
                         onFocus={() => setCategorieDropdownOpen(true)}
                         onBlur={() => setTimeout(() => setCategorieDropdownOpen(false), 150)}
                         placeholder="Bijv. Balkhout"
@@ -1986,10 +2038,47 @@ export function MaterialSelectionModal({
                             <button
                               key={cat}
                               type="button"
-                              onMouseDown={(e) => { e.preventDefault(); setCustomSubsectie(cat); setCategorieDropdownOpen(false); }}
+                              onMouseDown={(e) => { e.preventDefault(); setCustomCategorie(cat); setCategorieDropdownOpen(false); }}
                               className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
                               {cat}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Subsectie (optioneel)</div>
+                    <div className="relative">
+                      <Input
+                        value={customSubsectie}
+                        onChange={(e) => setCustomSubsectie(e.target.value)}
+                        onFocus={() => setSubsectieDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setSubsectieDropdownOpen(false), 150)}
+                        placeholder="Bijv. Ribben"
+                        autoComplete="off"
+                        className={formSubsectionOptions.length > 0 ? "pr-10" : ""}
+                      />
+                      {formSubsectionOptions.length > 0 && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); setSubsectieDropdownOpen(!subsectieDropdownOpen); }}
+                          className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      )}
+                      {subsectieDropdownOpen && filteredSubsecties.length > 0 && (
+                        <div className="absolute z-50 bottom-full left-0 right-0 mb-1 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
+                          {filteredSubsecties.map((subsectie) => (
+                            <button
+                              key={subsectie}
+                              type="button"
+                              onMouseDown={(e) => { e.preventDefault(); setCustomSubsectie(subsectie); setSubsectieDropdownOpen(false); }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                            >
+                              {subsectie}
                             </button>
                           ))}
                         </div>

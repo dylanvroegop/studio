@@ -12,7 +12,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
@@ -1451,6 +1451,15 @@ export default function QuotePage() {
         ...materials.verbruik.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0)
     ].length;
 
+    const handleMainTabChange = (nextTab: string) => {
+        if (nextTab === 'compare') {
+            setActiveTab('materialen');
+            void handleCompareLastThreeGrootPrices();
+            return;
+        }
+        setActiveTab(nextTab);
+    };
+
     // Calculate totals when data is available
     const totals = normalizedData && quoteSettings
         ? calculateQuoteTotals({
@@ -2076,6 +2085,7 @@ export default function QuotePage() {
                     <div className="flex items-center gap-4">
                         <div>
                             <div className="flex items-center gap-3">
+                                <FileText className="h-5 w-5 text-cyan-400" />
                                 <h1 className="text-xl font-bold text-foreground">
                                     Offerte {(quote as any)?.offerteNummer || 'Concept'}
                                 </h1>
@@ -2150,7 +2160,7 @@ export default function QuotePage() {
                         </Button>
                     </div>
                 ) : (
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                    <Tabs value={activeTab} onValueChange={handleMainTabChange} className="space-y-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
                             <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
                                 <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
@@ -2175,9 +2185,22 @@ export default function QuotePage() {
                                 <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <FileText size={16} /> PDF Preview
                                 </TabsTrigger>
+                                <TabsTrigger value="werkbeschrijving" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <ClipboardList size={16} /> Werkbeschrijving
+                                </TabsTrigger>
                                 <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <MessageSquare size={16} /> Notities
                                 </TabsTrigger>
+                                {isDevUser && (
+                                    <TabsTrigger
+                                        value="compare"
+                                        disabled={isComparingGrootPrices}
+                                        className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                    >
+                                        {isComparingGrootPrices ? <Loader2 size={16} className="animate-spin" /> : <Eye size={16} />}
+                                        Compare
+                                    </TabsTrigger>
+                                )}
                             </TabsList>
 
                             {activeTab === 'pdf' && (
@@ -2380,9 +2403,6 @@ export default function QuotePage() {
                                             </CardContent>
                                         </Card>
                                     )}
-
-                                    {/* Work Description */}
-                                    <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
                                 </div>
                             )}
                         </TabsContent>
@@ -2392,7 +2412,7 @@ export default function QuotePage() {
                         </TabsContent>
 
                         {/* Materialen Tab */}
-                        <TabsContent value="materialen" className="mt-6 space-y-6">
+                        <TabsContent value="materialen" className="mt-6 space-y-6 pb-32">
                             {loading ? (
                                 <LoadingPanel />
                             ) : !calculation?.data_json ? (
@@ -2462,56 +2482,6 @@ export default function QuotePage() {
                                             </Button>
                                         </div>
                                     </div>
-
-                                    {/* Total materials summary */}
-                                    <div className="bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm mb-8">
-                                        <div className="flex justify-between items-center px-6 py-4 bg-muted/20">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
-                                                    <Package size={18} />
-                                                </div>
-                                                <h3 className="font-semibold text-foreground tracking-tight text-sm uppercase">TOTAAL MATERIALEN</h3>
-                                            </div>
-                                            <div className="flex items-center">
-                                                <div className="text-right w-32 px-6">
-                                                    <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
-                                                    <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(excl. btw)</p>
-                                                    <p className="text-primary font-bold tracking-tight">
-                                                        {formatCurrency(grootSubtotal + verbruikSubtotal)}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right w-32 px-6">
-                                                    <p className="text-[10px] text-muted-foreground uppercase font-bold leading-tight">Totaal</p>
-                                                    <p className="text-[9px] text-zinc-400 uppercase font-medium leading-tight mb-1">(incl. btw)</p>
-                                                    <p className="text-primary font-bold tracking-tight">
-                                                        {formatCurrency((grootSubtotal + verbruikSubtotal) * (1 + (quoteSettings?.btwTarief || 21) / 100))}
-                                                    </p>
-                                                </div>
-                                                {/* Spacer to align with trash icon column */}
-                                                <div className="w-12" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {isDevUser && (
-                                        <div className="mb-3 flex items-center justify-end">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 text-xs"
-                                                onClick={handleCompareLastThreeGrootPrices}
-                                                disabled={isComparingGrootPrices}
-                                            >
-                                                {isComparingGrootPrices ? (
-                                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                    <Eye className="mr-2 h-3.5 w-3.5" />
-                                                )}
-                                                Compare huidige + 2 offertes materialen (groot + verbruik): aantal + totaal
-                                            </Button>
-                                        </div>
-                                    )}
 
                                     <MaterialEditor
                                         title="GROOTMATERIALEN"
@@ -2801,6 +2771,14 @@ export default function QuotePage() {
                             )}
                         </TabsContent>
 
+                        <TabsContent value="werkbeschrijving" className="mt-6">
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : (
+                                <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
+                            )}
+                        </TabsContent>
+
                         {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
                         <TabsContent value="notities" className="mt-6">
                             {loading ? (
@@ -2821,6 +2799,43 @@ export default function QuotePage() {
                                 </div>
                             )}
                         </TabsContent>
+
+                        {activeTab === 'materialen' && !!calculation?.data_json && (
+                            <div className="quote-materials-sticky-footer fixed bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm">
+                                <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6">
+                                    <div className="rounded-xl border border-border/70 bg-card/90 px-4 py-2 shadow-lg">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <div className="w-6 h-6 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+                                                    <Package size={14} />
+                                                </div>
+                                                <h3 className="font-semibold text-foreground tracking-tight text-xs uppercase whitespace-nowrap">
+                                                    Totaal materialen
+                                                </h3>
+                                            </div>
+                                            <div className="flex items-center gap-4 overflow-x-auto">
+                                                <div className="flex items-center gap-2 whitespace-nowrap">
+                                                    <span className="text-[11px] uppercase text-zinc-400 font-medium">
+                                                        Totaal (excl. btw)
+                                                    </span>
+                                                    <span className="text-primary font-bold tracking-tight">
+                                                        {formatCurrency(grootSubtotal + verbruikSubtotal)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 whitespace-nowrap">
+                                                    <span className="text-[11px] uppercase text-zinc-400 font-medium">
+                                                        Totaal (incl. btw)
+                                                    </span>
+                                                    <span className="text-primary font-bold tracking-tight">
+                                                        {formatCurrency((grootSubtotal + verbruikSubtotal) * (1 + (quoteSettings?.btwTarief || 21) / 100))}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </Tabs>
                 )}
 

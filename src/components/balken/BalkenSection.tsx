@@ -33,6 +33,8 @@ interface BalkenSectionProps {
     // Persistence
     isCollapsed?: boolean;
     onToggleCollapsed?: () => void;
+    canOpen?: boolean;
+    lockedLabel?: string;
 }
 
 export function BalkenSection({
@@ -48,10 +50,13 @@ export function BalkenSection({
     isWallCategory,
     jobSlug,
     isCollapsed: propsIsCollapsed,
-    onToggleCollapsed
+    onToggleCollapsed,
+    canOpen = true,
+    lockedLabel
 }: BalkenSectionProps) {
     const [localIsCollapsed, setLocalIsCollapsed] = useState(true);
     const isCollapsed = propsIsCollapsed !== undefined ? propsIsCollapsed : localIsCollapsed;
+    const isSectionCollapsed = canOpen ? isCollapsed : true;
     const isMetalStud = jobSlug.includes('metalstud');
     const isGolfplaatDak = jobSlug.includes('golfplaat-dak');
     const sectionTitle = isGolfplaatDak
@@ -70,6 +75,7 @@ export function BalkenSection({
     const showOptions = showWallOptions || showSurrounding || showGolfplaatTopBottom;
 
     const handleToggle = () => {
+        if (!canOpen) return;
         if (onToggleCollapsed) {
             onToggleCollapsed();
         } else {
@@ -80,25 +86,33 @@ export function BalkenSection({
     return (
         <div className="mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden">
             <div
-                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors select-none"
+                className={cn(
+                    "px-4 py-3 flex items-center justify-between select-none",
+                    canOpen ? "cursor-pointer hover:bg-white/5 transition-colors" : "cursor-not-allowed opacity-70"
+                )}
                 onClick={handleToggle}
+                aria-disabled={!canOpen}
             >
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-zinc-200">
                         {sectionTitle}
                     </span>
-                    {isCollapsed && balkafstand > 0 && (
+                    {!canOpen ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            {lockedLabel || 'Vul eerst Balklaag'}
+                        </span>
+                    ) : isSectionCollapsed && balkafstand > 0 ? (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                             {balkafstand}mm h.o.h
                         </span>
-                    )}
+                    ) : null}
                 </div>
                 <div className="text-zinc-500">
-                    {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {isSectionCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </div>
             </div>
 
-            {!isCollapsed && (
+            {!isSectionCollapsed && (
                 <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
                     <div className="pt-2 border-t border-white/5 space-y-4">
 

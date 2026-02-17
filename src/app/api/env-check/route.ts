@@ -30,6 +30,9 @@ export async function GET(req: Request) {
   const upsert = process.env.N8N_MATERIALEN_UPSERT_URL || '';
   const del = process.env.N8N_MATERIALEN_DELETE_URL || '';
   const base = process.env.N8N_WEBHOOK_URL || '';
+  const templateUid = process.env.DEFAULT_TEMPLATE_UID || process.env.TEMPLATE_UID || '';
+  const presetPackVersion = process.env.DEFAULT_PRESET_PACK_VERSION || '';
+  const materialPackVersion = process.env.DEFAULT_MATERIAL_PACK_VERSION || '';
 
   return NextResponse.json({
     ok: true,
@@ -41,6 +44,9 @@ export async function GET(req: Request) {
       upsertUsesWebhookTest: upsert.includes('webhook-test'),
       deleteUsesWebhookTest: del.includes('webhook-test'),
       baseUsesWebhookTest: base.includes('webhook-test'),
+      hasDefaultTemplateUid: Boolean(templateUid),
+      hasDefaultPresetPackVersion: Boolean(presetPackVersion),
+      hasDefaultMaterialPackVersion: Boolean(materialPackVersion),
     },
   });
 }

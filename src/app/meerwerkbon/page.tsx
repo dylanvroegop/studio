@@ -124,7 +124,7 @@ export default function MeerwerkbonPage() {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
-                <FileSignature className="h-5 w-5 text-cyan-400" />
+                <FileSignature className="h-5 w-5 text-amber-400" />
                 Overzicht
               </CardTitle>
             </CardHeader>
@@ -149,7 +149,7 @@ export default function MeerwerkbonPage() {
                   <Button
                     asChild
                     variant="outline"
-                    className="h-10 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                    className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
                   >
                     <Link href="/meerwerkbon/nieuw">
                       <Plus className="h-4 w-4" />
@@ -160,7 +160,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'alle' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('alle')}
-                    className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
                   >
                     Alle
                   </Button>
@@ -168,7 +168,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'concept' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('concept')}
-                    className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                    className={cn('h-10', filter === 'concept' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
                   >
                     Concept
                   </Button>
@@ -176,7 +176,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'akkoord' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('akkoord')}
-                    className={cn('h-10', filter === 'akkoord' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                    className={cn('h-10', filter === 'akkoord' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
                   >
                     Akkoord
                   </Button>
@@ -184,7 +184,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'verzonden' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('verzonden')}
-                    className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                    className={cn('h-10', filter === 'verzonden' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
                   >
                     Verzonden
                   </Button>
@@ -201,7 +201,7 @@ export default function MeerwerkbonPage() {
                 <Button
                   asChild
                   variant="outline"
-                  className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                  className="mt-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
                 >
                   <Link href="/meerwerkbon/nieuw">Nieuwe meerwerkbon</Link>
                 </Button>

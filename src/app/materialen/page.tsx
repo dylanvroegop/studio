@@ -419,7 +419,7 @@ export default function MaterialenPage() {
       "Buitendeuren",
       "Deurbeslag",
       "Binnenkozijnen",
-      "Trappen & Zolderluiken",
+      "Vlieringtrappen",
       "Tuinhout, Schuttingen & Tuinpoorten",
       "Overig"
     ];

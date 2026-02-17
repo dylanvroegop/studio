@@ -2094,6 +2094,18 @@ const SECTION_KEY_ALIASES_BY_SLUG: Record<string, Record<string, string>> = {
     golfplaat_schroeven: 'golfplaatschroeven',
     afvoer: 'hwa',
   },
+  'boeiboorden-trespa': {
+    balklaag: 'regelwerk',
+  },
+  'boeiboorden-rockpanel': {
+    balklaag: 'regelwerk',
+  },
+  'boeiboorden-hout': {
+    balklaag: 'regelwerk',
+  },
+  'boeiboorden-keralit': {
+    balklaag: 'regelwerk',
+  },
   isolatieglas: {
     ventilatierooster: 'roosters',
     ventilatie_roosters: 'roosters',

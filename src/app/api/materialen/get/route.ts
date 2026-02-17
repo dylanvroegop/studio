@@ -1,73 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
-import admin from 'firebase-admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { initFirebaseAdmin } from '@/firebase/admin';
+import { bootstrapDefaultCatalogForUser } from '@/lib/bootstrap-defaults';
 import { parsePriceToNumber } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Re-using your existing logic from your other route.ts files
-function krijgFirebaseAdminApp() {
-  if (admin.apps.length > 0) return admin.app();
-  const projectId =
-    process.env.FIREBASE_PROJECT_ID
-    || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    || 'studio-6011690104-60fbf';
-  return admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    projectId,
-  });
-}
-
-async function provisionOwnedCatalogForUser(uid: string): Promise<void> {
-  const { data: templateRows, error: templateError } = await supabaseAdmin
-    .from('main_material_list')
-    .select('*')
-    .neq('gebruikerid', uid)
-    .order('order_id', { ascending: true })
-    .range(0, 5000);
-
-  if (templateError) {
-    throw templateError;
-  }
-  if (!Array.isArray(templateRows) || templateRows.length === 0) {
-    return;
-  }
-
-  const dedupedByRowId = new Map<string, any>();
-  for (const row of templateRows) {
-    const rowId = row?.row_id ?? row?.id;
-    if (!rowId) continue;
-    const key = String(rowId);
-    if (!dedupedByRowId.has(key)) {
-      dedupedByRowId.set(key, row);
-    }
-  }
-
-  const sourceRows = Array.from(dedupedByRowId.values());
-  if (sourceRows.length === 0) return;
-
-  const rowsToInsert = sourceRows.map((row) => {
-    const {
-      created_at: _createdAt,
-      gebruikerid: _owner,
-      ...rest
-    } = row as Record<string, unknown>;
-    return {
-      ...rest,
-      gebruikerid: uid,
-    };
-  });
-
-  const chunkSize = 500;
-  for (let i = 0; i < rowsToInsert.length; i += chunkSize) {
-    const chunk = rowsToInsert.slice(i, i + chunkSize);
-    const { error } = await supabaseAdmin
-      .from('main_material_list')
-      .upsert(chunk, { onConflict: 'gebruikerid,row_id' });
-    if (error) throw error;
-  }
+function normalizeLegacyCategoryName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.toLowerCase() === 'trappen & zolderluiken') return 'Vlieringtrappen';
+  return trimmed;
 }
 
 export async function GET(req: Request) {
@@ -78,8 +24,8 @@ export async function GET(req: Request) {
     const token = match?.[1]?.trim();
     if (!token) return NextResponse.json({ ok: false, error: 'No token' }, { status: 401 });
 
-    krijgFirebaseAdminApp();
-    const decoded = await admin.auth().verifyIdToken(token);
+    const { auth } = initFirebaseAdmin();
+    const decoded = await auth.verifyIdToken(token);
     const uid = decoded?.uid;
     if (!uid) {
       return NextResponse.json({ ok: false, error: 'Invalid token' }, { status: 401 });
@@ -96,10 +42,9 @@ export async function GET(req: Request) {
     console.log(`[Materialen API] ownData length: ${ownData?.length}`);
     let data = [...(ownData || [])];
 
-    // First-login/self-heal: if user has no personal catalog yet,
-    // clone from an existing owned catalog template.
+    // First-login/self-heal: ensure the user has a personal catalog from template defaults.
     if (data.length === 0) {
-      await provisionOwnedCatalogForUser(uid);
+      await bootstrapDefaultCatalogForUser(uid, { ignoreCompletionMarker: true });
       const { data: refetchedOwnData, error: refetchError } = await supabaseAdmin
         .from('main_material_list')
         .select('*')
@@ -126,6 +71,8 @@ export async function GET(req: Request) {
         const incl =
           parsePriceToNumber(row?.prijs_incl_btw) ??
           (excl == null ? null : Number((excl * 1.21).toFixed(2)));
+        const normalizedCategorie = normalizeLegacyCategoryName(row?.categorie);
+        const normalizedSubsectie = normalizeLegacyCategoryName(row?.subsectie ?? row?.sub_categorie);
 
         return {
           ...row,
@@ -133,8 +80,11 @@ export async function GET(req: Request) {
           prijs: excl,
           prijs_excl_btw: excl,
           prijs_incl_btw: incl,
+          // Normalize legacy category naming to keep filters consistent.
+          categorie: normalizedCategorie ?? row?.categorie ?? null,
           // Keep subcategory separate from main category.
-          subsectie: row?.subsectie ?? row?.sub_categorie ?? null,
+          subsectie: normalizedSubsectie ?? null,
+          sub_categorie: normalizedSubsectie ?? row?.sub_categorie ?? null,
         };
       })
       : data;

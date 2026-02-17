@@ -16,6 +16,7 @@ import {
 import {
   CheckCircle2,
   Download,
+  FileText,
   FileSignature,
   Loader2,
   Mail,
@@ -720,7 +721,10 @@ export default function MeerwerkbonDetailPage() {
         <AppNavigation />
         <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <h1 className="text-xl font-bold text-foreground">Meerwerkbon</h1>
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-amber-400" />
+              <h1 className="text-xl font-bold text-foreground">Meerwerkbon</h1>
+            </div>
             <Link href="/meerwerkbon" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Meerwerkbon
             </Link>
@@ -748,6 +752,7 @@ export default function MeerwerkbonDetailPage() {
           <div className="flex items-center gap-4">
             <div>
               <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-amber-400" />
                 <h1 className="text-xl font-bold text-foreground">
                   Meerwerkbon {meerwerkbon.numbering?.label || meerwerkbon.id}
                 </h1>
@@ -877,7 +882,7 @@ export default function MeerwerkbonDetailPage() {
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <FileSignature className="h-5 w-5 text-emerald-400" />
+                  <FileSignature className="h-5 w-5 text-amber-400" />
                   <span className="text-base font-semibold">Status</span>
                   <MeerwerkbonStatusBadge status={meerwerkbon.status} />
                 </div>

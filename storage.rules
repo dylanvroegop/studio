@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function ownsQuote(quoteId) {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
+    }
+
+    // User assets (logo/signature/etc.)
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Saved drawing snapshots per quote/job.
+    match /visualisaties/{quoteId}/{fileName} {
+      allow read, write: if ownsQuote(quoteId);
+    }
+  }
+}

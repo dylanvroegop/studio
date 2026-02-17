@@ -207,7 +207,10 @@ export function VisualizerController({
         const vzHoogte = toNum(item.hoogte);
         const ozLengte = toNum(item.lengte_onderzijde) || vzLengte;
         const ozBreedte = toNum(item.breedte);
-        const balkNum = toNum(item.balkafstand, 0);
+        const showBalklaag = item.show_balklaag !== false;
+        const showDaktrim = Boolean(item.show_daktrim);
+        const daktrimPosition = item.daktrim_position === 'bottom' ? 'bottom' : 'top';
+        const balkNum = showBalklaag ? toNum(item.balkafstand, 0) : 0;
         const latVz = toNum(item.latafstand, 300);
         const latOz = toNum(item.onderzijde_latafstand) || latVz;
         const boeiOrientation = item.boeiboord_orientation === 'slope' ? 'slope' : 'horizontal';
@@ -235,12 +238,14 @@ export function VisualizerController({
                     hoogte={vzHoogte}
                     balkafstand={balkNum}
                     latafstand={latVz}
-                    surroundingBeams={item.surroundingBeams}
+                    surroundingBeams={showBalklaag ? item.surroundingBeams : false}
                     lattenOrientation={item.latten_orientation}
                     title="Voorzijde"
                     startLattenFromBottom={item.startLattenFromBottom}
                     startFromRight={item.startFromRight}
                     doubleEndBattens={item.doubleEndBattens}
+                    showDaktrim={showDaktrim}
+                    daktrimPosition={daktrimPosition}
                     boeiboordOrientation={boeiOrientation}
                     boeiboordAngle={boeiAngle}
                     boeiboordMirror={boeiMirror}
@@ -252,12 +257,14 @@ export function VisualizerController({
                     hoogte={ozBreedte}
                     balkafstand={balkNum}
                     latafstand={latOz}
-                    surroundingBeams={item.surroundingBeams}
+                    surroundingBeams={showBalklaag ? item.surroundingBeams : false}
                     lattenOrientation={item.latten_orientation}
                     title="Onderzijde"
                     startLattenFromBottom={item.startLattenFromBottom}
                     startFromRight={item.startFromRight}
                     doubleEndBattens={item.doubleEndBattens}
+                    showDaktrim={showDaktrim}
+                    daktrimPosition={daktrimPosition}
                     boeiboordMirror={boeiMirror}
                     mirrorBadgeText={boeiMirror ? '2x calculatie' : undefined}
                     onDataGenerated={(data) => handleBoeiData('onderzijde', data)}
@@ -297,6 +304,8 @@ export function VisualizerController({
                 doubleEndTengels={item.doubleEndTengels}
                 gevelProfielLinks={item.gevel_profiel_links}
                 gevelProfielRechts={item.gevel_profiel_rechts}
+                showDaktrim={Boolean(item.show_daktrim)}
+                daktrimPosition={item.daktrim_position === 'bottom' ? 'bottom' : 'top'}
                 openings={item.openings}
                 dagkanten={item.dagkanten}
                 vensterbanken={item.vensterbanken}

@@ -560,7 +560,10 @@ export default function FactuurDetailPage() {
         <AppNavigation />
         <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <h1 className="text-xl font-bold text-foreground">Factuur</h1>
+            <div className="flex items-center gap-2">
+              <ReceiptText className="h-5 w-5 text-emerald-400" />
+              <h1 className="text-xl font-bold text-foreground">Factuur</h1>
+            </div>
             <Link href="/facturen" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Facturen
             </Link>
@@ -595,6 +598,7 @@ export default function FactuurDetailPage() {
           <div className="flex items-center gap-4">
             <div>
               <div className="flex items-center gap-3">
+                <ReceiptText className="h-5 w-5 text-emerald-400" />
                 <h1 className="text-xl font-bold text-foreground">
                   {typeLabel} #{invoice.invoiceNumberLabel}
                 </h1>

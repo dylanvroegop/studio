@@ -85,7 +85,7 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         description: 'Waterslagen toevoegen voor de gevel',
         measurements: [],
         defaultMaterials: [
-            { label: 'Waterslagen', categoryFilter: 'Keralit, Trespa, Rockpanel, Exterieur platen, Overig', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
+            { label: 'Waterslagen', categoryFilter: 'Overig', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
         ]
     },
     daktrim: {
@@ -93,7 +93,7 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         description: 'Daktrimprofielen toevoegen',
         measurements: [],
         defaultMaterials: [
-            { label: 'Daktrim', categoryFilter: 'Keralit, Trespa, Rockpanel, Exterieur platen, Daktoebehoren, Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
+            { label: 'Daktrim', categoryFilter: 'Overig', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
         ]
     },
     // 5. Vlizotrap
@@ -102,10 +102,10 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         description: 'Vlizotrap of zolderluik met raveling',
         measurements: [], // No measurements needed - added directly
         defaultMaterials: [
-            { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: '' },
-            { label: 'Vlizotrap (Complete set)', categoryFilter: 'Trappen & Zolderluiken', category: 'basis', key: 'trap', category_ultra_filter: '' },
-            { label: 'Zolderluik', categoryFilter: 'Trappen & Zolderluiken', category: 'basis', key: 'luik', category_ultra_filter: '' },
-            { label: 'Koplatten', categoryFilter: 'Vuren hout', category: 'afwerking', key: 'architraaf', category_ultra_filter: '' },
+            { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: 'Balken' },
+            { label: 'Vlizotrap (Complete set)', categoryFilter: 'Vlieringtrappen', category: 'basis', key: 'trap', category_ultra_filter: '' },
+            { label: 'Zolderluik', categoryFilter: 'Overig', category: 'basis', key: 'luik', category_ultra_filter: '' },
+            { label: 'Koplatten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'architraaf', category_ultra_filter: 'koplatten' },
         ]
     }
     ,

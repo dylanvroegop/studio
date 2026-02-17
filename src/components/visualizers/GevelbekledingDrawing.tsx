@@ -50,6 +50,8 @@ export interface GevelbekledingDrawingProps {
     doubleEndTengels?: boolean;
     gevelProfielLinks?: 'hoek' | 'eind';
     gevelProfielRechts?: 'hoek' | 'eind';
+    showDaktrim?: boolean;
+    daktrimPosition?: 'top' | 'bottom';
     onKoofChange?: (updated: KoofItem[]) => void;
 }
 
@@ -106,6 +108,8 @@ export function GevelbekledingDrawing({
     doubleEndTengels,
     gevelProfielLinks,
     gevelProfielRechts,
+    showDaktrim = false,
+    daktrimPosition = 'top',
     onDataGenerated
 }: GevelbekledingDrawingProps) {
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
@@ -118,6 +122,8 @@ export function GevelbekledingDrawing({
         hoek: 'rgb(251, 146, 60)',
         eind: 'rgb(56, 189, 248)',
     };
+    const daktrimAccent = 'rgb(245, 158, 11)';
+    const resolvedDaktrimPosition = daktrimPosition === 'bottom' ? 'bottom' : 'top';
 
     // Default standard height
     const hStd = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
@@ -579,6 +585,13 @@ export function GevelbekledingDrawing({
                 const Y_BOTTOM = startY + rectH;
                 const getY = (mm: number) => Y_BOTTOM - (mm * pxPerMm);
                 const profielLineInsetPx = Math.max(1, Math.min(4, pxPerMm * 6));
+                const daktrimLineInsetPx = Math.max(1, Math.min(4, pxPerMm * 6));
+                const daktrimY = resolvedDaktrimPosition === 'bottom'
+                    ? startY + rectH - daktrimLineInsetPx
+                    : startY + daktrimLineInsetPx;
+                const daktrimLabelY = resolvedDaktrimPosition === 'bottom'
+                    ? daktrimY - 10
+                    : daktrimY + 10;
 
                 // Convert Logical Structure to Render Objects
                 const timberW = Math.max(1.5, STUD_W * pxPerMm);
@@ -913,6 +926,28 @@ export function GevelbekledingDrawing({
                                     stroke={profielAccentByType[profielRechtsType]}
                                     strokeWidth={1}
                                 />
+                            </g>
+                        )}
+                        {showDaktrim && (
+                            <g pointerEvents="none" opacity={0.95}>
+                                <line
+                                    x1={WALL_X + daktrimLineInsetPx}
+                                    y1={daktrimY}
+                                    x2={WALL_X + WALL_WIDTH - daktrimLineInsetPx}
+                                    y2={daktrimY}
+                                    stroke={daktrimAccent}
+                                    strokeWidth={1}
+                                />
+                                <text
+                                    x={WALL_X + WALL_WIDTH / 2}
+                                    y={daktrimLabelY}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    fill={daktrimAccent}
+                                    style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
+                                >
+                                    DAKTRIM
+                                </text>
                             </g>
                         )}
 

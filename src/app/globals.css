@@ -128,6 +128,16 @@
   .app-nav-open .app-shell {
     padding-left: 15.84rem;
   }
+
+  .quote-materials-sticky-footer {
+    left: 0;
+    right: 0;
+    transition: left 200ms ease-out;
+  }
+
+  .app-nav-open .quote-materials-sticky-footer {
+    left: 15.84rem;
+  }
 }
 
 @layer utilities {

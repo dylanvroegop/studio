@@ -269,7 +269,7 @@ export default function FacturenPage() {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
-                <ReceiptText className="h-5 w-5 text-cyan-400" />
+                <ReceiptText className="h-5 w-5 text-emerald-400" />
                 Overzicht
               </CardTitle>
             </CardHeader>
@@ -296,7 +296,7 @@ export default function FacturenPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-10 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                        className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
                       >
                         <Plus className="h-4 w-4" />
                         Nieuwe factuur
@@ -380,7 +380,7 @@ export default function FacturenPage() {
                     type="button"
                     variant={filter === 'alle' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('alle')}
-                    className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
                   >
                     Alle
                   </Button>
@@ -388,7 +388,7 @@ export default function FacturenPage() {
                     type="button"
                     variant={filter === 'openstaand' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('openstaand')}
-                    className={cn('h-10', filter === 'openstaand' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                    className={cn('h-10', filter === 'openstaand' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
                   >
                     Openstaand
                   </Button>
@@ -396,7 +396,7 @@ export default function FacturenPage() {
                     type="button"
                     variant={filter === 'betaald' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('betaald')}
-                    className={cn('h-10', filter === 'betaald' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                    className={cn('h-10', filter === 'betaald' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
                   >
                     Betaald
                   </Button>
@@ -415,7 +415,7 @@ export default function FacturenPage() {
                 <Button
                   asChild
                   variant="outline"
-                  className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                  className="mt-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
                 >
                   <Link href="/offertes">Ga naar offertes</Link>
                 </Button>

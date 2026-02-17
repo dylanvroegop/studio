@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { getDefaultTemplateUidOrThrow } from '@/lib/bootstrap-defaults';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -91,12 +92,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ ok: true, data: updatedRows });
         }
 
-        // Fallback: clone source row from another owned catalog (never from NULL owner),
+        const templateUid = getDefaultTemplateUidOrThrow();
+
+        // Fallback: clone source row from the dedicated template catalog,
         // then apply the update as a user-owned row.
         let sourceQuery = supabaseAdmin
             .from('main_material_list')
             .select('*')
-            .neq('gebruikerid', uid)
+            .eq('gebruikerid', templateUid)
             .limit(1);
 
         sourceQuery = normalizedRowId

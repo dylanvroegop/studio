@@ -47,6 +47,8 @@ export const jobSections: Record<string, MeasurementSection[]> = {
     'metalstud-voorzetwand':  WALL_SECTIONS,
     'metalstud-tussenwand':   WALL_SECTIONS,
     'HBS-buiten-wand':        ['openingen', 'koof', 'vensterbanken', 'dagkanten'],
+    'hbs-buiten-wand':        ['openingen', 'koof', 'vensterbanken', 'dagkanten'],
+    'hsb-buiten-wand':        ['openingen', 'koof', 'vensterbanken', 'dagkanten'],
     'knieschotten':           WALL_SECTIONS,
     'cinewall-tv-wand':       WALL_SECTIONS,
 
@@ -107,6 +109,9 @@ export const jobTypeConfigs: Record<string, JobTypeConfig> = {
     'hsb-tussenwand': hsbVoorzetwand as JobTypeConfig,
     'metalstud-voorzetwand': hsbVoorzetwand as JobTypeConfig,
     'metalstud-tussenwand': metalstudTussenwand as JobTypeConfig,
+    'HBS-buiten-wand': hsbVoorzetwand as JobTypeConfig,
+    'hbs-buiten-wand': hsbVoorzetwand as JobTypeConfig,
+    'hsb-buiten-wand': hsbVoorzetwand as JobTypeConfig,
     'plafond-metalstud': {
         ...defaultJobConfig,
         balkenConfig: {
@@ -114,18 +119,6 @@ export const jobTypeConfigs: Record<string, JobTypeConfig> = {
             options: {
                 ...defaultJobConfig.balkenConfig.options,
                 surroundingBeams: false
-            }
-        }
-    },
-    'HBS-buiten-wand': {
-        ...defaultJobConfig,
-        balkenConfig: {
-            showBalkafstand: true,
-            showStartpositie: true,
-            options: {
-                dblEindbalk: true,
-                dblBovenbalk: true,
-                dblOnderbalk: true,
             }
         }
     },

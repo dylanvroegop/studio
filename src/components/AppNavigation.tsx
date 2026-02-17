@@ -16,21 +16,95 @@ interface NavigationItem {
     href: string;
     label: string;
     icon: LucideIcon;
+    iconColorClass?: string;
+    iconColorClassActive?: string;
 }
 
 const navItems: NavigationItem[] = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/offertes', label: 'Offertes', icon: FileText },
-    { href: '/facturen', label: 'Facturen', icon: ReceiptText },
-    { href: '/meerwerkbon', label: 'Meerwerkbon', icon: FileText },
-    { href: '/winst', label: 'Winst', icon: TrendingUp },
-    { href: '/planning', label: 'Planning', icon: CalendarDays },
-    { href: '/materialen', label: 'Producten', icon: Boxes },
-    { href: '/klanten', label: 'Klanten', icon: Users },
-    { href: '/urenregistratie', label: 'Urenregistratie', icon: Clock3 },
-    { href: '/notities', label: 'Notities', icon: StickyNote },
-    { href: '/archief', label: 'Archief', icon: Archive },
-    { href: '/instellingen', label: 'Instellingen', icon: Settings },
+    {
+        href: '/dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        iconColorClass: 'text-sky-400',
+        iconColorClassActive: 'text-sky-300',
+    },
+    {
+        href: '/offertes',
+        label: 'Offertes',
+        icon: FileText,
+        iconColorClass: 'text-cyan-400',
+        iconColorClassActive: 'text-cyan-300',
+    },
+    {
+        href: '/facturen',
+        label: 'Facturen',
+        icon: ReceiptText,
+        iconColorClass: 'text-emerald-400',
+        iconColorClassActive: 'text-emerald-300',
+    },
+    {
+        href: '/meerwerkbon',
+        label: 'Meerwerkbon',
+        icon: FileText,
+        iconColorClass: 'text-amber-400',
+        iconColorClassActive: 'text-amber-300',
+    },
+    {
+        href: '/winst',
+        label: 'Winst',
+        icon: TrendingUp,
+        iconColorClass: 'text-lime-400',
+        iconColorClassActive: 'text-lime-300',
+    },
+    {
+        href: '/planning',
+        label: 'Planning',
+        icon: CalendarDays,
+        iconColorClass: 'text-violet-400',
+        iconColorClassActive: 'text-violet-300',
+    },
+    {
+        href: '/materialen',
+        label: 'Producten',
+        icon: Boxes,
+        iconColorClass: 'text-orange-400',
+        iconColorClassActive: 'text-orange-300',
+    },
+    {
+        href: '/klanten',
+        label: 'Klanten',
+        icon: Users,
+        iconColorClass: 'text-blue-400',
+        iconColorClassActive: 'text-blue-300',
+    },
+    {
+        href: '/urenregistratie',
+        label: 'Urenregistratie',
+        icon: Clock3,
+        iconColorClass: 'text-indigo-400',
+        iconColorClassActive: 'text-indigo-300',
+    },
+    {
+        href: '/notities',
+        label: 'Notities',
+        icon: StickyNote,
+        iconColorClass: 'text-rose-400',
+        iconColorClassActive: 'text-rose-300',
+    },
+    {
+        href: '/archief',
+        label: 'Archief',
+        icon: Archive,
+        iconColorClass: 'text-zinc-400',
+        iconColorClassActive: 'text-zinc-200',
+    },
+    {
+        href: '/instellingen',
+        label: 'Instellingen',
+        icon: Settings,
+        iconColorClass: 'text-purple-400',
+        iconColorClassActive: 'text-purple-300',
+    },
 ];
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -100,7 +174,14 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                                         : 'text-zinc-300 hover:bg-muted hover:text-foreground'
                                 )}
                             >
-                                <Icon className="h-4 w-4" strokeWidth={active ? 2.5 : 2} />
+                                <Icon
+                                    className={cn(
+                                        'h-4 w-4',
+                                        item.iconColorClass,
+                                        active && item.iconColorClassActive
+                                    )}
+                                    strokeWidth={active ? 2.5 : 2}
+                                />
                                 <span className="font-medium">{item.label}</span>
                             </Link>
                         );

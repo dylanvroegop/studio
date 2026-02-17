@@ -211,14 +211,16 @@ export function CeilingWoodDrawing({
             if (onOpeningsChange) {
                 // CRITICAL: Convert fromBottom BACK to fromTop for ceiling drawings
                 const convertedBack = updated.map(o => {
+                    // Keep both coordinates in sync:
                     // fromTop = totalHeight - fromBottom - height
-                    const fromTop = effectiveHeight - o.fromBottom - o.height;
+                    const fromTop = Math.max(0, effectiveHeight - o.fromBottom - o.height);
+                    const fromBottom = Math.max(0, o.fromBottom);
 
                     return {
                         ...o,
                         fromTop,
-                        // Remove fromBottom since raw ceiling data uses fromTop
-                        fromBottom: undefined
+                        // Keep fromBottom for measurement inputs (V. ONDER) and form state.
+                        fromBottom
                     } as unknown as CeilingOpening;
                 });
 
