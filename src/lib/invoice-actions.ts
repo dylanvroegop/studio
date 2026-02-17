@@ -3,7 +3,7 @@ import { addDoc, collection, serverTimestamp, query, where, getDocs, limit, getD
 import type { DataJson } from '@/lib/quote-calculations';
 import type { UserSettings } from '@/lib/types-settings';
 import { reserveInvoiceNumber } from '@/lib/firestore-actions';
-import type { InvoiceType } from '@/lib/types';
+import type { InvoiceCombinedContext, InvoiceType } from '@/lib/types';
 import { removeEmptyFields } from '@/lib/utils';
 
 function safeNumber(value: unknown): number | null {
@@ -92,6 +92,10 @@ export async function createInvoiceFromQuote(
       paidAmount: number;
     } | null;
     opmerking?: string;
+    notes?: string;
+    combinedContext?: InvoiceCombinedContext | null;
+    combinedQuoteIds?: string[] | null;
+    linkedMeerwerkbonIds?: string[] | null;
   }
 ): Promise<string> {
   const {
@@ -107,6 +111,10 @@ export async function createInvoiceFromQuote(
     voorschotAftrekInclBtw,
     voorschotFactuurSnapshot,
     opmerking,
+    notes,
+    combinedContext,
+    combinedQuoteIds,
+    linkedMeerwerkbonIds,
   } = params;
 
   const startNumber = safeNumber(settings.factuurNummerStart) ?? 460001;
@@ -162,7 +170,10 @@ export async function createInvoiceFromQuote(
       openAmount: totaalInclBtw,
     },
 
-    notes: '',
+    notes: (notes ?? '').toString(),
+    combinedContext: combinedContext ?? null,
+    combinedQuoteIds: Array.isArray(combinedQuoteIds) ? combinedQuoteIds : undefined,
+    linkedMeerwerkbonIds: Array.isArray(linkedMeerwerkbonIds) ? linkedMeerwerkbonIds : undefined,
   });
 
   const docRef = await addDoc(collection(firestore, 'invoices'), payload || {});

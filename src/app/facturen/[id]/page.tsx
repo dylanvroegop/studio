@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -13,9 +13,8 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle2, Download, Loader2, Mail, ReceiptText } from 'lucide-react';
+import { CheckCircle2, Download, Loader2, Mail, ReceiptText, Settings } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
-import { DashboardHeader } from '@/components/DashboardHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +22,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
 import type { Invoice, InvoicePayment, InvoiceStatus } from '@/lib/types';
 import type { UserSettings } from '@/lib/types-settings';
@@ -32,7 +39,10 @@ import type { PDFInvoiceData } from '@/lib/generate-invoice-pdf';
 import { generateInvoicePDF } from '@/lib/generate-invoice-pdf';
 import { SendInvoiceModal } from '@/components/invoice/SendInvoiceModal';
 import { toast } from '@/hooks/use-toast';
-import { invoiceImpliesAccepted, promoteQuoteToAcceptedInTransaction } from '@/lib/quote-status';
+import {
+  invoiceImpliesAccepted,
+  promoteInvoiceRelatedQuotesToAcceptedInTransaction,
+} from '@/lib/quote-status';
 
 function naarDate(value: any): Date | null {
   if (!value) return null;
@@ -54,6 +64,50 @@ function nextStatusAfterPayment(total: number, paidAmount: number, current: Invo
   if (openAmount === 0) return 'betaald';
   if (paidAmount > 0 && openAmount > 0) return 'gedeeltelijk_betaald';
   return current;
+}
+
+type InvoicePdfSettings = {
+  issueDateISO: string;
+  paymentTermDays: number;
+  showLogo: boolean;
+  showQuoteReference: boolean;
+  showSpecification: boolean;
+  showTotalsBreakdown: boolean;
+  showBankDetails: boolean;
+  customPaymentText: string;
+};
+
+function clampPaymentTermDays(value: number): number {
+  if (!Number.isFinite(value)) return 14;
+  return Math.max(1, Math.min(365, Math.round(value)));
+}
+
+function toDateOnlyISO(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseDateOnlyISO(value: string): Date | null {
+  const raw = (value || '').trim();
+  if (!raw) return null;
+  const date = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function addDays(base: Date, days: number): Date {
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function differenceInDays(a: Date, b: Date): number {
+  const oneDay = 24 * 60 * 60 * 1000;
+  const aMidday = new Date(a.getFullYear(), a.getMonth(), a.getDate(), 12, 0, 0, 0);
+  const bMidday = new Date(b.getFullYear(), b.getMonth(), b.getDate(), 12, 0, 0, 0);
+  return Math.round((aMidday.getTime() - bMidday.getTime()) / oneDay);
 }
 
 export default function FactuurDetailPage() {
@@ -86,6 +140,15 @@ export default function FactuurDetailPage() {
   const [payNote, setPayNote] = useState<string>('');
   const [paySaving, setPaySaving] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [activeTab, setActiveTab] = useState<'pdf' | 'overzicht' | 'betalingen'>('pdf');
+  const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
+  const [pdfSettingsInitialized, setPdfSettingsInitialized] = useState(false);
+  const [invoicePdfSettings, setInvoicePdfSettings] = useState<InvoicePdfSettings | null>(null);
+  const [savingPdfSettings, setSavingPdfSettings] = useState(false);
+  const [pdfSettingsSavedAt, setPdfSettingsSavedAt] = useState<number | null>(null);
+
+  const pdfSettingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedPdfSettingsRef = useRef<string>('');
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -158,8 +221,120 @@ export default function FactuurDetailPage() {
     fetchSettings();
   }, [user, firestore]);
 
+  useEffect(() => {
+    setPdfSettingsInitialized(false);
+    setInvoicePdfSettings(null);
+    setPdfSettingsSavedAt(null);
+    lastSavedPdfSettingsRef.current = '';
+  }, [invoiceId]);
+
   const issueDate = useMemo(() => naarDate(invoice?.issueDate), [invoice?.issueDate]);
   const dueDate = useMemo(() => naarDate(invoice?.dueDate), [invoice?.dueDate]);
+
+  useEffect(() => {
+    if (!invoice || pdfSettingsInitialized) return;
+
+    const fallbackIssueDate = issueDate || new Date();
+    const fallbackDueDate = dueDate
+      || addDays(fallbackIssueDate, Math.max(1, settings?.standaardBetaaltermijnDagen || 14));
+    const inferredTerm = clampPaymentTermDays(
+      Math.max(1, differenceInDays(fallbackDueDate, fallbackIssueDate))
+    );
+
+    const stored = (invoice as any)?.pdfSettings || {};
+    const initialSettings: InvoicePdfSettings = {
+      issueDateISO: parseDateOnlyISO((stored?.issueDateISO || '').toString())
+        ? (stored.issueDateISO as string)
+        : toDateOnlyISO(fallbackIssueDate),
+      paymentTermDays: clampPaymentTermDays(
+        Number(
+          stored?.paymentTermDays
+          ?? stored?.betalingstermijnDagen
+          ?? inferredTerm
+        )
+      ),
+      showLogo: stored?.showLogo !== false,
+      showQuoteReference: stored?.showQuoteReference !== false,
+      showSpecification: stored?.showSpecification !== false,
+      showTotalsBreakdown: stored?.showTotalsBreakdown !== false,
+      showBankDetails: stored?.showBankDetails !== false,
+      customPaymentText:
+        typeof stored?.customPaymentText === 'string'
+          ? stored.customPaymentText
+          : (settings?.standaardFactuurTekst || ''),
+    };
+
+    setInvoicePdfSettings(initialSettings);
+    lastSavedPdfSettingsRef.current = JSON.stringify(initialSettings);
+    setPdfSettingsInitialized(true);
+  }, [
+    invoice,
+    pdfSettingsInitialized,
+    issueDate,
+    dueDate,
+    settings?.standaardBetaaltermijnDagen,
+    settings?.standaardFactuurTekst,
+  ]);
+
+  const effectiveIssueDate = useMemo(() => {
+    const parsed = parseDateOnlyISO(invoicePdfSettings?.issueDateISO || '');
+    if (parsed) return parsed;
+    return issueDate || new Date();
+  }, [invoicePdfSettings?.issueDateISO, issueDate]);
+
+  const effectivePaymentTermDays = useMemo(
+    () => clampPaymentTermDays(Number(invoicePdfSettings?.paymentTermDays ?? settings?.standaardBetaaltermijnDagen ?? 14)),
+    [invoicePdfSettings?.paymentTermDays, settings?.standaardBetaaltermijnDagen]
+  );
+
+  const effectiveDueDate = useMemo(
+    () => addDays(effectiveIssueDate, effectivePaymentTermDays),
+    [effectiveIssueDate, effectivePaymentTermDays]
+  );
+
+  useEffect(() => {
+    if (!invoicePdfSettings || !pdfSettingsInitialized || !firestore || !invoiceId) return;
+
+    const signature = JSON.stringify(invoicePdfSettings);
+    if (signature === lastSavedPdfSettingsRef.current) return;
+
+    setSavingPdfSettings(true);
+    if (pdfSettingsSaveTimerRef.current) {
+      clearTimeout(pdfSettingsSaveTimerRef.current);
+    }
+
+    pdfSettingsSaveTimerRef.current = setTimeout(async () => {
+      try {
+        const invRef = doc(firestore, 'invoices', invoiceId);
+        await updateDoc(invRef, {
+          pdfSettings: invoicePdfSettings,
+          issueDate: Timestamp.fromDate(effectiveIssueDate),
+          dueDate: Timestamp.fromDate(effectiveDueDate),
+          updatedAt: serverTimestamp(),
+        } as any);
+
+        lastSavedPdfSettingsRef.current = signature;
+        setPdfSettingsSavedAt(Date.now());
+      } catch (err) {
+        console.error('Kon factuur PDF instellingen niet opslaan:', err);
+      } finally {
+        setSavingPdfSettings(false);
+      }
+    }, 650);
+
+    return () => {
+      if (pdfSettingsSaveTimerRef.current) {
+        clearTimeout(pdfSettingsSaveTimerRef.current);
+      }
+    };
+  }, [
+    invoicePdfSettings,
+    pdfSettingsInitialized,
+    firestore,
+    invoiceId,
+    effectiveIssueDate,
+    effectiveDueDate,
+  ]);
 
   const pdfData: PDFInvoiceData | null = useMemo(() => {
     if (!invoice || !settings) return null;
@@ -178,10 +353,12 @@ export default function FactuurDetailPage() {
     return {
       invoiceType,
       invoiceNumberLabel: invoice.invoiceNumberLabel,
-      issueDate: issueDate ? issueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }) : '-',
-      dueDate: dueDate ? dueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }) : '-',
-      betreftOfferte: invoice.sourceQuote?.offerteNummer ? `Offerte #${invoice.sourceQuote.offerteNummer}` : undefined,
-      logoUrl: settings.logoUrl || undefined,
+      issueDate: effectiveIssueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
+      dueDate: effectiveDueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
+      betreftOfferte: invoicePdfSettings?.showQuoteReference !== false
+        ? (invoice.sourceQuote?.offerteNummer ? `Offerte #${invoice.sourceQuote.offerteNummer}` : undefined)
+        : undefined,
+      logoUrl: invoicePdfSettings?.showLogo === false ? undefined : (settings.logoUrl || undefined),
       logoScale: settings.logoScale || 1.0,
       bedrijf: {
         naam: bedrijfNaam,
@@ -192,9 +369,9 @@ export default function FactuurDetailPage() {
         email: settings.email || businessData?.email || '',
         kvk: settings.kvkNummer || businessData?.kvkNummer || '',
         btw: settings.btwNummer || businessData?.btwNummer || '',
-        iban: settings.iban || undefined,
-        bankNaam: settings.bankNaam || undefined,
-        bic: settings.bic || undefined,
+        iban: invoicePdfSettings?.showBankDetails === false ? undefined : (settings.iban || undefined),
+        bankNaam: invoicePdfSettings?.showBankDetails === false ? undefined : (settings.bankNaam || undefined),
+        bic: invoicePdfSettings?.showBankDetails === false ? undefined : (settings.bic || undefined),
       },
       klant: {
         naam: klant.naam || '',
@@ -205,21 +382,21 @@ export default function FactuurDetailPage() {
         email: klant.email || '',
       },
       totals: {
-        totaalExclBtw: invoice.totalsSnapshot?.totaalExclBtw,
-        btw: invoice.totalsSnapshot?.btw,
+        totaalExclBtw: invoicePdfSettings?.showTotalsBreakdown === false ? undefined : invoice.totalsSnapshot?.totaalExclBtw,
+        btw: invoicePdfSettings?.showTotalsBreakdown === false ? undefined : invoice.totalsSnapshot?.btw,
         totaalInclBtw: invoice.totalsSnapshot?.totaalInclBtw ?? 0,
       },
-      financialAdjustments: invoiceType === 'eind'
+      financialAdjustments: invoiceType === 'eind' && invoicePdfSettings?.showSpecification !== false
         ? {
           originalTotalInclBtw: Number.isFinite(originalTotalInclBtw) ? originalTotalInclBtw : 0,
           voorschotAftrekInclBtw: Number.isFinite(voorschotAftrekInclBtw) ? voorschotAftrekInclBtw : 0,
           voorschotFactuurPaidAmount,
         }
         : undefined,
-      standaardFactuurTekst: settings.standaardFactuurTekst || '',
+      standaardFactuurTekst: (invoicePdfSettings?.customPaymentText || settings.standaardFactuurTekst || '').trim(),
       calculationSnapshot: invoice.calculationSnapshot ?? null,
     };
-  }, [invoice, settings, businessData, issueDate, dueDate]);
+  }, [invoice, settings, businessData, effectiveIssueDate, effectiveDueDate, invoicePdfSettings]);
 
   const handleDownloadPdf = async () => {
     if (!pdfData) return;
@@ -288,7 +465,7 @@ export default function FactuurDetailPage() {
           updatedAt: serverTimestamp(),
         });
 
-        await promoteQuoteToAcceptedInTransaction(tx, firestore, data?.quoteId);
+        await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, data);
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });
@@ -353,7 +530,7 @@ export default function FactuurDetailPage() {
         tx.update(invRef, update);
 
         if (invoiceImpliesAccepted(newStatus)) {
-          await promoteQuoteToAcceptedInTransaction(tx, firestore, inv?.quoteId);
+          await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, inv);
         }
       });
 
@@ -379,9 +556,16 @@ export default function FactuurDetailPage() {
 
   if (!invoice) {
     return (
-      <div className="app-shell min-h-screen bg-background pb-10">
+      <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
         <AppNavigation />
-        <DashboardHeader user={user} title="Factuur" />
+        <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <h1 className="text-xl font-bold text-foreground">Factuur</h1>
+            <Link href="/facturen" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Facturen
+            </Link>
+          </div>
+        </header>
         <main className="flex flex-col items-center p-6">
           <Card className="w-full max-w-2xl">
             <CardContent className="p-8 text-center space-y-3">
@@ -404,59 +588,196 @@ export default function FactuurDetailPage() {
   const typeLabel = invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur';
 
   return (
-    <div className="app-shell min-h-screen bg-background pb-10">
+    <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
       <AppNavigation />
-      <DashboardHeader user={user} title="Factuur" />
+      <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-foreground">
+                  {typeLabel} #{invoice.invoiceNumberLabel}
+                </h1>
+                <Link href="/facturen" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Facturen
+                </Link>
+              </div>
+              <p className="text-muted-foreground text-sm">{klantNaam}</p>
+            </div>
+          </div>
 
-      <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
-        <div className="w-full max-w-4xl space-y-6">
+          <div className="flex gap-3 w-full sm:w-auto">
+            {invoiceType === 'voorschot' && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 sm:flex-none gap-2"
+                onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(invoice.quoteId)}&type=eind`)}
+              >
+                Maak eindfactuur
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 sm:flex-none gap-2"
+              onClick={() => setSendOpen(true)}
+              disabled={!pdfData}
+            >
+              <Mail className="h-4 w-4" />
+              Versturen
+            </Button>
+            <Button
+              type="button"
+              variant="success"
+              className="flex-1 sm:flex-none gap-2"
+              onClick={handleDownloadPdf}
+              disabled={!pdfData || isDownloading}
+            >
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download PDF
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as 'pdf' | 'overzicht' | 'betalingen')}
+          className="space-y-6"
+        >
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full">
+            <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
+              <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                <Download className="h-4 w-4" /> PDF
+              </TabsTrigger>
+              <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                <ReceiptText className="h-4 w-4" /> Overzicht
+              </TabsTrigger>
+              <TabsTrigger value="betalingen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4" /> Betalingen
+              </TabsTrigger>
+            </TabsList>
+
+            {activeTab === 'pdf' && invoicePdfSettings ? (
+              <Dialog open={pdfSettingsOpen} onOpenChange={setPdfSettingsOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1">
+                    <Settings className="h-4 w-4 mr-2" />
+                    PDF instellingen
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-2xl p-0 overflow-hidden">
+                  <DialogHeader className="px-6 pt-6">
+                    <DialogTitle>PDF instellingen</DialogTitle>
+                    <DialogDescription>
+                      Bepaal hoe de factuur-PDF wordt opgebouwd.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="px-6 pb-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Factuurdatum</Label>
+                        <Input
+                          type="date"
+                          value={invoicePdfSettings.issueDateISO}
+                          onChange={(event) =>
+                            setInvoicePdfSettings((prev) => prev ? ({ ...prev, issueDateISO: event.target.value }) : prev)
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Betalingstermijn (dagen)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={invoicePdfSettings.paymentTermDays}
+                          onChange={(event) =>
+                            setInvoicePdfSettings((prev) => prev
+                              ? ({ ...prev, paymentTermDays: clampPaymentTermDays(Number(event.target.value)) })
+                              : prev)
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showLogo}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showLogo: event.target.checked }) : prev)}
+                        />
+                        <span>Logo tonen</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showQuoteReference}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showQuoteReference: event.target.checked }) : prev)}
+                        />
+                        <span>Offerte-referentie tonen</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showSpecification}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showSpecification: event.target.checked }) : prev)}
+                        />
+                        <span>Specificatieblok tonen</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showTotalsBreakdown}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showTotalsBreakdown: event.target.checked }) : prev)}
+                        />
+                        <span>Subtotaal + BTW tonen</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm md:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showBankDetails}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showBankDetails: event.target.checked }) : prev)}
+                        />
+                        <span>Bankgegevens tonen in betalingsinformatie</span>
+                      </label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Betaaltekst</Label>
+                      <Textarea
+                        rows={5}
+                        value={invoicePdfSettings.customPaymentText}
+                        onChange={(event) =>
+                          setInvoicePdfSettings((prev) => prev ? ({ ...prev, customPaymentText: event.target.value }) : prev)
+                        }
+                        placeholder="Bijv. Gelieve binnen de betalingstermijn te voldoen o.v.v. factuurnummer."
+                      />
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      {savingPdfSettings
+                        ? 'PDF instellingen worden automatisch opgeslagen...'
+                        : pdfSettingsSavedAt
+                          ? `Automatisch opgeslagen om ${new Date(pdfSettingsSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Wijzigingen worden automatisch opgeslagen.'}
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            ) : null}
+          </div>
+
+          <div className="space-y-6">
           {invoice.archived ? (
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
               Deze factuur is gearchiveerd. Je vindt ’m terug in het <Link href="/archief?tab=facturen" className="underline underline-offset-4">archief</Link>.
             </div>
           ) : null}
-
-          <div className="flex items-center justify-between gap-3">
-            <Button asChild variant="outline" className="gap-2">
-              <Link href="/facturen">
-                <ArrowLeft className="h-4 w-4" />
-                Terug
-              </Link>
-            </Button>
-
-            <div className="flex items-center gap-2">
-              {invoiceType === 'voorschot' && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(invoice.quoteId)}&type=eind`)}
-                >
-                  Maak eindfactuur
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2"
-                onClick={() => setSendOpen(true)}
-                disabled={!pdfData}
-              >
-                <Mail className="h-4 w-4" />
-                Versturen
-              </Button>
-              <Button
-                type="button"
-                variant="success"
-                className="gap-2"
-                onClick={handleDownloadPdf}
-                disabled={!pdfData || isDownloading}
-              >
-                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Download PDF
-              </Button>
-            </div>
-          </div>
 
           {error && (
             <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
@@ -469,9 +790,7 @@ export default function FactuurDetailPage() {
               <CardTitle className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <ReceiptText className="h-5 w-5 text-emerald-400 shrink-0" />
-                  <div className="truncate">
-                    {typeLabel} #{invoice.invoiceNumberLabel}
-                  </div>
+                  <span className="text-base font-semibold">Status</span>
                   <InvoiceStatusBadge status={invoice.status} />
                 </div>
                 <div className="text-right shrink-0">
@@ -481,9 +800,20 @@ export default function FactuurDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-2">
-              <div><span className="text-muted-foreground">Klant:</span> {klantNaam}</div>
-              <div><span className="text-muted-foreground">Factuurdatum:</span> {issueDate ? issueDate.toLocaleDateString('nl-NL') : '-'}</div>
-              <div><span className="text-muted-foreground">Vervaldatum:</span> {dueDate ? dueDate.toLocaleDateString('nl-NL') : '-'}</div>
+              <div><span className="text-muted-foreground">Factuurdatum:</span> {effectiveIssueDate.toLocaleDateString('nl-NL')}</div>
+              <div><span className="text-muted-foreground">Vervaldatum:</span> {effectiveDueDate.toLocaleDateString('nl-NL')}</div>
+              {Array.isArray((invoice as any)?.combinedContext?.quoteIds) && (invoice as any).combinedContext.quoteIds.length > 1 ? (
+                <div>
+                  <span className="text-muted-foreground">Gecombineerde offertes:</span>{' '}
+                  {(invoice as any).combinedContext.quoteIds.length}
+                </div>
+              ) : null}
+              {Array.isArray((invoice as any)?.linkedMeerwerkbonIds) && (invoice as any).linkedMeerwerkbonIds.length > 0 ? (
+                <div>
+                  <span className="text-muted-foreground">Bron meerwerkbon:</span>{' '}
+                  {(invoice as any).linkedMeerwerkbonIds.join(', ')}
+                </div>
+              ) : null}
               <div className="pt-2 flex gap-2">
                 <Button asChild variant="outline" className="h-9">
                   <Link href={`/offertes/${invoice.quoteId}`}>Open offerte</Link>
@@ -510,13 +840,6 @@ export default function FactuurDetailPage() {
               </div>
             </CardContent>
           </Card>
-
-          <Tabs defaultValue="pdf" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3 h-auto p-1">
-              <TabsTrigger value="pdf" className="py-2.5">PDF</TabsTrigger>
-              <TabsTrigger value="overzicht" className="py-2.5">Overzicht</TabsTrigger>
-              <TabsTrigger value="betalingen" className="py-2.5">Betalingen</TabsTrigger>
-            </TabsList>
 
             <TabsContent value="pdf" className="space-y-4">
               <PDFPreviewInvoice pdfData={pdfData} />
@@ -721,8 +1044,8 @@ export default function FactuurDetailPage() {
                 </CardContent>
               </Card>
             </TabsContent>
-          </Tabs>
         </div>
+        </Tabs>
       </main>
 
       <SendInvoiceModal
@@ -731,7 +1054,7 @@ export default function FactuurDetailPage() {
         klantEmail={invoice.sourceQuote?.klantSnapshot?.email || ''}
         klantAanhef={invoice.sourceQuote?.klantSnapshot?.naam || ''}
         factuurNummer={invoice.invoiceNumberLabel}
-        vervaldatum={dueDate ? dueDate.toLocaleDateString('nl-NL') : '-'}
+        vervaldatum={effectiveDueDate.toLocaleDateString('nl-NL')}
         totaalInclBtw={totaalIncl}
         bedrijfsnaam={settings?.bedrijfsnaam || businessData?.bedrijfsnaam || ''}
         iban={settings?.iban || undefined}

@@ -870,6 +870,43 @@ export default function InstellingenPage() {
                                         onChange={e => update('standaardFactuurTekst', e.target.value)}
                                     />
                                 </div>
+                                <div className="space-y-2 md:col-span-2 border-t pt-4 mt-2">
+                                    <h4 className="text-sm font-semibold">Meerwerkbon defaults</h4>
+                                    <p className="text-xs text-muted-foreground">
+                                        Standaardteksten en template voor nieuwe meerwerkbonnen.
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Standaard template preset</Label>
+                                    <Select
+                                        value={settings.standaardMeerwerkbonTemplatePreset}
+                                        onValueChange={(value) => update('standaardMeerwerkbonTemplatePreset', value)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="compact">Compact</SelectItem>
+                                            <SelectItem value="uitgebreid">Uitgebreid</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label>Standaard introductietekst meerwerkbon</Label>
+                                    <Textarea
+                                        rows={4}
+                                        value={settings.standaardMeerwerkbonIntroTekst}
+                                        onChange={e => update('standaardMeerwerkbonIntroTekst', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label>Standaard voorwaarden meerwerkbon</Label>
+                                    <Textarea
+                                        rows={5}
+                                        value={settings.standaardMeerwerkbonVoorwaarden}
+                                        onChange={e => update('standaardMeerwerkbonVoorwaarden', e.target.value)}
+                                    />
+                                </div>
                             </CardContent>
                         </Card>
                         <Card>

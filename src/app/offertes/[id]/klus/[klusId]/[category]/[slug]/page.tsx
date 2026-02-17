@@ -60,6 +60,11 @@ import { VensterbankSection } from '@/components/vensterbank/VensterbankSection'
 import { DagkantSection } from '@/components/dagkant/DagkantSection';
 import { getJobConfig } from '@/config/jobTypes/index';
 import { DynamicInput } from '@/components/DynamicInput';
+import {
+  clearMeasurementOpeningIntent,
+  MeasurementOpeningIntent,
+  takeMeasurementOpeningIntent,
+} from '@/lib/measurement-opening-intent';
 
 
 interface VakInputCardProps {
@@ -103,6 +108,8 @@ interface DakpanWerkendeMaten {
 
 type GevelProfielMode = 'hoek' | 'eind' | 'both';
 type GevelProfielSideType = 'hoek' | 'eind';
+type StucwerkProfielSideType = 'geen' | GevelProfielSideType;
+type NadenStucwerkScopeTarget = 'wand' | 'koof';
 
 interface GevelProfielState {
   mode: GevelProfielMode;
@@ -360,7 +367,11 @@ export default function GenericMeasurementPage() {
   const isGolfplaatDak = jobSlug === 'golfplaat-dak';
   const isEpdmDak = jobSlug === 'epdm-dakbedekking';
   const isBoeiboord = categorySlug === 'boeiboorden' || (jobSlug && jobSlug.includes('boeiboord'));
-  const isVoorzetwandParity = !!jobSlug && (jobSlug.includes('hsb-voorzetwand') || jobSlug.includes('metalstud-voorzetwand'));
+  const isVoorzetwandParity = !!jobSlug && (
+    jobSlug.includes('hsb-voorzetwand') ||
+    jobSlug.includes('metalstud-voorzetwand') ||
+    jobSlug.includes('hsb-tussenwand')
+  );
   const isNadenVullenJob = [
     'hsb-voorzetwand',
     'metalstud-voorzetwand',
@@ -382,6 +393,7 @@ export default function GenericMeasurementPage() {
   const [components, setComponents] = useState<JobComponent[]>([]);
   const [notities, setNotities] = useState(''); // New: Job Notes state
   const [materialenLijstSnapshot, setMaterialenLijstSnapshot] = useState<Record<string, any>>({});
+  const [pendingOpeningIntent, setPendingOpeningIntent] = useState<MeasurementOpeningIntent | null>(null);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -389,6 +401,7 @@ export default function GenericMeasurementPage() {
   const [tussenstijlThicknessMm, setTussenstijlThicknessMm] = useState<number | null>(null);
   const [hasTussenstijl, setHasTussenstijl] = useState(false);
   const [dakpanWerkendeMaten, setDakpanWerkendeMaten] = useState<DakpanWerkendeMaten | null>(null);
+  const hasAppliedPendingOpeningIntentRef = useRef(false);
   const prevVakIdsRef = useRef<Record<number, Set<string>>>({});
   const [manualVakkenOverride, setManualVakkenOverride] = useState<Record<number, boolean>>({});
   const [nadenDefaults, setNadenDefaults] = useState<{
@@ -502,6 +515,28 @@ export default function GenericMeasurementPage() {
       ['koof']
     );
   }, [materialenLijstSnapshot]);
+  const hasKoofHoekprofielMaterialFromPreviousPage = useMemo(() => {
+    return Object.entries(materialenLijstSnapshot || {}).some(([slotKey, entry]: [string, any]) => {
+      if (!entry || typeof entry !== 'object') return false;
+      if (!hasFilledMaterialInSnapshotEntry(entry)) return false;
+      const sectionKey = String(entry.sectionKey || entry.material?.sectionKey || '').trim().toLowerCase();
+      const sectionLabel = String(entry.sectionLabel || entry.label || entry.title || '').trim().toLowerCase();
+      const contextLabel = String(entry.context || '').trim().toLowerCase();
+      const materialName = String(entry.material?.materiaalnaam || '').trim().toLowerCase();
+      const slotLabel = String(slotKey || '').trim().toLowerCase();
+      const isKoofEntry = (
+        contextLabel.includes('koof')
+        || slotLabel.includes('koof')
+        || sectionKey.startsWith('koof_')
+      );
+      if (!isKoofEntry) return false;
+      return (
+        sectionKey.includes('hoek')
+        || sectionLabel.includes('hoekprofiel')
+        || materialName.includes('hoekprofiel')
+      );
+    });
+  }, [materialenLijstSnapshot]);
   const hasGevelVensterbankMaterialFromPreviousPage = useMemo(() => {
     return hasMaterialInSnapshotBySection(
       materialenLijstSnapshot,
@@ -548,7 +583,7 @@ export default function GenericMeasurementPage() {
   const showVensterbankSectionInUI = showVensterbankSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelVensterbankMaterialFromPreviousPage);
   const showDagkantSectionInUI = showDagkantSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelDagkantMaterialFromPreviousPage);
   const showStucwerkSectionInUI = isNadenVullenJob && hasNadenStucMaterialFromPreviousPage;
-  const showOpeningsSectionInUI = showOpeningsSection && (!isNadenVullenJob || hasKozijnMaterialFromPreviousPage || hasDeurMaterialFromPreviousPage);
+  const showOpeningsSectionInUI = showOpeningsSection;
   const floorProfileCountFields = useMemo(() => {
     if (jobSlug === 'massief-houten-vloer') {
       return [
@@ -788,6 +823,17 @@ export default function GenericMeasurementPage() {
     return fallback;
   };
 
+  const normalizeStucwerkProfielSide = (
+    value: any,
+    fallback: StucwerkProfielSideType = 'geen'
+  ): StucwerkProfielSideType => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'hoek') return 'hoek';
+    if (normalized === 'eind') return 'eind';
+    if (normalized === 'geen' || normalized === '' || normalized === 'none') return 'geen';
+    return fallback;
+  };
+
   const resolveGevelProfielState = (
     rawItem: any,
     fallbackMode: GevelProfielMode = 'both'
@@ -823,6 +869,40 @@ export default function GenericMeasurementPage() {
   const formatGevelProfielLabel = (side: GevelProfielSideType): string => (
     side === 'hoek' ? 'Hoek' : 'Eind'
   );
+
+  const formatStucwerkProfielLabel = (side: StucwerkProfielSideType): string => (
+    side === 'geen' ? 'Geen' : formatGevelProfielLabel(side)
+  );
+
+  const resolveNadenStucwerkScopeState = (rawItem: any): { wand: boolean; koof: boolean; autoKoof: boolean } => {
+    const hasKoofEntries = Array.isArray(rawItem?.koven) && rawItem.koven.length > 0;
+    const allowKoofScope = hasKoofHoekprofielMaterialFromPreviousPage;
+    const hasNadenVerbruikValues =
+      !isEmptyValue(rawItem?.naden_vullen_verbruik_per_m2) ||
+      !isEmptyValue(rawItem?.naden_afwerken_verbruik_per_m2);
+    const autoKoof = allowKoofScope && hasKoofEntries;
+
+    const wand = typeof rawItem?.naden_stucwerk_wand === 'boolean'
+      ? Boolean(rawItem.naden_stucwerk_wand)
+      : Boolean(hasNadenStucMaterialFromPreviousPage || hasNadenVerbruikValues);
+
+    const koof = !allowKoofScope
+      ? false
+      : (typeof rawItem?.naden_stucwerk_koof === 'boolean'
+        ? Boolean(rawItem.naden_stucwerk_koof)
+        : autoKoof);
+
+    return { wand, koof, autoKoof };
+  };
+
+  const applyNadenStucwerkScopeStateToItem = (rawItem: any) => {
+    const scope = resolveNadenStucwerkScopeState(rawItem);
+    return {
+      ...rawItem,
+      naden_stucwerk_wand: scope.wand,
+      naden_stucwerk_koof: scope.koof,
+    };
+  };
 
   const hasGevelProfielDimensionsReady = (item: any): boolean => {
     const lengteReady = toPositiveNumber(item?.lengte) !== null;
@@ -1585,10 +1665,15 @@ export default function GenericMeasurementPage() {
       } else {
         delete item.naden_vullen_afwerking;
       }
+      const scope = resolveNadenStucwerkScopeState(item);
+      item.naden_stucwerk_wand = scope.wand;
+      item.naden_stucwerk_koof = scope.koof;
     } else {
       delete item.naden_vullen_verbruik_per_m2;
       delete item.naden_afwerken_verbruik_per_m2;
       delete item.naden_vullen_afwerking;
+      delete item.naden_stucwerk_wand;
+      delete item.naden_stucwerk_koof;
     }
 
     if (isHellendDak) {
@@ -1838,7 +1923,7 @@ export default function GenericMeasurementPage() {
   };
 
   const applyVoorzetwandBalkafstandDefault = (item: any) => {
-    const isVoorzetwand = jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand';
+    const isVoorzetwand = jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand' || jobSlug === 'hsb-tussenwand';
     if (!isVoorzetwand) return item;
     const current = item?.balkafstand;
     if (current === undefined || current === null || current === '') {
@@ -2003,6 +2088,92 @@ export default function GenericMeasurementPage() {
     });
   }, [user, firestore]);
 
+  useEffect(() => {
+    hasAppliedPendingOpeningIntentRef.current = false;
+    setPendingOpeningIntent(
+      takeMeasurementOpeningIntent({ quoteId, klusId, categorySlug, jobSlug })
+    );
+  }, [quoteId, klusId, categorySlug, jobSlug]);
+
+  useEffect(() => {
+    if (!pendingOpeningIntent || hasAppliedPendingOpeningIntentRef.current) return;
+    if (loading) return;
+
+    hasAppliedPendingOpeningIntentRef.current = true;
+    const openingIntentContext = { quoteId, klusId, categorySlug, jobSlug };
+
+    if (!isNadenVullenJob || !showOpeningsSectionInUI) {
+      clearMeasurementOpeningIntent(openingIntentContext);
+      setPendingOpeningIntent(null);
+      return;
+    }
+
+    const hasAnyOpenings = items.some((item) => Array.isArray(item.openings) && item.openings.length > 0);
+    if (hasAnyOpenings) {
+      clearMeasurementOpeningIntent(openingIntentContext);
+      setPendingOpeningIntent(null);
+      return;
+    }
+
+    setItems((prev) => {
+      if (prev.length === 0) return prev;
+
+      const openingByIntent: Record<MeasurementOpeningIntent, { type: 'frame-inner' | 'door'; width: number; height: number; fromBottom: number }> = {
+        'frame-inner': { type: 'frame-inner', width: 930, height: 2115, fromBottom: 0 },
+        'door': { type: 'door', width: 830, height: 2015, fromBottom: 0 },
+      };
+      const openingPreset = openingByIntent[pendingOpeningIntent];
+
+      const firstItem = prev[0];
+      const firstItemOpenings = Array.isArray(firstItem.openings) ? firstItem.openings : [];
+      if (firstItemOpenings.length > 0) return prev;
+
+      return prev.map((item, index) =>
+        index === 0
+          ? {
+            ...item,
+            openings: [
+              ...firstItemOpenings,
+              {
+                id: crypto.randomUUID(),
+                type: openingPreset.type,
+                width: openingPreset.width,
+                height: openingPreset.height,
+                fromLeft: 1000,
+                fromBottom: openingPreset.fromBottom,
+              },
+            ],
+          }
+          : item
+      );
+    });
+
+    clearMeasurementOpeningIntent(openingIntentContext);
+    setPendingOpeningIntent(null);
+  }, [
+    pendingOpeningIntent,
+    loading,
+    isNadenVullenJob,
+    showOpeningsSectionInUI,
+    items,
+    quoteId,
+    klusId,
+    categorySlug,
+    jobSlug,
+  ]);
+
+  useEffect(() => {
+    if (!isNadenVullenJob) return;
+    setItems((prev) => {
+      if (!Array.isArray(prev) || prev.length === 0) return prev;
+      return prev.map((item) => applyNadenStucwerkScopeStateToItem(item));
+    });
+  }, [
+    isNadenVullenJob,
+    hasNadenStucMaterialFromPreviousPage,
+    hasKoofHoekprofielMaterialFromPreviousPage,
+  ]);
+
   // 4. Load Data
   useEffect(() => {
     async function loadData() {
@@ -2145,7 +2316,7 @@ export default function GenericMeasurementPage() {
 
 
               // Data Migration for HSB Voorzetwand
-              if (jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand') {
+              if (jobSlug === 'hsb-voorzetwand' || jobSlug === 'metalstud-voorzetwand' || jobSlug === 'hsb-tussenwand') {
 
                 // Move single objects to arrays if they exist
                 if (normalizedItem.koof_lengte !== undefined && normalizedItem.koven.length === 0) {
@@ -2512,6 +2683,10 @@ export default function GenericMeasurementPage() {
         }
       }
 
+      if (isNadenVullenJob) {
+        newItem = applyNadenStucwerkScopeStateToItem(newItem);
+      }
+
       return applyHellendDakMultipliers(newItem);
     }));
   };
@@ -2544,6 +2719,36 @@ export default function GenericMeasurementPage() {
         ? { mode: 'both', links: value, rechts: opposite }
         : { mode: 'both', links: opposite, rechts: value };
       return applyGevelProfielStateToItem(item, state);
+    }));
+  };
+
+  const updateStucwerkGevelProfielSide = (
+    index: number,
+    side: 'links' | 'rechts',
+    value: StucwerkProfielSideType
+  ) => {
+    setItems((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      const field = side === 'links' ? 'gevel_profiel_links' : 'gevel_profiel_rechts';
+      const nextItem = {
+        ...item,
+        gevel_profiel_mode: 'both',
+        [field]: value === 'geen' ? '' : value,
+      };
+      return applyNadenStucwerkScopeStateToItem(nextItem);
+    }));
+  };
+
+  const toggleNadenStucwerkScopeTarget = (index: number, target: NadenStucwerkScopeTarget) => {
+    setItems((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      const scope = resolveNadenStucwerkScopeState(item);
+      const field = target === 'wand' ? 'naden_stucwerk_wand' : 'naden_stucwerk_koof';
+      const nextItem = {
+        ...item,
+        [field]: !scope[target],
+      };
+      return applyNadenStucwerkScopeStateToItem(nextItem);
     }));
   };
 
@@ -5642,23 +5847,25 @@ export default function GenericMeasurementPage() {
                     )}
 
                     {showStucwerkSectionInUI && (() => {
-                      const profielState = resolveGevelProfielState(item, 'both');
+                      const profielState = {
+                        links: normalizeStucwerkProfielSide(item.gevel_profiel_links, 'geen'),
+                        rechts: normalizeStucwerkProfielSide(item.gevel_profiel_rechts, 'geen'),
+                      };
+                      const stucwerkScope = resolveNadenStucwerkScopeState(item);
                       const sideToggleButtonClass = "flex-1 text-xs py-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
-                      const profielSummary = profielState.mode === 'both'
-                        ? `Links ${formatGevelProfielLabel(profielState.links)} • Rechts ${formatGevelProfielLabel(profielState.rechts)}`
-                        : `${formatGevelProfielLabel(profielState.links)} beide zijden`;
-                      const modeButtonClass = (
+                      const profielSummary = `Links ${formatStucwerkProfielLabel(profielState.links)} • Rechts ${formatStucwerkProfielLabel(profielState.rechts)}`;
+                      const sideButtonClass = (
                         active: boolean,
-                        tone: 'hoek' | 'eind' | 'both'
+                        tone: StucwerkProfielSideType
                       ) => cn(
-                        "text-xs py-1.5 rounded transition-colors border",
+                        sideToggleButtonClass,
                         active
                           ? tone === 'hoek'
-                            ? "bg-orange-500/20 text-orange-300 border-orange-500/30"
+                            ? "bg-orange-500/20 text-orange-300"
                             : tone === 'eind'
-                              ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
-                              : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                          : "bg-black/20 text-zinc-400 border-white/10 hover:text-zinc-200"
+                              ? "bg-sky-500/20 text-sky-300"
+                              : "bg-zinc-500/20 text-zinc-200"
+                          : "text-zinc-500 hover:text-zinc-300"
                       );
 
                       return (
@@ -5697,101 +5904,100 @@ export default function GenericMeasurementPage() {
                           {collapsedSections[`naden-vullen-${index}`] === false && (
                             <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
                               <div className="pt-2 border-t border-white/5 space-y-4">
-                                {/* Hoek/Eind profiel — same UI as Keralit */}
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs uppercase text-zinc-500 tracking-wider">Hoek/Eind profiel</Label>
-                                  <div className="grid grid-cols-3 gap-2">
-                                    <button
-                                      type="button"
-                                      className={modeButtonClass(profielState.mode === 'hoek', 'hoek')}
-                                      onClick={() => updateKeralitGevelProfielMode(index, 'hoek')}
-                                      disabled={disabledAll}
-                                    >
-                                      Hoekprofiel
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={modeButtonClass(profielState.mode === 'eind', 'eind')}
-                                      onClick={() => updateKeralitGevelProfielMode(index, 'eind')}
-                                      disabled={disabledAll}
-                                    >
-                                      Eindprofiel
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={modeButtonClass(profielState.mode === 'both', 'both')}
-                                      onClick={() => updateKeralitGevelProfielMode(index, 'both')}
-                                      disabled={disabledAll}
-                                    >
-                                      Beide
-                                    </button>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Links profiel</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateStucwerkGevelProfielSide(index, 'links', 'geen')}
+                                        disabled={disabledAll}
+                                        className={sideButtonClass(profielState.links === 'geen', 'geen')}
+                                      >
+                                        Geen
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateStucwerkGevelProfielSide(index, 'links', 'hoek')}
+                                        disabled={disabledAll}
+                                        className={sideButtonClass(profielState.links === 'hoek', 'hoek')}
+                                      >
+                                        Hoek
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateStucwerkGevelProfielSide(index, 'links', 'eind')}
+                                        disabled={disabledAll}
+                                        className={sideButtonClass(profielState.links === 'eind', 'eind')}
+                                      >
+                                        Eind
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Rechts profiel</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateStucwerkGevelProfielSide(index, 'rechts', 'geen')}
+                                        disabled={disabledAll}
+                                        className={sideButtonClass(profielState.rechts === 'geen', 'geen')}
+                                      >
+                                        Geen
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateStucwerkGevelProfielSide(index, 'rechts', 'hoek')}
+                                        disabled={disabledAll}
+                                        className={sideButtonClass(profielState.rechts === 'hoek', 'hoek')}
+                                      >
+                                        Hoek
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateStucwerkGevelProfielSide(index, 'rechts', 'eind')}
+                                        disabled={disabledAll}
+                                        className={sideButtonClass(profielState.rechts === 'eind', 'eind')}
+                                      >
+                                        Eind
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
 
-                                {profielState.mode === 'both' && (
-                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Links</Label>
-                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                        <button
-                                          type="button"
-                                          onClick={() => updateKeralitGevelProfielSide(index, 'links', 'hoek')}
-                                          disabled={disabledAll}
-                                          className={cn(
-                                            sideToggleButtonClass,
-                                            profielState.links === 'hoek'
-                                              ? "bg-orange-500/20 text-orange-300"
-                                              : "text-zinc-500 hover:text-zinc-300"
-                                          )}
-                                        >
-                                          Hoek
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => updateKeralitGevelProfielSide(index, 'links', 'eind')}
-                                          disabled={disabledAll}
-                                          className={cn(
-                                            sideToggleButtonClass,
-                                            profielState.links === 'eind'
-                                              ? "bg-sky-500/20 text-sky-300"
-                                              : "text-zinc-500 hover:text-zinc-300"
-                                          )}
-                                        >
-                                          Eind
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] uppercase text-zinc-500 tracking-wider">Rechts</Label>
-                                      <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                        <button
-                                          type="button"
-                                          onClick={() => updateKeralitGevelProfielSide(index, 'rechts', 'hoek')}
-                                          disabled={disabledAll}
-                                          className={cn(
-                                            sideToggleButtonClass,
-                                            profielState.rechts === 'hoek'
-                                              ? "bg-orange-500/20 text-orange-300"
-                                              : "text-zinc-500 hover:text-zinc-300"
-                                          )}
-                                        >
-                                          Hoek
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => updateKeralitGevelProfielSide(index, 'rechts', 'eind')}
-                                          disabled={disabledAll}
-                                          className={cn(
-                                            sideToggleButtonClass,
-                                            profielState.rechts === 'eind'
-                                              ? "bg-sky-500/20 text-sky-300"
-                                              : "text-zinc-500 hover:text-zinc-300"
-                                          )}
-                                        >
-                                          Eind
-                                        </button>
-                                      </div>
+                                {hasKoofHoekprofielMaterialFromPreviousPage && (
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">Toepassen op</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleNadenStucwerkScopeTarget(index, 'wand')}
+                                        className={cn(
+                                          "rounded-md border px-3 py-2 text-left transition-colors",
+                                          stucwerkScope.wand
+                                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                                            : "border-white/10 bg-black/20 text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                        disabled={disabledAll}
+                                      >
+                                        <div className="text-[11px] font-medium">Wand</div>
+                                        <div className="text-[10px] opacity-80">Stucwerk op wandvlak</div>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleNadenStucwerkScopeTarget(index, 'koof')}
+                                        className={cn(
+                                          "rounded-md border px-3 py-2 text-left transition-colors",
+                                          stucwerkScope.koof
+                                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                                            : "border-white/10 bg-black/20 text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                        disabled={disabledAll}
+                                      >
+                                        <div className="text-[11px] font-medium">Koof</div>
+                                        <div className="text-[10px] opacity-80">Stucwerk op koof</div>
+                                      </button>
                                     </div>
                                   </div>
                                 )}

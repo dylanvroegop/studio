@@ -169,7 +169,8 @@ function createMaterialPackageId(): string {
     return `pakket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-const CALCULATION_ESTIMATE_SECONDS = 180;
+const CALCULATION_ESTIMATE_SECONDS = 300;
+const CALCULATION_STUCK_SECONDS = 20 * 60;
 
 function getMaterialPackageSummary(pkg: QuoteMaterialPackage): string {
     const grootCount = Array.isArray(pkg.grootmaterialen) ? pkg.grootmaterialen.length : 0;
@@ -279,6 +280,7 @@ export default function QuotePage() {
     const [showVerbruikToelichting, setShowVerbruikToelichting] = useState(false);
     const [compareMaterialView, setCompareMaterialView] = useState<'groot' | 'verbruik'>('groot');
     const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
+    const [isRetryingCalculation, setIsRetryingCalculation] = useState(false);
     const calculationTimerStartedAtRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -1921,7 +1923,7 @@ export default function QuotePage() {
         const updateElapsed = () => {
             const startedAt = calculationTimerStartedAtRef.current ?? Date.now();
             const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
-            setCalculationElapsedSeconds(Math.min(CALCULATION_ESTIMATE_SECONDS, Math.max(0, elapsedSeconds)));
+            setCalculationElapsedSeconds(Math.min(CALCULATION_STUCK_SECONDS, Math.max(0, elapsedSeconds)));
         };
 
         updateElapsed();
@@ -1935,34 +1937,131 @@ export default function QuotePage() {
         100,
         (calculationElapsedSeconds / CALCULATION_ESTIMATE_SECONDS) * 100
     );
+    const isDelayedCalculation =
+        quote?.status === 'in_behandeling' &&
+        calculationElapsedSeconds >= CALCULATION_ESTIMATE_SECONDS;
+    const isCalculationTimedOut =
+        quote?.status === 'in_behandeling' &&
+        calculationElapsedSeconds >= CALCULATION_STUCK_SECONDS;
+
+    const handleRetryCalculation = async () => {
+        if (!user || isRetryingCalculation) return;
+
+        setIsRetryingCalculation(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/offerte/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ quoteId: id }),
+            });
+
+            const responseText = await response.text().catch(() => '');
+            let payload: any = null;
+            try {
+                payload = responseText ? JSON.parse(responseText) : null;
+            } catch {
+                payload = null;
+            }
+
+            if (!response.ok || (payload && typeof payload === 'object' && payload.ok === false)) {
+                const message =
+                    payload && typeof payload === 'object'
+                        ? payload.message || payload.error
+                        : null;
+                throw new Error(message || 'Kon calculatie niet opnieuw starten.');
+            }
+
+            const restartedAt = Date.now();
+            calculationTimerStartedAtRef.current = restartedAt;
+            window.localStorage.setItem(calculationTimerStorageKey, String(restartedAt));
+            setCalculationElapsedSeconds(0);
+            setQuote((prev) => (
+                prev
+                    ? { ...prev, status: 'in_behandeling', calculationStartedAt: new Date(restartedAt) }
+                    : prev
+            ));
+
+            toast({
+                title: 'Calculatie opnieuw gestart',
+                description: 'We proberen de berekening opnieuw uit te voeren.',
+            });
+        } catch (err: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Opnieuw starten mislukt',
+                description: err?.message || 'Kon calculatie niet opnieuw starten.',
+            });
+        } finally {
+            setIsRetryingCalculation(false);
+        }
+    };
 
     const LoadingPanel = () => (
         <div className="flex flex-col items-center justify-center py-20 gap-6">
             <div className="flex w-full max-w-sm flex-col items-center gap-3">
-                <div className="text-emerald-400 font-medium tracking-wide">
-                    {quote?.status === 'in_behandeling' ? 'MATERIALEN BEREKENEN' : 'LADEN'}
-                </div>
-                <div className="text-muted-foreground text-sm animate-pulse text-center">
+                <div className={`font-medium tracking-wide ${isCalculationTimedOut ? 'text-rose-300' : 'text-emerald-400'}`}>
                     {quote?.status === 'in_behandeling'
-                        ? 'De AI berekent de benodigde materialen en uren...'
+                        ? isCalculationTimedOut
+                            ? 'ER IS IETS MISGEGAAN'
+                            : isDelayedCalculation
+                            ? 'Berekening in behandeling'
+                            : 'MATERIALEN BEREKENEN'
+                        : 'LADEN'}
+                </div>
+                <div className={`text-sm text-center ${isCalculationTimedOut ? 'text-rose-200' : 'text-muted-foreground animate-pulse'}`}>
+                    {quote?.status === 'in_behandeling'
+                        ? isCalculationTimedOut
+                            ? 'De berekening duurt langer dan 20 minuten. Probeer de calculatie opnieuw.'
+                            : isDelayedCalculation
+                            ? 'De berekening duurt momenteel langer dan gemiddeld. We verwerken uw materialen en uren nog.'
+                            : 'De AI berekent de benodigde materialen en uren...'
                         : 'Even geduld afrubelen...'}
                 </div>
                 {quote?.status === 'in_behandeling' && (
-                    <div className="w-full space-y-2 pt-1">
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{formatTimerValue(calculationElapsedSeconds)}</span>
-                            <span>{formatTimerValue(CALCULATION_ESTIMATE_SECONDS)}</span>
+                    isCalculationTimedOut ? (
+                        <div className="w-full space-y-3 pt-1">
+                            <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-200">
+                                De berekening is nog niet afgerond na 20 minuten.
+                            </div>
+                            <Button
+                                type="button"
+                                onClick={() => { void handleRetryCalculation(); }}
+                                disabled={isRetryingCalculation}
+                                className="w-full"
+                            >
+                                {isRetryingCalculation ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Calculatie opnieuw starten...
+                                    </>
+                                ) : (
+                                    'Calculatie opnieuw proberen'
+                                )}
+                            </Button>
                         </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full border border-emerald-500/20 bg-emerald-950/50">
-                            <div
-                                className="h-full rounded-full bg-gradient-to-r from-emerald-500/70 to-emerald-400 transition-[width] duration-1000 ease-linear"
-                                style={{ width: `${calculationProgressPercentage}%` }}
-                            />
+                    ) : (
+                        <div className="w-full space-y-2 pt-1">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{formatTimerValue(calculationElapsedSeconds)}</span>
+                                <span>{formatTimerValue(CALCULATION_ESTIMATE_SECONDS)}</span>
+                            </div>
+                            <div className="h-2 w-full overflow-hidden rounded-full border border-emerald-500/20 bg-emerald-950/50">
+                                <div
+                                    className="h-full rounded-full bg-gradient-to-r from-emerald-500/70 to-emerald-400 transition-[width] duration-1000 ease-linear"
+                                    style={{ width: `${calculationProgressPercentage}%` }}
+                                />
+                            </div>
+                            <div className="text-center text-xs text-muted-foreground">
+                                {isDelayedCalculation
+                                    ? 'U hoeft niets te doen; de resultaten verschijnen automatisch zodra de berekening is afgerond.'
+                                    : 'Gemiddelde reken tijd; 5 minuten'}
+                            </div>
                         </div>
-                        <div className="text-center text-xs text-muted-foreground">
-                            Gemiddelde reken tijd; 3 minuten
-                        </div>
-                    </div>
+                    )
                 )}
             </div>
         </div>

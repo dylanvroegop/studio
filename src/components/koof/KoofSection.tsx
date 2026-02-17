@@ -146,7 +146,6 @@ export function KoofSection({
                                                 const vO = Number(koof.vanOnder) || 0;
                                                 const kL = Number(koof.lengte) || 0;
                                                 const kH = Number(koof.hoogte) || 0;
-                                                const kD = Number(koof.diepte) || 0;
                                                 const orientation = koof.orientation || 'side';
 
                                                 let sides = 3;
@@ -160,18 +159,11 @@ export function KoofSection({
                                                     sides = 2;
                                                 }
 
-                                                // Update item if sides changed
                                                 if (koof.aantalZijden !== sides) {
                                                     setTimeout(() => onUpdate(koof.id, { aantalZijden: sides }), 0);
                                                 }
 
-                                                return (
-                                                    <div className="px-2 py-1 rounded bg-emerald-500/5 border border-emerald-500/10 inline-flex items-center">
-                                                        <span className="text-[10px] text-emerald-500/80 font-medium">
-                                                            Positie: {sides === 2 ? 'Hoek' : 'Midden'} ({sides} zijden)
-                                                        </span>
-                                                    </div>
-                                                );
+                                                return null;
                                             })()}
 
                                             {/* Orientation toggle */}

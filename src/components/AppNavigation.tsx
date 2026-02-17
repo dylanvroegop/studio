@@ -22,6 +22,7 @@ const navItems: NavigationItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/offertes', label: 'Offertes', icon: FileText },
     { href: '/facturen', label: 'Facturen', icon: ReceiptText },
+    { href: '/meerwerkbon', label: 'Meerwerkbon', icon: FileText },
     { href: '/winst', label: 'Winst', icon: TrendingUp },
     { href: '/planning', label: 'Planning', icon: CalendarDays },
     { href: '/materialen', label: 'Producten', icon: Boxes },

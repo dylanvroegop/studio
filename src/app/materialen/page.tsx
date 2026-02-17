@@ -391,7 +391,7 @@ export default function MaterialenPage() {
 
   const uniqueCategories = useMemo(() => {
     const categoryOrder = [
-      "Constructiehout",
+      "Vuren hout",
       "Hardhout",
       "Aftimmerhout & Plinten",
       "Kozijnhout, Raamhout & Glaslatten",

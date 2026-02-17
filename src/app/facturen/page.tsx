@@ -39,7 +39,7 @@ import {
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
-import { promoteQuoteToAcceptedInTransaction } from '@/lib/quote-status';
+import { promoteInvoiceRelatedQuotesToAcceptedInTransaction } from '@/lib/quote-status';
 
 type FilterMode = 'alle' | 'openstaand' | 'betaald';
 
@@ -223,7 +223,7 @@ export default function FacturenPage() {
           updatedAt: serverTimestamp(),
         });
 
-        await promoteQuoteToAcceptedInTransaction(tx, firestore, data?.quoteId);
+        await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, data);
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });
@@ -269,7 +269,7 @@ export default function FacturenPage() {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
-                <ReceiptText className="h-5 w-5 text-emerald-400" />
+                <ReceiptText className="h-5 w-5 text-cyan-400" />
                 Overzicht
               </CardTitle>
             </CardHeader>
@@ -293,7 +293,11 @@ export default function FacturenPage() {
                 <div className="flex gap-2">
                   <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                     <DialogTrigger asChild>
-                      <Button type="button" variant="success" className="h-10 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                      >
                         <Plus className="h-4 w-4" />
                         Nieuwe factuur
                       </Button>
@@ -374,25 +378,25 @@ export default function FacturenPage() {
                   </Dialog>
                   <Button
                     type="button"
-                    variant={filter === 'alle' ? 'success' : 'outline'}
+                    variant={filter === 'alle' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('alle')}
-                    className="h-10"
+                    className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
                   >
                     Alle
                   </Button>
                   <Button
                     type="button"
-                    variant={filter === 'openstaand' ? 'success' : 'outline'}
+                    variant={filter === 'openstaand' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('openstaand')}
-                    className="h-10"
+                    className={cn('h-10', filter === 'openstaand' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
                   >
                     Openstaand
                   </Button>
                   <Button
                     type="button"
-                    variant={filter === 'betaald' ? 'success' : 'outline'}
+                    variant={filter === 'betaald' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('betaald')}
-                    className="h-10"
+                    className={cn('h-10', filter === 'betaald' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
                   >
                     Betaald
                   </Button>
@@ -408,7 +412,11 @@ export default function FacturenPage() {
                 <div className="text-sm text-muted-foreground">
                   Facturen maak je aan vanuit een offerte.
                 </div>
-                <Button asChild variant="success" className="mt-2">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                >
                   <Link href="/offertes">Ga naar offertes</Link>
                 </Button>
               </CardContent>

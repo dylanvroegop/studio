@@ -42,6 +42,7 @@ export interface WallDrawingProps {
     onKoofChange?: (updated: KoofItem[]) => void;
     gevelProfielLinks?: 'hoek' | 'eind';
     gevelProfielRechts?: 'hoek' | 'eind';
+    stucwerkApplyKoof?: boolean;
 }
 
 type LogicalBeam = {
@@ -91,7 +92,8 @@ export function WallDrawing({
     onKoofChange,
     onDataGenerated,
     gevelProfielLinks,
-    gevelProfielRechts
+    gevelProfielRechts,
+    stucwerkApplyKoof = false
 }: WallDrawingProps) {
     const profielAccentByType: Record<'hoek' | 'eind', string> = {
         hoek: 'rgb(251, 146, 60)',
@@ -560,6 +562,7 @@ export function WallDrawing({
                 const WALL_WIDTH = rectW;
                 const Y_BOTTOM = startY + rectH;
                 const getY = (mm: number) => Y_BOTTOM - (mm * pxPerMm);
+                const profielLineInsetPx = Math.max(1, Math.min(4, pxPerMm * 6));
 
                 // Convert Logical Structure to Render Objects
                 const timberW = Math.max(1.5, STUD_W * pxPerMm);
@@ -738,6 +741,11 @@ export function WallDrawing({
                             const koofW = rectWMm * pxPerMm;
                             const koofH = rectHMm * pxPerMm;
                             const isDragging = draggingId === koof.id;
+                            const koofProfielInsetPx = Math.max(1, Math.min(4, pxPerMm * 6));
+                            const touchesLeft = Math.abs(koofVanLinks) < 1;
+                            const touchesRight = lengteNum > 0 && Math.abs(koofVanLinks + rectWMm - lengteNum) < 1;
+                            const touchesBottom = Math.abs(koofVanOnder) < 1;
+                            const touchesTop = maxH > 0 && Math.abs(koofVanOnder + rectHMm - maxH) < 1;
 
                             return (
                                 <g
@@ -766,6 +774,54 @@ export function WallDrawing({
                                         strokeWidth={isDragging ? "2" : "1"}
                                         strokeDasharray={isDragging ? "none" : "4,2"}
                                     />
+                                    {stucwerkApplyKoof && orientation === 'side' && (
+                                        <>
+                                            {!touchesLeft && (
+                                                <line
+                                                    x1={koofX + koofProfielInsetPx}
+                                                    y1={koofY}
+                                                    x2={koofX + koofProfielInsetPx}
+                                                    y2={koofY + koofH}
+                                                    stroke={profielAccentByType.hoek}
+                                                    strokeWidth={1}
+                                                />
+                                            )}
+                                            {!touchesRight && (
+                                                <line
+                                                    x1={koofX + koofW - koofProfielInsetPx}
+                                                    y1={koofY}
+                                                    x2={koofX + koofW - koofProfielInsetPx}
+                                                    y2={koofY + koofH}
+                                                    stroke={profielAccentByType.hoek}
+                                                    strokeWidth={1}
+                                                />
+                                            )}
+                                        </>
+                                    )}
+                                    {stucwerkApplyKoof && orientation === 'top' && (
+                                        <>
+                                            {!touchesTop && (
+                                                <line
+                                                    x1={koofX}
+                                                    y1={koofY + koofProfielInsetPx}
+                                                    x2={koofX + koofW}
+                                                    y2={koofY + koofProfielInsetPx}
+                                                    stroke={profielAccentByType.hoek}
+                                                    strokeWidth={1}
+                                                />
+                                            )}
+                                            {!touchesBottom && (
+                                                <line
+                                                    x1={koofX}
+                                                    y1={koofY + koofH - koofProfielInsetPx}
+                                                    x2={koofX + koofW}
+                                                    y2={koofY + koofH - koofProfielInsetPx}
+                                                    stroke={profielAccentByType.hoek}
+                                                    strokeWidth={1}
+                                                />
+                                            )}
+                                        </>
+                                    )}
                                     <text
                                         x={koofX + koofW / 2}
                                         y={koofY + koofH / 2}
@@ -837,6 +893,26 @@ export function WallDrawing({
 
                         {(gevelProfielLinks || gevelProfielRechts) && (
                             <g pointerEvents="none" style={{ userSelect: 'none' }}>
+                                {gevelProfielLinks && (
+                                    <line
+                                        x1={WALL_X + profielLineInsetPx}
+                                        y1={startY}
+                                        x2={WALL_X + profielLineInsetPx}
+                                        y2={startY + rectH}
+                                        stroke={profielAccentByType[gevelProfielLinks]}
+                                        strokeWidth={1}
+                                    />
+                                )}
+                                {gevelProfielRechts && (
+                                    <line
+                                        x1={WALL_X + WALL_WIDTH - profielLineInsetPx}
+                                        y1={startY}
+                                        x2={WALL_X + WALL_WIDTH - profielLineInsetPx}
+                                        y2={startY + rectH}
+                                        stroke={profielAccentByType[gevelProfielRechts]}
+                                        strokeWidth={1}
+                                    />
+                                )}
                                 {gevelProfielLinks && (
                                     <text
                                         x={WALL_X - 45}

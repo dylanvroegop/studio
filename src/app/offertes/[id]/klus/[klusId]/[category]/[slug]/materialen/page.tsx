@@ -107,6 +107,10 @@ import { getJobConfig, getPresetCompatibleJobTypes, getPresetGroup, getPresetKey
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
 import type { LeverancierContact } from '@/lib/types-settings';
 import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
+import {
+  clearMeasurementOpeningIntent,
+  setMeasurementOpeningIntent,
+} from '@/lib/measurement-opening-intent';
 
 // ==================================
 // CONSTANTS
@@ -468,17 +472,73 @@ function getDefaultWastePercentage(sectionKey: string | null, label?: string, co
 }
 
 const NOTES_PLACEHOLDER_MESSAGES = [
-  "Bijv: 2x extra balken 50x70 toevoegen",
-  "Bijv: Check prijs voor eiken plaat 18 mm",
-  "Bijv: Optie 'olie-afwerking' toevoegen",
-  "Bijv: Alternatief: vuren i.p.v. eiken",
-  "Bijv: Klant wil extra schroeven opnemen",
+  "Bijv: Bathoeken 45x45mm bij elke staander à €0,50 per stuk",
+  "Bijv: Extra stelwiggen per kozijn (10 stuks) à €0,20 per stuk",
+  "Bijv: 1 extra transportbeweging à €85 vast bedrag",
+  "Bijv: 6 montageankers M12x120mm à €3,80 per stuk",
+  "Bijv: Extra uitvullen rondom opening (4m1) à €6,50 per meter",
+  "Bijv: 3 beschermplaten 600x1200mm voor tijdelijke afdekking à €18 per stuk",
+  "Bijv: 1 dag steigerhuur (ca. 25m2 werkgebied) à €145 per dag",
+  "Bijv: 8 uur extra afmontage à €55 per uur",
+  "Bijv: Extra bevestiging per m2 (schroeven + pluggen) à €2,20 per m2",
+  "Bijv: 12 ventilatieafstandhouders 10mm dik à €1,40 per stuk",
+  "Bijv: Extra stelruimte rondom opening (5m1) à €4,20 per meter",
+  "Bijv: 12 montageclips RVS 60mm à €1,80 per stuk",
+  "Bijv: Extra randafdichting 8m1 à €3,40 per meter",
+  "Bijv: 2 extra oplegpunten staalplaat 200x200mm à €14,50 per stuk",
+  "Bijv: 4 vulplaten 5mm dik 100x100mm à €2,75 per stuk",
+  "Bijv: Extra dempingsband onder volledige lengte (6m1) à €2,10 per meter",
+  "Bijv: 1 extra afvoer doorvoer 110mm à €65 per stuk",
+  "Bijv: 3 extra bevestigingsbeugels zwaar model à €7,90 per stuk",
+  "Bijv: Extra randbeveiliging werkgebied 12m1 à €5,80 per meter",
+  "Bijv: 15 afstandsbussen 20mm lengte à €0,95 per stuk",
+  "Bijv: Extra werkvoorbereiding 3 uur à €60 per uur",
+  "Bijv: 1 aanvullende constructieberekening vast bedrag €250",
+  "Bijv: 8 trillingsdempers 40mm à €3,25 per stuk",
+  "Bijv: Extra tijdelijke ondersteuning 2 dagen à €75 per dag",
+  "Bijv: 20 beschermhoeken kunststof 90° à €0,85 per stuk",
+  "Bijv: Extra maatvoering en uitzetten 2 uur à €55 per uur",
+  "Bijv: 6 chemische bevestigingssets M10 à €9,50 per set",
+  "Bijv: Extra dilatatieafstand 10m1 à €3,60 per meter",
+  "Bijv: 2 extra sparingen maken 150x150mm à €35 per stuk",
+  "Bijv: 1 toeslag werken op hoogte >3m vast bedrag €120",
 ] as const;
 
-const NOTES_PLACEHOLDER_TYPING_MS = 48;
-const NOTES_PLACEHOLDER_DELETE_MS = 26;
-const NOTES_PLACEHOLDER_HOLD_MS = 1100;
-const NOTES_PLACEHOLDER_START_DELAY_MS = 350;
+const NOTES_PLACEHOLDER_VISIBLE_LINES = 4;
+const NOTES_PLACEHOLDER_TYPING_MS = 18;
+const NOTES_PLACEHOLDER_TYPING_STEP = 2;
+const NOTES_PLACEHOLDER_DELETE_MS = 14;
+const NOTES_PLACEHOLDER_DELETE_STEP = 3;
+const NOTES_PLACEHOLDER_HOLD_MS = 2400;
+const NOTES_PLACEHOLDER_START_DELAY_MS = 220;
+
+function pickRandomNotesPlaceholderBatch(
+  source: readonly string[],
+  count: number,
+  previousBatch: readonly string[] = []
+): string[] {
+  const unique = Array.from(new Set(source));
+  if (unique.length === 0) return [];
+  if (unique.length <= count) return unique.slice(0, count);
+
+  const previousKey = previousBatch.join('\n');
+  let fallback = unique.slice(0, count);
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const pool = [...unique];
+    const next: string[] = [];
+
+    while (next.length < count && pool.length > 0) {
+      const randomIndex = Math.floor(Math.random() * pool.length);
+      next.push(pool.splice(randomIndex, 1)[0]);
+    }
+
+    if (next.join('\n') !== previousKey) return next;
+    fallback = next;
+  }
+
+  return fallback;
+}
 
 function cleanMaterialData(v: any) {
   if (!v) return null;
@@ -1725,6 +1785,26 @@ export default function GenericMaterialsPageRedesigned() {
 
     // 1) Primary: exact key match in current job-registry sections
     const byKey = materialSections.find((s) => s.key === actieveSectie)?.categoryFilter;
+
+    // Component sections can share generic keys with base job sections
+    // (e.g. "afwerkplaat"), which may otherwise force the wrong filter.
+    // If the explicitly passed section-meta filter differs from the by-key match,
+    // prefer section-meta to avoid key-collision mismatches.
+    if (activeSectionMeta?.categoryFilter) {
+      const normalizedMeta = normalizeCategoryFilter(activeSectionMeta.categoryFilter);
+      const normalizedByKey = normalizeCategoryFilter(byKey);
+      const metaToken = Array.isArray(normalizedMeta)
+        ? normalizedMeta.map((item) => item.toLowerCase().trim()).join('|')
+        : String(normalizedMeta || '').toLowerCase().trim();
+      const byKeyToken = Array.isArray(normalizedByKey)
+        ? normalizedByKey.map((item) => item.toLowerCase().trim()).join('|')
+        : String(normalizedByKey || '').toLowerCase().trim();
+
+      if (!byKey || (metaToken && byKeyToken && metaToken !== byKeyToken)) {
+        return normalizedMeta;
+      }
+    }
+
     if (byKey) return normalizeCategoryFilter(byKey);
 
     // 2) If this is a component section, prefer a 1:1 label match in current job-registry
@@ -2219,16 +2299,24 @@ export default function GenericMaterialsPageRedesigned() {
 
   const [klus, setKlus] = useState<Job | null>(null);
   const [notities, setNotities] = useState('');
-  const [notesPlaceholderIndex, setNotesPlaceholderIndex] = useState(0);
+  const [notesPlaceholderBatch, setNotesPlaceholderBatch] = useState<string[]>(() =>
+    pickRandomNotesPlaceholderBatch(
+      NOTES_PLACEHOLDER_MESSAGES,
+      NOTES_PLACEHOLDER_VISIBLE_LINES
+    )
+  );
   const [notesPlaceholderCursor, setNotesPlaceholderCursor] = useState(0);
   const [notesPlaceholderPhase, setNotesPlaceholderPhase] = useState<'typing' | 'holding' | 'deleting'>('typing');
   const [notesReduceMotion, setNotesReduceMotion] = useState(false);
   const notesWasEmptyRef = useRef(true);
 
-  const notesPlaceholderMessage = NOTES_PLACEHOLDER_MESSAGES[notesPlaceholderIndex % NOTES_PLACEHOLDER_MESSAGES.length];
+  const notesPlaceholderMessage = notesPlaceholderBatch.join('\n');
+  const notesReducedMotionMessage = NOTES_PLACEHOLDER_MESSAGES
+    .slice(0, NOTES_PLACEHOLDER_VISIBLE_LINES)
+    .join('\n');
   const notesShouldAnimatePlaceholder = !notesReduceMotion && notities.trim().length === 0;
   const notesPlaceholderText = notesReduceMotion
-    ? NOTES_PLACEHOLDER_MESSAGES[0]
+    ? notesReducedMotionMessage
     : notesShouldAnimatePlaceholder
       ? notesPlaceholderMessage.slice(0, notesPlaceholderCursor)
       : notesPlaceholderMessage;
@@ -2249,7 +2337,11 @@ export default function GenericMaterialsPageRedesigned() {
   useEffect(() => {
     const isEmpty = notities.trim().length === 0;
     if (isEmpty && !notesWasEmptyRef.current) {
-      setNotesPlaceholderIndex(0);
+      setNotesPlaceholderBatch((prev) => pickRandomNotesPlaceholderBatch(
+        NOTES_PLACEHOLDER_MESSAGES,
+        NOTES_PLACEHOLDER_VISIBLE_LINES,
+        prev
+      ));
       setNotesPlaceholderCursor(0);
       setNotesPlaceholderPhase('typing');
     }
@@ -2263,7 +2355,10 @@ export default function GenericMaterialsPageRedesigned() {
     if (notesPlaceholderPhase === 'typing') {
       if (notesPlaceholderCursor < notesPlaceholderMessage.length) {
         const delay = notesPlaceholderCursor === 0 ? NOTES_PLACEHOLDER_START_DELAY_MS : NOTES_PLACEHOLDER_TYPING_MS;
-        timeout = setTimeout(() => setNotesPlaceholderCursor((prev) => prev + 1), delay);
+        timeout = setTimeout(
+          () => setNotesPlaceholderCursor((prev) => Math.min(notesPlaceholderMessage.length, prev + NOTES_PLACEHOLDER_TYPING_STEP)),
+          delay
+        );
       } else {
         timeout = setTimeout(() => setNotesPlaceholderPhase('holding'), NOTES_PLACEHOLDER_HOLD_MS);
       }
@@ -2271,10 +2366,17 @@ export default function GenericMaterialsPageRedesigned() {
       timeout = setTimeout(() => setNotesPlaceholderPhase('deleting'), NOTES_PLACEHOLDER_HOLD_MS);
     } else {
       if (notesPlaceholderCursor > 0) {
-        timeout = setTimeout(() => setNotesPlaceholderCursor((prev) => prev - 1), NOTES_PLACEHOLDER_DELETE_MS);
+        timeout = setTimeout(
+          () => setNotesPlaceholderCursor((prev) => Math.max(0, prev - NOTES_PLACEHOLDER_DELETE_STEP)),
+          NOTES_PLACEHOLDER_DELETE_MS
+        );
       } else {
         setNotesPlaceholderPhase('typing');
-        setNotesPlaceholderIndex((prev) => (prev + 1) % NOTES_PLACEHOLDER_MESSAGES.length);
+        setNotesPlaceholderBatch((prev) => pickRandomNotesPlaceholderBatch(
+          NOTES_PLACEHOLDER_MESSAGES,
+          NOTES_PLACEHOLDER_VISIBLE_LINES,
+          prev
+        ));
       }
     }
 
@@ -2464,6 +2566,18 @@ export default function GenericMaterialsPageRedesigned() {
   }, []);
 
   const addComponentFromVariant = useCallback((type: JobComponentType, item: any, idx = 0) => {
+    if (type === 'kozijn') {
+      setMeasurementOpeningIntent(
+        { quoteId, klusId, categorySlug, jobSlug },
+        'frame-inner'
+      );
+    } else if (type === 'deur') {
+      setMeasurementOpeningIntent(
+        { quoteId, klusId, categorySlug, jobSlug },
+        'door'
+      );
+    }
+
     const newItem = {
       id: `${type}-${Date.now()}-${idx}`,
       type,
@@ -2473,7 +2587,7 @@ export default function GenericMaterialsPageRedesigned() {
       materials: getPresetMaterialsForType(type)
     };
     setComponents(prev => [...prev, newItem]);
-  }, [getPresetMaterialsForType]);
+  }, [quoteId, klusId, categorySlug, jobSlug, getPresetMaterialsForType]);
 
   const openVariantPickerOrAdd = useCallback((type: JobComponentType) => {
     const items = getVariantItemsForType(type);
@@ -3966,14 +4080,39 @@ export default function GenericMaterialsPageRedesigned() {
       return newState;
     });
   };
+  const normalizeSectionMetaForModal = (
+    meta?: { key: string; label?: string; categoryFilter?: string | string[]; categoryUltraFilter?: string } | null
+  ): { key: string; label?: string; categoryFilter?: string | string[]; categoryUltraFilter?: string } | null => {
+    if (!meta) return null;
+
+    const explicitUltra = String(meta.categoryUltraFilter || '').trim();
+    if (explicitUltra) {
+      return { ...meta, categoryUltraFilter: explicitUltra };
+    }
+
+    const normalizedLabel = String(meta.label || '').trim().toLowerCase();
+    const normalizedKey = String(meta.key || '').trim().toLowerCase();
+
+    if (normalizedLabel === 'vloerplinten' || normalizedKey === 'plinten_vloer' || normalizedKey === 'plinten') {
+      return { ...meta, categoryUltraFilter: 'subcat:Vloerplinten' };
+    }
+
+    if (normalizedLabel === 'plafondplinten' || normalizedKey === 'plinten_plafond' || normalizedKey === 'afwerklatten') {
+      return { ...meta, categoryUltraFilter: 'subcat:Plafondplinten' };
+    }
+
+    return meta;
+  };
+
   const openMateriaalKiezer = (
     sectieKey: string,
     groupId: string | null = null,
     sectionMeta?: { key: string; label?: string; categoryFilter?: string | string[]; categoryUltraFilter?: string }
   ) => {
+
     setActieveSectie(sectieKey);
     setActiveGroupId(groupId);
-    setActiveSectionMeta(sectionMeta || null);
+    setActiveSectionMeta(normalizeSectionMetaForModal(sectionMeta || null));
     setIsExtraModalOpen(true);
   };
   const handleMateriaalSelectie = (key: string, materiaal: any) => { setGekozenMaterialen(prev => ({ ...prev, [key]: materiaal })); };
@@ -4035,14 +4174,16 @@ export default function GenericMaterialsPageRedesigned() {
     setActieveSectie(sectionKey);
     const section = materialSections.find((s) => s.key === sectionKey);
     setActiveSectionMeta(
-      section
-        ? {
-          key: section.key,
-          label: section.label,
-          categoryFilter: section.categoryFilter,
-          categoryUltraFilter: section.category_ultra_filter,
-        }
-        : null
+      normalizeSectionMetaForModal(
+        section
+          ? {
+            key: section.key,
+            label: section.label,
+            categoryFilter: section.categoryFilter,
+            categoryUltraFilter: section.category_ultra_filter,
+          }
+          : null
+      )
     );
     setIsExtraModalOpen(true);
   };
@@ -5435,6 +5576,15 @@ export default function GenericMaterialsPageRedesigned() {
       ? `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}`
       : `/offertes/${quoteId}/overzicht`;
 
+    if (hasMeasurements && components.some((comp) => comp.type === 'kozijn')) {
+      setMeasurementOpeningIntent(
+        { quoteId, klusId, categorySlug, jobSlug },
+        'frame-inner'
+      );
+    } else {
+      clearMeasurementOpeningIntent({ quoteId, klusId, categorySlug, jobSlug });
+    }
+
     // Save to Firestore first (without navigation)
     const didSave = await saveToFirestore({});
     if (!didSave) return;
@@ -6211,56 +6361,41 @@ export default function GenericMaterialsPageRedesigned() {
               </div>
             )}
 
-            {/* Extra Materials Category */}
-            <div className="space-y-2">
-              <div
-                onClick={() => setAddExtraMaterialOpen(true)}
-                className="flex items-center justify-between px-3 py-3 -mx-4 hover:bg-muted/40 active:bg-muted/60 rounded-lg cursor-pointer transition-all group select-none border-l-2 border-b border-b-border/30 min-h-[44px]"
-                style={{ borderLeftColor: '#4A5568' }}
-              >
-                <div className="flex items-center gap-2 text-emerald-500 hover:text-emerald-400 font-medium w-full">
-                  <Plus className="h-4 w-4" />
-                  <span className="text-sm font-medium uppercase" style={{ letterSpacing: '0.05em' }}>Extra materiaal toevoegen</span>
-                </div>
-                <div className="p-1.5 w-7" /> {/* Spacer for consistent height */}
-              </div>
-
-              {/* Show added extra materials below */}
-              {((groupedSections.extra || []).length > 0 || customGroups.length > 0) && (
-                <div className="space-y-1.5">
-                  {(groupedSections.extra || []).map(section => (
-                    <MaterialRow
-                      key={section.key}
-                      label={section.label}
-                      selected={gekozenMaterialen[section.key]}
-                      onClick={() => openMateriaalKiezer(section.key, null, {
-                        key: section.key,
-                        label: section.label,
-                        categoryFilter: section.categoryFilter,
-                        categoryUltraFilter: section.category_ultra_filter,
-                      })}
-                      onRemove={() => handleMateriaalVerwijderen(section.key)}
-                    />
-                  ))}
-
-                  {customGroups.map((group) => {
-                    const material = group.materials[0];
-                    return (
-                      <MaterialRow
-                        key={group.id}
-                        label={group.title || 'Extra materiaal'}
-                        selected={material}
-                        onClick={() => { setActiveGroupId(group.id); setIsExtraModalOpen(true); }}
-                        onRemove={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
-                        isCustom
-                        onEditTitle={() => setEditingTitleId(group.id)}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           </div>
+
+          {((groupedSections.extra || []).length > 0 || customGroups.length > 0) && (
+            <div className="space-y-1.5">
+              {(groupedSections.extra || []).map(section => (
+                <MaterialRow
+                  key={section.key}
+                  label={section.label}
+                  selected={gekozenMaterialen[section.key]}
+                  onClick={() => openMateriaalKiezer(section.key, null, {
+                    key: section.key,
+                    label: section.label,
+                    categoryFilter: section.categoryFilter,
+                    categoryUltraFilter: section.category_ultra_filter,
+                  })}
+                  onRemove={() => handleMateriaalVerwijderen(section.key)}
+                />
+              ))}
+
+              {customGroups.map((group) => {
+                const material = group.materials[0];
+                return (
+                  <MaterialRow
+                    key={group.id}
+                    label={group.title || 'Extra materiaal'}
+                    selected={material}
+                    onClick={() => { setActiveGroupId(group.id); setIsExtraModalOpen(true); }}
+                    onRemove={() => setCustomGroups((prev) => prev.filter((g) => g.id !== group.id))}
+                    isCustom
+                    onEditTitle={() => setEditingTitleId(group.id)}
+                  />
+                );
+              })}
+            </div>
+          )}
 
           {/* (Legacy Helper Removed) */}
 
@@ -6273,7 +6408,11 @@ export default function GenericMaterialsPageRedesigned() {
           <div className="space-y-3 pt-6 border-t border-white/5">
             <div>
               <h3 className="text-lg font-medium text-amber-500">Slimme Notities</h3>
-              <p className="text-sm text-muted-foreground">Onze assistent begrijpt vrije tekst. Type simpelweg wat je extra nodig hebt en de geschatte prijs; wij voegen het toe aan de calculatie.</p>
+              <p className="text-sm text-muted-foreground">
+                Typ hier extra materialen, opties of wijzigingen in gewone taal.
+                <br />
+                Vermeld bij voorkeur aantal, maat en eventueel prijs - dan voegen wij het direct correct toe aan de calculatie.
+              </p>
             </div>
             <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
               <Textarea

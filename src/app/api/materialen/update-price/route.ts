@@ -110,10 +110,61 @@ export async function POST(req: Request) {
         }
 
         if (!sourceRow) {
-            return NextResponse.json(
-                { ok: false, message: 'Geen bronmateriaal gevonden voor deze update.' },
-                { status: 404 }
-            );
+            // Some flows send locally-created rows (or names) that do not exist yet in the shared catalog.
+            // In that case we should create an owned row instead of failing with 404.
+            const fallbackName =
+                (typeof updatePayload.materiaalnaam === 'string' && updatePayload.materiaalnaam.trim())
+                    ? updatePayload.materiaalnaam.trim()
+                    : normalizedMateriaalnaam;
+
+            if (!fallbackName) {
+                return NextResponse.json(
+                    { ok: false, message: 'Geen bronmateriaal gevonden en materiaalnaam ontbreekt.' },
+                    { status: 400 }
+                );
+            }
+
+            const createPayload: Record<string, any> = {
+                gebruikerid: uid,
+                ...updatePayload,
+                materiaalnaam: fallbackName,
+            };
+
+            if (normalizedRowId) {
+                createPayload.row_id = normalizedRowId;
+            }
+
+            if (!createPayload.eenheid) {
+                createPayload.eenheid = 'stuk';
+            }
+
+            const excl = typeof createPayload.prijs_excl_btw === 'number' ? createPayload.prijs_excl_btw : undefined;
+            const incl = typeof createPayload.prijs_incl_btw === 'number' ? createPayload.prijs_incl_btw : undefined;
+            if (excl === undefined && incl !== undefined) {
+                createPayload.prijs_excl_btw = Number((incl / 1.21).toFixed(2));
+            }
+            if (incl === undefined && excl !== undefined) {
+                createPayload.prijs_incl_btw = Number((excl * 1.21).toFixed(2));
+            }
+
+            const createResult = normalizedRowId
+                ? await supabaseAdmin
+                    .from('main_material_list')
+                    .upsert(createPayload, { onConflict: 'gebruikerid,row_id' })
+                    .select()
+                    .maybeSingle()
+                : await supabaseAdmin
+                    .from('main_material_list')
+                    .insert(createPayload)
+                    .select()
+                    .maybeSingle();
+
+            if (createResult.error) {
+                console.error('Supabase create fallback error:', createResult.error);
+                return NextResponse.json({ ok: false, message: createResult.error.message }, { status: 500 });
+            }
+
+            return NextResponse.json({ ok: true, data: createResult.data ? [createResult.data] : [] });
         }
 
         const {

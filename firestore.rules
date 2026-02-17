@@ -42,6 +42,14 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && get(/databases/$(database)/documents/invoices/$(invoiceId)).data.userId == request.auth.uid;
       }
     }
+
+    // Rules for the 'meerwerkbonnen' collection
+    match /meerwerkbonnen/{meerwerkbonId} {
+      allow read, get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && (request.query.where.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
     
     // Rules for the 'notes' (Personal Notes) collection
     match /notes/{noteId} {

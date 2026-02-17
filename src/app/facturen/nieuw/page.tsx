@@ -6,12 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { ArrowLeft, FileText, Loader2, ReceiptText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
-import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useUser } from '@/firebase';
 import type { UserSettings } from '@/lib/types-settings';
 import { toast } from '@/hooks/use-toast';
@@ -168,20 +168,37 @@ function NieuweFactuurPageContent() {
   }
 
   return (
-    <div className="app-shell min-h-screen bg-background pb-10">
+    <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
       <AppNavigation />
-      <DashboardHeader user={user} title="Nieuwe factuur" />
+      <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-foreground">Nieuwe factuur</h1>
+                <span className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1">Facturen</span>
+              </div>
+              {quote ? (
+                <p className="text-muted-foreground text-sm">
+                  {typeof quote?.offerteNummer === 'number' ? `Offerte #${quote.offerteNummer}` : 'Offerte'}
+                </p>
+              ) : null}
+            </div>
+          </div>
 
-      <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
-        <div className="w-full max-w-3xl space-y-6">
-          <div className="flex items-center justify-between gap-3">
-            <Button asChild variant="outline" className="gap-2">
+          <div className="flex gap-3 w-full sm:w-auto">
+            <Button asChild variant="outline" className="flex-1 sm:flex-none gap-2">
               <Link href={quoteId ? `/offertes/${quoteId}` : '/facturen'}>
                 <ArrowLeft className="h-4 w-4" />
                 Terug
               </Link>
             </Button>
           </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
+        <div className="max-w-3xl space-y-6">
 
           {!quote ? (
             <Card>
@@ -210,132 +227,128 @@ function NieuweFactuurPageContent() {
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant={selectedType === 'voorschot' ? 'success' : 'outline'}
-                  className="h-11"
-                  onClick={() => setSelectedType('voorschot')}
-                >
-                  Voorschotfactuur
-                </Button>
-                <Button
-                  type="button"
-                  variant={selectedType === 'eind' ? 'success' : 'outline'}
-                  className="h-11"
-                  onClick={() => setSelectedType('eind')}
-                >
-                  Eindfactuur
-                </Button>
-              </div>
+              <Tabs value={selectedType} onValueChange={(value) => setSelectedType(value as 'voorschot' | 'eind')} className="space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
+                  <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
+                    <TabsTrigger value="voorschot" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                      <ReceiptText className="h-4 w-4" /> Voorschotfactuur
+                    </TabsTrigger>
+                    <TabsTrigger value="eind" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                      <ReceiptText className="h-4 w-4" /> Eindfactuur
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-              {selectedType === 'voorschot' ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Voorschot</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Voorschot (%)</Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={voorschotPercentage}
-                            onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
-                            className="pr-10"
-                          />
-                          <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                <TabsContent value="voorschot" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Voorschot</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Voorschot (%)</Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={voorschotPercentage}
+                              onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                              className="pr-10"
+                            />
+                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Bedrag (incl. BTW)</Label>
+                          <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Voorschot</span>
+                            <span className="text-sm font-semibold">{formatCurrency(voorschotBedrag)}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Bedrag (incl. BTW)</Label>
-                        <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Voorschot</span>
-                          <span className="text-sm font-semibold">{formatCurrency(voorschotBedrag)}</span>
-                        </div>
-                      </div>
-                    </div>
 
-                    {existingVoorschotId && (
-                      <Button asChild variant="outline" className="w-full">
-                        <Link href={`/facturen/${existingVoorschotId}`}>Open bestaande voorschotfactuur</Link>
+                      {existingVoorschotId && (
+                        <Button asChild variant="outline" className="w-full">
+                          <Link href={`/facturen/${existingVoorschotId}`}>Open bestaande voorschotfactuur</Link>
+                        </Button>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="success"
+                        className="w-full gap-2"
+                        onClick={handleCreate}
+                        disabled={!canCreate || creating}
+                      >
+                        {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
+                        {existingVoorschotId ? 'Open voorschotfactuur' : 'Maak voorschotfactuur'}
                       </Button>
-                    )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-                    <Button
-                      type="button"
-                      variant="success"
-                      className="w-full gap-2"
-                      onClick={handleCreate}
-                      disabled={!canCreate || creating}
-                    >
-                      {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
-                      {existingVoorschotId ? 'Open voorschotfactuur' : 'Maak voorschotfactuur'}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Eindfactuur</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="font-medium">Voorschot aftrekken</div>
-                        <div className="text-sm text-muted-foreground">
-                          Eindfactuur = totaal - voorschot (ook zonder voorschotfactuur).
+                <TabsContent value="eind" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Eindfactuur</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="font-medium">Voorschot aftrekken</div>
+                          <div className="text-sm text-muted-foreground">
+                            Eindfactuur = totaal - voorschot (ook zonder voorschotfactuur).
+                          </div>
+                        </div>
+                        <Switch checked={voorschotIngeschakeld} onCheckedChange={setVoorschotIngeschakeld} />
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Voorschot (%)</Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={voorschotPercentage}
+                              onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                              disabled={!voorschotIngeschakeld}
+                              className="pr-10"
+                            />
+                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Voorschot in mindering (incl. BTW)</Label>
+                          <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Aftrek</span>
+                            <span className="text-sm font-semibold">{formatCurrency(aftrek)}</span>
+                          </div>
                         </div>
                       </div>
-                      <Switch checked={voorschotIngeschakeld} onCheckedChange={setVoorschotIngeschakeld} />
-                    </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Voorschot (%)</Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={voorschotPercentage}
-                            onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
-                            disabled={!voorschotIngeschakeld}
-                            className="pr-10"
-                          />
-                          <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
-                        </div>
+                      <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Te betalen eindfactuur</span>
+                        <span className="text-sm font-semibold">{formatCurrency(eindBedrag)}</span>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Voorschot in mindering (incl. BTW)</Label>
-                        <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Aftrek</span>
-                          <span className="text-sm font-semibold">{formatCurrency(aftrek)}</span>
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Te betalen eindfactuur</span>
-                      <span className="text-sm font-semibold">{formatCurrency(eindBedrag)}</span>
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="success"
-                      className="w-full gap-2"
-                      onClick={handleCreate}
-                      disabled={!canCreate || creating}
-                    >
-                      {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
-                      Maak eindfactuur
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
+                      <Button
+                        type="button"
+                        variant="success"
+                        className="w-full gap-2"
+                        onClick={handleCreate}
+                        disabled={!canCreate || creating}
+                      >
+                        {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
+                        Maak eindfactuur
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </>
           )}
         </div>

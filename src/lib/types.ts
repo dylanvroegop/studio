@@ -102,6 +102,14 @@ export type InvoiceType = 'voorschot' | 'eind';
 
 export type InvoiceStatus = 'concept' | 'verzonden' | 'gedeeltelijk_betaald' | 'betaald' | 'geannuleerd';
 
+export interface InvoiceCombinedContext {
+  type: 'meerwerkbon_combined';
+  primaryQuoteId: string;
+  quoteIds: string[];
+  meerwerkbonId: string;
+  meerwerkbonNumber: string;
+}
+
 export interface InvoicePayment {
   id: string;
   invoiceId: string;
@@ -179,6 +187,98 @@ export interface Invoice {
   sentAt?: Timestamp;
   paidAt?: Timestamp;
 
+  combinedContext?: InvoiceCombinedContext;
+  combinedQuoteIds?: string[];
+  linkedMeerwerkbonIds?: string[];
+
+  archived?: boolean;
+  archivedAt?: Timestamp;
+  archivedBy?: string;
+}
+
+export type MeerwerkbonStatus =
+  | 'concept'
+  | 'verzonden'
+  | 'akkoord'
+  | 'afgekeurd'
+  | 'gefactureerd'
+  | 'geannuleerd';
+
+export type MeerwerkbonTemplatePreset = 'compact' | 'uitgebreid';
+
+export interface MeerwerkbonTemplateSettings {
+  preset: MeerwerkbonTemplatePreset;
+  showIntroText: boolean;
+  showVoorwaarden: boolean;
+  showLinkedQuotes: boolean;
+  showSignatureBlocks: boolean;
+  showVatColumn: boolean;
+}
+
+export interface MeerwerkbonClientSnapshot {
+  naam: string;
+  email: string;
+  telefoon: string;
+  adres: string;
+  postcode: string;
+  plaats: string;
+}
+
+export interface MeerwerkbonLineItem {
+  id: string;
+  type: 'materiaal' | 'vrije_post';
+  omschrijving: string;
+  aantal: number;
+  eenheid: string;
+  prijsPerEenheidExclBtw: number;
+  btwTarief: number;
+  totaalExclBtw: number;
+  totaalBtw: number;
+  totaalInclBtw: number;
+  bronMateriaalId?: string;
+  bronRowId?: string;
+}
+
+export interface MeerwerkbonTotals {
+  subtotaalExclBtw: number;
+  btwTotaal: number;
+  totaalInclBtw: number;
+}
+
+export interface MeerwerkbonApproval {
+  naam: string;
+  plaats: string;
+  datum: string;
+  opmerking?: string;
+  akkoordAt?: Timestamp;
+}
+
+export interface Meerwerkbon {
+  id: string;
+  userId: string;
+  primaryQuoteId: string;
+  linkedQuoteIds: string[];
+  clientSnapshot: MeerwerkbonClientSnapshot;
+  numbering: {
+    base: string;
+    sequence: number;
+    label: string;
+  };
+  status: MeerwerkbonStatus;
+  template: MeerwerkbonTemplateSettings;
+  introText?: string;
+  voorwaardenText?: string;
+  lineItems: MeerwerkbonLineItem[];
+  totals: MeerwerkbonTotals;
+  approval?: MeerwerkbonApproval | null;
+  invoiceLink?: {
+    invoiceId: string;
+    invoiceNumberLabel?: string;
+    createdAt?: Timestamp;
+  } | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  sentAt?: Timestamp;
   archived?: boolean;
   archivedAt?: Timestamp;
   archivedBy?: string;

@@ -324,6 +324,7 @@ export function VisualizerController({
                 balkafstand={item.balkafstand}
                 gevelProfielLinks={item.gevel_profiel_links}
                 gevelProfielRechts={item.gevel_profiel_rechts}
+                stucwerkApplyKoof={Boolean(item.naden_stucwerk_koof)}
                 openings={item.openings}
                 variant={item.variant}
                 isMagnifier={isMagnifier}

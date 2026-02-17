@@ -7,11 +7,11 @@ import { collection, getDocs, query, Timestamp, where } from 'firebase/firestore
 import { ArrowLeft, FileText, Loader2, Plus, Search } from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
-import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useFirestore, useUser } from '@/firebase';
+import { cn } from '@/lib/utils';
 
 type QuoteRow = {
   id: string;
@@ -123,11 +123,18 @@ export default function StartFactuurPage() {
   }
 
   return (
-    <div className="app-shell min-h-screen bg-background pb-10">
+    <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
       <AppNavigation />
-      <DashboardHeader user={user} title="Nieuwe factuur" />
+      <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-foreground">Nieuwe factuur</h1>
+            <span className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1">Facturen</span>
+          </div>
+        </div>
+      </header>
 
-      <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
+      <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
         <div className="w-full max-w-3xl space-y-6">
           <div className="flex items-center justify-between gap-3">
             <Button asChild variant="outline" className="gap-2">
@@ -150,7 +157,7 @@ export default function StartFactuurPage() {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-emerald-400" />
+                <FileText className="h-5 w-5 text-cyan-400" />
                 Kies een offerte voor facturatie
               </CardTitle>
             </CardHeader>
@@ -179,28 +186,37 @@ export default function StartFactuurPage() {
                           ? q.totaalbedrag
                           : 0;
                     const disabled = total <= 0;
+                    const quoteLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                     return (
                       <div
                         key={q.id}
-                        className="rounded-lg border border-border/60 bg-card/40 p-3 flex items-start justify-between gap-3"
+                        className={cn(
+                          'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-l-cyan-500/70 border-white/5 bg-card/40 px-5 py-4',
+                          'hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md'
+                        )}
                       >
-                        <div className="min-w-0">
-                          <div className="font-semibold text-sm truncate">
-                            {typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte'}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                              {getClientName(q)}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
+                              {quoteLabel}
+                            </span>
                           </div>
-                          <div className="text-xs text-muted-foreground mt-1 truncate">{getClientName(q)}</div>
-                          <div className="text-xs text-muted-foreground mt-1 truncate">
+                          <div className="text-sm text-zinc-500 truncate">
                             {(q.titel || q.title || '—').toString()}
                           </div>
-                          <div className="text-xs text-muted-foreground mt-2">
-                            Totaal: {formatCurrency(total)}
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-muted-foreground">Totaal:</span>
+                            <span className="font-semibold text-emerald-300">{formatCurrency(total)}</span>
                           </div>
                         </div>
-                        <div className="flex gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                           <Button
                             type="button"
                             variant="outline"
-                            className="h-9"
+                            className="h-9 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
                             disabled={disabled}
                             onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=voorschot`)}
                           >
@@ -228,4 +244,3 @@ export default function StartFactuurPage() {
     </div>
   );
 }
-

@@ -102,10 +102,10 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
         description: 'Vlizotrap of zolderluik met raveling',
         measurements: [], // No measurements needed - added directly
         defaultMaterials: [
-            { label: 'Raveling balkhout', categoryFilter: 'Constructiehout', category: 'hout', key: 'balken', category_ultra_filter: '' },
+            { label: 'Raveling balkhout', categoryFilter: 'Vuren hout', category: 'hout', key: 'balken', category_ultra_filter: '' },
             { label: 'Vlizotrap (Complete set)', categoryFilter: 'Trappen & Zolderluiken', category: 'basis', key: 'trap', category_ultra_filter: '' },
             { label: 'Zolderluik', categoryFilter: 'Trappen & Zolderluiken', category: 'basis', key: 'luik', category_ultra_filter: '' },
-            { label: 'Koplatten', categoryFilter: 'Constructiehout', category: 'afwerking', key: 'architraaf', category_ultra_filter: '' },
+            { label: 'Koplatten', categoryFilter: 'Vuren hout', category: 'afwerking', key: 'architraaf', category_ultra_filter: '' },
         ]
     }
     ,
@@ -119,11 +119,11 @@ export const COMPONENT_REGISTRY: Record<string, ComponentConfig> = {
             { key: 'diepte', label: 'Breedte', type: 'number', suffix: 'mm' },
         ],
         defaultMaterials: [
-            { label: 'Regelwerk', categoryFilter: 'Constructiehout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
+            { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'hout', key: 'regelwerk', category_ultra_filter: '' },
             { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: '' },
-            { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
-            { label: 'Isolatie', categoryFilter: ['Glaswol', 'Steenwol', 'Pir', 'Eps', 'Xps'], category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
-            { label: 'Hoekprofielen', categoryFilter: 'Stuc, vul of finisher & Pleisterwerk', category: 'afwerking', key: 'hoekprofielen', category_ultra_filter: '' },
+            { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: '' },
+            { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
+            { label: 'Hoekprofielen', categoryFilter: 'Stucwerk', category: 'afwerking', key: 'hoekprofielen', category_ultra_filter: 'Hoekprofielen' },
         ]
     },
     // 7. Installatie

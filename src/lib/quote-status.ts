@@ -33,3 +33,39 @@ export async function promoteQuoteToAcceptedInTransaction(
     updatedAt: serverTimestamp(),
   } as any);
 }
+
+export function extractQuoteIdsFromInvoiceLike(invoiceLike: any): string[] {
+  const ids = new Set<string>();
+
+  const directQuoteId = (invoiceLike?.quoteId || '').toString().trim();
+  if (directQuoteId) ids.add(directQuoteId);
+
+  const combinedQuoteIds = Array.isArray(invoiceLike?.combinedQuoteIds)
+    ? invoiceLike.combinedQuoteIds
+    : [];
+  combinedQuoteIds.forEach((id: unknown) => {
+    const normalized = String(id || '').trim();
+    if (normalized) ids.add(normalized);
+  });
+
+  const contextQuoteIds = Array.isArray(invoiceLike?.combinedContext?.quoteIds)
+    ? invoiceLike.combinedContext.quoteIds
+    : [];
+  contextQuoteIds.forEach((id: unknown) => {
+    const normalized = String(id || '').trim();
+    if (normalized) ids.add(normalized);
+  });
+
+  return Array.from(ids);
+}
+
+export async function promoteInvoiceRelatedQuotesToAcceptedInTransaction(
+  tx: Transaction,
+  firestore: Firestore,
+  invoiceLike: any
+): Promise<void> {
+  const quoteIds = extractQuoteIdsFromInvoiceLike(invoiceLike);
+  for (const quoteId of quoteIds) {
+    await promoteQuoteToAcceptedInTransaction(tx, firestore, quoteId);
+  }
+}

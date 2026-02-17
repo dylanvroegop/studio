@@ -79,6 +79,9 @@ export interface UserSettings {
     standaardBetaaltermijnDagen: number;
     standaardFactuurTekst: string;
     standaardVoorschotPercentage: number;
+    standaardMeerwerkbonIntroTekst: string;
+    standaardMeerwerkbonVoorwaarden: string;
+    standaardMeerwerkbonTemplatePreset: 'compact' | 'uitgebreid';
 
     // 4. Bouwplaatskosten Beheer
     bouwplaatsKostenPakketten: {
@@ -127,6 +130,9 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     standaardBetaaltermijnDagen: 14,
     standaardFactuurTekst: 'Gelieve het factuurbedrag binnen de betaaltermijn te voldoen o.v.v. het factuurnummer.',
     standaardVoorschotPercentage: 50,
+    standaardMeerwerkbonIntroTekst: 'Hierbij ontvangt u onze meerwerkbon voor aanvullende werkzaamheden buiten de oorspronkelijke offerte.',
+    standaardMeerwerkbonVoorwaarden: 'Deze meerwerkbon vormt een aanvulling op de bestaande overeenkomst. Uitvoering vindt plaats na akkoord van opdrachtgever. Prijzen zijn exclusief onvoorziene omstandigheden tenzij schriftelijk anders overeengekomen.',
+    standaardMeerwerkbonTemplatePreset: 'uitgebreid',
     bouwplaatsKostenPakketten: [],
     planningSettings: {
         defaultWorkdayHours: 8,
