@@ -15,6 +15,9 @@ import {
     AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 
+const DISALLOWED_NUMBER_KEYS = new Set(['e', 'E', '+', '-']);
+const DISALLOWED_NUMBER_PASTE = /[eE+-]/;
+
 interface MaterialEditorProps {
     title: string;
     items: MaterialItem[];
@@ -29,6 +32,12 @@ interface MaterialEditorProps {
     calculationToggleLabel?: string;
     calculationRowLabel?: string;
     showDontAutoIncludeOption?: boolean;
+    showLineTotalInclBtw?: boolean;
+    listViewToggle?: {
+        label: string;
+        checked: boolean;
+        onCheckedChange: (checked: boolean) => void;
+    };
 }
 
 interface MaterialRowProps {
@@ -43,6 +52,7 @@ interface MaterialRowProps {
     calculationRowLabel: string;
     totalColumns: number;
     showDontAutoIncludeOption: boolean;
+    showLineTotalInclBtw: boolean;
 }
 
 function MaterialRow({
@@ -57,6 +67,7 @@ function MaterialRow({
     calculationRowLabel,
     totalColumns,
     showDontAutoIncludeOption,
+    showLineTotalInclBtw,
 }: MaterialRowProps) {
     const [localAantal, setLocalAantal] = useState<string>(item.aantal?.toString() || '');
     const [localProduct, setLocalProduct] = useState<string>(item.product || '');
@@ -132,18 +143,31 @@ function MaterialRow({
 
     const needsPrice = !item.prijs_per_stuk || item.prijs_per_stuk === 0;
     const itemTotal = (item.prijs_per_stuk || 0) * (item.aantal || 0);
+    const sourceCategoryLabel =
+        item?._sourceCategory === 'groot'
+            ? 'Groot'
+            : item?._sourceCategory === 'verbruik'
+                ? 'Verbruik'
+                : null;
     return (
         <>
             <tr className={`group transition-all duration-200 ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
                 <td className="px-6 py-3">
-                    <input
-                        type="text"
-                        value={localProduct}
-                        onChange={(e) => setLocalProduct(e.target.value)}
-                        onBlur={handleProductBlur}
-                        onKeyDown={handleKeyDown}
-                        className="w-full bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-300 text-sm hover:bg-zinc-800/50 hover:border-zinc-600 transition-all font-medium"
-                    />
+                    <div className="space-y-1">
+                        {sourceCategoryLabel && (
+                            <span className="inline-flex rounded-md border border-zinc-700/60 bg-zinc-900/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                                {sourceCategoryLabel}
+                            </span>
+                        )}
+                        <input
+                            type="text"
+                            value={localProduct}
+                            onChange={(e) => setLocalProduct(e.target.value)}
+                            onBlur={handleProductBlur}
+                            onKeyDown={handleKeyDown}
+                            className="w-full bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-300 text-sm hover:bg-zinc-800/50 hover:border-zinc-600 transition-all font-medium"
+                        />
+                    </div>
                 </td>
                 <td className="px-6 py-3">
                     <input
@@ -151,7 +175,17 @@ function MaterialRow({
                         value={localAantal}
                         onChange={(e) => setLocalAantal(e.target.value)}
                         onBlur={handleAantalBlur}
-                        onKeyDown={handleKeyDown}
+                        onKeyDown={(e) => {
+                            if (DISALLOWED_NUMBER_KEYS.has(e.key)) {
+                                e.preventDefault();
+                            }
+                            handleKeyDown(e);
+                        }}
+                        onPaste={(e) => {
+                            if (DISALLOWED_NUMBER_PASTE.test(e.clipboardData.getData('text'))) {
+                                e.preventDefault();
+                            }
+                        }}
                         placeholder="0"
                         className="w-12 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
@@ -187,9 +221,11 @@ function MaterialRow({
                 <td className="px-6 py-3 text-right text-zinc-300 text-sm">
                     {formatCurrency(itemTotal)}
                 </td>
-                <td className="px-6 py-3 text-right text-zinc-400 text-sm font-medium">
-                    {formatCurrency(itemTotal * (1 + vatRate / 100))}
-                </td>
+                {showLineTotalInclBtw && (
+                    <td className="px-6 py-3 text-right text-zinc-400 text-sm font-medium">
+                        {formatCurrency(itemTotal * (1 + vatRate / 100))}
+                    </td>
+                )}
                 {onRemoveItem && (
                     <td className="px-6 py-3 text-right">
                         <Button
@@ -273,6 +309,8 @@ export function MaterialEditor({
     calculationToggleLabel = 'Laat berekening zien',
     calculationRowLabel = 'Berekening',
     showDontAutoIncludeOption = false,
+    showLineTotalInclBtw = true,
+    listViewToggle,
 }: MaterialEditorProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newItem, setNewItem] = useState<Partial<MaterialItem>>({
@@ -285,7 +323,9 @@ export function MaterialEditor({
     const [showCalculation, setShowCalculation] = useState(false);
 
     const UNITS = ['m1', 'm2', 'm3', 'stuk', 'doos', 'set', 'pak', 'koker', 'zak'];
-    const totalColumns = onRemoveItem ? 7 : 6;
+    const totalColumns = onRemoveItem
+        ? (showLineTotalInclBtw ? 7 : 6)
+        : (showLineTotalInclBtw ? 6 : 5);
     const calculationKeys = Array.isArray(calculationTextFields) ? calculationTextFields : [calculationTextFields];
     const getCalculationText = (item: MaterialItem): string => {
         for (const key of calculationKeys) {
@@ -360,10 +400,23 @@ export function MaterialEditor({
                         )}
                     </div>
                 </div>
-                {enableCalculationViewToggle && hasCalculationData && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
-                        <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
+                {((enableCalculationViewToggle && hasCalculationData) || listViewToggle) && (
+                    <div className="flex items-center gap-4">
+                        {enableCalculationViewToggle && hasCalculationData && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
+                                <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
+                            </div>
+                        )}
+                        {listViewToggle && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">{listViewToggle.label}</span>
+                                <Switch
+                                    checked={listViewToggle.checked}
+                                    onCheckedChange={listViewToggle.onCheckedChange}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -388,9 +441,11 @@ export function MaterialEditor({
                             <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
                                 Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
-                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
-                                Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(incl. btw)</span>
-                            </th>
+                            {showLineTotalInclBtw && (
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
+                                    Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(incl. btw)</span>
+                                </th>
+                            )}
                             {onRemoveItem && <th className="px-6 py-3 w-12" />}
                         </tr>
                     </thead>
@@ -409,6 +464,7 @@ export function MaterialEditor({
                             calculationRowLabel={calculationRowLabel}
                             totalColumns={totalColumns}
                             showDontAutoIncludeOption={showDontAutoIncludeOption}
+                            showLineTotalInclBtw={showLineTotalInclBtw}
                         />
                     ))}
 
@@ -430,6 +486,17 @@ export function MaterialEditor({
                                         min="1"
                                         value={newItem.aantal || ''}
                                         onChange={(e) => setNewItem({ ...newItem, aantal: parseInt(e.target.value) || 0 })}
+                                        onKeyDown={(e) => {
+                                            if (DISALLOWED_NUMBER_KEYS.has(e.key)) {
+                                                e.preventDefault();
+                                            }
+                                            handleKeyDown(e);
+                                        }}
+                                        onPaste={(e) => {
+                                            if (DISALLOWED_NUMBER_PASTE.test(e.clipboardData.getData('text'))) {
+                                                e.preventDefault();
+                                            }
+                                        }}
                                         placeholder="0"
                                         className="w-12 bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
                                     />
@@ -461,7 +528,7 @@ export function MaterialEditor({
                                         ))}
                                     </select>
                                 </td>
-                                <td colSpan={2} />
+                                <td colSpan={showLineTotalInclBtw ? 2 : 1} />
                                 <td className="px-6 py-4 flex justify-end gap-2">
                                     <Button
                                         size="icon"
@@ -508,11 +575,13 @@ export function MaterialEditor({
                                 {formatCurrency(subtotal)}
                             </p>
                         </div>
-                        <div className="text-right w-32 px-6">
-                            <p className="text-primary font-bold tracking-tight">
-                                {formatCurrency(subtotalInclVAT)}
-                            </p>
-                        </div>
+                        {showLineTotalInclBtw && (
+                            <div className="text-right w-32 px-6">
+                                <p className="text-primary font-bold tracking-tight">
+                                    {formatCurrency(subtotalInclVAT)}
+                                </p>
+                            </div>
+                        )}
                         {onRemoveItem && <div className="w-12" />}
                     </div>
                 </div>

@@ -29,7 +29,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogTrigger,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -412,6 +411,7 @@ export default function GenericMeasurementPage() {
   const [pendingOpeningIntent, setPendingOpeningIntent] = useState<MeasurementOpeningIntent | null>(null);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
+  const [expandedDrawingIndex, setExpandedDrawingIndex] = useState<number | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [kozijnhoutFrameThicknessMm, setKozijnhoutFrameThicknessMm] = useState<number | null>(null);
   const [tussenstijlThicknessMm, setTussenstijlThicknessMm] = useState<number | null>(null);
@@ -761,6 +761,13 @@ export default function GenericMeasurementPage() {
       .filter(n => Number.isFinite(n))
       .map(n => n * factor);
   };
+
+  useEffect(() => {
+    if (expandedDrawingIndex === null) return;
+    if (!items[expandedDrawingIndex]) {
+      setExpandedDrawingIndex(null);
+    }
+  }, [items, expandedDrawingIndex]);
 
   const normalizeVlizotrapOpeningDefaults = (opening: any) => {
     if (!opening || typeof opening !== 'object') return opening;
@@ -4091,6 +4098,13 @@ export default function GenericMeasurementPage() {
   const progressValue = 80;
   const itemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
   const backUrl = `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`;
+  const expandedDrawingItem = expandedDrawingIndex !== null ? items[expandedDrawingIndex] : null;
+  const expandedDrawingTitle = expandedDrawingIndex !== null ? `${itemLabel} ${expandedDrawingIndex + 1}` : 'Tekening';
+
+  const updateExpandedDrawingField = (key: string, value: any) => {
+    if (expandedDrawingIndex === null) return;
+    updateItem(expandedDrawingIndex, key, value);
+  };
 
   return (
     <main className="relative min-h-screen bg-background text-foreground">
@@ -6429,8 +6443,18 @@ export default function GenericMeasurementPage() {
                   {isBoeiboord ? (
                     <div
                       ref={(el) => { visualizerRefs.current[index] = el; }}
-                      className="flex-1 w-full lg:min-w-0 sticky top-24 self-start"
+                      className="flex-1 w-full lg:min-w-0 sticky top-24 self-start bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative"
                     >
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="absolute right-3 top-3 z-20 bg-black/70 border-white/20 text-zinc-100 hover:bg-black/80"
+                        onClick={() => setExpandedDrawingIndex(index)}
+                      >
+                        <Maximize2 className="h-4 w-4 sm:mr-1.5" />
+                        <span className="hidden sm:inline">Vergroot</span>
+                      </Button>
                       <VisualizerController
                         category={categorySlug}
                         slug={jobSlug}
@@ -6459,6 +6483,17 @@ export default function GenericMeasurementPage() {
                     </div>
                   ) : (
                     <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="absolute right-3 top-3 z-20 bg-black/70 border-white/20 text-zinc-100 hover:bg-black/80"
+                        onClick={() => setExpandedDrawingIndex(index)}
+                      >
+                        <Maximize2 className="h-4 w-4 sm:mr-1.5" />
+                        <span className="hidden sm:inline">Vergroot</span>
+                      </Button>
+
                       {/* Canvas Container */}
                       <div
                         ref={(el) => { visualizerRefs.current[index] = el; }}
@@ -6528,6 +6563,93 @@ export default function GenericMeasurementPage() {
           </div>
         </form>
       </div>
+
+      <Dialog
+        open={expandedDrawingIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setExpandedDrawingIndex(null);
+        }}
+      >
+        <DialogContent className="w-[96vw] max-w-[1700px] h-[92vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)] border border-white/10 bg-[#050607]/95">
+          <div className="px-5 py-4 border-b border-white/10">
+            <DialogTitle className="text-zinc-100">{expandedDrawingTitle}</DialogTitle>
+          </div>
+
+          <div className="relative min-h-0 h-full w-full overflow-hidden">
+            <div
+              className="absolute inset-0 z-0 opacity-[0.12] pointer-events-none"
+              style={{
+                backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+                backgroundSize: '24px 24px',
+              }}
+            />
+
+            <div className="relative z-10 h-full w-full flex items-center justify-center p-2 sm:p-6">
+              {expandedDrawingItem ? (
+                isBoeiboord ? (
+                  <div className="h-full w-full rounded-xl border border-white/10 bg-[#09090b] overflow-hidden">
+                    <VisualizerController
+                      category={categorySlug}
+                      slug={jobSlug}
+                      item={{
+                        ...expandedDrawingItem,
+                        show_balklaag: hasBoeiboordBalklaagMaterialFromPreviousPage,
+                        show_daktrim: expandedDrawingItem.show_daktrim ?? hasBoeiboordDaktrimMaterialFromPreviousPage,
+                        daktrim_position: expandedDrawingItem.daktrim_position === 'bottom' ? 'bottom' : 'top',
+                      }}
+                      fields={fields}
+                      showOnderplaten={hasOpsluitbandenMaterialFromPreviousPage}
+                      title={expandedDrawingTitle}
+                      isMagnifier={false}
+                      fitContainer={true}
+                      frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
+                      tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
+                      tussenstijlOffset={expandedDrawingItem.tussenstijlen_posities}
+                      raamhoutWidth={67}
+                      vakken={expandedDrawingItem.vakken}
+                      doorWidth={expandedDrawingItem.deur_breedte}
+                      onOpeningsChange={(newOpenings: any) => updateExpandedDrawingField('openings', newOpenings)}
+                      onEdgeChange={(side: string, value: string) => updateExpandedDrawingField(`edge_${side}`, value)}
+                      onDataGenerated={(data: any) => updateExpandedDrawingField('calculatedData', data)}
+                      onKoofChange={(updated: any) => updateExpandedDrawingField('koven', updated)}
+                      className="w-full h-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-full w-full rounded-xl border border-white/10 bg-[#09090b] overflow-hidden">
+                    <VisualizerController
+                      category={categorySlug}
+                      slug={jobSlug}
+                      item={{
+                        ...expandedDrawingItem,
+                        show_daktrim: isGevelbekleding ? hasGevelDaktrimMaterialFromPreviousPage : Boolean(expandedDrawingItem.show_daktrim),
+                        daktrim_position: expandedDrawingItem.daktrim_position || 'top',
+                      }}
+                      fields={fields}
+                      showOnderplaten={hasOpsluitbandenMaterialFromPreviousPage}
+                      title={expandedDrawingTitle}
+                      isMagnifier={false}
+                      fitContainer={true}
+                      frameThickness={isMaatwerkKozijn ? kozijnhoutFrameThicknessMm : undefined}
+                      tussenstijlThickness={isMaatwerkKozijn && hasTussenstijl ? tussenstijlThicknessMm : undefined}
+                      tussenstijlOffset={isMaatwerkKozijn ? expandedDrawingItem.tussenstijl_van_links : undefined}
+                      doorPosition={expandedDrawingItem.doorPosition}
+                      doorSwing={expandedDrawingItem.doorSwing}
+                      onOpeningsChange={(newOpenings: any) => updateExpandedDrawingField('openings', newOpenings)}
+                      onEdgeChange={(side: string, value: string) => updateExpandedDrawingField(`edge_${side}`, value)}
+                      onDataGenerated={(data: any) => updateExpandedDrawingField('calculatedData', data)}
+                      onKoofChange={(updated: any) => updateExpandedDrawingField('koven', updated)}
+                      className="w-full h-full"
+                    />
+                  </div>
+                )
+              ) : (
+                <div className="text-sm text-zinc-400">Geen tekening beschikbaar.</div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">

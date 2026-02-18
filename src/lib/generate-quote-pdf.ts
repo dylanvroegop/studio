@@ -1,6 +1,11 @@
 import { jsPDF } from 'jspdf';
 import { formatCurrency } from './quote-calculations';
 import { QuotePDFSettings } from '@/components/quote/QuoteSettings';
+import {
+    defaultQuotePdfTextSettings,
+    sanitizeQuotePdfTextSettings,
+    type QuotePdfTextSettings,
+} from './quote-pdf-text-settings';
 
 export interface PDFQuoteData {
     offerteNummer: string;
@@ -67,6 +72,8 @@ export interface PDFQuoteData {
     };
     settings: QuotePDFSettings;
     drawingImages?: string[];
+    onderVoorbehoud?: boolean;
+    tekstInstellingen?: QuotePdfTextSettings;
 }
 
 /**
@@ -116,6 +123,9 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const margin = 20;
     let y = margin;
     let headerBlockHeight = 28;
+    const isOnderVoorbehoud = Boolean(data.onderVoorbehoud);
+    const prijsAfspraakLabel = isOnderVoorbehoud ? 'Richtprijs op nacalculatie' : 'Vaste aanneemsom';
+    const tekstInstellingen = sanitizeQuotePdfTextSettings(data.tekstInstellingen);
 
     // Helper: draw horizontal line
     const drawLine = (yPos: number, color: number = 200) => {
@@ -201,6 +211,22 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setTextColor(100, 100, 100);
     doc.text(`#${data.offerteNummer}`, pageWidth - margin, y + 14, { align: 'right' });
 
+    if (isOnderVoorbehoud) {
+        const badgeWidth = 62;
+        const badgeHeight = 6;
+        const badgeX = pageWidth - margin - badgeWidth;
+        const badgeY = y + 17;
+        doc.setFillColor(255, 247, 237);
+        doc.setDrawColor(180, 83, 9);
+        doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1.5, 1.5, 'FD');
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(180, 83, 9);
+        doc.text('ONDER VOORBEHOUD', badgeX + (badgeWidth / 2), badgeY + 4.2, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        headerBlockHeight = Math.max(headerBlockHeight, 34);
+    }
+
     y += headerBlockHeight;
     drawLine(y);
     y += 12;
@@ -278,6 +304,18 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.text('Projectlocatie:', metaCol1, y);
     doc.setTextColor(30, 30, 30);
     doc.text(data.projectLocatie, metaCol2, y);
+    y += 5;
+
+    doc.setTextColor(80, 80, 80);
+    doc.text('Prijsafspraak:', metaCol1, y);
+    doc.setFont('helvetica', 'bold');
+    if (isOnderVoorbehoud) {
+        doc.setTextColor(180, 83, 9);
+    } else {
+        doc.setTextColor(30, 30, 30);
+    }
+    doc.text(prijsAfspraakLabel, metaCol2, y);
+    doc.setFont('helvetica', 'normal');
 
     y += 12;
     drawLine(y);
@@ -352,9 +390,21 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(30, 30, 30);
-    doc.text('TOTAAL INCL. BTW', margin, y);
+    doc.text(isOnderVoorbehoud ? 'RICHTPRIJS INCL. BTW' : 'TOTAAL INCL. BTW', margin, y);
     doc.setTextColor(16, 185, 129);
     doc.text(formatCurrency(data.totals.totaalInclBtw), pageWidth - margin, y, { align: 'right' });
+    if (isOnderVoorbehoud) {
+        y += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(180, 83, 9);
+        const reserveNote = doc.splitTextToSize(
+            'Onder voorbehoud van prijs- en typewijzigingen. Definitieve factuur volgt op basis van werkelijk uitgevoerde werkzaamheden.',
+            pageWidth - (margin * 2),
+        );
+        doc.text(reserveNote, margin, y);
+        y += reserveNote.length * 3.8;
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // PAGE 2: FULL WERKBESCHRIJVING (if enabled)
@@ -639,17 +689,18 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(8);
     doc.setTextColor(60, 60, 60);
 
-    const terms = [
-        '• Deze offerte is 30 dagen geldig vanaf offertedatum',
-        '• Prijzen zijn exclusief BTW tenzij anders vermeld',
-        '• Meerwerk wordt in overleg uitgevoerd en separaat gefactureerd',
-        '• Betaling: 50% bij opdracht, 50% bij oplevering',
-        '• Op al onze werkzaamheden zijn onze algemene voorwaarden van toepassing',
-    ];
+    const terms = isOnderVoorbehoud
+        ? tekstInstellingen.voorwaardenOnderVoorbehoud
+        : tekstInstellingen.voorwaardenVastePrijs;
 
     terms.forEach((term) => {
-        doc.text(term, margin, y);
-        y += 5;
+        const clean = (term || '').trim();
+        if (!clean) return;
+
+        const line = clean.startsWith('•') ? clean : `• ${clean}`;
+        const wrapped = doc.splitTextToSize(line, pageWidth - (margin * 2));
+        doc.text(wrapped, margin, y);
+        y += wrapped.length * 4.4;
     });
 
     y += 10;
@@ -673,11 +724,13 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     // Closing
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
-    const closing = 'Wij vertrouwen erop u hiermee een passende aanbieding te hebben gedaan en zien uw reactie graag tegemoet.';
-    doc.text(closing, margin, y);
-    y += 10;
+    const closingText = (tekstInstellingen.afsluitingTekst || '').trim() || defaultQuotePdfTextSettings.afsluitingTekst;
+    const closingLines = doc.splitTextToSize(closingText, pageWidth - (margin * 2));
+    doc.text(closingLines, margin, y);
+    y += (closingLines.length * 4.2) + 4;
 
-    doc.text('Met vriendelijke groet,', margin, y);
+    const groetTekst = (tekstInstellingen.groetTekst || '').trim() || defaultQuotePdfTextSettings.groetTekst;
+    doc.text(groetTekst, margin, y);
     y += 6;
 
     if (data.signatureUrl) {
@@ -705,7 +758,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 30, 30);
-    doc.text(data.bedrijf.naam, margin, y);
+    doc.text(tekstInstellingen.ondertekeningNaam || data.bedrijf.naam, margin, y);
 
     // ═══════════════════════════════════════════════════════════════
     // OPTIONAL PAGE: TEKENINGEN (if enabled)

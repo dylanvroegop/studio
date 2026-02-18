@@ -2,8 +2,10 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Quote, Job } from '@/lib/types';
 import { JOB_REGISTRY } from '@/lib/job-registry';
 import { Card, CardContent } from '@/components/ui/card';
-import { StickyNote, Loader2, Maximize2, AlertTriangle } from 'lucide-react';
+import { StickyNote, Loader2, Maximize2, AlertTriangle, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -46,10 +48,21 @@ function hasPotentialDrawing(job: Job): boolean {
     );
 }
 
+function getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' {
+    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);/i);
+    const mimeSubtype = match?.[1]?.toLowerCase();
+    if (mimeSubtype === 'jpeg' || mimeSubtype === 'jpg') {
+        return 'JPEG';
+    }
+    return 'PNG';
+}
+
 export function DrawingsTab({ quote }: DrawingsTabProps) {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const [jobs, setJobs] = useState<Job[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
 
     useEffect(() => {
         const loadJobs = async () => {
@@ -98,6 +111,117 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
     const snapshotJobs = useMemo(() => drawingJobs.filter((job) => Boolean(getVisualisatieUrl(job))), [drawingJobs]);
     const missingSnapshotJobs = useMemo(() => drawingJobs.filter((job) => !getVisualisatieUrl(job)), [drawingJobs]);
 
+    const convertUrlToBase64 = async (url: string): Promise<string | null> => {
+        try {
+            const response = await fetch(`/api/visualisatie-to-base64?url=${encodeURIComponent(url)}`);
+            if (!response.ok) return null;
+            const data = await response.json();
+            return typeof data?.dataUrl === 'string' ? data.dataUrl : null;
+        } catch (error) {
+            console.error('Error converting visualisatie to base64:', error);
+            return null;
+        }
+    };
+
+    const handleExportDrawingsPdf = async (): Promise<void> => {
+        if (snapshotJobs.length === 0 || isExportingPdf) return;
+
+        setIsExportingPdf(true);
+        try {
+            const { jsPDF } = await import('jspdf');
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 12;
+
+            const offerteNummer = String((quote as any)?.offerteNummer || quote.id || 'concept').trim();
+            let exportedCount = 0;
+
+            for (const job of snapshotJobs) {
+                const imageUrl = getVisualisatieUrl(job);
+                if (!imageUrl) continue;
+
+                const imageData = await convertUrlToBase64(imageUrl);
+                if (!imageData) continue;
+
+                if (exportedCount > 0) {
+                    doc.addPage();
+                }
+
+                let y = margin;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(14);
+                doc.setTextColor(30, 30, 30);
+                doc.text('TEKENING EXPORT', margin, y);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(100, 100, 100);
+                doc.text(`Offerte #${offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+
+                y += 8;
+                doc.setDrawColor(220, 220, 220);
+                doc.line(margin, y, pageWidth - margin, y);
+                y += 8;
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(40, 40, 40);
+                doc.text(getJobTitle(job), margin, y);
+                y += 6;
+
+                const imageProps = doc.getImageProperties(imageData);
+                const availableWidth = pageWidth - (margin * 2);
+                const availableHeight = pageHeight - y - margin;
+
+                let imageWidth = availableWidth;
+                let imageHeight = (imageProps.height * availableWidth) / imageProps.width;
+                if (imageHeight > availableHeight) {
+                    imageHeight = availableHeight;
+                    imageWidth = (imageProps.width * availableHeight) / imageProps.height;
+                }
+
+                const imageX = margin + ((availableWidth - imageWidth) / 2);
+                const imageFormat = getImageFormatFromDataUrl(imageData);
+                doc.addImage(imageData, imageFormat, imageX, y, imageWidth, imageHeight);
+
+                exportedCount += 1;
+            }
+
+            if (exportedCount === 0) {
+                toast({
+                    title: 'Export mislukt',
+                    description: 'Geen tekeningen met snapshot gevonden om te exporteren.',
+                    variant: 'destructive',
+                });
+                return;
+            }
+
+            doc.save(`Tekeningen-${offerteNummer}.pdf`);
+
+            toast({
+                title: 'PDF geëxporteerd',
+                description: `${exportedCount} tekening(en) gedownload.`,
+            });
+
+            if (exportedCount < snapshotJobs.length) {
+                toast({
+                    title: 'Niet alle tekeningen meegenomen',
+                    description: `${snapshotJobs.length - exportedCount} tekening(en) hadden geen bruikbare afbeelding.`,
+                    variant: 'destructive',
+                });
+            }
+        } catch (error) {
+            console.error('Error exporting drawings PDF:', error);
+            toast({
+                title: 'Export mislukt',
+                description: error instanceof Error ? error.message : 'Onbekende fout bij exporteren van tekeningen.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsExportingPdf(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800">
@@ -119,6 +243,21 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
 
     return (
         <div className="space-y-8 pb-[280px]">
+            <div className="flex justify-end">
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                        void handleExportDrawingsPdf();
+                    }}
+                    disabled={isExportingPdf || snapshotJobs.length === 0}
+                >
+                    {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {isExportingPdf ? 'PDF genereren...' : 'Exporteer tekeningen als PDF'}
+                </Button>
+            </div>
+
             {snapshotJobs.map((job, i) => (
                 <SnapshotDrawingSection key={job.id || i} job={job} index={i} />
             ))}

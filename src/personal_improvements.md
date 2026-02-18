@@ -34,21 +34,21 @@
 
 ## Uncompleted
 
-- For first time users, force to set pdf instellingen pop-up the way they prefer.
-- make sure that the 'onder voorbehoud' is also a toggle button, just like the 'voorschot' is.
-- Test how you implement rk gips for wanden liggend VS staand in app decision.
-- Have notes be separate showing 4 liinnes of text instead of 1. and fix the text itself.
-- make sure the toggle button for 'afval' is bigger in width, so the last 10% is used for clickable to toggle.
-- Remove ability to ever in any measurement or number box to hit - or e etc
-- Systeem plafond new job type under 'plafonds', make sure to implement a basic mats into job-registry.
-- able to export drawings as pdf
-- able to expand drawings on phone or desktop. 
-- make sure theres some form of better sync with 'done with calculation' on the quotes page. because currently the user might sit there waiting. im not sure how to do that because now we use webhook - calculate - supabase - fetch from supabase. because return webhook is too long, since the calculation happens for 10 minutes maybe. 
-- make them able to edit total amount on the verbruiks materialen, keeping the list itself but it converts to '% or euro' conversion that they can then fill in. 
-- add more information to the 'section_key' so for example the 'balklaag' has things like 'this is a balklaag constructie etc' also adding extra information like 'gebruik hiervoor pluggen 8x100'
-- Set new option in automatische berekening on material page for “schatting prijzen” toggle on off
-- Route “materiaal berekenen” on overzicht to the quote itself on the quotes page. Even if it’s empty, if not done yet. Show a spinning of “wordt berekend. Maximaal 5 minuten” with a progressbar of 5 minutes
-- Verbruikt and groot into one option.
+- [DONE] For first time users, force to set pdf instellingen pop-up the way they prefer.
+- [DONE] make sure that the 'onder voorbehoud' is also a toggle button, just like the 'voorschot' is.
+- [SKIP] Test how you implement rk gips for wanden liggend VS staand in app decision.
+- [SKIP] Have notes be separate showing 4 liinnes of text instead of 1. and fix the text itself.
+- [DONE] make sure the toggle button for 'afval' is bigger in width, so the last 10% is used for clickable to toggle.
+- [DONE] Remove ability to ever in any measurement or number box to hit - or e etc
+- [WAIT] Systeem plafond new job type under 'plafonds', make sure to implement a basic mats into job-registry.
+- [DONE] able to export drawings as pdf
+- [DONE] able to expand drawings on phone or desktop. 
+- [DONE] make sure theres some form of better sync with 'done with calculation' on the quotes page. because currently the user might sit there waiting. im not sure how to do that because now we use webhook - calculate - supabase - fetch from supabase. because return webhook is too long, since the calculation happens for 10 minutes maybe. 
+- [WAIT] make them able to edit total amount on the verbruiks materialen, keeping the list itself but it converts to '% or euro' conversion that they can then fill in. 
+- [WAIT] add more information to the 'section_key' so for example the 'balklaag' has things like 'this is a balklaag constructie etc' also adding extra information like 'gebruik hiervoor pluggen 8x100'
+- [WAIT] Set new option in automatische berekening on material page for “schatting prijzen” toggle on off
+- [WAIT] Route “materiaal berekenen” on overzicht to the quote itself on the quotes page. Even if it’s empty, if not done yet. Show a spinning of “wordt berekend. Maximaal 5 minuten” with a progressbar of 5 minutes
+- [DONE] Verbruikt and groot into one option.
 - Leverancier transport kosten
 - Duplicate job on overzicht possible.
 - Boei delen Firestore “schuine punt dak boeideel” VS “voorzijde recht dak boeideel”

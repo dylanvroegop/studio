@@ -1,6 +1,7 @@
 
 import { Timestamp } from "firebase/firestore";
 import type { DataJson } from "@/lib/quote-calculations";
+import type { QuotePdfTextSettings } from "@/lib/quote-pdf-text-settings";
 
 export type User = {
   id: string;
@@ -73,7 +74,10 @@ export type Quote = {
   facturatie?: {
     voorschotIngeschakeld: boolean;
     voorschotPercentage: number;
+    onderVoorbehoud?: boolean;
   };
+
+  pdfTeksten?: QuotePdfTextSettings;
 
   // ✅ Extras (Mutable overrides for Transport, Winst, Bouwplaats)
   extras?: {

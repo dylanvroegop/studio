@@ -44,6 +44,10 @@ function unauthorized() {
   return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 }
 
+function hasDataJsonValue(value: unknown): boolean {
+  return value !== null && value !== undefined;
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization') || '';
@@ -109,7 +113,30 @@ export async function POST(req: Request) {
       if (error) {
         return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
       }
-      return NextResponse.json({ ok: true, row: data || null });
+
+      if (status || !data) {
+        return NextResponse.json({ ok: true, row: data || null });
+      }
+
+      if (data.status === 'completed' || hasDataJsonValue(data.data_json)) {
+        return NextResponse.json({ ok: true, row: data });
+      }
+
+      const { data: fallbackCompletedRow, error: fallbackError } = await supabaseAdmin
+        .from('quotes_collection')
+        .select('id, quoteid, gebruikerid, status, data_json, created_at')
+        .eq('gebruikerid', uid)
+        .eq('quoteid', quoteId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackError) {
+        return NextResponse.json({ ok: false, message: fallbackError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ ok: true, row: fallbackCompletedRow || data });
     }
 
     const { data, error } = await query;

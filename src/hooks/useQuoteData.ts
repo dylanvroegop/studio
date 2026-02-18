@@ -49,6 +49,7 @@ export function useQuoteData(quoteId: string) {
                 }
 
                 const data = result.row as QuoteCalculation | null;
+                const hasDataJson = Boolean(data?.data_json);
 
                 if (isMounted) {
                     setCalculation(data);
@@ -59,7 +60,7 @@ export function useQuoteData(quoteId: string) {
                         return;
                     }
 
-                    if (data.status === 'completed') {
+                    if (hasDataJson || data.status === 'completed') {
                         setLoading(false);
                     } else {
                         setLoading(true);

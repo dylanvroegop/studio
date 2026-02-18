@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
 import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson, unwrapRoot } from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
@@ -12,7 +12,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
@@ -37,6 +37,11 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { parsePriceToNumber } from '@/lib/utils';
 import { reportOperationalError } from '@/lib/report-operational-error';
+import {
+    defaultQuotePdfTextSettings,
+    sanitizeQuotePdfTextSettings,
+    type QuotePdfTextSettings,
+} from '@/lib/quote-pdf-text-settings';
 
 import { Quote } from "@/lib/types";
 
@@ -73,6 +78,8 @@ type QuoteMaterialPackage = QuoteMaterialPreset & {
     naam: string;
     updatedAt?: string;
 };
+
+type VoorwaardenEditorMode = 'vastePrijs' | 'onderVoorbehoud';
 
 function toPresetItems(items: MaterialItem[]): MaterialPresetItem[] {
     const mapped: Array<MaterialPresetItem | null> = items.map((item) => {
@@ -169,6 +176,26 @@ function createMaterialPackageId(): string {
     return `pakket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function getVoorwaardenByMode(
+    settings: QuotePdfTextSettings,
+    mode: VoorwaardenEditorMode,
+): string[] {
+    return mode === 'vastePrijs'
+        ? settings.voorwaardenVastePrijs
+        : settings.voorwaardenOnderVoorbehoud;
+}
+
+function withVoorwaardenByMode(
+    settings: QuotePdfTextSettings,
+    mode: VoorwaardenEditorMode,
+    regels: string[],
+): QuotePdfTextSettings {
+    if (mode === 'vastePrijs') {
+        return { ...settings, voorwaardenVastePrijs: regels };
+    }
+    return { ...settings, voorwaardenOnderVoorbehoud: regels };
+}
+
 const CALCULATION_ESTIMATE_SECONDS = 300;
 const CALCULATION_STUCK_SECONDS = 20 * 60;
 
@@ -208,8 +235,12 @@ export default function QuotePage() {
 
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
+    const [pdfTextSettings, setPdfTextSettings] = useState<QuotePdfTextSettings>(defaultQuotePdfTextSettings);
+    const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
     const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
+    const [hasSavedPdfSettings, setHasSavedPdfSettings] = useState(true); // assume true until proven otherwise
+    const pdfSettingsShownOnceRef = useRef(false);
 
     const [materials, setMaterials] = useState<{
         groot: MaterialItem[];
@@ -230,6 +261,16 @@ export default function QuotePage() {
         setIsDrawingsReady(false);
     }, [activeTab, quote?.id, calculation?.data_json]);
 
+    // Auto-open PDF settings for first-time users when they navigate to the PDF tab
+    useEffect(() => {
+        if (activeTab !== 'pdf') return;
+        if (hasSavedPdfSettings) return;
+        if (pdfSettingsShownOnceRef.current) return;
+        if (firebaseLoading) return;
+        pdfSettingsShownOnceRef.current = true;
+        setIsPdfSettingsOpen(true);
+    }, [activeTab, hasSavedPdfSettings, firebaseLoading]);
+
     // State for Material Selection Modal
     const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
     const [activeCategory, setActiveCategory] = useState<'groot' | 'verbruik' | null>(null);
@@ -241,10 +282,14 @@ export default function QuotePage() {
     const [isSaveMaterialPackageOpen, setIsSaveMaterialPackageOpen] = useState(false);
     const [materialPackageName, setMaterialPackageName] = useState('');
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
+    const [combineMaterialLists, setCombineMaterialLists] = useState(true);
+    const hasInitializedMaterialViewModeRef = useRef(false);
+    const hadCalculatedMaterialDetailsRef = useRef(false);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(false);
     const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
+    const [onderVoorbehoud, setOnderVoorbehoud] = useState(false);
     const [existingVoorschotInvoiceId, setExistingVoorschotInvoiceId] = useState<string | null>(null);
 
     // PDF Generation State
@@ -346,6 +391,9 @@ export default function QuotePage() {
 
                         if (data.defaultPdfSettings) {
                             setPdfSettings(data.defaultPdfSettings);
+                            setHasSavedPdfSettings(true);
+                        } else {
+                            setHasSavedPdfSettings(false);
                         }
                     }
 
@@ -367,6 +415,9 @@ export default function QuotePage() {
         hasEditedMaterialsRef.current = false;
         lastSavedMaterialPresetRef.current = '';
         setSelectedMaterialPackageId('NIEUW');
+        hasInitializedMaterialViewModeRef.current = false;
+        hadCalculatedMaterialDetailsRef.current = false;
+        setCombineMaterialLists(true);
     }, [id]);
 
     useEffect(() => {
@@ -392,7 +443,11 @@ export default function QuotePage() {
             if (typeof f.voorschotPercentage === 'number' && Number.isFinite(f.voorschotPercentage)) {
                 setVoorschotPercentage(f.voorschotPercentage);
             }
+            if (f.onderVoorbehoud !== undefined) {
+                setOnderVoorbehoud(!!f.onderVoorbehoud);
+            }
         }
+        setPdfTextSettings(sanitizeQuotePdfTextSettings((quote as any)?.pdfTeksten));
     }, [quote]);
 
     // Zoek bestaande voorschotfactuur id (voor link in UI)
@@ -421,7 +476,9 @@ export default function QuotePage() {
                     facturatie: {
                         voorschotIngeschakeld,
                         voorschotPercentage,
+                        onderVoorbehoud,
                     },
+                    pdfTeksten: pdfTextSettings,
                     updatedAt: new Date(),
                 });
             } catch (e) {
@@ -429,7 +486,7 @@ export default function QuotePage() {
             }
         }, 800);
         return () => clearTimeout(timer);
-    }, [voorschotIngeschakeld, voorschotPercentage, user, firestore, id, quote]);
+    }, [voorschotIngeschakeld, voorschotPercentage, onderVoorbehoud, pdfTextSettings, user, firestore, id, quote]);
 
     // Fetch Materials for Modal
     const [materialRefreshTrigger, setMaterialRefreshTrigger] = useState(0);
@@ -503,12 +560,32 @@ export default function QuotePage() {
     useEffect(() => {
         if (calculation?.data_json) {
             const normalized = normalizeDataJson(calculation.data_json);
+            const nextGroot = Array.isArray(normalized.grootmaterialen) ? normalized.grootmaterialen : [];
+            const nextVerbruik = Array.isArray(normalized.verbruiksartikelen) ? normalized.verbruiksartikelen : [];
+            const hasCalculatedMaterialDetails =
+                nextGroot.some(
+                    (item) => typeof item?.hoe_berekend === 'string' && item.hoe_berekend.trim().length > 0
+                ) ||
+                nextVerbruik.some(
+                    (item) => typeof item?.waarom_dit === 'string' && item.waarom_dit.trim().length > 0
+                );
 
             // 1. Materials
             setMaterials({
-                groot: normalized.grootmaterialen || [],
-                verbruik: normalized.verbruiksartikelen || [],
+                groot: nextGroot,
+                verbruik: nextVerbruik,
             });
+
+            if (!hasInitializedMaterialViewModeRef.current) {
+                setCombineMaterialLists(!hasCalculatedMaterialDetails);
+                hasInitializedMaterialViewModeRef.current = true;
+                hadCalculatedMaterialDetailsRef.current = hasCalculatedMaterialDetails;
+            } else if (hasCalculatedMaterialDetails && !hadCalculatedMaterialDetailsRef.current) {
+                setCombineMaterialLists(false);
+                hadCalculatedMaterialDetailsRef.current = true;
+            } else {
+                hadCalculatedMaterialDetailsRef.current = hasCalculatedMaterialDetails;
+            }
 
             // 2. Client Info
             if (normalized.klantinformatie) {
@@ -873,16 +950,18 @@ export default function QuotePage() {
 
         try {
             const listKey = category === 'groot' ? 'groot' : 'verbruik';
-            const jsonKey = category === 'groot' ? 'grootmaterialen' : 'verbruiksartikelen';
 
             const updated = [...materials[listKey], item];
             setMaterials(prev => ({ ...prev, [listKey]: updated }));
 
             if (calculation) {
                 const root = unwrapRoot(calculation.data_json);
+                const nextGroot = category === 'groot' ? updated : materials.groot;
+                const nextVerbruik = category === 'verbruik' ? updated : materials.verbruik;
                 await updateDataJson({
                     ...root,
-                    [jsonKey]: updated,
+                    grootmaterialen: nextGroot,
+                    verbruiksartikelen: nextVerbruik,
                 });
             }
         } finally {
@@ -897,7 +976,6 @@ export default function QuotePage() {
 
         try {
             const listKey = category === 'groot' ? 'groot' : 'verbruik';
-            const jsonKey = category === 'groot' ? 'grootmaterialen' : 'verbruiksartikelen';
             const current = materials[listKey];
 
             if (index < 0 || index >= current.length) return;
@@ -907,9 +985,12 @@ export default function QuotePage() {
 
             if (calculation) {
                 const root = unwrapRoot(calculation.data_json);
+                const nextGroot = category === 'groot' ? updated : materials.groot;
+                const nextVerbruik = category === 'verbruik' ? updated : materials.verbruik;
                 await updateDataJson({
                     ...root,
-                    [jsonKey]: updated,
+                    grootmaterialen: nextGroot,
+                    verbruiksartikelen: nextVerbruik,
                 });
             }
 
@@ -1451,6 +1532,45 @@ export default function QuotePage() {
         ...materials.verbruik.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0)
     ].length;
 
+    type MaterialSourceCategory = 'groot' | 'verbruik';
+    type CombinedMaterialItem = MaterialItem & {
+        _sourceCategory: MaterialSourceCategory;
+        _sourceIndex: number;
+        _sourceKey: string;
+    };
+
+    const combinedMaterialItems = useMemo<CombinedMaterialItem[]>(() => {
+        const grootItems = materials.groot.map((item, index) => ({
+            ...item,
+            _sourceCategory: 'groot' as const,
+            _sourceIndex: index,
+            _sourceKey: `groot-${index}`,
+        }));
+        const verbruikItems = materials.verbruik.map((item, index) => ({
+            ...item,
+            _sourceCategory: 'verbruik' as const,
+            _sourceIndex: index,
+            _sourceKey: `verbruik-${index}`,
+        }));
+        return [...grootItems, ...verbruikItems];
+    }, [materials.groot, materials.verbruik]);
+
+    const handleUpdateCombinedItem = (index: number, updates: Partial<MaterialItem>) => {
+        const source = combinedMaterialItems[index];
+        if (!source) return;
+        if (source._sourceCategory === 'groot') {
+            void handleUpdateGrootItem(source._sourceIndex, updates);
+            return;
+        }
+        void handleUpdateVerbruiksItem(source._sourceIndex, updates);
+    };
+
+    const handleRemoveCombinedItem = (index: number) => {
+        const source = combinedMaterialItems[index];
+        if (!source) return;
+        void handleRemoveItem(source._sourceCategory, source._sourceIndex);
+    };
+
     const handleMainTabChange = (nextTab: string) => {
         if (nextTab === 'compare') {
             setActiveTab('materialen');
@@ -1504,6 +1624,48 @@ export default function QuotePage() {
                 }
             });
         }
+    };
+
+    const actieveVoorwaarden = getVoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode);
+
+    const updateVoorwaardenAt = (index: number, value: string) => {
+        setPdfTextSettings((prev) => {
+            const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
+            const next = [...current];
+            next[index] = value;
+            return withVoorwaardenByMode(prev, voorwaardenEditorMode, next);
+        });
+    };
+
+    const addVoorwaarde = () => {
+        setPdfTextSettings((prev) => {
+            const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
+            return withVoorwaardenByMode(prev, voorwaardenEditorMode, [...current, '']);
+        });
+    };
+
+    const removeVoorwaarde = (index: number) => {
+        setPdfTextSettings((prev) => {
+            const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
+            const next = current.filter((_, i) => i !== index);
+            return withVoorwaardenByMode(prev, voorwaardenEditorMode, next.length > 0 ? next : ['']);
+        });
+    };
+
+    const moveVoorwaarde = (index: number, direction: -1 | 1) => {
+        setPdfTextSettings((prev) => {
+            const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
+            const target = index + direction;
+            if (target < 0 || target >= current.length) return prev;
+            const next = [...current];
+            const [item] = next.splice(index, 1);
+            next.splice(target, 0, item);
+            return withVoorwaardenByMode(prev, voorwaardenEditorMode, next);
+        });
+    };
+
+    const resetPdfTekstenNaarStandaard = () => {
+        setPdfTextSettings(defaultQuotePdfTextSettings);
     };
 
     // Helper to build PDF data object
@@ -1596,6 +1758,8 @@ export default function QuotePage() {
             },
             settings: pdfSettings,
             drawingImages: capturedDrawings, // Include captured drawings for preview
+            onderVoorbehoud,
+            tekstInstellingen: pdfTextSettings,
         };
     };
 
@@ -1767,12 +1931,15 @@ export default function QuotePage() {
                 margePercentage: quoteSettings?.extras?.winstMarge?.percentage || 0
             },
             settings: pdfSettings,
+            onderVoorbehoud,
+            tekstInstellingen: pdfTextSettings,
         };
     };
 
     // Handle PDF settings update with persistence
     const handlePdfSettingsChange = async (newSettings: QuotePDFSettings) => {
         setPdfSettings(newSettings);
+        setHasSavedPdfSettings(true);
 
         if (user && firestore) {
             try {
@@ -1901,7 +2068,20 @@ export default function QuotePage() {
         return null;
     };
 
-    const calculationInProgress = quote?.status === 'in_behandeling' && !calculation?.data_json;
+    const storedQuoteTotal = (() => {
+        const quoteWithTotal = quote as (Quote & { totaalbedrag?: unknown }) | null;
+        const totaalbedrag = quoteWithTotal?.totaalbedrag;
+        if (typeof totaalbedrag === 'number' && Number.isFinite(totaalbedrag)) return totaalbedrag;
+        const amount = quote?.amount;
+        if (typeof amount === 'number' && Number.isFinite(amount)) return amount;
+        return null;
+    })();
+
+    const hasStoredCalculatedTotal = storedQuoteTotal !== null;
+    const calculationInProgress =
+        quote?.status === 'in_behandeling' &&
+        !calculation?.data_json &&
+        !hasStoredCalculatedTotal;
     const calculationTimerStorageKey = `offerte_calculation_started_at_${id}`;
 
     useEffect(() => {
@@ -1947,10 +2127,10 @@ export default function QuotePage() {
         (calculationElapsedSeconds / CALCULATION_ESTIMATE_SECONDS) * 100
     );
     const isDelayedCalculation =
-        quote?.status === 'in_behandeling' &&
+        calculationInProgress &&
         calculationElapsedSeconds >= CALCULATION_ESTIMATE_SECONDS;
     const isCalculationTimedOut =
-        quote?.status === 'in_behandeling' &&
+        calculationInProgress &&
         calculationElapsedSeconds >= CALCULATION_STUCK_SECONDS;
 
     const handleRetryCalculation = async () => {
@@ -2013,24 +2193,24 @@ export default function QuotePage() {
         <div className="flex flex-col items-center justify-center py-20 gap-6">
             <div className="flex w-full max-w-sm flex-col items-center gap-3">
                 <div className={`font-medium tracking-wide ${isCalculationTimedOut ? 'text-rose-300' : 'text-emerald-400'}`}>
-                    {quote?.status === 'in_behandeling'
+                    {calculationInProgress
                         ? isCalculationTimedOut
                             ? 'ER IS IETS MISGEGAAN'
                             : isDelayedCalculation
-                            ? 'Berekening in behandeling'
-                            : 'MATERIALEN BEREKENEN'
+                                ? 'Berekening in behandeling'
+                                : 'MATERIALEN BEREKENEN'
                         : 'LADEN'}
                 </div>
                 <div className={`text-sm text-center ${isCalculationTimedOut ? 'text-rose-200' : 'text-muted-foreground animate-pulse'}`}>
-                    {quote?.status === 'in_behandeling'
+                    {calculationInProgress
                         ? isCalculationTimedOut
                             ? 'De berekening duurt langer dan 20 minuten. Probeer de calculatie opnieuw.'
                             : isDelayedCalculation
-                            ? 'De berekening duurt momenteel langer dan gemiddeld. We verwerken uw materialen en uren nog.'
-                            : 'De AI berekent de benodigde materialen en uren...'
+                                ? 'De berekening duurt momenteel langer dan gemiddeld. We verwerken uw materialen en uren nog.'
+                                : 'De AI berekent de benodigde materialen en uren...'
                         : 'Even geduld afrubelen...'}
                 </div>
-                {quote?.status === 'in_behandeling' && (
+                {calculationInProgress && (
                     isCalculationTimedOut ? (
                         <div className="w-full space-y-3 pt-1">
                             <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-200">
@@ -2204,7 +2384,14 @@ export default function QuotePage() {
                             </TabsList>
 
                             {activeTab === 'pdf' && (
-                                <Dialog open={isPdfSettingsOpen} onOpenChange={setIsPdfSettingsOpen}>
+                                <Dialog open={isPdfSettingsOpen} onOpenChange={(open) => {
+                                    setIsPdfSettingsOpen(open);
+                                    if (!open && !hasSavedPdfSettings) {
+                                        // User closed dialog without saving - mark as saved with defaults
+                                        setHasSavedPdfSettings(true);
+                                        handlePdfSettingsChange(pdfSettings);
+                                    }
+                                }}>
                                     <DialogTrigger asChild>
                                         <Button variant="ghost" size="sm" className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1">
                                             <Settings size={16} className="mr-2" /> PDF Instellingen
@@ -2218,6 +2405,13 @@ export default function QuotePage() {
                                             </DialogDescription>
                                         </DialogHeader>
 
+                                        {!hasSavedPdfSettings && (
+                                            <div className="mx-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                                                <p className="text-sm font-medium text-blue-400">👋 Welkom! Stel eerst je PDF voorkeuren in</p>
+                                                <p className="text-xs text-blue-400/70 mt-1">Kies welke informatie je op offertes en facturen wilt tonen. Deze instellingen worden onthouden voor volgende offertes.</p>
+                                            </div>
+                                        )}
+
                                         <div className="px-6 pb-6 space-y-6 max-h-[75vh] overflow-y-auto">
                                             <div className="rounded-lg border border-border bg-card">
                                                 <QuoteSettings
@@ -2225,6 +2419,171 @@ export default function QuotePage() {
                                                     onChange={handlePdfSettingsChange}
                                                     variant="flat"
                                                 />
+                                            </div>
+
+                                            <div className="space-y-4 rounded-lg border border-border p-4">
+                                                <div>
+                                                    <h3 className="font-semibold">Prijsafspraak</h3>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Bepaal hoe het totaalbedrag in de offerte wordt gepresenteerd.
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-muted/20 p-3">
+                                                    <div className="space-y-1">
+                                                        <div className="font-medium text-foreground">Onder voorbehoud</div>
+                                                        <div className="text-sm text-muted-foreground">
+                                                            Gebruik richtprijs + nacalculatie en betaling achteraf op factuur.
+                                                        </div>
+                                                    </div>
+                                                    <Switch
+                                                        checked={onderVoorbehoud}
+                                                        onCheckedChange={setOnderVoorbehoud}
+                                                    />
+                                                </div>
+
+                                                <p className="text-xs text-muted-foreground">
+                                                    Deze instelling wijzigt de tekst en betalingsvoorwaarden in de PDF-preview en in de uiteindelijke offerte.
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-4 rounded-lg border border-border p-4">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <h3 className="font-semibold">PDF Teksteditor</h3>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Bewerk voorwaarden, afsluiting en ondertekening voor deze offerte.
+                                                        </p>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="gap-2"
+                                                        onClick={resetPdfTekstenNaarStandaard}
+                                                    >
+                                                        <RotateCcw size={14} />
+                                                        Standaard
+                                                    </Button>
+                                                </div>
+
+                                                <div className="grid gap-2 sm:grid-cols-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant={voorwaardenEditorMode === 'vastePrijs' ? 'default' : 'outline'}
+                                                        onClick={() => setVoorwaardenEditorMode('vastePrijs')}
+                                                    >
+                                                        Voorwaarden vaste prijs
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant={voorwaardenEditorMode === 'onderVoorbehoud' ? 'default' : 'outline'}
+                                                        onClick={() => setVoorwaardenEditorMode('onderVoorbehoud')}
+                                                    >
+                                                        Voorwaarden onder voorbehoud
+                                                    </Button>
+                                                </div>
+
+                                                <div className="space-y-2 rounded-md border border-border bg-muted/10 p-3">
+                                                    <Label>
+                                                        {voorwaardenEditorMode === 'vastePrijs'
+                                                            ? 'Regels voor vaste prijs'
+                                                            : 'Regels voor onder voorbehoud'}
+                                                    </Label>
+                                                    {actieveVoorwaarden.map((regel, index) => (
+                                                        <div key={`${voorwaardenEditorMode}-${index}`} className="flex items-center gap-2">
+                                                            <Input
+                                                                value={regel}
+                                                                onChange={(e) => updateVoorwaardenAt(index, e.target.value)}
+                                                                placeholder="Voorwaarde..."
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="icon"
+                                                                className="h-9 w-9"
+                                                                onClick={() => moveVoorwaarde(index, -1)}
+                                                                disabled={index === 0}
+                                                            >
+                                                                <ArrowUp size={14} />
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="icon"
+                                                                className="h-9 w-9"
+                                                                onClick={() => moveVoorwaarde(index, 1)}
+                                                                disabled={index === actieveVoorwaarden.length - 1}
+                                                            >
+                                                                <ArrowDown size={14} />
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="icon"
+                                                                className="h-9 w-9 text-red-500 hover:text-red-400"
+                                                                onClick={() => removeVoorwaarde(index)}
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                    <Button type="button" variant="outline" className="gap-2" onClick={addVoorwaarde}>
+                                                        <Plus size={14} />
+                                                        Regel toevoegen
+                                                    </Button>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="pdfAfsluitingTekst">Afsluitingstekst</Label>
+                                                    <textarea
+                                                        id="pdfAfsluitingTekst"
+                                                        value={pdfTextSettings.afsluitingTekst}
+                                                        onChange={(e) =>
+                                                            setPdfTextSettings((prev) => ({
+                                                                ...prev,
+                                                                afsluitingTekst: e.target.value,
+                                                            }))
+                                                        }
+                                                        rows={3}
+                                                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-3 sm:grid-cols-2">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="pdfGroetTekst">Groet</Label>
+                                                        <Input
+                                                            id="pdfGroetTekst"
+                                                            value={pdfTextSettings.groetTekst}
+                                                            onChange={(e) =>
+                                                                setPdfTextSettings((prev) => ({
+                                                                    ...prev,
+                                                                    groetTekst: e.target.value,
+                                                                }))
+                                                            }
+                                                            placeholder="Bijv. Met vriendelijke groet,"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="pdfOndertekeningNaam">Ondertekening naam</Label>
+                                                        <Input
+                                                            id="pdfOndertekeningNaam"
+                                                            value={pdfTextSettings.ondertekeningNaam}
+                                                            onChange={(e) =>
+                                                                setPdfTextSettings((prev) => ({
+                                                                    ...prev,
+                                                                    ondertekeningNaam: e.target.value,
+                                                                }))
+                                                            }
+                                                            placeholder="Leeg = bedrijfsnaam uit profiel"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-xs text-muted-foreground">
+                                                    Wijzigingen worden automatisch opgeslagen voor deze offerte en direct toegepast in PDF Preview en Download.
+                                                </p>
                                             </div>
 
                                             <div className="space-y-4 rounded-lg border border-border p-4">
@@ -2370,6 +2729,16 @@ export default function QuotePage() {
                                                                 max={100}
                                                                 value={voorschotPercentage}
                                                                 onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                                                                onKeyDown={(e) => {
+                                                                    if (['e', 'E', '+', '-'].includes(e.key)) {
+                                                                        e.preventDefault();
+                                                                    }
+                                                                }}
+                                                                onPaste={(e) => {
+                                                                    if (/[eE+-]/.test(e.clipboardData.getData('text'))) {
+                                                                        e.preventDefault();
+                                                                    }
+                                                                }}
                                                                 disabled={!voorschotIngeschakeld}
                                                                 className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
                                                             />
@@ -2388,6 +2757,10 @@ export default function QuotePage() {
                                                             </span>
                                                         </div>
                                                     </div>
+                                                </div>
+
+                                                <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                                                    Onder voorbehoud instellen? Gebruik <span className="font-medium text-foreground">PDF Instellingen</span> in de tab <span className="font-medium text-foreground">PDF Preview</span>.
                                                 </div>
 
                                                 <div className="flex flex-wrap gap-2">
@@ -2483,34 +2856,75 @@ export default function QuotePage() {
                                         </div>
                                     </div>
 
-                                    <MaterialEditor
-                                        title="GROOTMATERIALEN"
-                                        items={materials.groot}
-                                        onUpdateItem={handleUpdateGrootItem}
-                                        onRemoveItem={(index) => handleRemoveItem('groot', index)}
-                                        onAddItem={(item) => handleAddItem('groot', item)}
-                                        subtotal={grootSubtotal}
-                                        vatRate={quoteSettings?.btwTarief}
-                                        onAddClick={() => setActiveCategory('groot')}
-                                        enableCalculationViewToggle
-                                        calculationTextFields="hoe_berekend"
-                                        showDontAutoIncludeOption={false}
-                                    />
-                                    <MaterialEditor
-                                        title="VERBRUIKSARTIKELEN"
-                                        items={materials.verbruik}
-                                        onUpdateItem={handleUpdateVerbruiksItem}
-                                        onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
-                                        onAddItem={(item) => handleAddItem('verbruik', item)}
-                                        subtotal={verbruikSubtotal}
-                                        vatRate={quoteSettings?.btwTarief}
-                                        onAddClick={() => setActiveCategory('verbruik')}
-                                        enableCalculationViewToggle
-                                        calculationTextFields="waarom_dit"
-                                        calculationToggleLabel="Laat toelichting zien"
-                                        calculationRowLabel="Waarom dit"
-                                        showDontAutoIncludeOption
-                                    />
+                                    {combineMaterialLists ? (
+                                        <>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button type="button" variant="outline" onClick={() => setActiveCategory('groot')}>
+                                                    Voeg toe als groot
+                                                </Button>
+                                                <Button type="button" variant="outline" onClick={() => setActiveCategory('verbruik')}>
+                                                    Voeg toe als verbruik
+                                                </Button>
+                                            </div>
+
+                                            <MaterialEditor
+                                                title="MATERIALEN LIJST"
+                                                items={combinedMaterialItems}
+                                                onUpdateItem={handleUpdateCombinedItem}
+                                                onRemoveItem={handleRemoveCombinedItem}
+                                                subtotal={grootSubtotal + verbruikSubtotal}
+                                                vatRate={quoteSettings?.btwTarief}
+                                                enableCalculationViewToggle
+                                                calculationTextFields={['hoe_berekend', 'waarom_dit']}
+                                                calculationToggleLabel="Laat details zien"
+                                                calculationRowLabel="Details"
+                                                showDontAutoIncludeOption={false}
+                                                listViewToggle={{
+                                                    label: 'Een lijst',
+                                                    checked: combineMaterialLists,
+                                                    onCheckedChange: setCombineMaterialLists,
+                                                }}
+                                            />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <MaterialEditor
+                                                title="GROOTMATERIALEN"
+                                                items={materials.groot}
+                                                onUpdateItem={handleUpdateGrootItem}
+                                                onRemoveItem={(index) => handleRemoveItem('groot', index)}
+                                                onAddItem={(item) => handleAddItem('groot', item)}
+                                                subtotal={grootSubtotal}
+                                                vatRate={quoteSettings?.btwTarief}
+                                                showLineTotalInclBtw={false}
+                                                onAddClick={() => setActiveCategory('groot')}
+                                                enableCalculationViewToggle
+                                                calculationTextFields="hoe_berekend"
+                                                showDontAutoIncludeOption={false}
+                                                listViewToggle={{
+                                                    label: 'Een lijst',
+                                                    checked: combineMaterialLists,
+                                                    onCheckedChange: setCombineMaterialLists,
+                                                }}
+                                            />
+                                            <MaterialEditor
+                                                title="VERBRUIKSARTIKELEN"
+                                                items={materials.verbruik}
+                                                onUpdateItem={handleUpdateVerbruiksItem}
+                                                onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
+                                                onAddItem={(item) => handleAddItem('verbruik', item)}
+                                                subtotal={verbruikSubtotal}
+                                                vatRate={quoteSettings?.btwTarief}
+                                                showLineTotalInclBtw={false}
+                                                onAddClick={() => setActiveCategory('verbruik')}
+                                                enableCalculationViewToggle
+                                                calculationTextFields="waarom_dit"
+                                                calculationToggleLabel="Laat toelichting zien"
+                                                calculationRowLabel="Waarom dit"
+                                                showDontAutoIncludeOption
+                                            />
+                                        </>
+                                    )}
 
                                     <Dialog open={isGrootCompareOpen} onOpenChange={setIsGrootCompareOpen}>
                                         <DialogContent className="sm:max-w-6xl max-h-[94vh] overflow-hidden">
