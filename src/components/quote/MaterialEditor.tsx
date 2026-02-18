@@ -2,9 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { formatCurrency, MaterialItem } from '@/lib/quote-calculations';
-import { Package, AlertCircle, Plus, Check, X, Trash2 } from 'lucide-react';
+import { Package, AlertCircle, Plus, Check, X, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
     AlertDialog,
     AlertDialogContent,
@@ -17,6 +23,9 @@ import {
 
 const DISALLOWED_NUMBER_KEYS = new Set(['e', 'E', '+', '-']);
 const DISALLOWED_NUMBER_PASTE = /[eE+-]/;
+
+type MaterialViewMode = 'single' | 'split';
+type MaterialCategoryStyle = 'groot' | 'verbruik' | 'neutral';
 
 interface MaterialEditorProps {
     title: string;
@@ -33,6 +42,10 @@ interface MaterialEditorProps {
     calculationRowLabel?: string;
     showDontAutoIncludeOption?: boolean;
     showLineTotalInclBtw?: boolean;
+    viewMode?: MaterialViewMode;
+    categoryStyle?: MaterialCategoryStyle;
+    showHeaderSummary?: boolean;
+    showAdvancedControlsMenu?: boolean;
     listViewToggle?: {
         label: string;
         checked: boolean;
@@ -53,6 +66,7 @@ interface MaterialRowProps {
     totalColumns: number;
     showDontAutoIncludeOption: boolean;
     showLineTotalInclBtw: boolean;
+    showSourceCategoryBadge: boolean;
 }
 
 function MaterialRow({
@@ -68,6 +82,7 @@ function MaterialRow({
     totalColumns,
     showDontAutoIncludeOption,
     showLineTotalInclBtw,
+    showSourceCategoryBadge,
 }: MaterialRowProps) {
     const [localAantal, setLocalAantal] = useState<string>(item.aantal?.toString() || '');
     const [localProduct, setLocalProduct] = useState<string>(item.product || '');
@@ -143,12 +158,13 @@ function MaterialRow({
 
     const needsPrice = !item.prijs_per_stuk || item.prijs_per_stuk === 0;
     const itemTotal = (item.prijs_per_stuk || 0) * (item.aantal || 0);
-    const sourceCategoryLabel =
-        item?._sourceCategory === 'groot'
+    const sourceCategoryLabel = showSourceCategoryBadge
+        ? item?._sourceCategory === 'groot'
             ? 'Groot'
             : item?._sourceCategory === 'verbruik'
                 ? 'Verbruik'
-                : null;
+                : null
+        : null;
     return (
         <>
             <tr className={`group transition-all duration-200 ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
@@ -310,6 +326,10 @@ export function MaterialEditor({
     calculationRowLabel = 'Berekening',
     showDontAutoIncludeOption = false,
     showLineTotalInclBtw = true,
+    viewMode = 'single',
+    categoryStyle = 'neutral',
+    showHeaderSummary = false,
+    showAdvancedControlsMenu = true,
     listViewToggle,
 }: MaterialEditorProps) {
     const [isAdding, setIsAdding] = useState(false);
@@ -337,6 +357,7 @@ export function MaterialEditor({
         return '';
     };
     const hasCalculationData = items.some((item) => getCalculationText(item).length > 0);
+    const hasAdvancedControls = (enableCalculationViewToggle && hasCalculationData) || Boolean(listViewToggle);
 
     const itemsNeedingPrice = items.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0).length;
 
@@ -382,12 +403,33 @@ export function MaterialEditor({
         }
     };
 
+    const categoryContainerClass = categoryStyle === 'groot'
+        ? 'border-l-2 border-l-emerald-500/70'
+        : categoryStyle === 'verbruik'
+            ? 'border-l-2 border-l-cyan-500/70'
+            : 'border-l-2 border-l-border/70';
+    const categoryHeaderClass = categoryStyle === 'groot'
+        ? 'bg-emerald-500/[0.08]'
+        : categoryStyle === 'verbruik'
+            ? 'bg-cyan-500/[0.08]'
+            : 'bg-muted/20';
+    const categoryIconClass = categoryStyle === 'groot'
+        ? 'bg-emerald-500/15 text-emerald-300'
+        : categoryStyle === 'verbruik'
+            ? 'bg-cyan-500/15 text-cyan-300'
+            : 'bg-muted text-muted-foreground';
+    const categoryChipClass = categoryStyle === 'groot'
+        ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
+        : categoryStyle === 'verbruik'
+            ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-200'
+            : 'border-border/70 bg-background/40 text-muted-foreground';
+
     return (
-        <div className="bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm">
+        <div className={`bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm ${categoryContainerClass}`}>
             {/* Header */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-muted/20">
+            <div className={`flex justify-between items-start gap-3 px-6 py-4 border-b border-border ${categoryHeaderClass}`}>
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${categoryIconClass}`}>
                         <Package size={18} />
                     </div>
                     <div>
@@ -398,26 +440,83 @@ export function MaterialEditor({
                                 {itemsNeedingPrice} zonder prijs
                             </span>
                         )}
+                        {showHeaderSummary && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${categoryChipClass}`}>
+                                    Aantal regels: {items.length}
+                                </span>
+                                <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${categoryChipClass}`}>
+                                    Subtotaal (excl. btw): {formatCurrency(subtotal)}
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
-                {((enableCalculationViewToggle && hasCalculationData) || listViewToggle) && (
-                    <div className="flex items-center gap-4">
-                        {enableCalculationViewToggle && hasCalculationData && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
-                                <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
-                            </div>
-                        )}
-                        {listViewToggle && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">{listViewToggle.label}</span>
-                                <Switch
-                                    checked={listViewToggle.checked}
-                                    onCheckedChange={listViewToggle.onCheckedChange}
-                                />
-                            </div>
-                        )}
-                    </div>
+                {hasAdvancedControls && (
+                    showAdvancedControlsMenu ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                    <MoreHorizontal size={14} className="mr-1" />
+                                    Meer opties
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-72">
+                                {enableCalculationViewToggle && hasCalculationData && (
+                                    <DropdownMenuItem
+                                        onSelect={(event) => event.preventDefault()}
+                                        className="cursor-default focus:bg-muted/60"
+                                    >
+                                        <div className="flex w-full items-center justify-between gap-3">
+                                            <span className="text-xs text-foreground">{calculationToggleLabel}</span>
+                                            <Switch
+                                                checked={showCalculation}
+                                                onCheckedChange={setShowCalculation}
+                                                onClick={(event) => event.stopPropagation()}
+                                            />
+                                        </div>
+                                    </DropdownMenuItem>
+                                )}
+                                {listViewToggle && (
+                                    <DropdownMenuItem
+                                        onSelect={(event) => event.preventDefault()}
+                                        className="cursor-default focus:bg-muted/60"
+                                    >
+                                        <div className="flex w-full items-center justify-between gap-3">
+                                            <span className="text-xs text-foreground">{listViewToggle.label}</span>
+                                            <Switch
+                                                checked={listViewToggle.checked}
+                                                onCheckedChange={listViewToggle.onCheckedChange}
+                                                onClick={(event) => event.stopPropagation()}
+                                            />
+                                        </div>
+                                    </DropdownMenuItem>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : (
+                        <div className="flex items-center gap-4">
+                            {enableCalculationViewToggle && hasCalculationData && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
+                                    <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
+                                </div>
+                            )}
+                            {listViewToggle && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">{listViewToggle.label}</span>
+                                    <Switch
+                                        checked={listViewToggle.checked}
+                                        onCheckedChange={listViewToggle.onCheckedChange}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )
                 )}
             </div>
 
@@ -465,6 +564,7 @@ export function MaterialEditor({
                             totalColumns={totalColumns}
                             showDontAutoIncludeOption={showDontAutoIncludeOption}
                             showLineTotalInclBtw={showLineTotalInclBtw}
+                            showSourceCategoryBadge={viewMode !== 'single'}
                         />
                     ))}
 
@@ -555,7 +655,7 @@ export function MaterialEditor({
             </div>
 
             {/* Footer / Add Button */}
-            {!isAdding && onAddItem && (
+            {!isAdding && (onAddItem || onAddClick) && (
                 <div className="p-3 bg-muted/20">
                     <Button
                         variant="ghost"
@@ -573,6 +673,9 @@ export function MaterialEditor({
                         <div className="text-right w-32 px-6">
                             <p className="text-primary font-bold tracking-tight">
                                 {formatCurrency(subtotal)}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                                (excl. btw)
                             </p>
                         </div>
                         {showLineTotalInclBtw && (

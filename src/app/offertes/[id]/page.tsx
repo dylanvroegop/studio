@@ -13,6 +13,7 @@ import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/comp
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useUser, useFirestore } from '@/firebase';
@@ -80,6 +81,8 @@ type QuoteMaterialPackage = QuoteMaterialPreset & {
 };
 
 type VoorwaardenEditorMode = 'vastePrijs' | 'onderVoorbehoud';
+type MaterialViewMode = 'single' | 'split';
+type MobileMaterialSection = 'groot' | 'verbruik';
 
 function toPresetItems(items: MaterialItem[]): MaterialPresetItem[] {
     const mapped: Array<MaterialPresetItem | null> = items.map((item) => {
@@ -282,9 +285,8 @@ export default function QuotePage() {
     const [isSaveMaterialPackageOpen, setIsSaveMaterialPackageOpen] = useState(false);
     const [materialPackageName, setMaterialPackageName] = useState('');
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
-    const [combineMaterialLists, setCombineMaterialLists] = useState(true);
-    const hasInitializedMaterialViewModeRef = useRef(false);
-    const hadCalculatedMaterialDetailsRef = useRef(false);
+    const [materialViewMode, setMaterialViewMode] = useState<MaterialViewMode>('single');
+    const [mobileMaterialSection, setMobileMaterialSection] = useState<MobileMaterialSection>('groot');
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(false);
@@ -415,9 +417,8 @@ export default function QuotePage() {
         hasEditedMaterialsRef.current = false;
         lastSavedMaterialPresetRef.current = '';
         setSelectedMaterialPackageId('NIEUW');
-        hasInitializedMaterialViewModeRef.current = false;
-        hadCalculatedMaterialDetailsRef.current = false;
-        setCombineMaterialLists(true);
+        setMaterialViewMode('single');
+        setMobileMaterialSection('groot');
     }, [id]);
 
     useEffect(() => {
@@ -576,16 +577,7 @@ export default function QuotePage() {
                 verbruik: nextVerbruik,
             });
 
-            if (!hasInitializedMaterialViewModeRef.current) {
-                setCombineMaterialLists(!hasCalculatedMaterialDetails);
-                hasInitializedMaterialViewModeRef.current = true;
-                hadCalculatedMaterialDetailsRef.current = hasCalculatedMaterialDetails;
-            } else if (hasCalculatedMaterialDetails && !hadCalculatedMaterialDetailsRef.current) {
-                setCombineMaterialLists(false);
-                hadCalculatedMaterialDetailsRef.current = true;
-            } else {
-                hadCalculatedMaterialDetailsRef.current = hasCalculatedMaterialDetails;
-            }
+            setMaterialViewMode(hasCalculatedMaterialDetails ? 'split' : 'single');
 
             // 2. Client Info
             if (normalized.klantinformatie) {
@@ -635,6 +627,12 @@ export default function QuotePage() {
             }
         }
     }, [calculation]);
+
+    useEffect(() => {
+        if (materialViewMode === 'single') {
+            setMobileMaterialSection('groot');
+        }
+    }, [materialViewMode]);
 
     // Fetch quote metadata from Firebase (Fallback for legacy data or metadata only)
     useEffect(() => {
@@ -1519,6 +1517,8 @@ export default function QuotePage() {
         (sum, item) => sum + (item.prijs_per_stuk || 0) * item.aantal,
         0
     );
+    const totalMaterialItems = materials.groot.length + materials.verbruik.length;
+    const totalMaterialExcl = grootSubtotal + verbruikSubtotal;
     const selectedMaterialPackage =
         materialPackages.find((pkg) => pkg.id === selectedMaterialPackageId) || null;
     const materialPackagePickerQuery = materialPackagePickerSearch.trim().toLowerCase();
@@ -1569,6 +1569,9 @@ export default function QuotePage() {
         const source = combinedMaterialItems[index];
         if (!source) return;
         void handleRemoveItem(source._sourceCategory, source._sourceIndex);
+    };
+    const handleOpenSingleMaterialPicker = () => {
+        setActiveCategory('groot');
     };
 
     const handleMainTabChange = (nextTab: string) => {
@@ -2810,7 +2813,6 @@ export default function QuotePage() {
                                     )}
 
                                     <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
-                                        <Label className="text-base font-semibold text-foreground/90">Kies Een Werkpakket</Label>
                                         <div
                                             className="grid w-full items-stretch"
                                             style={{ gridTemplateColumns: '84% 15%', columnGap: '1%' }}
@@ -2856,73 +2858,146 @@ export default function QuotePage() {
                                         </div>
                                     </div>
 
-                                    {combineMaterialLists ? (
-                                        <>
-                                            <div className="flex flex-wrap gap-2">
-                                                <Button type="button" variant="outline" onClick={() => setActiveCategory('groot')}>
-                                                    Voeg toe als groot
-                                                </Button>
-                                                <Button type="button" variant="outline" onClick={() => setActiveCategory('verbruik')}>
-                                                    Voeg toe als verbruik
-                                                </Button>
-                                            </div>
-
-                                            <MaterialEditor
-                                                title="MATERIALEN LIJST"
-                                                items={combinedMaterialItems}
-                                                onUpdateItem={handleUpdateCombinedItem}
-                                                onRemoveItem={handleRemoveCombinedItem}
-                                                subtotal={grootSubtotal + verbruikSubtotal}
-                                                vatRate={quoteSettings?.btwTarief}
-                                                enableCalculationViewToggle
-                                                calculationTextFields={['hoe_berekend', 'waarom_dit']}
-                                                calculationToggleLabel="Laat details zien"
-                                                calculationRowLabel="Details"
-                                                showDontAutoIncludeOption={false}
-                                                listViewToggle={{
-                                                    label: 'Een lijst',
-                                                    checked: combineMaterialLists,
-                                                    onCheckedChange: setCombineMaterialLists,
-                                                }}
-                                            />
-                                        </>
+                                    {materialViewMode === 'single' ? (
+                                        <MaterialEditor
+                                            title="MATERIALEN LIJST"
+                                            items={combinedMaterialItems}
+                                            onUpdateItem={handleUpdateCombinedItem}
+                                            onRemoveItem={handleRemoveCombinedItem}
+                                            subtotal={totalMaterialExcl}
+                                            vatRate={quoteSettings?.btwTarief}
+                                            showLineTotalInclBtw={false}
+                                            viewMode="single"
+                                            categoryStyle="neutral"
+                                            showAdvancedControlsMenu
+                                            onAddClick={handleOpenSingleMaterialPicker}
+                                            showDontAutoIncludeOption={false}
+                                        />
                                     ) : (
                                         <>
-                                            <MaterialEditor
-                                                title="GROOTMATERIALEN"
-                                                items={materials.groot}
-                                                onUpdateItem={handleUpdateGrootItem}
-                                                onRemoveItem={(index) => handleRemoveItem('groot', index)}
-                                                onAddItem={(item) => handleAddItem('groot', item)}
-                                                subtotal={grootSubtotal}
-                                                vatRate={quoteSettings?.btwTarief}
-                                                showLineTotalInclBtw={false}
-                                                onAddClick={() => setActiveCategory('groot')}
-                                                enableCalculationViewToggle
-                                                calculationTextFields="hoe_berekend"
-                                                showDontAutoIncludeOption={false}
-                                                listViewToggle={{
-                                                    label: 'Een lijst',
-                                                    checked: combineMaterialLists,
-                                                    onCheckedChange: setCombineMaterialLists,
-                                                }}
-                                            />
-                                            <MaterialEditor
-                                                title="VERBRUIKSARTIKELEN"
-                                                items={materials.verbruik}
-                                                onUpdateItem={handleUpdateVerbruiksItem}
-                                                onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
-                                                onAddItem={(item) => handleAddItem('verbruik', item)}
-                                                subtotal={verbruikSubtotal}
-                                                vatRate={quoteSettings?.btwTarief}
-                                                showLineTotalInclBtw={false}
-                                                onAddClick={() => setActiveCategory('verbruik')}
-                                                enableCalculationViewToggle
-                                                calculationTextFields="waarom_dit"
-                                                calculationToggleLabel="Laat toelichting zien"
-                                                calculationRowLabel="Waarom dit"
-                                                showDontAutoIncludeOption
-                                            />
+                                            <div className="hidden md:block space-y-4">
+                                                <MaterialEditor
+                                                    title="GROOTMATERIALEN"
+                                                    items={materials.groot}
+                                                    onUpdateItem={handleUpdateGrootItem}
+                                                    onRemoveItem={(index) => handleRemoveItem('groot', index)}
+                                                    onAddItem={(item) => handleAddItem('groot', item)}
+                                                    subtotal={grootSubtotal}
+                                                    vatRate={quoteSettings?.btwTarief}
+                                                    showLineTotalInclBtw={false}
+                                                    onAddClick={() => setActiveCategory('groot')}
+                                                    enableCalculationViewToggle
+                                                    calculationTextFields="hoe_berekend"
+                                                    showDontAutoIncludeOption={false}
+                                                    viewMode="split"
+                                                    categoryStyle="groot"
+                                                    showAdvancedControlsMenu
+                                                />
+                                                <MaterialEditor
+                                                    title="VERBRUIKSARTIKELEN"
+                                                    items={materials.verbruik}
+                                                    onUpdateItem={handleUpdateVerbruiksItem}
+                                                    onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
+                                                    onAddItem={(item) => handleAddItem('verbruik', item)}
+                                                    subtotal={verbruikSubtotal}
+                                                    vatRate={quoteSettings?.btwTarief}
+                                                    showLineTotalInclBtw={false}
+                                                    onAddClick={() => setActiveCategory('verbruik')}
+                                                    enableCalculationViewToggle
+                                                    calculationTextFields="waarom_dit"
+                                                    calculationToggleLabel="Laat toelichting zien"
+                                                    calculationRowLabel="Waarom dit"
+                                                    showDontAutoIncludeOption
+                                                    viewMode="split"
+                                                    categoryStyle="verbruik"
+                                                    showAdvancedControlsMenu
+                                                />
+                                            </div>
+                                            <div className="md:hidden">
+                                                <Accordion
+                                                    type="single"
+                                                    value={mobileMaterialSection}
+                                                    onValueChange={(value) => {
+                                                        if (value === 'groot' || value === 'verbruik') {
+                                                            setMobileMaterialSection(value);
+                                                        }
+                                                    }}
+                                                    className="space-y-3"
+                                                >
+                                                    <AccordionItem value="groot" className="overflow-hidden rounded-xl border border-border/70 bg-card/40">
+                                                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                                                            <div className="flex w-full items-center justify-between gap-2 pr-2">
+                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                                                    <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                                                                        Grootmaterialen
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                                                                    <span>{materials.groot.length} regels</span>
+                                                                    <span>{formatCurrency(grootSubtotal)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </AccordionTrigger>
+                                                        <AccordionContent className="pb-0">
+                                                            <MaterialEditor
+                                                                title="GROOTMATERIALEN"
+                                                                items={materials.groot}
+                                                                onUpdateItem={handleUpdateGrootItem}
+                                                                onRemoveItem={(index) => handleRemoveItem('groot', index)}
+                                                                onAddItem={(item) => handleAddItem('groot', item)}
+                                                                subtotal={grootSubtotal}
+                                                                vatRate={quoteSettings?.btwTarief}
+                                                                showLineTotalInclBtw={false}
+                                                                onAddClick={() => setActiveCategory('groot')}
+                                                                enableCalculationViewToggle
+                                                                calculationTextFields="hoe_berekend"
+                                                                showDontAutoIncludeOption={false}
+                                                                viewMode="split"
+                                                                categoryStyle="groot"
+                                                                showAdvancedControlsMenu
+                                                            />
+                                                        </AccordionContent>
+                                                    </AccordionItem>
+                                                    <AccordionItem value="verbruik" className="overflow-hidden rounded-xl border border-border/70 bg-card/40">
+                                                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                                                            <div className="flex w-full items-center justify-between gap-2 pr-2">
+                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                                                                    <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                                                                        Verbruiksmaterialen
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                                                                    <span>{materials.verbruik.length} regels</span>
+                                                                    <span>{formatCurrency(verbruikSubtotal)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </AccordionTrigger>
+                                                        <AccordionContent className="pb-0">
+                                                            <MaterialEditor
+                                                                title="VERBRUIKSARTIKELEN"
+                                                                items={materials.verbruik}
+                                                                onUpdateItem={handleUpdateVerbruiksItem}
+                                                                onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
+                                                                onAddItem={(item) => handleAddItem('verbruik', item)}
+                                                                subtotal={verbruikSubtotal}
+                                                                vatRate={quoteSettings?.btwTarief}
+                                                                showLineTotalInclBtw={false}
+                                                                onAddClick={() => setActiveCategory('verbruik')}
+                                                                enableCalculationViewToggle
+                                                                calculationTextFields="waarom_dit"
+                                                                calculationToggleLabel="Laat toelichting zien"
+                                                                calculationRowLabel="Waarom dit"
+                                                                showDontAutoIncludeOption
+                                                                viewMode="split"
+                                                                categoryStyle="verbruik"
+                                                                showAdvancedControlsMenu
+                                                            />
+                                                        </AccordionContent>
+                                                    </AccordionItem>
+                                                </Accordion>
+                                            </div>
                                         </>
                                     )}
 
@@ -3233,7 +3308,7 @@ export default function QuotePage() {
                                                         Totaal (excl. btw)
                                                     </span>
                                                     <span className="text-primary font-bold tracking-tight">
-                                                        {formatCurrency(grootSubtotal + verbruikSubtotal)}
+                                                        {formatCurrency(totalMaterialExcl)}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-2 whitespace-nowrap">
@@ -3241,7 +3316,7 @@ export default function QuotePage() {
                                                         Totaal (incl. btw)
                                                     </span>
                                                     <span className="text-primary font-bold tracking-tight">
-                                                        {formatCurrency((grootSubtotal + verbruikSubtotal) * (1 + (quoteSettings?.btwTarief || 21) / 100))}
+                                                        {formatCurrency(totalMaterialExcl * (1 + (quoteSettings?.btwTarief || 21) / 100))}
                                                     </span>
                                                 </div>
                                             </div>

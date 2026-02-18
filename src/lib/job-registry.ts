@@ -383,12 +383,12 @@ const HSB_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 3. BEPLATING
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'constructieplaat', category_ultra_filter: 'osb' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: 'Gipsplaten' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: 'AK2' },
 
   // 4. KOOF
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Constructieplaat', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: 'AK2' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
@@ -444,12 +444,12 @@ const METALSTUD_VOORZETWAND_BINNEN_MATS: MaterialSection[] = [
 
   // 3. BEPLATING
   { label: 'Constructieplaat', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat', category_ultra_filter: 'osb' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: 'Gipsplaten' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'afwerkplaat', category_ultra_filter: 'AK2' },
 
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: 'AK2' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
@@ -491,13 +491,13 @@ const METALSTUD_SCHEIDINGSWAND_MATS: MaterialSection[] = [
   // 3. BEPLATING
   { label: 'Constructieplaat (Zijde 1)', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat_1', category_ultra_filter: '' },
   { label: 'Constructieplaat (Zijde 2)', categoryFilter: 'Constructieplaten, Interieur Platen', category: 'beplating', key: 'constructieplaat_2', category_ultra_filter: '' },
-  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_1', category_ultra_filter: 'Gipsplaten' },
-  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_2', category_ultra_filter: 'Gipsplaten' },
+  { label: 'Afwerkplaat (Zijde 1)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_1', category_ultra_filter: 'AK2' },
+  { label: 'Afwerkplaat (Zijde 2)', categoryFilter: 'Gipsplaten', category: 'beplating', key: 'beplating_2', category_ultra_filter: 'AK2' },
 
   // 4. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: 'AK2' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
   // 5. AFWERKEN (TIMMERWERK)
@@ -541,7 +541,7 @@ const HSB_BUITENWAND_MATS: MaterialSection[] = [
   // 3. BEPLATING (BINNEN & BUITEN)
   { label: 'Constructieplaat (Buiten)', categoryFilter: 'Exterieur platen, Constructieplaten', category: 'beplating', key: 'plaat_buiten', category_ultra_filter: '' },
   { label: 'Constructieplaat (Binnen)', categoryFilter: 'Constructieplaten', category: 'beplating', key: 'osb_binnen', category_ultra_filter: 'osb' },
-  { label: 'Afwerkplaat (Binnen)', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'beplating', key: 'gips_binnen', category_ultra_filter: '' },
+  { label: 'Afwerkplaat (Binnen)', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'beplating', key: 'gips_binnen', category_ultra_filter: 'AK2' },
 
   // 4. AFWERKEN (TIMMERWERK - BINNEN)
   { label: 'Dagkanten', categoryFilter: 'Interieur Platen', category: 'Dagkant', key: 'dagkant_binnen', category_ultra_filter: '' },
@@ -660,7 +660,7 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   // 2. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: 'AK4' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
 
@@ -671,7 +671,7 @@ const PLAFOND_HOUT_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 7. BEPLATING
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: 'Gipsplaten' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: 'AK4' },
 
   // 8. AFWERKEN (TIMMERWERK)
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
@@ -693,7 +693,7 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   // 2. KOOF (Omkasting voor buizen/afvoer)
   { label: 'Regelwerk', categoryFilter: 'Vuren hout, Metalstud profielen', category: 'Koof', key: 'koof_regelwerk', category_ultra_filter: '' },
   { label: 'Beplating', categoryFilter: 'Interieur Platen, Constructieplaten', category: 'Koof', key: 'koof_constructieplaat', category_ultra_filter: '' },
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: '' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Interieur Platen', category: 'Koof', key: 'koof_afwerkplaat', category_ultra_filter: 'AK4' },
   { label: 'Isolatie', categoryFilter: 'Isolatie', category: 'Koof', key: 'koof_isolatie', category_ultra_filter: '' },
 
 
@@ -704,7 +704,7 @@ const PLAFOND_METALSTUD_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie_basis', category_ultra_filter: '' },
 
   // 7. BEPLATING
-  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: 'Gipsplaten' },
+  { label: 'Afwerkplaat', categoryFilter: 'Gipsplaten, Brandwerende platen', category: 'beplating', key: 'beplating', category_ultra_filter: 'AK4' },
 
   // 8. AFWERKEN (TIMMERWERK)
   { label: 'Plafondplinten', categoryFilter: 'Afwerking', category: 'afwerking', key: 'plinten_plafond', category_ultra_filter: '' },
